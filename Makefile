@@ -30,6 +30,7 @@ mocks-$(strip $(1))-$(strip $(2)): ${MOCKERY}
 	${MOCKERY} --case underscore --dir $(1) --name $(2) --outpkg $(3) --output mocks/$(strip $(3))
 endef
 
+$(eval $(call makemock, pkg/ffcapi,                  API,                 ffcapimocks))
 $(eval $(call makemock, internal/manager,            Manager,             managermocks))
 
 firefly-transaction-manager: ${GOFILES}
@@ -45,4 +46,4 @@ deps:
 swagger:
 		$(VGO) test ./internal/apiserver -timeout=10s -tags swagger
 docker:
-		docker build -t hyperledger/firefly-transaction-manager .
+		docker build --build-arg BUILD_VERSION=${BUILD_VERSION} ${DOCKER_ARGS} -t hyperledger/firefly-transaction-manager .
