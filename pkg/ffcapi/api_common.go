@@ -1,0 +1,133 @@
+// Copyright © 2022 Kaleido, Inc.
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package ffcapi
+
+import (
+	"github.com/aidarkhanov/nanoid"
+	"github.com/hyperledger/firefly/pkg/fftypes"
+)
+
+// RequestType for each request is defined in the individual file
+type RequestType string
+
+type Version string
+
+const (
+	Version1_0 Version = "ffcapi_v1.0"
+)
+
+const FFCAPIVersionCurrent = Version1_0
+
+type Variant string
+
+const (
+	VariantEVM Variant = "evm"
+)
+
+// ErrorReason are a set of standard error conditions that a blockchain connector can return
+// from execution, that affect the action of the transaction manager to the response.
+// It is important that error mapping is performed for each of these classification
+type ErrorReason string
+
+const (
+	// ErrorReasonInvalidInputs transaction inputs could not be parsed by the connector according to the interface (nothing was sent to the blockchain)
+	ErrorReasonInvalidInputs ErrorReason = "invalid_inputs"
+	// ErrorReasonTransactionReverted on-chain execution (only expected to be returned when the connector is doing gas estimation, or executing a query)
+	ErrorReasonTransactionReverted ErrorReason = "transaction_reverted"
+	// ErrorReasonNonceTooLow on transaction submission, if the nonce has already been used for a transaction that has made it into a block on canonical chain known to the local node
+	ErrorReasonNonceTooLow ErrorReason = "nonce_too_low"
+	// ErrorReasonTransactionUnderpriced if the transaction is rejected due to too low gas price. Either because it was too low according to the minimum configured on the node, or because it's a rescue transaction without a price bump.
+	ErrorReasonTransactionUnderpriced ErrorReason = "transaction_underpriced"
+	// ErrorReasonReceiptNotAvailable if a receipt for the requested transaction is not available
+	ErrorReasonReceiptNotAvailable ErrorReason = "receipt_not_available"
+)
+
+// Header is included consistently as a "header" structure on each request
+type Header struct {
+	RequestID   RequestID   `json:"id"`      // Unique for each request
+	Version     Version     `json:"version"` // The API version
+	Variant     Variant     `json:"variant"` // Defines the format of the input/output bodies, which FFTM operates pass-through on from FireFly core to the Blockchain connector
+	RequestType RequestType `json:"type"`    // The type of the request, which defines how it should be processed, and the structure of the rest of the payload
+}
+
+// TransactionInput is a standardized set of parameters that describe a transaction submission to a blockchain.
+// - Numberic values such as nonce/gas/gasPrice, are all passed as string encoded Base 10 integers
+// - From/To are passed as strings, and are pass-through for FFTM from the values it receives from FireFly core after signing key resolution
+// - The interface is a structure describing the method to invoke. The `variant` in the header tells you how to decode it. For variant=evm it will be an ABI method definition
+// - The supplied value is passed through for each input parameter. It could be any JSON type (simple number/boolean/string, or complex object/array). The blockchain connection is responsible for serializing these according to the rules in the interface.
+type TransactionInput struct {
+	Nonce     *fftypes.FFBigInt `json:"nonce"`
+	Gas       *fftypes.FFBigInt `json:"gas,omitempty"`
+	GasPrice  *fftypes.FFBigInt `json:"gasPrice"`
+	From      string            `json:"from"`
+	To        string            `json:"to"`
+	Value     *fftypes.FFBigInt `json:"value"`
+	Interface fftypes.JSONAny   `json:"interface"`
+	Inputs    []fftypes.JSONAny `json:"inputs"`
+}
+
+// ErrorResponse allows blockchain connectors to encode useful information about an error in a JSON response body.
+// This should be accompanied with a suitable non-success HTTP response code. However, the "reason" (if supplied)
+// is the only information that will be used to change the transaction manager's handling of the error.
+type ErrorResponse struct {
+	Reason ErrorReason `json:"reason,omitempty"`
+	Error  string      `json:"error"`
+}
+
+type RequestBase struct {
+	Header Header `json:"header"`
+}
+
+func (r *RequestBase) RequestHeader() *Header {
+	return &r.Header
+}
+
+type ResponseBase struct {
+	ErrorResponse
+}
+
+func (r *ResponseBase) ErrorMessage() string {
+	return r.Error
+}
+
+func (r *ResponseBase) ErrorReason() ErrorReason {
+	return r.Reason
+}
+
+type ffcapiRequest interface {
+	RequestHeader() *Header
+	RequestType() RequestType
+}
+
+type ffcapiResponse interface {
+	ErrorMessage() string
+	ErrorReason() ErrorReason
+}
+
+type RequestID string
+
+func initHeader(header *Header, variant Variant, requestType RequestType) {
+	header.RequestID = newRequestID()
+	header.Version = FFCAPIVersionCurrent
+	header.Variant = variant
+	header.RequestType = requestType
+}
+
+func newRequestID() RequestID {
+	id, _ := nanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyz", 16)
+	return RequestID(id)
+}

@@ -18,6 +18,7 @@ package tmconfig
 
 import (
 	"github.com/hyperledger/firefly/pkg/config"
+	"github.com/hyperledger/firefly/pkg/ffresty"
 	"github.com/spf13/viper"
 )
 
@@ -26,12 +27,20 @@ var ffc = config.AddRootKey
 var (
 	// MonitorPollingInterval frequency of polling against FireFly (note polling is only a backup for event notification)
 	MonitorPollingInterval = ffc("monitor.pollingInterval")
+	// ConnectorVariant is the variant setting to add to all requests to the backend connector
+	ConnectorVariant = ffc("connector.variant")
 )
+
+var ConnectorPrefix config.Prefix
 
 func setDefaults() {
 	viper.SetDefault(string(MonitorPollingInterval), "15m")
+	viper.SetDefault(string(ConnectorVariant), "evm")
 }
 
 func Reset() {
 	config.RootConfigReset(setDefaults)
+
+	ConnectorPrefix = config.NewPluginConfig("connector")
+	ffresty.InitPrefix(ConnectorPrefix)
 }
