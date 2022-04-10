@@ -14,16 +14,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tmmsgs
+package ffcapi
 
-import "github.com/hyperledger/firefly/pkg/i18n"
+import (
+	"testing"
 
-var ffe = i18n.FFE
-
-//revive:disable
-var (
-	MsgInvalidOutputType          = ffe("FF201010", "Invalid output type: %s")
-	MsgConnectorError             = ffe("FF201012", "Connector request=%s error: %s")
-	MsgConnectorInvalidConentType = ffe("FF201032", "Connector request=%s invalid content type: %s")
-	MsgConnectorFailInvoke        = ffe("FF201033", "Connector request=%s failed to invoke")
+	"github.com/stretchr/testify/assert"
 )
+
+func TestRequestID(t *testing.T) {
+	assert.Regexp(t, "[0-9a-z]{16}", newRequestID())
+}
