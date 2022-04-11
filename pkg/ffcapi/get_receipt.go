@@ -29,9 +29,10 @@ type GetReceiptRequest struct {
 
 type GetReceiptResponse struct {
 	ResponseBase
-	BlockNumber *fftypes.FFBigInt `json:"blockNumber"`
-	BlockHash   string            `json:"blockHash"`
-	ExtraInfo   fftypes.JSONAny   `json:"extraInfo"`
+	BlockNumber      *fftypes.FFBigInt `json:"blockNumber"`
+	TransactionIndex *fftypes.FFBigInt `json:"transactinIndex"`
+	BlockHash        string            `json:"blockHash"`
+	ExtraInfo        fftypes.JSONAny   `json:"extraInfo"`
 }
 
 const RequestTypeGetReceipt RequestType = "get_receipt"
