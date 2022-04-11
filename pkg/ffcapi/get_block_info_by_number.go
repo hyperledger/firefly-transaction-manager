@@ -24,7 +24,7 @@ import (
 
 type GetBlockInfoByNumberRequest struct {
 	RequestBase
-	BlockHash *fftypes.FFBigInt `json:"blockNumber"`
+	BlockNumber *fftypes.FFBigInt `json:"blockNumber"`
 }
 
 type GetBlockInfoByNumberResponse struct {

@@ -29,6 +29,14 @@ var (
 	MonitorPollingInterval = ffc("monitor.pollingInterval")
 	// ConnectorVariant is the variant setting to add to all requests to the backend connector
 	ConnectorVariant = ffc("connector.variant")
+	// ConfirmationsRequired is the number of confirmations required for a transaction to be considered final
+	ConfirmationsRequired = ffc("confirmations.required")
+	// ConfirmationsBlockCacheSize is the size of the block cache
+	ConfirmationsBlockCacheSize = ffc("confirmations.blockCacheSize")
+	// ConfirmationsBlockPollingInterval is the time between block polling
+	ConfirmationsBlockPollingInterval = ffc("confirmations.blockPollingInterval")
+	// ConfirmationsNotificationQueueLength is the length of the internal queue to the block confirmations manager
+	ConfirmationsNotificationQueueLength = ffc("confirmations.notificationQueueLength")
 )
 
 var ConnectorPrefix config.Prefix
@@ -36,6 +44,10 @@ var ConnectorPrefix config.Prefix
 func setDefaults() {
 	viper.SetDefault(string(MonitorPollingInterval), "15m")
 	viper.SetDefault(string(ConnectorVariant), "evm")
+	viper.SetDefault(string(ConfirmationsRequired), 20)
+	viper.SetDefault(string(ConfirmationsBlockCacheSize), 1000)
+	viper.SetDefault(string(ConfirmationsBlockPollingInterval), "3s")
+	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
 }
 
 func Reset() {

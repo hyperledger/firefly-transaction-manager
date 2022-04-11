@@ -20,7 +20,7 @@ import "context"
 
 type GetNewBlockHashesRequest struct {
 	RequestBase
-	Listener string `json:"listenerId"`
+	ListenerID string `json:"listenerId"`
 }
 
 type GetNewBlockHashesResponse struct {

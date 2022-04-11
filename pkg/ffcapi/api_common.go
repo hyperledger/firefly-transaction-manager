@@ -52,8 +52,8 @@ const (
 	ErrorReasonNonceTooLow ErrorReason = "nonce_too_low"
 	// ErrorReasonTransactionUnderpriced if the transaction is rejected due to too low gas price. Either because it was too low according to the minimum configured on the node, or because it's a rescue transaction without a price bump.
 	ErrorReasonTransactionUnderpriced ErrorReason = "transaction_underpriced"
-	// ErrorReasonReceiptNotAvailable if a receipt for the requested transaction is not available
-	ErrorReasonReceiptNotAvailable ErrorReason = "receipt_not_available"
+	// ErrorReasonNotFound if the requested object (block/receipt etc.) was not found
+	ErrorReasonNotFound ErrorReason = "not_found"
 )
 
 // Header is included consistently as a "header" structure on each request
