@@ -224,6 +224,36 @@ func (_m *API) GetReceipt(ctx context.Context, req *ffcapi.GetReceiptRequest) (*
 	return r0, r1, r2
 }
 
+// PrepareTransaction provides a mock function with given fields: ctx, req
+func (_m *API) PrepareTransaction(ctx context.Context, req *ffcapi.PrepareTransactionRequest) (*ffcapi.PrepareTransactionResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx, req)
+
+	var r0 *ffcapi.PrepareTransactionResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.PrepareTransactionRequest) *ffcapi.PrepareTransactionResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.PrepareTransactionResponse)
+		}
+	}
+
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.PrepareTransactionRequest) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.PrepareTransactionRequest) error); ok {
+		r2 = rf(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // SendTransaction provides a mock function with given fields: ctx, req
 func (_m *API) SendTransaction(ctx context.Context, req *ffcapi.SendTransactionRequest) (*ffcapi.SendTransactionResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)

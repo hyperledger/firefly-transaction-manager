@@ -17,7 +17,6 @@
 package ffcapi
 
 import (
-	"github.com/aidarkhanov/nanoid"
 	"github.com/hyperledger/firefly/pkg/fftypes"
 )
 
@@ -58,26 +57,35 @@ const (
 
 // Header is included consistently as a "header" structure on each request
 type Header struct {
-	RequestID   RequestID   `json:"id"`      // Unique for each request
-	Version     Version     `json:"version"` // The API version
-	Variant     Variant     `json:"variant"` // Defines the format of the input/output bodies, which FFTM operates pass-through on from FireFly core to the Blockchain connector
-	RequestType RequestType `json:"type"`    // The type of the request, which defines how it should be processed, and the structure of the rest of the payload
+	RequestID   *fftypes.UUID `json:"id"`      // Unique for each request
+	Version     Version       `json:"version"` // The API version
+	Variant     Variant       `json:"variant"` // Defines the format of the input/output bodies, which FFTM operates pass-through on from FireFly core to the Blockchain connector
+	RequestType RequestType   `json:"type"`    // The type of the request, which defines how it should be processed, and the structure of the rest of the payload
 }
 
 // TransactionInput is a standardized set of parameters that describe a transaction submission to a blockchain.
+// For convenience, ths structure is compatible with the EthConnect `SendTransaction` structure, for the subset of usage made by FireFly core / Tokens connectors.
 // - Numberic values such as nonce/gas/gasPrice, are all passed as string encoded Base 10 integers
 // - From/To are passed as strings, and are pass-through for FFTM from the values it receives from FireFly core after signing key resolution
 // - The interface is a structure describing the method to invoke. The `variant` in the header tells you how to decode it. For variant=evm it will be an ABI method definition
 // - The supplied value is passed through for each input parameter. It could be any JSON type (simple number/boolean/string, or complex object/array). The blockchain connection is responsible for serializing these according to the rules in the interface.
 type TransactionInput struct {
-	Nonce     *fftypes.FFBigInt `json:"nonce"`
-	Gas       *fftypes.FFBigInt `json:"gas,omitempty"`
-	GasPrice  *fftypes.FFBigInt `json:"gasPrice"`
-	From      string            `json:"from"`
-	To        string            `json:"to"`
-	Value     *fftypes.FFBigInt `json:"value"`
-	Interface fftypes.JSONAny   `json:"interface"`
-	Inputs    []fftypes.JSONAny `json:"inputs"`
+	TransactionPrepareInputs
+	TransactionSubmitInputs
+}
+
+type TransactionPrepareInputs struct {
+	Nonce  *fftypes.FFBigInt `json:"nonce"`
+	Gas    *fftypes.FFBigInt `json:"gas,omitempty"`
+	To     string            `json:"to"`
+	Value  *fftypes.FFBigInt `json:"value"`
+	Method fftypes.JSONAny   `json:"method"`
+	Params []fftypes.JSONAny `json:"params"`
+}
+
+type TransactionSubmitInputs struct {
+	GasPrice *fftypes.FFBigInt `json:"gasPrice"`
+	From     string            `json:"from"`
 }
 
 // ErrorResponse allows blockchain connectors to encode useful information about an error in a JSON response body.
@@ -121,13 +129,8 @@ type ffcapiResponse interface {
 type RequestID string
 
 func initHeader(header *Header, variant Variant, requestType RequestType) {
-	header.RequestID = newRequestID()
+	header.RequestID = fftypes.NewUUID()
 	header.Version = FFCAPIVersionCurrent
 	header.Variant = variant
 	header.RequestType = requestType
-}
-
-func newRequestID() RequestID {
-	id, _ := nanoid.Generate("0123456789abcdefghijklmnopqrstuvwxyz", 16)
-	return RequestID(id)
 }

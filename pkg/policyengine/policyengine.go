@@ -14,14 +14,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ffcapi
+package policyengine
 
 import (
-	"testing"
+	"context"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 )
 
-func TestRequestID(t *testing.T) {
-	assert.Regexp(t, "[0-9a-z]{16}", newRequestID())
+type PolicyEngine interface {
+	CheckAndAction(ctx context.Context, mtx *fftm.ManagedTXOutput) (updated bool, err error)
 }

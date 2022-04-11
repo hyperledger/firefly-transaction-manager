@@ -32,10 +32,10 @@ import (
 	"github.com/hyperledger/firefly/pkg/log"
 )
 
-// blockConfirmationManager listens to the blocks on the chain, and attributes confirmations to
+// Manager listens to the blocks on the chain, and attributes confirmations to
 // pending events. Once those events meet a threshold they are considered final and
 // dispatched to the relevant listener.
-type BlockConfirmationManager interface {
+type Manager interface {
 	Notify(n *Notification) error
 	Start()
 	Stop()
@@ -47,6 +47,7 @@ const (
 	NewEventLog NotificationType = iota
 	RemovedEventLog
 	NewTransaction
+	RemovedTransaction
 	StopStream
 )
 
@@ -100,7 +101,7 @@ type blockConfirmationManager struct {
 	done                  chan struct{}
 }
 
-func NewBlockConfirmationManager(ctx context.Context, connectorAPI ffcapi.API) (BlockConfirmationManager, error) {
+func NewBlockConfirmationManager(ctx context.Context, connectorAPI ffcapi.API) (Manager, error) {
 	var err error
 	bcm := &blockConfirmationManager{
 		connectorAPI:          connectorAPI,
@@ -216,7 +217,7 @@ func (bcm *blockConfirmationManager) Notify(n *Notification) error {
 		if n.Event == nil || n.Event.StreamID == "" || n.Event.TransactionHash == "" || n.Event.BlockHash == "" {
 			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
 		}
-	case NewTransaction:
+	case NewTransaction, RemovedTransaction:
 		if n.Transaction == nil || n.Transaction.TransactionHash == "" || n.Transaction.BlockHash == "" {
 			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
 		}
@@ -395,6 +396,8 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 			newItem = n.transactionPendingItem()
 		case RemovedEventLog:
 			bcm.removeItem(n.eventPendingItem())
+		case RemovedTransaction:
+			bcm.removeItem(n.transactionPendingItem())
 		default:
 			// Note that streamStopped is handled in the polling loop directly
 			log.L(bcm.ctx).Warnf("Unexpected notification type: %d", n.NotificationType)
