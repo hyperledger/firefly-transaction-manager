@@ -62,6 +62,7 @@ func run() error {
 
 	// Setup logging after reading config (even if failed), to output header correctly
 	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
 	ctx = log.WithLogger(ctx, logrus.WithField("pid", fmt.Sprintf("%d", os.Getpid())))
 	ctx = log.WithLogger(ctx, logrus.WithField("prefix", "fftm"))
 
@@ -75,11 +76,13 @@ func run() error {
 
 	// Setup signal handling to cancel the context, which shuts down the API Server
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	manager := manager.NewManager(ctx)
+	manager, err := manager.NewManager(ctx)
+	if err != nil {
+		return err
+	}
 	manager.Start()
+	defer manager.WaitStop()
 	sig := <-sigs
 	log.L(ctx).Infof("Shutting down due to %s", sig.String())
-	cancelCtx()
-	manager.WaitStop()
 	return nil
 }

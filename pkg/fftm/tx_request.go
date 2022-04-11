@@ -14,19 +14,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tmconfig
+package fftm
 
 import (
-	"testing"
-
-	"github.com/hyperledger/firefly/pkg/config"
-	"github.com/stretchr/testify/assert"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly/pkg/fftypes"
 )
 
-const configDir = "../../test/data/config"
-
-func TestInitConfigOK(t *testing.T) {
-	Reset()
-
-	assert.Equal(t, 100, config.GetInt(OperationsFullScanPageSize))
+// TransactionRequest is the external interface into sending transactions to the front-side of Transaction Manager
+// Note this is a deliberate match for the EthConnect subset that is supported by FireFly core
+type TransactionRequest struct {
+	Headers struct {
+		ID   *fftypes.UUID `json:"id"`
+		Type RequestType   `json:"type"`
+	} `json:"headers"`
+	ffcapi.TransactionInput
 }
+
+type RequestType string
+
+const (
+	RequestTypeSendTransaction = "SendTransaction"
+	RequestTypeQuery           = "Query"
+)

@@ -28,4 +28,6 @@ var (
 	MsgConnectorFailInvoke        = ffe("FF201033", "Connector request=%s failed to invoke")
 	MsgCacheInitFail              = ffe("FF201034", "Failed to initialize cache")
 	MsgInvalidConfirmationRequest = ffe("FF201035", "Invalid confirmation request %+v")
+	MsgCoreError                  = ffe("FF201036", "Error from core status=%d: %s")
+	MsgConfigParamNotSet          = ffe("FF201037", "Configuration parameter '%s' must be set")
 )

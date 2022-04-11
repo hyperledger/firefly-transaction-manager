@@ -31,6 +31,8 @@ mocks-$(strip $(1))-$(strip $(2)): ${MOCKERY}
 endef
 
 $(eval $(call makemock, pkg/ffcapi,                  API,                 ffcapimocks))
+$(eval $(call makemock, pkg/policyengine,            PolicyEngine,        policyenginemocks))
+$(eval $(call makemock, internal/confirmations,      Manager,             confirmationsmocks))
 $(eval $(call makemock, internal/manager,            Manager,             managermocks))
 
 firefly-transaction-manager: ${GOFILES}

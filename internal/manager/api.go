@@ -14,19 +14,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tmconfig
-
-import (
-	"testing"
-
-	"github.com/hyperledger/firefly/pkg/config"
-	"github.com/stretchr/testify/assert"
-)
-
-const configDir = "../../test/data/config"
-
-func TestInitConfigOK(t *testing.T) {
-	Reset()
-
-	assert.Equal(t, 100, config.GetInt(OperationsFullScanPageSize))
-}
+package manager

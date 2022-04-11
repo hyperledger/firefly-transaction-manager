@@ -756,6 +756,45 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 	mca.AssertExpectations(t)
 }
 
+func TestConfirmationsRemoveTransaction(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm.done = make(chan struct{})
+
+	txInfo := &TransactionInfo{
+		TransactionHash: "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+		BlockHash:       "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+		BlockNumber:     1001,
+	}
+	bcm.addOrReplaceItem((&Notification{
+		Transaction: txInfo,
+	}).transactionPendingItem())
+	bcm.Notify(&Notification{
+		NotificationType: RemovedTransaction,
+		Transaction:      txInfo,
+	})
+
+	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
+		ListenerID: "listener1",
+	}, ffcapi.ErrorReason(""), nil).Once()
+	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
+		return r.ListenerID == "listener1"
+	})).Return(&ffcapi.GetNewBlockHashesResponse{
+		BlockHashes: []string{},
+	}, ffcapi.ErrorReason(""), nil).Once()
+	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1002
+	})).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Run(func(args mock.Arguments) {
+		bcm.cancelFunc()
+	})
+
+	bcm.confirmationsListener()
+	<-bcm.done
+
+	assert.Empty(t, bcm.pending)
+	mca.AssertExpectations(t)
+}
+
 func TestWalkChainForEventBlockNotInConfirmationChain(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
