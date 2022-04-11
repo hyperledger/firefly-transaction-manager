@@ -36,6 +36,7 @@ type API interface {
 	GetNewBlockHashes(ctx context.Context, req *GetNewBlockHashesRequest) (*GetNewBlockHashesResponse, ErrorReason, error)
 	GetNextNonce(ctx context.Context, req *GetNextNonceRequest) (*GetNextNonceResponse, ErrorReason, error)
 	GetReceipt(ctx context.Context, req *GetReceiptRequest) (*GetReceiptResponse, ErrorReason, error)
+	PrepareTransaction(ctx context.Context, req *PrepareTransactionRequest) (*PrepareTransactionResponse, ErrorReason, error)
 	SendTransaction(ctx context.Context, req *SendTransactionRequest) (*SendTransactionResponse, ErrorReason, error)
 }
 

@@ -16,31 +16,21 @@
 
 package ffcapi
 
-import "context"
+import (
+	"context"
+)
 
 // SendTransactionRequest is used to send a transaction to the blockchain.
-//
 // The connector is responsible for adding it to the transaction pool of the blockchain,
-// and returning the hash for the transaction. The hash is expected to be a function of:
-// - the method signature
-// - the signing identity
-// - the nonce
-// - the particular blockchain the transaction is submitted to
-// - the input parameters
-//
-// If "gas" is not supplied, the connector is expected to perform as gas estimation
-// prior to submission, and return the calculated gas amount.
-//
-// See the list of standard error reasons that should be returned for situations that can be
-// detected by the back-end connector.
+// noting the transaction hash has already been calculated in the prepare step previously.
 type SendTransactionRequest struct {
 	RequestBase
-	TransactionInput
+	TransactionSubmitInputs
+	RawTransaction string `json:"rawTransaction"`
 }
 
 type SendTransactionResponse struct {
 	ResponseBase
-	TransactionHash string `json:"transactionHash"`
 }
 
 const RequestTypeSendTransaction RequestType = "send_transaction"

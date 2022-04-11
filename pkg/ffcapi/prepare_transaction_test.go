@@ -23,16 +23,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSendTransactionOK(t *testing.T) {
-	a, cancel := newTestClient(t, &SendTransactionResponse{})
+func TestPrepareTransactionOK(t *testing.T) {
+	a, cancel := newTestClient(t, &PrepareTransactionResponse{
+		TransactionHash: "0x12345",
+	})
 	defer cancel()
-	res, reason, err := a.SendTransaction(context.Background(), &SendTransactionRequest{})
+	res, reason, err := a.PrepareTransaction(context.Background(), &PrepareTransactionRequest{})
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
-	assert.NotNil(t, res)
+	assert.Equal(t, "0x12345", res.TransactionHash)
 }
 
-func TestSendTransactionFail(t *testing.T) {
+func TestPrepareTransactionFail(t *testing.T) {
 	a, cancel := newTestClient(t, &ResponseBase{
 		ErrorResponse: ErrorResponse{
 			Error:  "pop",
@@ -40,7 +42,7 @@ func TestSendTransactionFail(t *testing.T) {
 		},
 	})
 	defer cancel()
-	_, reason, err := a.SendTransaction(context.Background(), &SendTransactionRequest{})
+	_, reason, err := a.PrepareTransaction(context.Background(), &PrepareTransactionRequest{})
 	assert.Equal(t, ErrorReasonInvalidInputs, reason)
 	assert.Regexp(t, "FF201012.*pop", err)
 }
