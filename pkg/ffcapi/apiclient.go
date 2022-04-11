@@ -70,7 +70,7 @@ func (a *api) invokeAPI(ctx context.Context, input ffcapiRequest, output ffcapiR
 		return "", i18n.NewError(ctx, tmmsgs.MsgConnectorInvalidConentType, input.RequestHeader().RequestID, res.Header().Get("Content-Type"))
 	}
 	if res.IsError() {
-		return output.ErrorReason(), i18n.NewError(ctx, tmmsgs.MsgConnectorError, input.RequestHeader().RequestID, output.ErrorMessage())
+		return output.ErrorReason(), i18n.NewError(ctx, tmmsgs.MsgConnectorError, input.RequestHeader().RequestID, output.ErrorReason(), output.ErrorMessage())
 	}
 
 	return "", nil

@@ -13,6 +13,7 @@
     "ethconnect",
     "fabconnect",
     "ffcapi",
+    "ffcapimocks",
     "FFDX",
     "ffenum",
     "ffexclude",

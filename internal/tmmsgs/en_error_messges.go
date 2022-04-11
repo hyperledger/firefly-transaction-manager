@@ -23,7 +23,9 @@ var ffe = i18n.FFE
 //revive:disable
 var (
 	MsgInvalidOutputType          = ffe("FF201010", "Invalid output type: %s")
-	MsgConnectorError             = ffe("FF201012", "Connector request=%s error: %s")
+	MsgConnectorError             = ffe("FF201012", "Connector request=%s reason=%s error: %s")
 	MsgConnectorInvalidConentType = ffe("FF201032", "Connector request=%s invalid content type: %s")
 	MsgConnectorFailInvoke        = ffe("FF201033", "Connector request=%s failed to invoke")
+	MsgCacheInitFail              = ffe("FF201034", "Failed to initialize cache")
+	MsgInvalidConfirmationRequest = ffe("FF201035", "Invalid confirmation request %+v")
 )
