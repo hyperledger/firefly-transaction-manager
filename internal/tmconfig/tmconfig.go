@@ -73,6 +73,7 @@ func setDefaults() {
 	viper.SetDefault(string(ConfirmationsBlockPollingInterval), "3s")
 	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
 	viper.SetDefault(string(ReceiptsPollingInterval), "1s")
+	viper.SetDefault(string(PolicyEngineName), "simple")
 }
 
 func Reset() {

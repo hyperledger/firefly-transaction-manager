@@ -32,7 +32,7 @@ var (
 	MsgConfigParamNotSet             = ffe("FF201018", "Configuration parameter '%s' must be set")
 	MsgPolicyEngineNotRegistered     = ffe("FF201019", "No policy engine registered with name '%s'")
 	MsgNoGasConfigSetForPolicyEngine = ffe("FF201020", "No gas configuration has been set for policy engine")
-	MsgErrorQueryingGasStationAPI    = ffe("FF201021", "Error from gas station API [%s]: %s")
+	MsgErrorQueryingGasStationAPI    = ffe("FF201021", "Error from gas station API [%d]: %s")
 	MsgErrorInvalidRequest           = ffe("FF201022", "Invalid request")
 	MsgUnsupportedRequestType        = ffe("FF201023", "Unsupported request type: %s")
 )

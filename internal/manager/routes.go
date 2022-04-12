@@ -54,6 +54,7 @@ func (m *manager) sendManagedTransaction(ctx context.Context, request *fftm.Tran
 		FFTMName:        m.name,
 		ID:              request.Headers.ID, // on input the request ID must be the Operation ID
 		Nonce:           fftypes.NewFFBigInt(int64(lockedNonce.nonce)),
+		Signer:          request.From,
 		Gas:             prepared.Gas,
 		TransactionHash: prepared.TransactionHash,
 		RawTransaction:  prepared.RawTransaction,

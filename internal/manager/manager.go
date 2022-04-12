@@ -81,6 +81,7 @@ func NewManager(ctx context.Context) (Manager, error) {
 		nextNonces:       make(map[string]uint64),
 		lockedNonces:     make(map[string]*lockedNonce),
 		apiServerDone:    make(chan error),
+		pendingOpsByID:   make(map[fftypes.UUID]*pendingState),
 
 		name:                    config.GetString(tmconfig.ManagerName),
 		opTypes:                 config.GetStringSlice(tmconfig.OperationsTypes),
@@ -242,24 +243,39 @@ func (m *manager) changeEventLoop() {
 			m.handleEvent(ce)
 		case <-m.ctx.Done():
 			log.L(m.ctx).Infof("Change event loop exiting")
+			return
 		}
 	}
 }
 
 func (m *manager) Start() {
-	m.changeEventLoopDone = make(chan struct{})
+	m.fullScanRequests <- true
+	m.firstFullScanDone = make(chan struct{})
 	m.fullScanLoopDone = make(chan struct{})
+	go m.fullScanLoop()
+	go m.waitForFirstScanAndStart()
+}
+
+func (m *manager) waitForFirstScanAndStart() {
+	log.L(m.ctx).Infof("Waiting for first full scan of operations to build state")
+	select {
+	case <-m.firstFullScanDone:
+	case <-m.ctx.Done():
+		log.L(m.ctx).Infof("Cancelled before startup completed")
+		return
+	}
+	log.L(m.ctx).Infof("Scan complete. Completing startup")
+	m.changeEventLoopDone = make(chan struct{})
 	m.firstFullScanDone = make(chan struct{})
 	m.receiptPollerDone = make(chan struct{})
 	go m.changeEventLoop()
-	go m.fullScanLoop()
 	go m.receiptPollingLoop()
 	go m.runAPIServer()
 }
 
 func (m *manager) WaitStop() error {
-	err := <-m.apiServerDone
 	m.cancelCtx()
+	err := <-m.apiServerDone
 	<-m.changeEventLoopDone
 	<-m.fullScanLoopDone
 	<-m.receiptPollerDone

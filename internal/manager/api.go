@@ -52,7 +52,7 @@ func (m *manager) apiHandler(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var tReq *fftm.TransactionRequest
 	statusCode := 200
-	err := json.NewDecoder(r.Body).Decode(tReq)
+	err := json.NewDecoder(r.Body).Decode(&tReq)
 	if err == nil {
 		err = m.validateHeaders(ctx, tReq)
 	}
