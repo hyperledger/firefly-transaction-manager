@@ -58,7 +58,7 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config
 	if gasStationEnabled {
 		p.gasStationClient = ffresty.New(ctx, gasStationPrefix)
 	}
-	if p.fixedGasEstimate == nil && p.gasStationClient == nil {
+	if p.fixedGasEstimate.IsNil() && p.gasStationClient == nil {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgNoGasConfigSetForPolicyEngine)
 	}
 	return p, nil
@@ -99,13 +99,13 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
 
-		gasPrice, err := p.getGasPrice(ctx)
+		mtx.GasPrice, err = p.getGasPrice(ctx)
 		if err != nil {
 			return false, err
 		}
 		_, _, err = cAPI.SendTransaction(ctx, &ffcapi.SendTransactionRequest{
 			From:           mtx.Signer,
-			GasPrice:       gasPrice,
+			GasPrice:       mtx.GasPrice,
 			RawTransaction: mtx.RawTransaction,
 		})
 		if err != nil {
@@ -130,6 +130,7 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 			if now.Time().Sub(*lastWarnTime.Time()) > p.warnInterval {
 				secsSinceSubmit := float64(now.Time().Sub(*mtx.FirstSubmit.Time())) / float64(time.Second)
 				log.L(ctx).Warnf("Transaction %s (op=%s) has not been mined after %.2fs", mtx.TransactionHash, mtx.ID, secsSinceSubmit)
+				info.LastWarnTime = now
 				return true, nil
 			}
 			return false, nil
@@ -151,10 +152,10 @@ func (p *simplePolicyEngine) getGasPrice(ctx context.Context) (gasPrice *fftypes
 			rawResponse, err = ioutil.ReadAll(res.RawBody())
 		}
 		if err != nil {
-			return nil, err
+			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasStationAPI, -1, rawResponse)
 		}
 		if res.IsError() {
-			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgConfigParamNotSet, res.StatusCode(), rawResponse)
+			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasStationAPI, res.StatusCode(), rawResponse)
 		}
 		return fftypes.JSONAnyPtr(gjson.Get(string(rawResponse), p.gasStationGJSON).Raw), nil
 	}
