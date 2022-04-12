@@ -29,7 +29,7 @@ const (
 	Version1_0 Version = "ffcapi_v1.0"
 )
 
-const FFCAPIVersionCurrent = Version1_0
+const VersionCurrent = Version1_0
 
 type Variant string
 
@@ -126,7 +126,7 @@ type RequestID string
 
 func initHeader(header *Header, variant Variant, requestType RequestType) {
 	header.RequestID = fftypes.NewUUID()
-	header.Version = FFCAPIVersionCurrent
+	header.Version = VersionCurrent
 	header.Variant = variant
 	header.RequestType = requestType
 }

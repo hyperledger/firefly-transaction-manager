@@ -24,11 +24,13 @@ import (
 // TransactionRequest is the external interface into sending transactions to the front-side of Transaction Manager
 // Note this is a deliberate match for the EthConnect subset that is supported by FireFly core
 type TransactionRequest struct {
-	Headers struct {
-		ID   *fftypes.UUID `json:"id"`
-		Type RequestType   `json:"type"`
-	} `json:"headers"`
+	Headers RequestHeaders `json:"headers"`
 	ffcapi.TransactionInput
+}
+
+type RequestHeaders struct {
+	ID   *fftypes.UUID `json:"id"`
+	Type RequestType   `json:"type"`
 }
 
 type RequestType string

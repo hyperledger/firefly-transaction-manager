@@ -36,6 +36,7 @@ func (m *manager) receiptPollingLoop() {
 			m.checkReceipts()
 		case <-m.ctx.Done():
 			log.L(m.ctx).Infof("Receipt poller exiting")
+			return
 		}
 	}
 }
