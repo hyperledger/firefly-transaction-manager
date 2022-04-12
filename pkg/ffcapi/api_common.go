@@ -70,22 +70,18 @@ type Header struct {
 // - The interface is a structure describing the method to invoke. The `variant` in the header tells you how to decode it. For variant=evm it will be an ABI method definition
 // - The supplied value is passed through for each input parameter. It could be any JSON type (simple number/boolean/string, or complex object/array). The blockchain connection is responsible for serializing these according to the rules in the interface.
 type TransactionInput struct {
+	From     string           `json:"from"`
+	GasPrice *fftypes.JSONAny `json:"gasPrice,omitempty"` // can be a simple string/number, or a complex object - contract is between policy engine and blockchain connector
 	TransactionPrepareInputs
-	TransactionSubmitInputs
 }
 
 type TransactionPrepareInputs struct {
+	To     string            `json:"to"`
 	Nonce  *fftypes.FFBigInt `json:"nonce"`
 	Gas    *fftypes.FFBigInt `json:"gas,omitempty"`
-	To     string            `json:"to"`
 	Value  *fftypes.FFBigInt `json:"value"`
 	Method fftypes.JSONAny   `json:"method"`
 	Params []fftypes.JSONAny `json:"params"`
-}
-
-type TransactionSubmitInputs struct {
-	GasPrice *fftypes.FFBigInt `json:"gasPrice"`
-	From     string            `json:"from"`
 }
 
 // ErrorResponse allows blockchain connectors to encode useful information about an error in a JSON response body.

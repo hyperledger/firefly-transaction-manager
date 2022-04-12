@@ -32,6 +32,8 @@ type ManagedTXOutput struct {
 	Signer          string                     `json:"signer"`
 	TransactionHash string                     `json:"transactionHash,omitempty"`
 	RawTransaction  string                     `json:"rawTransaction,omitempty"`
+	GasPrice        *fftypes.JSONAny           `json:"gasPrice"`
+	PolicyInfo      *fftypes.JSONAny           `json:"policyInfo"`
 	FirstSubmit     *fftypes.FFTime            `json:"firstSubmit,omitempty"`
 	LastSubmit      *fftypes.FFTime            `json:"lastSubmit,omitempty"`
 	Request         *TransactionRequest        `json:"request,omitempty"`

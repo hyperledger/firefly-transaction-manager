@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -32,13 +33,14 @@ import (
 	"github.com/hyperledger/firefly/pkg/config"
 	"github.com/hyperledger/firefly/pkg/ffresty"
 	"github.com/hyperledger/firefly/pkg/fftypes"
+	"github.com/hyperledger/firefly/pkg/httpserver"
 	"github.com/hyperledger/firefly/pkg/i18n"
 	"github.com/hyperledger/firefly/pkg/log"
 )
 
 type Manager interface {
 	Start()
-	WaitStop()
+	WaitStop() error
 }
 
 type manager struct {
@@ -48,6 +50,7 @@ type manager struct {
 	connectorAPI  ffcapi.API
 	confirmations confirmations.Manager
 	policyEngine  policyengine.PolicyEngine
+	apiServer     httpserver.HTTPServer
 	ffCoreClient  *resty.Client
 
 	mux                 sync.Mutex
@@ -59,6 +62,7 @@ type manager struct {
 	receiptPollerDone   chan struct{}
 	fullScanLoopDone    chan struct{}
 	fullScanRequests    chan bool
+	apiServerDone       chan error
 
 	name                    string
 	opTypes                 []string
@@ -76,6 +80,7 @@ func NewManager(ctx context.Context) (Manager, error) {
 		fullScanRequests: make(chan bool, 1),
 		nextNonces:       make(map[string]uint64),
 		lockedNonces:     make(map[string]*lockedNonce),
+		apiServerDone:    make(chan error),
 
 		name:                    config.GetString(tmconfig.ManagerName),
 		opTypes:                 config.GetStringSlice(tmconfig.OperationsTypes),
@@ -86,6 +91,14 @@ func NewManager(ctx context.Context) (Manager, error) {
 	m.ctx, m.cancelCtx = context.WithCancel(ctx)
 	if m.name == "" {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgConfigParamNotSet, tmconfig.ManagerName)
+	}
+	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIPrefix)
+	if err != nil {
+		return nil, err
+	}
+	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBasePrefix, config.GetString(tmconfig.PolicyEngineName))
+	if err != nil {
+		return nil, err
 	}
 	m.confirmations, err = confirmations.NewBlockConfirmationManager(ctx, m.connectorAPI)
 	if err != nil {
@@ -126,7 +139,7 @@ func (m *manager) fullScanLoop() {
 			}
 			err := m.fullScan()
 			if err != nil {
-				log.L(m.ctx).Errorf("Full scan failed (will be retried): %s")
+				log.L(m.ctx).Errorf("Full scan failed (will be retried): %s", err)
 				m.requestFullScan()
 				continue
 			}
@@ -154,7 +167,7 @@ func (m *manager) fullScan() error {
 			return err
 		}
 		if len(ops) == 0 {
-			log.L(m.ctx).Debugf("Finished reading all operations - %d read, %d added")
+			log.L(m.ctx).Debugf("Finished reading all operations - %d read, %d added", read, added)
 			return nil
 		}
 		read += len(ops)
@@ -241,11 +254,14 @@ func (m *manager) Start() {
 	go m.changeEventLoop()
 	go m.fullScanLoop()
 	go m.receiptPollingLoop()
+	go m.runAPIServer()
 }
 
-func (m *manager) WaitStop() {
+func (m *manager) WaitStop() error {
+	err := <-m.apiServerDone
 	m.cancelCtx()
 	<-m.changeEventLoopDone
 	<-m.fullScanLoopDone
 	<-m.receiptPollerDone
+	return err
 }

@@ -18,6 +18,8 @@ package ffcapi
 
 import (
 	"context"
+
+	"github.com/hyperledger/firefly/pkg/fftypes"
 )
 
 // SendTransactionRequest is used to send a transaction to the blockchain.
@@ -25,8 +27,9 @@ import (
 // noting the transaction hash has already been calculated in the prepare step previously.
 type SendTransactionRequest struct {
 	RequestBase
-	TransactionSubmitInputs
-	RawTransaction string `json:"rawTransaction"`
+	From           string           `json:"from"`
+	GasPrice       *fftypes.JSONAny `json:"gasPrice,omitempty"` // can be a simple string/number, or a complex object - contract is between policy engine and blockchain connector
+	RawTransaction string           `json:"rawTransaction"`
 }
 
 type SendTransactionResponse struct {
