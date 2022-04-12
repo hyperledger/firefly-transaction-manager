@@ -14,15 +14,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package cmd
 
 import (
-	"context"
+	"testing"
 
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/stretchr/testify/assert"
 )
 
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *fftm.ManagedTXOutput) (updated bool, err error)
+func TestConfigMarkdown(t *testing.T) {
+	rootCmd.SetArgs([]string{"docs"})
+	defer rootCmd.SetArgs([]string{})
+	err := rootCmd.Execute()
+	assert.NoError(t, err)
 }

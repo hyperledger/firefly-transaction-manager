@@ -24,6 +24,8 @@ import (
 	"syscall"
 
 	"github.com/hyperledger/firefly-transaction-manager/internal/manager"
+	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines"
+	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines/simple"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly/pkg/config"
 	"github.com/hyperledger/firefly/pkg/i18n"
@@ -48,16 +50,22 @@ var cfgFile string
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "f", "", "config file")
 	rootCmd.AddCommand(versionCommand())
+	rootCmd.AddCommand(configCommand())
 }
 
 func Execute() error {
 	return rootCmd.Execute()
 }
 
+func initConfig() {
+	// Read the configuration, and register our policy engines
+	tmconfig.Reset()
+	policyengines.RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
+}
+
 func run() error {
 
-	// Read the configuration
-	tmconfig.Reset()
+	initConfig()
 	err := config.ReadConfig(cfgFile)
 
 	// Setup logging after reading config (even if failed), to output header correctly
@@ -81,8 +89,8 @@ func run() error {
 		return err
 	}
 	manager.Start()
-	defer manager.WaitStop()
 	sig := <-sigs
 	log.L(ctx).Infof("Shutting down due to %s", sig.String())
-	return nil
+	cancelCtx()
+	return manager.WaitStop()
 }

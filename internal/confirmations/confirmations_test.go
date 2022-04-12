@@ -33,7 +33,7 @@ import (
 func newTestBlockConfirmationManager(t *testing.T, enabled bool) (*blockConfirmationManager, *ffcapimocks.API) {
 	tmconfig.Reset()
 	config.Set(tmconfig.ConfirmationsRequired, 3)
-	config.Set(tmconfig.ConfirmationsBlockPollingInterval, "1ms")
+	config.Set(tmconfig.ConfirmationsBlockPollingInterval, "10ms")
 	config.Set(tmconfig.ConfirmationsNotificationQueueLength, 1)
 	return newTestBlockConfirmationManagerCustomConfig(t)
 }
@@ -51,7 +51,7 @@ func TestBCMInitError(t *testing.T) {
 	config.Set(tmconfig.ConfirmationsBlockCacheSize, -1)
 	mca := &ffcapimocks.API{}
 	_, err := NewBlockConfirmationManager(context.Background(), mca)
-	assert.Regexp(t, "FF201034", err)
+	assert.Regexp(t, "FF201015", err)
 }
 
 func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
@@ -965,17 +965,17 @@ func TestNotificationValidation(t *testing.T) {
 	err := bcm.Notify(&Notification{
 		NotificationType: NewTransaction,
 	})
-	assert.Regexp(t, "FF201035", err)
+	assert.Regexp(t, "FF201016", err)
 
 	err = bcm.Notify(&Notification{
 		NotificationType: NewEventLog,
 	})
-	assert.Regexp(t, "FF201035", err)
+	assert.Regexp(t, "FF201016", err)
 
 	err = bcm.Notify(&Notification{
 		NotificationType: StopStream,
 	})
-	assert.Regexp(t, "FF201035", err)
+	assert.Regexp(t, "FF201016", err)
 
 	bcm.cancelFunc()
 	err = bcm.Notify(&Notification{

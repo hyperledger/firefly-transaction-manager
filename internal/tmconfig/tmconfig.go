@@ -20,6 +20,7 @@ import (
 	"github.com/hyperledger/firefly/pkg/config"
 	"github.com/hyperledger/firefly/pkg/ffresty"
 	"github.com/hyperledger/firefly/pkg/fftypes"
+	"github.com/hyperledger/firefly/pkg/httpserver"
 	"github.com/spf13/viper"
 )
 
@@ -46,11 +47,17 @@ var (
 	OperationsFullScanMinimumDelay = ffc("operations.fullScan.minimumDelay")
 	// ReceiptPollingInterval how often to poll for transaction receipts (the policy engine gets a chance to intervene for each outstanding receipt, on each polling cycle)
 	ReceiptsPollingInterval = ffc("receipts.pollingInteval")
+	// PolicyEngineName the name of the policy engine to use
+	PolicyEngineName = ffc("policyengine.name")
 )
 
 var ConnectorPrefix config.Prefix
 
 var FFCorePrefix config.Prefix
+
+var APIPrefix config.Prefix
+
+var PolicyEngineBasePrefix config.Prefix
 
 func setDefaults() {
 	viper.SetDefault(string(OperationsFullScanPageSize), 100)
@@ -76,4 +83,11 @@ func Reset() {
 
 	FFCorePrefix = config.NewPluginConfig("ffcore")
 	ffresty.InitPrefix(FFCorePrefix)
+
+	APIPrefix = config.NewPluginConfig("api")
+	httpserver.InitHTTPConfPrefix(APIPrefix, 5008)
+
+	PolicyEngineBasePrefix = config.NewPluginConfig("policyengine")
+	// policy engines must be registered outside of this package
+
 }

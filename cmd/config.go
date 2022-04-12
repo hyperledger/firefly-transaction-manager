@@ -14,15 +14,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package cmd
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/hyperledger/firefly/pkg/config"
+	"github.com/spf13/cobra"
 )
 
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *fftm.ManagedTXOutput) (updated bool, err error)
+func configCommand() *cobra.Command {
+	versionCmd := &cobra.Command{
+		Use:   "docs",
+		Short: "Prints the config info as markdown",
+		Long:  "",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			initConfig()
+			b, err := config.GenerateConfigMarkdown(context.Background(), config.GetKnownKeys())
+			fmt.Println(string(b))
+			return err
+		},
+	}
+	return versionCmd
 }

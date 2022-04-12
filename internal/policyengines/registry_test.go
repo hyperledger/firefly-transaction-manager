@@ -14,15 +14,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package policyengines
 
 import (
 	"context"
+	"testing"
 
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines/simple"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/stretchr/testify/assert"
 )
 
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *fftm.ManagedTXOutput) (updated bool, err error)
+func TestRegistry(t *testing.T) {
+
+	tmconfig.Reset()
+	RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
+
+	p, err := NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBasePrefix, "simple")
+	assert.NotNil(t, p)
+	assert.NoError(t, err)
+
+	p, err = NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBasePrefix, "bob")
+	assert.Nil(t, p)
+	assert.Regexp(t, "FF201019", err)
+
 }

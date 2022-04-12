@@ -52,7 +52,7 @@ func (m *manager) checkReceipts() {
 
 	// Go through trying to query all of them
 	for _, pending := range allPending {
-		err := m.checkReceipt(pending)
+		err := m.checkReceiptCycle(pending)
 		if err != nil {
 			log.L(m.ctx).Errorf("Failed to check transaction receipt '%s' operation=%s", pending.mtx.TransactionHash, pending.mtx.ID)
 		}
@@ -67,13 +67,14 @@ func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
 	updated := true
 	newStatus := fftypes.OpStatusPending
 	mtx := pending.mtx
-	if pending.confirmed {
+	switch {
+	case pending.confirmed:
 		updated = true
 		newStatus = fftypes.OpStatusSucceeded
-	} else if pending.removed {
+	case pending.removed:
 		// Remove from our state
 		m.removeIfTracked(mtx.ID)
-	} else {
+	default:
 		if mtx.FirstSubmit != nil {
 			if err = m.checkReceipt(pending); err != nil {
 				return err
@@ -82,17 +83,20 @@ func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
 
 		// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 		// such as submitting for the first time, or raising the gas etc.
-		updated, err = m.policyEngine.CheckAndAction(m.ctx, pending.mtx)
-		if err != nil {
-			return err
-		}
+		updated, err = m.policyEngine.Execute(m.ctx, m.connectorAPI, pending.mtx)
 	}
 
-	if updated {
+	if updated || err != nil {
+		errorString := ""
+		if err != nil {
+			// In the case of errors, we keep the record updated with the latest error - but leave it in Pending
+			errorString = err.Error()
+		}
 		err := m.writeManagedTX(m.ctx, &opUpdate{
 			ID:     mtx.ID,
 			Status: newStatus,
 			Output: mtx,
+			Error:  errorString,
 		})
 		if err != nil {
 			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, newStatus, err)
@@ -143,17 +147,6 @@ func (m *manager) clearConfirmationTracking(mtx *fftm.ManagedTXOutput) {
 			TransactionHash: mtx.TransactionHash,
 		},
 	})
-}
-
-func (m *manager) setConfirmed(mtx *fftm.ManagedTXOutput) {
-	err := m.writeManagedTX(m.ctx, &opUpdate{
-		ID:     mtx.ID,
-		Status: fftypes.OpStatusSucceeded,
-		Output: mtx,
-	})
-	if err != nil {
-		log.L(m.ctx).Errorf("Failed to mark operation %s confirmed: %s", mtx.ID, err)
-	}
 }
 
 func (m *manager) requestConfirmationsNewReceipt(pending *pendingState) {
