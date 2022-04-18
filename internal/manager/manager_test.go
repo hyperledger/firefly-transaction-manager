@@ -70,3 +70,49 @@ func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler ht
 		}
 
 }
+
+func TestNewManagerMissingName(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.ManagerName, "")
+
+	_, err := NewManager(context.Background())
+	assert.Regexp(t, "FF201018", err)
+
+}
+
+func TestNewManagerBadHttpConfig(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.ManagerName, "test")
+	tmconfig.APIPrefix.Set(httpserver.HTTPConfAddress, "::::")
+
+	policyengines.RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
+	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGas, "223344556677")
+
+	_, err := NewManager(context.Background())
+	assert.Regexp(t, "FF10104", err)
+
+}
+
+func TestNewManagerBadConfirmationsCacheSize(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.ManagerName, "test")
+	config.Set(tmconfig.ConfirmationsBlockCacheSize, -1)
+
+	_, err := NewManager(context.Background())
+	assert.Regexp(t, "FF201015", err)
+
+}
+
+func TestNewManagerBadPolicyEngine(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.ManagerName, "test")
+	config.Set(tmconfig.PolicyEngineName, "wrong")
+
+	_, err := NewManager(context.Background())
+	assert.Regexp(t, "FF201019", err)
+
+}

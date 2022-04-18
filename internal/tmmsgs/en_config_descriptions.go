@@ -42,9 +42,10 @@ var (
 
 	ConfigManagerName = ffc("config.manager.name", "The name of this Transaction Manager, used in operation metadata to track which operations are to be updated", "string")
 
-	ConfigOperationsTypes                = ffc("config.operations.types", "The operation types to query in FireFly core, that might have been submitted via this Transaction Manager", "string[]")
-	ConfigOperationsFullScanMinimumDelay = ffc("config.operations.fullScan.minimumDelay", "The minimum delay between full scans of the FireFly core API, when reconnecting, or recovering from missed events / errors", "duration")
-	ConfigOperationsFullScanPageSize     = ffc("config.operations.fullScan.pageSize", "The page size to use when performing a full scan of the ForeFly core API on startup, or recovery", "number")
+	ConfigOperationsTypes                     = ffc("config.operations.types", "The operation types to query in FireFly core, that might have been submitted via this Transaction Manager", "string[]")
+	ConfigOperationsFullScanMinimumDelay      = ffc("config.operations.fullScan.minimumDelay", "The minimum delay between full scans of the FireFly core API, when reconnecting, or recovering from missed events / errors", "duration")
+	ConfigOperationsFullScanPageSize          = ffc("config.operations.fullScan.pageSize", "The page size to use when performing a full scan of the ForeFly core API on startup, or recovery", "number")
+	ConfigOperationsFullScanStartupMaxRetries = ffc("config.operations.fullScan.startupMaxRetries", "The page size to use when performing a full scan of the ForeFly core API on startup, or recovery", "number")
 
 	ConfigPolicyEngineName = ffc("config.policyengine.name", "The name of the policy engine to use", "string")
 

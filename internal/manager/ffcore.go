@@ -46,7 +46,7 @@ func (m *manager) writeManagedTX(ctx context.Context, opUpdate *opUpdate) error 
 		SetError(&errorInfo).
 		SetBody(opUpdate).
 		SetContext(ctx).
-		Post(fmt.Sprintf("/admin/api/v1/operations/%s", opUpdate.ID))
+		Put(fmt.Sprintf("/admin/api/v1/operations/%s", opUpdate.ID))
 	if err != nil {
 		return err
 	}

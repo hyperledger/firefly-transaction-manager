@@ -39,7 +39,7 @@ import (
 )
 
 type Manager interface {
-	Start()
+	Start() error
 	WaitStop() error
 }
 
@@ -58,7 +58,7 @@ type manager struct {
 	lockedNonces        map[string]*lockedNonce
 	pendingOpsByID      map[fftypes.UUID]*pendingState
 	changeEventLoopDone chan struct{}
-	firstFullScanDone   chan struct{}
+	firstFullScanDone   chan error
 	receiptPollerDone   chan struct{}
 	fullScanLoopDone    chan struct{}
 	fullScanRequests    chan bool
@@ -67,6 +67,7 @@ type manager struct {
 
 	name                    string
 	opTypes                 []string
+	startupScanMaxRetries   int
 	fullScanPageSize        int64
 	fullScanMinDelay        time.Duration
 	receiptsPollingInterval time.Duration
@@ -86,6 +87,7 @@ func NewManager(ctx context.Context) (Manager, error) {
 
 		name:                    config.GetString(tmconfig.ManagerName),
 		opTypes:                 config.GetStringSlice(tmconfig.OperationsTypes),
+		startupScanMaxRetries:   config.GetInt(tmconfig.OperationsFullScanStartupMaxRetries),
 		fullScanPageSize:        config.GetInt64(tmconfig.OperationsFullScanPageSize),
 		fullScanMinDelay:        config.GetDuration(tmconfig.OperationsFullScanMinimumDelay),
 		receiptsPollingInterval: config.GetDuration(tmconfig.ReceiptsPollingInterval),
@@ -94,7 +96,7 @@ func NewManager(ctx context.Context) (Manager, error) {
 	if m.name == "" {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgConfigParamNotSet, tmconfig.ManagerName)
 	}
-	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIPrefix)
+	m.confirmations, err = confirmations.NewBlockConfirmationManager(ctx, m.connectorAPI)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +104,7 @@ func NewManager(ctx context.Context) (Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	m.confirmations, err = confirmations.NewBlockConfirmationManager(ctx, m.connectorAPI)
+	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -129,6 +131,7 @@ func (m *manager) fullScanLoop() {
 	defer close(m.fullScanLoopDone)
 	firstFullScanDone := m.firstFullScanDone
 	var lastFullScan *fftypes.FFTime
+	errorCount := 0
 	for {
 		select {
 		case <-m.fullScanRequests:
@@ -141,14 +144,20 @@ func (m *manager) fullScanLoop() {
 			}
 			err := m.fullScan()
 			if err != nil {
-				log.L(m.ctx).Errorf("Full scan failed (will be retried): %s", err)
+				errorCount++
+				if firstFullScanDone != nil && errorCount > m.startupScanMaxRetries {
+					firstFullScanDone <- err
+					return
+				}
+				log.L(m.ctx).Errorf("Full scan failed (will be retried) count=%d: %s", errorCount, err)
 				m.requestFullScan()
 				continue
 			}
+			errorCount = 0
 			// On startup we need to know the first scan has completed to populate the nonces,
 			// before we complete startup
 			if firstFullScanDone != nil {
-				close(firstFullScanDone)
+				firstFullScanDone <- nil
 				firstFullScanDone = nil
 			}
 		case <-m.ctx.Done():
@@ -249,30 +258,33 @@ func (m *manager) changeEventLoop() {
 	}
 }
 
-func (m *manager) Start() {
+func (m *manager) Start() error {
 	m.fullScanRequests <- true
-	m.firstFullScanDone = make(chan struct{})
+	m.firstFullScanDone = make(chan error)
 	m.fullScanLoopDone = make(chan struct{})
 	go m.fullScanLoop()
-	go m.waitForFirstScanAndStart()
+	return m.waitForFirstScanAndStart()
 }
 
-func (m *manager) waitForFirstScanAndStart() {
+func (m *manager) waitForFirstScanAndStart() error {
 	log.L(m.ctx).Infof("Waiting for first full scan of operations to build state")
 	select {
-	case <-m.firstFullScanDone:
+	case err := <-m.firstFullScanDone:
+		if err != nil {
+			return err
+		}
 	case <-m.ctx.Done():
 		log.L(m.ctx).Infof("Cancelled before startup completed")
-		return
+		return nil
 	}
 	log.L(m.ctx).Infof("Scan complete. Completing startup")
 	m.changeEventLoopDone = make(chan struct{})
-	m.firstFullScanDone = make(chan struct{})
 	m.receiptPollerDone = make(chan struct{})
 	go m.changeEventLoop()
 	go m.receiptPollingLoop()
 	go m.runAPIServer()
 	m.started = true
+	return nil
 }
 
 func (m *manager) WaitStop() (err error) {

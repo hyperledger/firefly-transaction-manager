@@ -41,6 +41,8 @@ var (
 	ConfirmationsNotificationQueueLength = ffc("confirmations.notificationQueueLength")
 	// OperationsTypes the type of operations to monitor - only those that were submitted through the manager will have the required output format, so this is the superset
 	OperationsTypes = ffc("operations.types")
+	// OperationsFullScanStartupMaxRetries is the maximum times to try the scan on first startup, before failing startup
+	OperationsFullScanStartupMaxRetries = ffc("operations.fullScan.startupMaxRetries")
 	// OperationsPageSize page size for polling
 	OperationsFullScanPageSize = ffc("operations.fullScan.pageSize")
 	// OperationsFullScanMinimumDelay the minimum delay between full scan attempts
@@ -67,6 +69,7 @@ func setDefaults() {
 		fftypes.OpTypeBlockchainPinBatch.String(),
 		fftypes.OpTypeTokenCreatePool.String(),
 	})
+	viper.SetDefault(string(OperationsFullScanStartupMaxRetries), 10)
 	viper.SetDefault(string(ConnectorVariant), "evm")
 	viper.SetDefault(string(ConfirmationsRequired), 20)
 	viper.SetDefault(string(ConfirmationsBlockCacheSize), 1000)
