@@ -88,7 +88,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	manager.Start()
+	err = manager.Start()
+	if err != nil {
+		return err
+	}
 	sig := <-sigs
 	log.L(ctx).Infof("Shutting down due to %s", sig.String())
 	cancelCtx()

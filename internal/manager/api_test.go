@@ -30,6 +30,35 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const sampleSendTX = `{
+	"headers": {
+		"id": "904F177C-C790-4B01-BDF4-F2B4E52E607E",
+		"type": "SendTransaction"
+	},
+	"from": "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8",
+	"to": "0xe1a078b9e2b145d0a7387f09277c6ae1d9470771",
+	"gas": 1000000,
+	"method": {
+		"inputs": [
+			{
+				"internalType":" uint256",
+				"name": "x",
+				"type": "uint256"
+			}
+		],
+		"name":"set",
+		"outputs":[],
+		"stateMutability":"nonpayable",
+		"type":"function"
+	},
+	"params": [
+		{
+			"value": 4276993775,
+			"type": "uint256"
+		}
+	]
+}`
+
 func testFFCAPIHandler(t *testing.T, fn func(reqType ffcapi.RequestType, b []byte) (res interface{}, status int)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var reqHeader ffcapi.RequestBase
@@ -111,34 +140,7 @@ func TestSendTransactionE2E(t *testing.T) {
 
 	m.Start()
 
-	req := strings.NewReader(`{
-		"headers": {
-			"id": "904F177C-C790-4B01-BDF4-F2B4E52E607E",
-			"type": "SendTransaction"
-		},
-		"from": "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8",
-		"to": "0xe1a078b9e2b145d0a7387f09277c6ae1d9470771",
-		"gas": 1000000,
-		"method": {
-			"inputs": [
-				{
-					"internalType":" uint256",
-					"name": "x",
-					"type": "uint256"
-				}
-			],
-			"name":"set",
-			"outputs":[],
-			"stateMutability":"nonpayable",
-			"type":"function"
-		},
-		"params": [
-			{
-				"value": 4276993775,
-				"type": "uint256"
-			}
-		]
-	}`)
+	req := strings.NewReader(sampleSendTX)
 	res, err := resty.New().R().
 		SetBody(req).
 		Post(url)
@@ -226,4 +228,83 @@ func TestSendInvalidRequestFail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 500, res.StatusCode())
 	assert.Regexp(t, "FF201012", errRes.Error)
+}
+
+func TestSendTransactionPrepareFail(t *testing.T) {
+
+	url, m, cancel := newTestManager(t,
+		testFFCAPIHandler(t, func(reqType ffcapi.RequestType, b []byte) (res interface{}, status int) {
+			status = 200
+			switch reqType {
+			case ffcapi.RequestTypeGetNextNonce:
+				res = ffcapi.GetNextNonceResponse{
+					Nonce: fftypes.NewFFBigInt(12345),
+				}
+
+			case ffcapi.RequestTypePrepareTransaction:
+				res = ffcapi.ErrorResponse{
+					Error: "pop",
+				}
+				status = 500
+			}
+			return res, status
+		}),
+		func(w http.ResponseWriter, r *http.Request) {
+
+		},
+	)
+	defer cancel()
+
+	m.Start()
+
+	req := strings.NewReader(sampleSendTX)
+	res, err := resty.New().R().
+		SetBody(req).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 500, res.StatusCode())
+
+}
+
+func TestSendTransactionUpdateFireFlyFail(t *testing.T) {
+
+	url, m, cancel := newTestManager(t,
+		testFFCAPIHandler(t, func(reqType ffcapi.RequestType, b []byte) (res interface{}, status int) {
+			status = 200
+			switch reqType {
+			case ffcapi.RequestTypeGetNextNonce:
+				res = ffcapi.GetNextNonceResponse{
+					Nonce: fftypes.NewFFBigInt(12345),
+				}
+
+			case ffcapi.RequestTypePrepareTransaction:
+				res = ffcapi.PrepareTransactionResponse{}
+				status = 200
+			}
+			return res, status
+		}),
+		func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodPut {
+				errRes := fftypes.RESTError{Error: "pop"}
+				b, err := json.Marshal(&errRes)
+				assert.NoError(t, err)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(500)
+				w.Write(b)
+			} else {
+				w.WriteHeader(200)
+			}
+		},
+	)
+	defer cancel()
+
+	m.Start()
+
+	req := strings.NewReader(sampleSendTX)
+	res, err := resty.New().R().
+		SetBody(req).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 500, res.StatusCode())
+
 }
