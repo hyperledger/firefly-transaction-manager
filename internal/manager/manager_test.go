@@ -28,6 +28,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines"
 	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines/simple"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly/pkg/config"
 	"github.com/hyperledger/firefly/pkg/ffresty"
 	"github.com/hyperledger/firefly/pkg/httpserver"
@@ -55,13 +56,13 @@ func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler ht
 	config.Set(tmconfig.ReceiptsPollingInterval, "1ms")
 	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGas, "223344556677")
 
-	m, err := NewManager(context.Background())
+	mm, err := NewManager(context.Background())
 	assert.NoError(t, err)
-
-	m.Start()
+	m := mm.(*manager)
+	m.confirmations = &confirmationsmocks.Manager{}
 
 	return fmt.Sprintf("http://127.0.0.1:%s", managerPort),
-		m.(*manager),
+		m,
 		func() {
 			cAPIServer.Close()
 			ffCoreServer.Close()

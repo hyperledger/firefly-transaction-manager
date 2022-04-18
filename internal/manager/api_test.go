@@ -30,29 +30,41 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func testFFCAPIHandler(t *testing.T, fn func(reqType ffcapi.RequestType, b []byte) (res interface{}, status int)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var reqHeader ffcapi.RequestBase
+		b, err := ioutil.ReadAll(r.Body)
+		assert.NoError(t, err)
+		err = json.Unmarshal(b, &reqHeader)
+		assert.NoError(t, err)
+
+		assert.NotNil(t, reqHeader.Header.RequestID)
+		assert.Equal(t, ffcapi.VersionCurrent, reqHeader.Header.Version)
+		assert.Equal(t, ffcapi.Variant("evm"), reqHeader.Header.Variant)
+
+		res, status := fn(reqHeader.Header.RequestType, b)
+
+		b, err = json.Marshal(res)
+		assert.NoError(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		w.Write(b)
+
+	}
+}
+
 func TestSendTransactionE2E(t *testing.T) {
 
 	txSent := make(chan struct{})
 
-	url, _, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {
-			var reqHeader ffcapi.RequestBase
-			b, err := ioutil.ReadAll(r.Body)
-			assert.NoError(t, err)
-			err = json.Unmarshal(b, &reqHeader)
-			assert.NoError(t, err)
-
-			assert.NotNil(t, reqHeader.Header.RequestID)
-			assert.Equal(t, ffcapi.VersionCurrent, reqHeader.Header.Version)
-			assert.Equal(t, ffcapi.Variant("evm"), reqHeader.Header.Variant)
-
-			var res interface{}
-
-			switch reqHeader.Header.RequestType {
+	url, m, cancel := newTestManager(t,
+		testFFCAPIHandler(t, func(reqType ffcapi.RequestType, b []byte) (res interface{}, status int) {
+			status = 200
+			switch reqType {
 
 			case ffcapi.RequestTypeGetNextNonce:
 				var nonceReq ffcapi.GetNextNonceRequest
-				err = json.Unmarshal(b, &nonceReq)
+				err := json.Unmarshal(b, &nonceReq)
 				assert.NoError(t, err)
 				assert.Equal(t, "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8", nonceReq.Signer)
 				res = ffcapi.GetNextNonceResponse{
@@ -61,7 +73,7 @@ func TestSendTransactionE2E(t *testing.T) {
 
 			case ffcapi.RequestTypePrepareTransaction:
 				var prepTX ffcapi.PrepareTransactionRequest
-				err = json.Unmarshal(b, &prepTX)
+				err := json.Unmarshal(b, &prepTX)
 				assert.NoError(t, err)
 				assert.Equal(t, "0xe1a078b9e2b145d0a7387f09277c6ae1d9470771", prepTX.To)
 				assert.Equal(t, uint64(1000000), prepTX.Gas.Uint64())
@@ -76,7 +88,7 @@ func TestSendTransactionE2E(t *testing.T) {
 
 			case ffcapi.RequestTypeSendTransaction:
 				var sendTX ffcapi.SendTransactionRequest
-				err = json.Unmarshal(b, &sendTX)
+				err := json.Unmarshal(b, &sendTX)
 				assert.NoError(t, err)
 				assert.Equal(t, "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8", sendTX.From)
 				assert.Equal(t, `223344556677`, sendTX.GasPrice.String())
@@ -86,20 +98,18 @@ func TestSendTransactionE2E(t *testing.T) {
 				close(txSent)
 
 			default:
-				assert.Fail(t, fmt.Sprintf("Unexpected type: %s", reqHeader.Header.RequestType))
+				assert.Fail(t, fmt.Sprintf("Unexpected type: %s", reqType))
+				status = 500
 			}
-
-			b, err = json.Marshal(res)
-			assert.NoError(t, err)
-			w.Header().Set("Content-Type", "application/json")
-			w.Write(b)
-
-		},
+			return res, status
+		}),
 		func(w http.ResponseWriter, r *http.Request) {
 
 		},
 	)
 	defer cancel()
+
+	m.Start()
 
 	req := strings.NewReader(`{
 		"headers": {
@@ -137,4 +147,83 @@ func TestSendTransactionE2E(t *testing.T) {
 
 	<-txSent
 
+}
+
+func TestSendInvalidRequestNoHeaders(t *testing.T) {
+
+	url, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+	m.Start()
+
+	req := strings.NewReader(`{
+		"noHeaders": true
+	}`)
+	var errRes fftypes.RESTError
+	res, err := resty.New().R().
+		SetBody(req).
+		SetError(&errRes).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 400, res.StatusCode())
+	assert.Regexp(t, "FF201022", errRes.Error)
+}
+
+func TestSendInvalidRequestWrongType(t *testing.T) {
+
+	url, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+	m.Start()
+
+	req := strings.NewReader(`{
+		"headers": {
+			"id": "` + fftypes.NewUUID().String() + `",
+			"type": "wrong"
+		}
+	}`)
+	var errRes fftypes.RESTError
+	res, err := resty.New().R().
+		SetBody(req).
+		SetError(&errRes).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 400, res.StatusCode())
+	assert.Regexp(t, "FF201023", errRes.Error)
+}
+
+func TestSendInvalidRequestFail(t *testing.T) {
+
+	url, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {
+			backendError := &fftypes.RESTError{Error: "pop"}
+			b, err := json.Marshal(&backendError)
+			assert.NoError(t, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(503)
+			w.Write(b)
+		},
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+	m.Start()
+
+	req := strings.NewReader(`{
+		"headers": {
+			"id": "` + fftypes.NewUUID().String() + `",
+			"type": "SendTransaction"
+		}
+	}`)
+	var errRes fftypes.RESTError
+	res, err := resty.New().R().
+		SetBody(req).
+		SetError(&errRes).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 500, res.StatusCode())
+	assert.Regexp(t, "FF201012", errRes.Error)
 }

@@ -62,6 +62,7 @@ type manager struct {
 	receiptPollerDone   chan struct{}
 	fullScanLoopDone    chan struct{}
 	fullScanRequests    chan bool
+	started             bool
 	apiServerDone       chan error
 
 	name                    string
@@ -271,13 +272,16 @@ func (m *manager) waitForFirstScanAndStart() {
 	go m.changeEventLoop()
 	go m.receiptPollingLoop()
 	go m.runAPIServer()
+	m.started = true
 }
 
-func (m *manager) WaitStop() error {
+func (m *manager) WaitStop() (err error) {
 	m.cancelCtx()
-	err := <-m.apiServerDone
-	<-m.changeEventLoopDone
-	<-m.fullScanLoopDone
-	<-m.receiptPollerDone
+	if m.started {
+		err = <-m.apiServerDone
+		<-m.changeEventLoopDone
+		<-m.fullScanLoopDone
+		<-m.receiptPollerDone
+	}
 	return err
 }
