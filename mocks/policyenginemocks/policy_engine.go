@@ -5,7 +5,9 @@ package policyenginemocks
 import (
 	context "context"
 
+	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	fftm "github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -14,20 +16,20 @@ type PolicyEngine struct {
 	mock.Mock
 }
 
-// CheckAndAction provides a mock function with given fields: ctx, mtx
-func (_m *PolicyEngine) CheckAndAction(ctx context.Context, mtx *fftm.ManagedTXOutput) (bool, error) {
-	ret := _m.Called(ctx, mtx)
+// Execute provides a mock function with given fields: ctx, cAPI, mtx
+func (_m *PolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *fftm.ManagedTXOutput) (bool, error) {
+	ret := _m.Called(ctx, cAPI, mtx)
 
 	var r0 bool
-	if rf, ok := ret.Get(0).(func(context.Context, *fftm.ManagedTXOutput) bool); ok {
-		r0 = rf(ctx, mtx)
+	if rf, ok := ret.Get(0).(func(context.Context, ffcapi.API, *fftm.ManagedTXOutput) bool); ok {
+		r0 = rf(ctx, cAPI, mtx)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *fftm.ManagedTXOutput) error); ok {
-		r1 = rf(ctx, mtx)
+	if rf, ok := ret.Get(1).(func(context.Context, ffcapi.API, *fftm.ManagedTXOutput) error); ok {
+		r1 = rf(ctx, cAPI, mtx)
 	} else {
 		r1 = ret.Error(1)
 	}

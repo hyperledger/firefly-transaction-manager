@@ -55,7 +55,7 @@ func (m *manager) checkReceipts() {
 	for _, pending := range allPending {
 		err := m.checkReceiptCycle(pending)
 		if err != nil {
-			log.L(m.ctx).Errorf("Failed to check transaction receipt '%s' operation=%s", pending.mtx.TransactionHash, pending.mtx.ID)
+			log.L(m.ctx).Errorf("Failed to receipt cycle transaction=%s operation=%s", pending.mtx.TransactionHash, pending.mtx.ID)
 		}
 	}
 
@@ -101,6 +101,7 @@ func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
 		})
 		if err != nil {
 			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, newStatus, err)
+			return err
 		}
 		if pending.confirmed {
 			// We can remove it now

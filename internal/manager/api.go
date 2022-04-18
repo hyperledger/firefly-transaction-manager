@@ -40,7 +40,7 @@ func (m *manager) runAPIServer() {
 	m.apiServer.ServeHTTP(m.ctx)
 }
 
-func (m *manager) validateHeaders(ctx context.Context, tReq *fftm.TransactionRequest) error {
+func (m *manager) validateRequest(ctx context.Context, tReq *fftm.TransactionRequest) error {
 	if tReq == nil || tReq.Headers.ID == nil || tReq.Headers.Type == "" {
 		log.L(ctx).Warnf("Invalid request: %+v", tReq)
 		return i18n.NewError(ctx, tmmsgs.MsgErrorInvalidRequest)
@@ -54,7 +54,7 @@ func (m *manager) apiHandler(w http.ResponseWriter, r *http.Request) {
 	statusCode := 200
 	err := json.NewDecoder(r.Body).Decode(&tReq)
 	if err == nil {
-		err = m.validateHeaders(ctx, tReq)
+		err = m.validateRequest(ctx, tReq)
 	}
 	var resBody interface{}
 	if err != nil {

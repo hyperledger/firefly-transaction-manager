@@ -23,9 +23,9 @@ var ffe = i18n.FFE
 //revive:disable
 var (
 	MsgInvalidOutputType             = ffe("FF201010", "Invalid output type: %s")
-	MsgConnectorError                = ffe("FF201012", "Connector request=%s reason=%s error: %s")
-	MsgConnectorInvalidConentType    = ffe("FF201013", "Connector request=%s invalid content type: %s")
-	MsgConnectorFailInvoke           = ffe("FF201014", "Connector request=%s failed to invoke")
+	MsgConnectorError                = ffe("FF201012", "Connector failed request. requestId=%s reason=%s error: %s")
+	MsgConnectorInvalidConentType    = ffe("FF201013", "Connector failed request. requestId=%s invalid response content type: %s")
+	MsgConnectorFailInvoke           = ffe("FF201014", "Connector failed request. requestId=%s failed to call connector API")
 	MsgCacheInitFail                 = ffe("FF201015", "Failed to initialize cache")
 	MsgInvalidConfirmationRequest    = ffe("FF201016", "Invalid confirmation request %+v")
 	MsgCoreError                     = ffe("FF201017", "Error from core status=%d: %s")
