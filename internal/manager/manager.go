@@ -127,6 +127,18 @@ func (m *manager) requestFullScan() {
 	}
 }
 
+func (m *manager) waitScanDelay(lastFullScan *fftypes.FFTime) {
+	scanDelay := m.fullScanMinDelay - time.Since(*lastFullScan.Time())
+	log.L(m.ctx).Errorf("Delaying %dms before next full scan", scanDelay.Milliseconds())
+	timer := time.NewTimer(scanDelay)
+	select {
+	case <-timer.C:
+	case <-m.ctx.Done():
+		log.L(m.ctx).Infof("Full scan loop exiting waiting for retry")
+		return
+	}
+}
+
 func (m *manager) fullScanLoop() {
 	defer close(m.fullScanLoopDone)
 	firstFullScanDone := m.firstFullScanDone
@@ -136,9 +148,7 @@ func (m *manager) fullScanLoop() {
 		select {
 		case <-m.fullScanRequests:
 			if lastFullScan != nil {
-				scanDelay := m.fullScanMinDelay - time.Since(*lastFullScan.Time())
-				log.L(m.ctx).Errorf("Delaying %dms before next full scan", scanDelay.Milliseconds())
-				time.Sleep(scanDelay)
+				m.waitScanDelay(lastFullScan)
 			}
 			lastFullScan = fftypes.Now()
 			err := m.fullScan()

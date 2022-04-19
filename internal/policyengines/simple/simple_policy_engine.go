@@ -59,7 +59,7 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config
 		p.gasStationClient = ffresty.New(ctx, gasStationPrefix)
 	}
 	if p.fixedGasEstimate.IsNil() && p.gasStationClient == nil {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgNoGasConfigSetForPolicyEngine)
+		return nil, i18n.NewError(ctx, tmmsgs.MsgNoGasConfigSetForPolicyEngine, prefix.Resolve(FixedGas), gasStationPrefix.Resolve(GasStationEnabled))
 	}
 	return p, nil
 }

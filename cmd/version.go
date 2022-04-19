@@ -42,6 +42,12 @@ type Info struct {
 	License string `json:"License,omitempty" yaml:"License,omitempty"`
 }
 
+func setBuildInfo(info *Info, buildInfo *debug.BuildInfo, ok bool) {
+	if ok {
+		info.Version = buildInfo.Main.Version
+	}
+}
+
 func versionCommand() *cobra.Command {
 	versionCmd := &cobra.Command{
 		Use:   "version",
@@ -60,9 +66,7 @@ func versionCommand() *cobra.Command {
 			// When we're in go-releaser in a Github action, we will have the version passed in explicitly
 			if info.Version == "" {
 				buildInfo, ok := debug.ReadBuildInfo()
-				if ok {
-					info.Version = buildInfo.Main.Version
-				}
+				setBuildInfo(info, buildInfo, ok)
 			}
 
 			if shortened {

@@ -66,7 +66,7 @@ func initConfig() {
 func run() error {
 
 	initConfig()
-	err := config.ReadConfig(cfgFile)
+	err := config.ReadConfig("fftm", cfgFile)
 
 	// Setup logging after reading config (even if failed), to output header correctly
 	ctx, cancelCtx := context.WithCancel(context.Background())
@@ -84,6 +84,12 @@ func run() error {
 
 	// Setup signal handling to cancel the context, which shuts down the API Server
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		log.L(ctx).Infof("Shutting down due to %s", sig.String())
+		cancelCtx()
+	}()
+
 	manager, err := manager.NewManager(ctx)
 	if err != nil {
 		return err
@@ -92,8 +98,5 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	sig := <-sigs
-	log.L(ctx).Infof("Shutting down due to %s", sig.String())
-	cancelCtx()
 	return manager.WaitStop()
 }

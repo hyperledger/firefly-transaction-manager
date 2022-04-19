@@ -448,3 +448,18 @@ func TestRequestFullScanCancelledBeforeStart(t *testing.T) {
 	m.waitForFirstScanAndStart()
 
 }
+
+func TestStartupCancelledDuringRetry(t *testing.T) {
+
+	var m *manager
+	_, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	cancel() // close servers
+	m.startupScanMaxRetries = 2
+	m.fullScanMinDelay = 1 * time.Second
+
+	m.waitScanDelay(fftypes.Now())
+
+}

@@ -1,0 +1,5 @@
+manager:
+  name: test
+policyengine:
+  simple:
+    fixedGas: 12345
