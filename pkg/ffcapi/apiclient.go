@@ -58,20 +58,20 @@ func newAPI(ctx context.Context, prefix config.Prefix) *api {
 
 func (a *api) invokeAPI(ctx context.Context, input ffcapiRequest, output ffcapiResponse) (ErrorReason, error) {
 
-	initHeader(input.RequestHeader(), a.variant, input.RequestType())
+	initHeader(input.FFCAPIHeader(), a.variant, input.RequestType())
 	res, err := a.client.R().
 		SetBody(input).
 		SetResult(output).
 		SetError(output).
 		Post("/")
 	if err != nil {
-		return "", i18n.WrapError(ctx, err, tmmsgs.MsgConnectorFailInvoke, input.RequestHeader().RequestID)
+		return "", i18n.WrapError(ctx, err, tmmsgs.MsgConnectorFailInvoke, input.FFCAPIHeader().RequestID)
 	}
 	if !strings.Contains(res.Header().Get("Content-Type"), "application/json") {
-		return "", i18n.NewError(ctx, tmmsgs.MsgConnectorInvalidConentType, input.RequestHeader().RequestID, res.Header().Get("Content-Type"))
+		return "", i18n.NewError(ctx, tmmsgs.MsgConnectorInvalidConentType, input.FFCAPIHeader().RequestID, res.Header().Get("Content-Type"))
 	}
 	if res.IsError() {
-		return output.ErrorReason(), i18n.NewError(ctx, tmmsgs.MsgConnectorError, input.RequestHeader().RequestID, output.ErrorReason(), output.ErrorMessage())
+		return output.ErrorReason(), i18n.NewError(ctx, tmmsgs.MsgConnectorError, input.FFCAPIHeader().RequestID, output.ErrorReason(), output.ErrorMessage())
 	}
 
 	return "", nil
