@@ -104,9 +104,9 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 			return false, err
 		}
 		_, _, err = cAPI.SendTransaction(ctx, &ffcapi.SendTransactionRequest{
-			From:           mtx.Signer,
-			GasPrice:       mtx.GasPrice,
-			RawTransaction: mtx.RawTransaction,
+			TransactionHeaders: mtx.Request.TransactionHeaders,
+			GasPrice:           mtx.GasPrice,
+			TransactionData:    mtx.TransactionData,
 		})
 		if err != nil {
 			// A more sophisticated policy engine would consider the reason here, and potentially adjust the transaction for future attempts

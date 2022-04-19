@@ -40,6 +40,7 @@ func (m *manager) sendManagedTransaction(ctx context.Context, request *fftm.Tran
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
 	// anything to the blockchain itself.
 	prepared, _, err := m.connectorAPI.PrepareTransaction(ctx, &ffcapi.PrepareTransactionRequest{
+		TransactionHeaders:       request.TransactionHeaders,
 		TransactionPrepareInputs: request.TransactionPrepareInputs,
 	})
 	if err != nil {
@@ -54,10 +55,9 @@ func (m *manager) sendManagedTransaction(ctx context.Context, request *fftm.Tran
 		FFTMName:        m.name,
 		ID:              request.Headers.ID, // on input the request ID must be the Operation ID
 		Nonce:           fftypes.NewFFBigInt(int64(lockedNonce.nonce)),
-		Signer:          request.From,
 		Gas:             prepared.Gas,
 		TransactionHash: prepared.TransactionHash,
-		RawTransaction:  prepared.RawTransaction,
+		TransactionData: prepared.TransactionData,
 		Request:         request,
 	}
 	if err = m.writeManagedTX(ctx, &opUpdate{

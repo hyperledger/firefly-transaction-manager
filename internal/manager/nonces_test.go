@@ -54,9 +54,15 @@ func TestNonceCached(t *testing.T) {
 
 		time.Sleep(1 * time.Millisecond)
 		ln.spent = &fftm.ManagedTXOutput{
-			ID:     fftypes.NewUUID(),
-			Nonce:  fftypes.NewFFBigInt(int64(ln.nonce)),
-			Signer: "0x12345",
+			ID:    fftypes.NewUUID(),
+			Nonce: fftypes.NewFFBigInt(int64(ln.nonce)),
+			Request: &fftm.TransactionRequest{
+				TransactionInput: ffcapi.TransactionInput{
+					TransactionHeaders: ffcapi.TransactionHeaders{
+						From: "0x12345",
+					},
+				},
+			},
 		}
 		ln.complete(context.Background())
 	}()

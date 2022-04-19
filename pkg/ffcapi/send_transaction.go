@@ -27,9 +27,9 @@ import (
 // noting the transaction hash has already been calculated in the prepare step previously.
 type SendTransactionRequest struct {
 	RequestBase
-	From           string           `json:"from"`
-	GasPrice       *fftypes.JSONAny `json:"gasPrice,omitempty"` // can be a simple string/number, or a complex object - contract is between policy engine and blockchain connector
-	RawTransaction string           `json:"rawTransaction"`
+	GasPrice *fftypes.JSONAny `json:"gasPrice,omitempty"` // can be a simple string/number, or a complex object - contract is between policy engine and blockchain connector
+	TransactionHeaders
+	TransactionData string `json:"transactionData"`
 }
 
 type SendTransactionResponse struct {

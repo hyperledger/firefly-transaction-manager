@@ -37,6 +37,7 @@ func TestCheckReceiptE2EOk(t *testing.T) {
 	mtx := &fftm.ManagedTXOutput{
 		ID:          fftypes.NewUUID(),
 		FirstSubmit: fftypes.Now(),
+		Request:     &fftm.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,
@@ -83,7 +84,8 @@ func TestCheckReceiptE2EOk(t *testing.T) {
 func TestCheckReceiptUpdateFFCoreWithError(t *testing.T) {
 
 	mtx := &fftm.ManagedTXOutput{
-		ID: fftypes.NewUUID(),
+		ID:      fftypes.NewUUID(),
+		Request: &fftm.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,
@@ -116,6 +118,7 @@ func TestCheckReceiptUpdateOpFail(t *testing.T) {
 	mtx := &fftm.ManagedTXOutput{
 		ID:          fftypes.NewUUID(),
 		FirstSubmit: fftypes.Now(),
+		Request:     &fftm.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,
@@ -160,6 +163,7 @@ func TestCheckReceiptGetReceiptFail(t *testing.T) {
 	mtx := &fftm.ManagedTXOutput{
 		ID:          fftypes.NewUUID(),
 		FirstSubmit: fftypes.Now(),
+		Request:     &fftm.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,
@@ -184,6 +188,7 @@ func TestCheckReceiptGetReceiptForkRemoved(t *testing.T) {
 	mtx := &fftm.ManagedTXOutput{
 		ID:          fftypes.NewUUID(),
 		FirstSubmit: fftypes.Now(),
+		Request:     &fftm.TransactionRequest{},
 		Receipt: &ffcapi.GetReceiptResponse{
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
@@ -218,7 +223,8 @@ func TestCheckReceiptGetReceiptForkRemoved(t *testing.T) {
 func TestCheckReceiptCycleCleanupRemoved(t *testing.T) {
 
 	mtx := &fftm.ManagedTXOutput{
-		ID: fftypes.NewUUID(),
+		ID:      fftypes.NewUUID(),
+		Request: &fftm.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,
