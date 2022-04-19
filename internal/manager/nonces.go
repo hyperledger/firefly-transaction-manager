@@ -43,7 +43,10 @@ func (ln *lockedNonce) complete(ctx context.Context) {
 		log.L(ctx).Debugf("Returning next nonce %d for signer %s unspent", ln.nonce, ln.signer)
 		// Do not
 	}
+	ln.m.mux.Lock()
+	delete(ln.m.lockedNonces, ln.signer)
 	close(ln.unlocked)
+	ln.m.mux.Unlock()
 }
 
 func (m *manager) assignAndLockNonce(ctx context.Context, opID *fftypes.UUID, signer string) (*lockedNonce, error) {

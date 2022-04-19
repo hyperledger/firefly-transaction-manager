@@ -108,7 +108,7 @@ func (m *manager) readOperationPage(lastOp *fftypes.Operation) ([]*fftypes.Opera
 		SetError(&errorInfo).
 		Get("/admin/api/v1/operations")
 	if err != nil {
-		return nil, err
+		return nil, i18n.WrapError(m.ctx, err, tmmsgs.MsgCoreError, -1, err)
 	}
 	if res.IsError() {
 		return nil, i18n.NewError(m.ctx, tmmsgs.MsgCoreError, res.StatusCode(), errorInfo.Error)
