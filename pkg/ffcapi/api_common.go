@@ -72,15 +72,19 @@ type Header struct {
 // - The supplied value is passed through for each input parameter. It could be any JSON type (simple number/boolean/string, or complex object/array). The blockchain connection is responsible for serializing these according to the rules in the interface.
 type TransactionInput struct {
 	GasPrice *fftypes.JSONAny `json:"gasPrice,omitempty"` // can be a simple string/number, or a complex object - contract is between policy engine and blockchain connector
+	TransactionHeaders
 	TransactionPrepareInputs
 }
 
+type TransactionHeaders struct {
+	From  string            `json:"from"`
+	To    string            `json:"to"`
+	Nonce *fftypes.FFBigInt `json:"nonce"`
+	Gas   *fftypes.FFBigInt `json:"gas,omitempty"`
+	Value *fftypes.FFBigInt `json:"value"`
+}
+
 type TransactionPrepareInputs struct {
-	From   string            `json:"from"`
-	To     string            `json:"to"`
-	Nonce  *fftypes.FFBigInt `json:"nonce"`
-	Gas    *fftypes.FFBigInt `json:"gas,omitempty"`
-	Value  *fftypes.FFBigInt `json:"value"`
 	Method fftypes.JSONAny   `json:"method"`
 	Params []fftypes.JSONAny `json:"params"`
 }

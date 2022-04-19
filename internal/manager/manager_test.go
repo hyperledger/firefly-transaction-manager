@@ -153,6 +153,7 @@ func TestChangeEventsNewTracked(t *testing.T) {
 			b, err := json.Marshal(newTestOperation(t, &fftm.ManagedTXOutput{
 				ID:       ce.ID,
 				FFTMName: testManagerName,
+				Request:  &fftm.TransactionRequest{},
 			}, fftypes.OpStatusPending))
 			assert.NoError(t, err)
 			w.Header().Set("Content-Type", "application/json")
@@ -227,6 +228,7 @@ func TestChangeEventsWrongName(t *testing.T) {
 			b, err := json.Marshal(newTestOperation(t, &fftm.ManagedTXOutput{
 				ID:       ce.ID,
 				FFTMName: "wrong",
+				Request:  &fftm.TransactionRequest{},
 			}, fftypes.OpStatusPending))
 			assert.NoError(t, err)
 			w.Header().Set("Content-Type", "application/json")
@@ -259,8 +261,42 @@ func TestChangeEventsWrongID(t *testing.T) {
 			op := newTestOperation(t, &fftm.ManagedTXOutput{
 				ID:       fftypes.NewUUID(),
 				FFTMName: testManagerName,
+				Request:  &fftm.TransactionRequest{},
 			}, fftypes.OpStatusPending)
 			op.ID = fftypes.NewUUID()
+			b, err := json.Marshal(&op)
+			assert.NoError(t, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(200)
+			w.Write(b)
+		},
+	)
+	defer cancel()
+
+	m.handleEvent(ce)
+	assert.Empty(t, m.pendingOpsByID)
+
+}
+
+func TestChangeEventsNilRequest(t *testing.T) {
+
+	ce := &fftypes.ChangeEvent{
+		ID:         fftypes.NewUUID(),
+		Type:       fftypes.ChangeEventTypeUpdated,
+		Collection: "operations",
+		Namespace:  "ns1",
+	}
+
+	var m *manager
+	_, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+		func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, http.MethodGet, r.Method)
+			assert.Equal(t, fmt.Sprintf("/admin/api/v1/operations/%s", ce.ID), r.URL.Path)
+			op := newTestOperation(t, &fftm.ManagedTXOutput{
+				ID:       fftypes.NewUUID(),
+				FFTMName: testManagerName,
+			}, fftypes.OpStatusPending)
 			b, err := json.Marshal(&op)
 			assert.NoError(t, err)
 			w.Header().Set("Content-Type", "application/json")
@@ -317,6 +353,7 @@ func TestChangeEventsMarkForCleanup(t *testing.T) {
 	op := newTestOperation(t, &fftm.ManagedTXOutput{
 		ID:       fftypes.NewUUID(),
 		FFTMName: testManagerName,
+		Request:  &fftm.TransactionRequest{},
 	}, fftypes.OpStatusFailed)
 
 	var m *manager
@@ -345,18 +382,21 @@ func TestStartupScanMultiPageOK(t *testing.T) {
 	op1 := newTestOperation(t, &fftm.ManagedTXOutput{
 		ID:       fftypes.NewUUID(),
 		FFTMName: testManagerName,
+		Request:  &fftm.TransactionRequest{},
 	}, fftypes.OpStatusPending)
 	t1 := fftypes.FFTime(time.Now().Add(-10 * time.Minute))
 	op1.Created = &t1
 	op2 := newTestOperation(t, &fftm.ManagedTXOutput{
 		ID:       fftypes.NewUUID(),
 		FFTMName: testManagerName,
+		Request:  &fftm.TransactionRequest{},
 	}, fftypes.OpStatusPending)
 	t2 := fftypes.FFTime(time.Now().Add(-5 * time.Minute))
 	op2.Created = &t2
 	op3 := newTestOperation(t, &fftm.ManagedTXOutput{
 		ID:       fftypes.NewUUID(),
 		FFTMName: testManagerName,
+		Request:  &fftm.TransactionRequest{},
 	}, fftypes.OpStatusPending)
 	t3 := fftypes.FFTime(time.Now().Add(-1 * time.Minute))
 	op3.Created = &t3

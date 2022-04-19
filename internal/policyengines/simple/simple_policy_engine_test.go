@@ -58,8 +58,14 @@ func TestFixedGasOK(t *testing.T) {
 	assert.NoError(t, err)
 
 	mtx := &fftm.ManagedTXOutput{
-		Signer:         "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-		RawTransaction: "SOME_RAW_TX_BYTES",
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
@@ -67,7 +73,7 @@ func TestFixedGasOK(t *testing.T) {
 		return req.GasPrice.JSONObject().GetString("maxPriorityFee") == "32.146027800733336" &&
 			req.GasPrice.JSONObject().GetString("maxFee") == "32.14602781673334" &&
 			req.From == "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712" &&
-			req.RawTransaction == "SOME_RAW_TX_BYTES"
+			req.TransactionData == "SOME_RAW_TX_BYTES"
 	})).Return(&ffcapi.SendTransactionResponse{}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
@@ -116,8 +122,14 @@ func TestGasStationSendOK(t *testing.T) {
 	assert.NoError(t, err)
 
 	mtx := &fftm.ManagedTXOutput{
-		Signer:         "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-		RawTransaction: "SOME_RAW_TX_BYTES",
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
@@ -125,7 +137,7 @@ func TestGasStationSendOK(t *testing.T) {
 		return req.GasPrice.JSONObject().GetString("unit") == "gwei" &&
 			req.GasPrice.JSONObject().GetString("value") == "32.146027800733336" &&
 			req.From == "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712" &&
-			req.RawTransaction == "SOME_RAW_TX_BYTES"
+			req.TransactionData == "SOME_RAW_TX_BYTES"
 	})).Return(&ffcapi.SendTransactionResponse{}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
@@ -154,8 +166,14 @@ func TestGasStationSendFail(t *testing.T) {
 	assert.NoError(t, err)
 
 	mtx := &fftm.ManagedTXOutput{
-		Signer:         "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-		RawTransaction: "SOME_RAW_TX_BYTES",
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
@@ -177,8 +195,14 @@ func TestGasStationNonJSON(t *testing.T) {
 	assert.NoError(t, err)
 
 	mtx := &fftm.ManagedTXOutput{
-		Signer:         "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-		RawTransaction: "SOME_RAW_TX_BYTES",
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
@@ -203,8 +227,14 @@ func TestTXSendFail(t *testing.T) {
 	assert.NoError(t, err)
 
 	mtx := &fftm.ManagedTXOutput{
-		Signer:         "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-		RawTransaction: "SOME_RAW_TX_BYTES",
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
@@ -223,10 +253,16 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
 	mtx := &fftm.ManagedTXOutput{
-		Signer:         "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-		RawTransaction: "SOME_RAW_TX_BYTES",
-		FirstSubmit:    &submitTime,
-		PolicyInfo:     fftypes.JSONAnyPtr("!not json!"),
+		TransactionData: "SOME_RAW_TX_BYTES",
+		FirstSubmit:     &submitTime,
+		PolicyInfo:      fftypes.JSONAnyPtr("!not json!"),
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
@@ -249,10 +285,16 @@ func TestWarnStaleAdditionalWarning(t *testing.T) {
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
 	lastWarning := fftypes.FFTime(time.Now().Add(-50 * time.Hour))
 	mtx := &fftm.ManagedTXOutput{
-		Signer:         "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-		RawTransaction: "SOME_RAW_TX_BYTES",
-		FirstSubmit:    &submitTime,
-		PolicyInfo:     fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionData: "SOME_RAW_TX_BYTES",
+		FirstSubmit:     &submitTime,
+		PolicyInfo:      fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
@@ -276,10 +318,16 @@ func TestWarnStaleNoWarning(t *testing.T) {
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
 	lastWarning := fftypes.Now()
 	mtx := &fftm.ManagedTXOutput{
-		Signer:         "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-		RawTransaction: "SOME_RAW_TX_BYTES",
-		FirstSubmit:    &submitTime,
-		PolicyInfo:     fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionData: "SOME_RAW_TX_BYTES",
+		FirstSubmit:     &submitTime,
+		PolicyInfo:      fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
@@ -301,9 +349,15 @@ func TestNoOpWithReceipt(t *testing.T) {
 
 	submitTime := fftypes.Now()
 	mtx := &fftm.ManagedTXOutput{
-		Signer:         "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-		RawTransaction: "SOME_RAW_TX_BYTES",
-		FirstSubmit:    submitTime,
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionData: "SOME_RAW_TX_BYTES",
+		FirstSubmit:     submitTime,
 		Receipt: &ffcapi.GetReceiptResponse{
 			BlockHash: "0x39e2664effa5ad0651c35f1fe3b4c4b90492b1955fee731c2e9fb4d6518de114",
 		},

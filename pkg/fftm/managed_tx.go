@@ -29,9 +29,8 @@ type ManagedTXOutput struct {
 	ID              *fftypes.UUID              `json:"id"`
 	Nonce           *fftypes.FFBigInt          `json:"nonce"`
 	Gas             *fftypes.FFBigInt          `json:"gas"`
-	Signer          string                     `json:"signer"`
 	TransactionHash string                     `json:"transactionHash,omitempty"`
-	RawTransaction  string                     `json:"rawTransaction,omitempty"`
+	TransactionData string                     `json:"rawTransaction,omitempty"`
 	GasPrice        *fftypes.JSONAny           `json:"gasPrice"`
 	PolicyInfo      *fftypes.JSONAny           `json:"policyInfo"`
 	FirstSubmit     *fftypes.FFTime            `json:"firstSubmit,omitempty"`

@@ -216,6 +216,10 @@ func (m *manager) trackIfManaged(op *fftypes.Operation) {
 		log.L(m.ctx).Warnf("Operation %s contains an invalid ID %s in the output", op.ID, mtx.ID)
 		return
 	}
+	if mtx.Request == nil {
+		log.L(m.ctx).Warnf("Operation %s contains a nil request in the output", op.ID)
+		return
+	}
 	m.trackManaged(&mtx)
 }
 
@@ -224,11 +228,11 @@ func (m *manager) trackManaged(mtx *fftm.ManagedTXOutput) {
 	defer m.mux.Unlock()
 	_, existing := m.pendingOpsByID[*mtx.ID]
 	if !existing {
-		nextNonce, ok := m.nextNonces[mtx.Signer]
+		nextNonce, ok := m.nextNonces[mtx.Request.From]
 		nonce := mtx.Nonce.Uint64()
 		if !ok || nextNonce <= nonce {
 			log.L(m.ctx).Debugf("Nonce %d in-flight. Next nonce: %d", nonce, nonce+1)
-			m.nextNonces[mtx.Signer] = nonce + 1
+			m.nextNonces[mtx.Request.From] = nonce + 1
 		}
 		m.pendingOpsByID[*mtx.ID] = &pendingState{
 			mtx: mtx,

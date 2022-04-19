@@ -42,6 +42,7 @@ import (
 // detected by the back-end connector.
 type PrepareTransactionRequest struct {
 	RequestBase
+	TransactionHeaders
 	TransactionPrepareInputs
 }
 
@@ -49,7 +50,7 @@ type PrepareTransactionResponse struct {
 	ResponseBase
 	Gas             *fftypes.FFBigInt `json:"gas"`
 	TransactionHash string            `json:"transactionHash"`
-	RawTransaction  string            `json:"rawTransaction"`
+	TransactionData string            `json:"transactionData"`
 }
 
 const RequestTypePrepareTransaction RequestType = "prepare_transaction"
