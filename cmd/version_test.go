@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	"runtime/debug"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,4 +56,10 @@ func TestVersionCmdShorthand(t *testing.T) {
 	defer rootCmd.SetArgs([]string{})
 	err := rootCmd.Execute()
 	assert.NoError(t, err)
+}
+
+func TestSetBuildInfoWithBI(t *testing.T) {
+	info := &Info{}
+	setBuildInfo(info, &debug.BuildInfo{Main: debug.Module{Version: "12345"}}, true)
+	assert.Equal(t, "12345", info.Version)
 }

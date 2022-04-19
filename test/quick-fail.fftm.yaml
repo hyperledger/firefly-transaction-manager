@@ -1,0 +1,11 @@
+manager:
+  name: test
+operations:
+  fullScan:
+    startupMaxRetries: 1
+    minimumDelay: 1ms
+policyengine:
+  simple:
+    fixedGas: 12345
+ffcore:
+  url: ":::: not a url"

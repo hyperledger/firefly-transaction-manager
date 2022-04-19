@@ -17,10 +17,60 @@
 package cmd
 
 import (
+	"os"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 const configDir = "../test/data/config"
 
-func TestRun(t *testing.T) {
+func TestRunOK(t *testing.T) {
+
+	rootCmd.SetArgs([]string{"-f", "../test/firefly.fftm.yaml"})
+	defer rootCmd.SetArgs([]string{})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		err := Execute()
+		assert.NoError(t, err)
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+	sigs <- os.Kill
+
+	<-done
+
+}
+
+func TestRunMissingConfig(t *testing.T) {
+
+	rootCmd.SetArgs([]string{"-f", "../test/does-not-exist.fftm.yaml"})
+	defer rootCmd.SetArgs([]string{})
+
+	err := Execute()
+	assert.Regexp(t, "FF00101", err)
+
+}
+
+func TestRunBadConfig(t *testing.T) {
+
+	rootCmd.SetArgs([]string{"-f", "../test/empty-config.fftm.yaml"})
+	defer rootCmd.SetArgs([]string{})
+
+	err := Execute()
+	assert.Regexp(t, "FF201018", err)
+
+}
+
+func TestRunFailStartup(t *testing.T) {
+
+	rootCmd.SetArgs([]string{"-f", "../test/quick-fail.fftm.yaml"})
+	defer rootCmd.SetArgs([]string{})
+
+	err := Execute()
+	assert.Regexp(t, "FF201017", err)
+
 }
