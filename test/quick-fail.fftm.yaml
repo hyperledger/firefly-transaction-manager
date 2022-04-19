@@ -9,3 +9,5 @@ policyengine:
     fixedGas: 12345
 ffcore:
   url: ":::: not a url"
+api:
+  port: 0 # allocate one
