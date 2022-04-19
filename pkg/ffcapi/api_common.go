@@ -23,14 +23,14 @@ import (
 // RequestType for each request is defined in the individual file
 type RequestType string
 
+// Semver API versioning
 type Version string
 
 const (
-	VersionPrefix string  = "ffcapi_"
-	Version1_0    Version = "ffcapi_v1.0"
+	Version1_0_0 Version = "v1.0.0"
 )
 
-const VersionCurrent = Version1_0
+const VersionCurrent = Version1_0_0
 
 type Variant string
 
