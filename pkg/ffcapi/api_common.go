@@ -26,7 +26,8 @@ type RequestType string
 type Version string
 
 const (
-	Version1_0 Version = "ffcapi_v1.0"
+	VersionPrefix string  = "ffcapi_"
+	Version1_0    Version = "ffcapi_v1.0"
 )
 
 const VersionCurrent = Version1_0
