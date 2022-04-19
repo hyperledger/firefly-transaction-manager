@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/gh/hyperledger/firefly-transaction-manager/branch/main/graph/badge.svg?token=G6TaoNNBx9)](https://codecov.io/gh/hyperledger/firefly-transaction-manager) [![Go Reference](https://pkg.go.dev/badge/github.com/hyperledger/firefly-transaction-manager.svg)](https://pkg.go.dev/github.com/hyperledger/firefly-transaction-manager)
+
 # Hyperledger FireFly Transaction Manager
 
 Plugable microservice component of Hyperledger FireFly, responsible for:

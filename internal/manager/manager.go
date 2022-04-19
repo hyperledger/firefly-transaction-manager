@@ -137,11 +137,10 @@ func (m *manager) fullScanLoop() {
 		case <-m.fullScanRequests:
 			if lastFullScan != nil {
 				scanDelay := m.fullScanMinDelay - time.Since(*lastFullScan.Time())
-				if scanDelay > 0 {
-					log.L(m.ctx).Errorf("Delaying %dms before next full scan", scanDelay.Milliseconds())
-					time.Sleep(scanDelay)
-				}
+				log.L(m.ctx).Errorf("Delaying %dms before next full scan", scanDelay.Milliseconds())
+				time.Sleep(scanDelay)
 			}
+			lastFullScan = fftypes.Now()
 			err := m.fullScan()
 			if err != nil {
 				errorCount++
@@ -181,6 +180,7 @@ func (m *manager) fullScan() error {
 			log.L(m.ctx).Debugf("Finished reading all operations - %d read, %d added", read, added)
 			return nil
 		}
+		lastOp = ops[len(ops)-1]
 		read += len(ops)
 		for _, op := range ops {
 			added++
@@ -191,9 +191,9 @@ func (m *manager) fullScan() error {
 }
 
 func (m *manager) trackIfManaged(op *fftypes.Operation) {
-	inputJSON := []byte(op.Output.String())
+	outputJSON := []byte(op.Output.String())
 	var mtx fftm.ManagedTXOutput
-	err := json.Unmarshal(inputJSON, &mtx)
+	err := json.Unmarshal(outputJSON, &mtx)
 	if err != nil {
 		log.L(m.ctx).Warnf("Failed to parse output from operation %s", err)
 		return
@@ -216,7 +216,8 @@ func (m *manager) trackManaged(mtx *fftm.ManagedTXOutput) {
 	if !existing {
 		nextNonce, ok := m.nextNonces[mtx.Signer]
 		nonce := mtx.Nonce.Uint64()
-		if !ok || nextNonce < nonce {
+		if !ok || nextNonce <= nonce {
+			log.L(m.ctx).Debugf("Nonce %d in-flight. Next nonce: %d", nonce, nonce+1)
 			m.nextNonces[mtx.Signer] = nonce + 1
 		}
 		m.pendingOpsByID[*mtx.ID] = &pendingState{
@@ -237,11 +238,16 @@ func (m *manager) markCancelledIfTracked(opID *fftypes.UUID) {
 
 func (m *manager) handleEvent(ce *fftypes.ChangeEvent) {
 	log.L(m.ctx).Debugf("%s:%s/%s operation change event received", ce.Namespace, ce.ID, ce.Type)
-	m.mux.Lock()
-	_, knownID := m.pendingOpsByID[*ce.ID]
-	m.mux.Unlock()
-	if !knownID {
-		m.queryAndAddPending(ce.ID)
+	// Note that we only subscribe the events on update (this check is just belt and braces).
+	// The operation gets created before any connector is called, so the first event should be
+	// after we do the update from the prepare.
+	if ce.Collection == "operations" && ce.Type == fftypes.ChangeEventTypeUpdated {
+		m.mux.Lock()
+		_, knownID := m.pendingOpsByID[*ce.ID]
+		m.mux.Unlock()
+		if !knownID {
+			m.queryAndAddPending(ce.ID)
+		}
 	}
 }
 
