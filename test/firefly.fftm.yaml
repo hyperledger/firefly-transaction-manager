@@ -3,3 +3,5 @@ manager:
 policyengine:
   simple:
     fixedGas: 12345
+api:
+  port: 0 # allocate one

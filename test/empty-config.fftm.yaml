@@ -1,2 +1,4 @@
 manager:
   no-name-set: "should have a name to start"
+api:
+  port: 0 # allocate one
