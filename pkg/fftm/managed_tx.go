@@ -30,7 +30,7 @@ type ManagedTXOutput struct {
 	Nonce           *fftypes.FFBigInt          `json:"nonce"`
 	Gas             *fftypes.FFBigInt          `json:"gas"`
 	TransactionHash string                     `json:"transactionHash,omitempty"`
-	TransactionData string                     `json:"rawTransaction,omitempty"`
+	TransactionData string                     `json:"transactionData,omitempty"`
 	GasPrice        *fftypes.JSONAny           `json:"gasPrice"`
 	PolicyInfo      *fftypes.JSONAny           `json:"policyInfo"`
 	FirstSubmit     *fftypes.FFTime            `json:"firstSubmit,omitempty"`
