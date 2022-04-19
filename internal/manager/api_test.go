@@ -67,11 +67,11 @@ func testFFCAPIHandler(t *testing.T, fn func(reqType ffcapi.RequestType, b []byt
 		err = json.Unmarshal(b, &reqHeader)
 		assert.NoError(t, err)
 
-		assert.NotNil(t, reqHeader.Header.RequestID)
-		assert.Equal(t, ffcapi.VersionCurrent, reqHeader.Header.Version)
-		assert.Equal(t, ffcapi.Variant("evm"), reqHeader.Header.Variant)
+		assert.NotNil(t, reqHeader.FFCAPI.RequestID)
+		assert.Equal(t, ffcapi.VersionCurrent, reqHeader.FFCAPI.Version)
+		assert.Equal(t, ffcapi.Variant("evm"), reqHeader.FFCAPI.Variant)
 
-		res, status := fn(reqHeader.Header.RequestType, b)
+		res, status := fn(reqHeader.FFCAPI.RequestType, b)
 
 		b, err = json.Marshal(res)
 		assert.NoError(t, err)

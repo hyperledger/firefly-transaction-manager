@@ -56,7 +56,7 @@ const (
 	ErrorReasonNotFound ErrorReason = "not_found"
 )
 
-// Header is included consistently as a "header" structure on each request
+// Header is included consistently as a "ffcapi" structure on each request
 type Header struct {
 	RequestID   *fftypes.UUID `json:"id"`      // Unique for each request
 	Version     Version       `json:"version"` // The API version
@@ -94,11 +94,11 @@ type ErrorResponse struct {
 }
 
 type RequestBase struct {
-	Header Header `json:"header"`
+	FFCAPI Header `json:"ffcapi"`
 }
 
-func (r *RequestBase) RequestHeader() *Header {
-	return &r.Header
+func (r *RequestBase) FFCAPIHeader() *Header {
+	return &r.FFCAPI
 }
 
 type ResponseBase struct {
@@ -114,7 +114,7 @@ func (r *ResponseBase) ErrorReason() ErrorReason {
 }
 
 type ffcapiRequest interface {
-	RequestHeader() *Header
+	FFCAPIHeader() *Header
 	RequestType() RequestType
 }
 
