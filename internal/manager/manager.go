@@ -68,6 +68,7 @@ type manager struct {
 	started             bool
 	apiServerDone       chan error
 
+	wsDisabled              bool
 	name                    string
 	opTypes                 []string
 	startupScanMaxRetries   int
@@ -104,6 +105,11 @@ func NewManager(ctx context.Context) (Manager, error) {
 		return nil, err
 	}
 	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBasePrefix, config.GetString(tmconfig.PolicyEngineName))
+	if err != nil {
+		return nil, err
+	}
+	wsconfig := wsclient.GenerateConfigFromPrefix(tmconfig.FFCorePrefix)
+	m.wsClient, err = wsclient.New(m.ctx, wsconfig, nil, m.startChangeListener)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +308,7 @@ func (m *manager) Start() error {
 	return m.waitForFirstScanAndStart()
 }
 
-func (m *manager) waitForFirstScanAndStart() (err error) {
+func (m *manager) waitForFirstScanAndStart() error {
 	log.L(m.ctx).Infof("Waiting for first full scan of operations to build state")
 	select {
 	case err := <-m.firstFullScanDone:
@@ -319,10 +325,10 @@ func (m *manager) waitForFirstScanAndStart() (err error) {
 	go m.changeEventLoop()
 	go m.receiptPollingLoop()
 	go m.runAPIServer()
-	wsconfig := wsclient.GenerateConfigFromPrefix(tmconfig.FFCorePrefix)
-	m.wsClient, err = wsclient.New(m.ctx, wsconfig, nil, m.startChangeListener)
-	if err != nil {
-		return err
+	if !m.wsDisabled {
+		if err := m.wsClient.Connect(); err != nil {
+			return err
+		}
 	}
 	m.started = true
 	return nil
