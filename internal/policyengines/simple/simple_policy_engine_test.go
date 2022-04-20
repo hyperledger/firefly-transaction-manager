@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
@@ -35,6 +36,7 @@ import (
 )
 
 func newTestPolicyEngineFactory(t *testing.T) (*PolicyEngineFactory, config.Prefix) {
+	tmconfig.Reset()
 	prefix := config.NewPluginConfig("unittest.simple")
 	f := &PolicyEngineFactory{}
 	f.InitPrefix(prefix)
@@ -65,6 +67,7 @@ func TestFixedGasOK(t *testing.T) {
 				},
 			},
 		},
+		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
@@ -74,7 +77,9 @@ func TestFixedGasOK(t *testing.T) {
 			req.GasPrice.JSONObject().GetString("maxFee") == "32.14602781673334" &&
 			req.From == "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712" &&
 			req.TransactionData == "SOME_RAW_TX_BYTES"
-	})).Return(&ffcapi.SendTransactionResponse{}, ffcapi.ErrorReason(""), nil)
+	})).Return(&ffcapi.SendTransactionResponse{
+		TransactionHash: "0x12345",
+	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
 	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
@@ -129,6 +134,7 @@ func TestGasStationSendOK(t *testing.T) {
 				},
 			},
 		},
+		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
@@ -138,7 +144,9 @@ func TestGasStationSendOK(t *testing.T) {
 			req.GasPrice.JSONObject().GetString("value") == "32.146027800733336" &&
 			req.From == "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712" &&
 			req.TransactionData == "SOME_RAW_TX_BYTES"
-	})).Return(&ffcapi.SendTransactionResponse{}, ffcapi.ErrorReason(""), nil)
+	})).Return(&ffcapi.SendTransactionResponse{
+		TransactionHash: "0x12345",
+	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
 	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
@@ -147,6 +155,45 @@ func TestGasStationSendOK(t *testing.T) {
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
 	assert.Equal(t, `{"unit":"gwei","value":32.146027800733336}`, mtx.GasPrice.String())
+
+	mockFFCAPI.AssertExpectations(t)
+}
+
+func TestFixedGasTXHashMismatch(t *testing.T) {
+	f, prefix := newTestPolicyEngineFactory(t)
+	prefix.Set(FixedGas, `{
+		"maxPriorityFee":32.146027800733336,
+		"maxFee":32.14602781673334
+	}`)
+	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	assert.NoError(t, err)
+
+	mtx := &fftm.ManagedTXOutput{
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionHash: "0x12345",
+		TransactionData: "SOME_RAW_TX_BYTES",
+	}
+
+	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("SendTransaction", mock.Anything, mock.MatchedBy(func(req *ffcapi.SendTransactionRequest) bool {
+		return req.GasPrice.JSONObject().GetString("maxPriorityFee") == "32.146027800733336" &&
+			req.GasPrice.JSONObject().GetString("maxFee") == "32.14602781673334" &&
+			req.From == "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712" &&
+			req.TransactionData == "SOME_RAW_TX_BYTES"
+	})).Return(&ffcapi.SendTransactionResponse{
+		TransactionHash: "0x23456",
+	}, ffcapi.ErrorReason(""), nil)
+
+	ctx := context.Background()
+	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
+	assert.Regexp(t, "FF201024", err)
+	assert.True(t, updated)
 
 	mockFFCAPI.AssertExpectations(t)
 }

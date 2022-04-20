@@ -103,7 +103,7 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 		if err != nil {
 			return false, err
 		}
-		_, _, err = cAPI.SendTransaction(ctx, &ffcapi.SendTransactionRequest{
+		res, _, err := cAPI.SendTransaction(ctx, &ffcapi.SendTransactionRequest{
 			TransactionHeaders: mtx.Request.TransactionHeaders,
 			GasPrice:           mtx.GasPrice,
 			TransactionData:    mtx.TransactionData,
@@ -111,6 +111,9 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 		if err != nil {
 			// A more sophisticated policy engine would consider the reason here, and potentially adjust the transaction for future attempts
 			return false, err
+		}
+		if res.TransactionHash != mtx.TransactionHash {
+			return true, i18n.NewError(ctx, tmmsgs.MsgTransactionHashMismatch, mtx.TransactionHash, res.TransactionHash)
 		}
 		mtx.FirstSubmit = fftypes.Now()
 		mtx.LastSubmit = mtx.FirstSubmit

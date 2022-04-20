@@ -34,6 +34,7 @@ type SendTransactionRequest struct {
 
 type SendTransactionResponse struct {
 	ResponseBase
+	TransactionHash string `json:"transactionHash"`
 }
 
 const RequestTypeSendTransaction RequestType = "send_transaction"
