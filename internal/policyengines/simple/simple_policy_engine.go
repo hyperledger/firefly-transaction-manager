@@ -49,8 +49,8 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config
 	gasStationPrefix := prefix.SubPrefix(GasStationPrefix)
 	gasStationEnabled := gasStationPrefix.GetBool(GasStationEnabled)
 	p := &simplePolicyEngine{
-		warnInterval:     prefix.GetDuration(WarnInterval),
-		fixedGasEstimate: fftypes.JSONAnyPtr(prefix.GetString(FixedGas)),
+		warnInterval:  prefix.GetDuration(WarnInterval),
+		fixedGasPrice: fftypes.JSONAnyPtr(prefix.GetString(FixedGasPrice)),
 
 		gasStationMethod: gasStationPrefix.GetString(GasStationMethod),
 		gasStationGJSON:  gasStationPrefix.GetString(GasStationGJSON),
@@ -58,15 +58,15 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config
 	if gasStationEnabled {
 		p.gasStationClient = ffresty.New(ctx, gasStationPrefix)
 	}
-	if p.fixedGasEstimate.IsNil() && p.gasStationClient == nil {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgNoGasConfigSetForPolicyEngine, prefix.Resolve(FixedGas), gasStationPrefix.Resolve(GasStationEnabled))
+	if p.fixedGasPrice.IsNil() && p.gasStationClient == nil {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgNoGasConfigSetForPolicyEngine, prefix.Resolve(FixedGasPrice), gasStationPrefix.Resolve(GasStationEnabled))
 	}
 	return p, nil
 }
 
 type simplePolicyEngine struct {
-	fixedGasEstimate *fftypes.JSONAny
-	warnInterval     time.Duration
+	fixedGasPrice *fftypes.JSONAny
+	warnInterval  time.Duration
 
 	gasStationClient *resty.Client
 	gasStationMethod string
@@ -162,5 +162,5 @@ func (p *simplePolicyEngine) getGasPrice(ctx context.Context) (gasPrice *fftypes
 		}
 		return fftypes.JSONAnyPtr(gjson.Get(string(rawResponse), p.gasStationGJSON).Raw), nil
 	}
-	return p.fixedGasEstimate, nil
+	return p.fixedGasPrice, nil
 }

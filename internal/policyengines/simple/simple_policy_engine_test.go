@@ -50,9 +50,9 @@ func TestMissingGasConfig(t *testing.T) {
 	assert.Regexp(t, "FF201020", err)
 }
 
-func TestFixedGasOK(t *testing.T) {
+func TestFixedGasPriceOK(t *testing.T) {
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGas, `{
+	prefix.Set(FixedGasPrice, `{
 		"maxPriorityFee":32.146027800733336,
 		"maxFee":32.14602781673334
 	}`)
@@ -159,9 +159,9 @@ func TestGasStationSendOK(t *testing.T) {
 	mockFFCAPI.AssertExpectations(t)
 }
 
-func TestFixedGasTXHashMismatch(t *testing.T) {
+func TestFixedGasPriceTXHashMismatch(t *testing.T) {
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGas, `{
+	prefix.Set(FixedGasPrice, `{
 		"maxPriorityFee":32.146027800733336,
 		"maxFee":32.14602781673334
 	}`)
@@ -294,7 +294,7 @@ func TestTXSendFail(t *testing.T) {
 
 func TestWarnStaleWarningCannotParse(t *testing.T) {
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGas, `12345`)
+	prefix.Set(FixedGasPrice, `12345`)
 	p, err := f.NewPolicyEngine(context.Background(), prefix)
 	assert.NoError(t, err)
 
@@ -325,7 +325,7 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 
 func TestWarnStaleAdditionalWarning(t *testing.T) {
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGas, `12345`)
+	prefix.Set(FixedGasPrice, `12345`)
 	p, err := f.NewPolicyEngine(context.Background(), prefix)
 	assert.NoError(t, err)
 
@@ -357,7 +357,7 @@ func TestWarnStaleAdditionalWarning(t *testing.T) {
 
 func TestWarnStaleNoWarning(t *testing.T) {
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGas, `12345`)
+	prefix.Set(FixedGasPrice, `12345`)
 	prefix.Set(WarnInterval, "100s")
 	p, err := f.NewPolicyEngine(context.Background(), prefix)
 	assert.NoError(t, err)
@@ -389,7 +389,7 @@ func TestWarnStaleNoWarning(t *testing.T) {
 
 func TestNoOpWithReceipt(t *testing.T) {
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGas, `12345`)
+	prefix.Set(FixedGasPrice, `12345`)
 	prefix.Set(WarnInterval, "100s")
 	p, err := f.NewPolicyEngine(context.Background(), prefix)
 	assert.NoError(t, err)

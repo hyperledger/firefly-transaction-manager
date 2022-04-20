@@ -2,6 +2,6 @@ manager:
   name: test
 policyengine:
   simple:
-    fixedGas: 12345
+    fixedGasPrice: 12345
 api:
   port: 0 # allocate one

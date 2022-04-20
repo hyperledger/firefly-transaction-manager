@@ -49,7 +49,7 @@ var (
 
 	ConfigPolicyEngineName = ffc("config.policyengine.name", "The name of the policy engine to use", "string")
 
-	ConfigPolicyEngineSimpleFixedGas           = ffc("config.policyengine.simple.fixedGas", "A fixed gasPrice value/structure to pass to the connector", "Raw JSON")
+	ConfigPolicyEngineSimpleFixedGasPrice      = ffc("config.policyengine.simple.fixedGasPrice", "A fixed gasPrice value/structure to pass to the connector", "Raw JSON")
 	ConfigPolicyEngineSimpleWarnInterval       = ffc("config.policyengine.simple.warnInterval", "The time between warnings when a blockchain transaction has not been allocated a receipt", "duration")
 	ConfigPolicyEngineSimpleGasStationEnabled  = ffc("config.policyengine.simple.gasstation.enabled", "When true the configured gasstation URL will be queried before submitting each", "boolean")
 	ConfigPolicyEngineSimpleGasStationGJSON    = ffc("config.policyengine.simple.gasstation.gjson", "A GJSON query to execute against the response from the Gas Station API. The raw json will then be passed as the gasPrice to the connector", "see [GJSON syntax](https://github.com/tidwall/gjson/blob/master/SYNTAX.md)")

@@ -6,7 +6,7 @@ operations:
     minimumDelay: 1ms
 policyengine:
   simple:
-    fixedGas: 12345
+    fixedGasPrice: 12345
 ffcore:
   url: ":::: not a url"
 api:
