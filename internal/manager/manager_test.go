@@ -137,46 +137,6 @@ func TestNewManagerBadPolicyEngine(t *testing.T) {
 
 }
 
-func TestChangeEventsNewTracked(t *testing.T) {
-
-	ce := &fftypes.ChangeEvent{
-		ID:         fftypes.NewUUID(),
-		Type:       fftypes.ChangeEventTypeUpdated,
-		Collection: "operations",
-		Namespace:  "ns1",
-	}
-
-	var m *manager
-	_, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-		func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, http.MethodGet, r.Method)
-			assert.Equal(t, fmt.Sprintf("/admin/api/v1/operations/%s", ce.ID), r.URL.Path)
-			b, err := json.Marshal(newTestOperation(t, &fftm.ManagedTXOutput{
-				ID:       ce.ID,
-				FFTMName: testManagerName,
-				Request:  &fftm.TransactionRequest{},
-			}, fftypes.OpStatusPending))
-			assert.NoError(t, err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(200)
-			w.Write(b)
-			// Cancel context here so loop ends
-			m.cancelCtx()
-		},
-	)
-	defer cancel()
-
-	m.changeEvents = make(chan *fftypes.ChangeEvent, 1)
-	m.changeEventLoopDone = make(chan struct{})
-	m.changeEvents <- ce
-
-	m.changeEventLoop()
-
-	assert.Equal(t, ce.ID, m.pendingOpsByID[*ce.ID].mtx.ID)
-
-}
-
 func TestChangeEventsNewBadOutput(t *testing.T) {
 
 	ce := &fftypes.ChangeEvent{
