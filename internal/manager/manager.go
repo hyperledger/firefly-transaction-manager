@@ -40,6 +40,7 @@ import (
 
 type Manager interface {
 	Start() error
+	Stop()
 	WaitStop() error
 }
 
@@ -129,7 +130,7 @@ func (m *manager) requestFullScan() {
 
 func (m *manager) waitScanDelay(lastFullScan *fftypes.FFTime) {
 	scanDelay := m.fullScanMinDelay - time.Since(*lastFullScan.Time())
-	log.L(m.ctx).Errorf("Delaying %dms before next full scan", scanDelay.Milliseconds())
+	log.L(m.ctx).Debugf("Delaying %dms before next full scan", scanDelay.Milliseconds())
 	timer := time.NewTimer(scanDelay)
 	select {
 	case <-timer.C:
@@ -307,8 +308,11 @@ func (m *manager) waitForFirstScanAndStart() error {
 	return nil
 }
 
-func (m *manager) WaitStop() (err error) {
+func (m *manager) Stop() {
 	m.cancelCtx()
+}
+
+func (m *manager) WaitStop() (err error) {
 	if m.started {
 		err = <-m.apiServerDone
 		<-m.changeEventLoopDone
