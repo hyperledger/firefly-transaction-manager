@@ -20,18 +20,19 @@ import (
 	"context"
 	"testing"
 
+	"github.com/hyperledger/firefly/pkg/fftypes"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestExecQueryOK(t *testing.T) {
 	a, cancel := newTestClient(t, &ExecQueryResponse{
-		Success: true,
+		Outputs: []*fftypes.JSONAny{fftypes.JSONAnyPtr("{}")},
 	})
 	defer cancel()
 	res, reason, err := a.ExecQuery(context.Background(), &ExecQueryRequest{})
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
-	assert.True(t, res.Success)
+	assert.Len(t, res.Outputs, 1)
 }
 
 func TestExecQueryFail(t *testing.T) {

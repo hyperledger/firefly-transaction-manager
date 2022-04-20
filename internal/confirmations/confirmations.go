@@ -504,7 +504,6 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 func (bcm *blockConfirmationManager) dispatchConfirmed(item *pendingItem) {
 	eventKey := item.getKey()
 	log.L(bcm.ctx).Infof("Confirmed with %d confirmations event=%s", len(item.confirmations), eventKey)
-	delete(bcm.pending, eventKey)
 	item.confirmed(item.copyConfirmations() /* a safe copy outside of our cache */)
 }
 

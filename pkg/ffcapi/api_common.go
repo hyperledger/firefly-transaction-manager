@@ -87,8 +87,8 @@ type TransactionHeaders struct {
 }
 
 type TransactionPrepareInputs struct {
-	Method fftypes.JSONAny   `json:"method"`
-	Params []fftypes.JSONAny `json:"params"`
+	Method fftypes.JSONAny    `json:"method"`
+	Params []*fftypes.JSONAny `json:"params"`
 }
 
 // ErrorResponse allows blockchain connectors to encode useful information about an error in a JSON response body.
