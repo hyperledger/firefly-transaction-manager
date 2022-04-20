@@ -35,4 +35,5 @@ var (
 	MsgErrorQueryingGasStationAPI    = ffe("FF201021", "Error from gas station API [%d]: %s")
 	MsgErrorInvalidRequest           = ffe("FF201022", "Invalid request")
 	MsgUnsupportedRequestType        = ffe("FF201023", "Unsupported request type: %s")
+	MsgTransactionHashMismatch       = ffe("FF201024", "Transaction hash mismatch ong send. Expected=%s Received=%s")
 )
