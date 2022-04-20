@@ -40,8 +40,7 @@ func (m *manager) sendManagedTransaction(ctx context.Context, request *fftm.Tran
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
 	// anything to the blockchain itself.
 	prepared, _, err := m.connectorAPI.PrepareTransaction(ctx, &ffcapi.PrepareTransactionRequest{
-		TransactionHeaders:       request.TransactionHeaders,
-		TransactionPrepareInputs: request.TransactionPrepareInputs,
+		TransactionInput: request.TransactionInput,
 	})
 	if err != nil {
 		return nil, err

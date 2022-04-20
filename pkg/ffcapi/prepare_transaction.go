@@ -42,8 +42,7 @@ import (
 // detected by the back-end connector.
 type PrepareTransactionRequest struct {
 	RequestBase
-	TransactionHeaders
-	TransactionPrepareInputs
+	TransactionInput
 }
 
 type PrepareTransactionResponse struct {
