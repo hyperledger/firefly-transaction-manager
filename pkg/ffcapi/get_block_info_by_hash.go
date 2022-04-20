@@ -18,8 +18,6 @@ package ffcapi
 
 import (
 	"context"
-
-	"github.com/hyperledger/firefly/pkg/fftypes"
 )
 
 type GetBlockInfoByHashRequest struct {
@@ -29,9 +27,7 @@ type GetBlockInfoByHashRequest struct {
 
 type GetBlockInfoByHashResponse struct {
 	ResponseBase
-	BlockNumber *fftypes.FFBigInt `json:"blockNumber"`
-	BlockHash   string            `json:"blockHash"`
-	ParentHash  string            `json:"parentHash"`
+	BlockInfo
 }
 
 const RequestTypeGetBlockInfoByHash RequestType = "get_block_info_by_hash"

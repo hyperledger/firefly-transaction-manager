@@ -86,6 +86,13 @@ type TransactionHeaders struct {
 	Value *fftypes.FFBigInt `json:"value"`
 }
 
+type BlockInfo struct {
+	BlockNumber *fftypes.FFBigInt `json:"blockNumber"`
+	BlockHash   string            `json:"blockHash"`
+	ParentHash  string            `json:"parentHash"`
+	Timestamp   fftypes.FFTime    `json:"timestamp"`
+}
+
 // ErrorResponse allows blockchain connectors to encode useful information about an error in a JSON response body.
 // This should be accompanied with a suitable non-success HTTP response code. However, the "reason" (if supplied)
 // is the only information that will be used to change the transaction manager's handling of the error.

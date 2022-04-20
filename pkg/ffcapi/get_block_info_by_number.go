@@ -29,9 +29,7 @@ type GetBlockInfoByNumberRequest struct {
 
 type GetBlockInfoByNumberResponse struct {
 	ResponseBase
-	BlockNumber *fftypes.FFBigInt `json:"blockNumber"`
-	BlockHash   string            `json:"blockHash"`
-	ParentHash  string            `json:"parentHash"`
+	BlockInfo
 }
 
 const RequestTypeGetBlockInfoByNumber RequestType = "get_block_info_by_number"

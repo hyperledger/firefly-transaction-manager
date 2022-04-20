@@ -25,7 +25,9 @@ import (
 
 func TestGetBlockInfoByNumberOK(t *testing.T) {
 	a, cancel := newTestClient(t, &GetBlockInfoByNumberResponse{
-		BlockHash: "0x12345",
+		BlockInfo: BlockInfo{
+			BlockHash: "0x12345",
+		},
 	})
 	defer cancel()
 	res, reason, err := a.GetBlockInfoByNumber(context.Background(), &GetBlockInfoByNumberRequest{})
