@@ -8,6 +8,6 @@ policyengine:
   simple:
     fixedGasPrice: 12345
 ffcore:
-  url: ":::: not a url"
+  url: http://localhost:99999
 api:
   port: 0 # allocate one

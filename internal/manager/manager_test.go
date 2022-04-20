@@ -66,6 +66,7 @@ func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler ht
 	assert.NoError(t, err)
 	m := mm.(*manager)
 	m.confirmations = &confirmationsmocks.Manager{}
+	m.wsDisabled = true
 
 	return fmt.Sprintf("http://127.0.0.1:%s", managerPort),
 		m,
