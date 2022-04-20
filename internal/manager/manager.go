@@ -325,6 +325,7 @@ func (m *manager) waitForFirstScanAndStart() error {
 	go m.changeEventLoop()
 	go m.receiptPollingLoop()
 	go m.runAPIServer()
+	go m.confirmations.Start()
 	if !m.wsDisabled {
 		if err := m.wsClient.Connect(); err != nil {
 			return err
