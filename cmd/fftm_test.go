@@ -66,7 +66,6 @@ func TestRunBadConfig(t *testing.T) {
 }
 
 func TestRunFailStartup(t *testing.T) {
-
 	rootCmd.SetArgs([]string{"-f", "../test/quick-fail.fftm.yaml"})
 	defer rootCmd.SetArgs([]string{})
 

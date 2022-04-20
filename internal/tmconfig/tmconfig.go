@@ -21,6 +21,7 @@ import (
 	"github.com/hyperledger/firefly/pkg/ffresty"
 	"github.com/hyperledger/firefly/pkg/fftypes"
 	"github.com/hyperledger/firefly/pkg/httpserver"
+	"github.com/hyperledger/firefly/pkg/wsclient"
 	"github.com/spf13/viper"
 )
 
@@ -86,7 +87,8 @@ func Reset() {
 	ffresty.InitPrefix(ConnectorPrefix)
 
 	FFCorePrefix = config.NewPluginConfig("ffcore")
-	ffresty.InitPrefix(FFCorePrefix)
+	wsclient.InitPrefix(FFCorePrefix)
+	FFCorePrefix.SetDefault(wsclient.WSConfigKeyPath, "/admin/ws")
 
 	APIPrefix = config.NewPluginConfig("api")
 	httpserver.InitHTTPConfPrefix(APIPrefix, 5008)
