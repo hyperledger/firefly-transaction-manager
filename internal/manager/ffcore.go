@@ -40,9 +40,9 @@ type opUpdate struct {
 func (m *manager) writeManagedTX(ctx context.Context, opUpdate *opUpdate) error {
 	log.L(ctx).Debugf("Updating operation %s status=%s", opUpdate.ID, opUpdate.Status)
 	var errorInfo fftypes.RESTError
-	var ops []*fftypes.Operation
+	var op fftypes.Operation
 	res, err := m.ffCoreClient.R().
-		SetResult(&ops).
+		SetResult(&op).
 		SetError(&errorInfo).
 		SetBody(opUpdate).
 		SetContext(ctx).

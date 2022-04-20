@@ -36,6 +36,7 @@ import (
 	"github.com/hyperledger/firefly/pkg/httpserver"
 	"github.com/hyperledger/firefly/pkg/i18n"
 	"github.com/hyperledger/firefly/pkg/log"
+	"github.com/hyperledger/firefly/pkg/wsclient"
 )
 
 type Manager interface {
@@ -53,6 +54,7 @@ type manager struct {
 	policyEngine  policyengine.PolicyEngine
 	apiServer     httpserver.HTTPServer
 	ffCoreClient  *resty.Client
+	wsClient      wsclient.WSClient
 
 	mux                 sync.Mutex
 	nextNonces          map[string]uint64
@@ -117,6 +119,19 @@ type pendingState struct {
 	confirmed            bool
 	removed              bool
 	lastReceiptBlockHash string
+}
+
+func (m *manager) startChangeListener(ctx context.Context, w wsclient.WSClient) error {
+	log.L(m.ctx).Infof("Change listener connected")
+	cmd := fftypes.WSChangeEventCommand{
+		Type:        fftypes.WSChangeEventCommandTypeStart,
+		Collections: []string{"operations"},
+		Filter: fftypes.ChangeEventFilter{
+			Types: []fftypes.ChangeEventType{fftypes.ChangeEventTypeUpdated},
+		},
+	}
+	b, _ := json.Marshal(&cmd)
+	return w.Send(ctx, b)
 }
 
 func (m *manager) requestFullScan() {
@@ -287,7 +302,7 @@ func (m *manager) Start() error {
 	return m.waitForFirstScanAndStart()
 }
 
-func (m *manager) waitForFirstScanAndStart() error {
+func (m *manager) waitForFirstScanAndStart() (err error) {
 	log.L(m.ctx).Infof("Waiting for first full scan of operations to build state")
 	select {
 	case err := <-m.firstFullScanDone:
@@ -304,6 +319,11 @@ func (m *manager) waitForFirstScanAndStart() error {
 	go m.changeEventLoop()
 	go m.receiptPollingLoop()
 	go m.runAPIServer()
+	wsconfig := wsclient.GenerateConfigFromPrefix(tmconfig.FFCorePrefix)
+	m.wsClient, err = wsclient.New(m.ctx, wsconfig, nil, m.startChangeListener)
+	if err != nil {
+		return err
+	}
 	m.started = true
 	return nil
 }
