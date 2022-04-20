@@ -72,6 +72,7 @@ func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler ht
 		func() {
 			cAPIServer.Close()
 			ffCoreServer.Close()
+			m.Stop()
 			_ = m.WaitStop()
 		}
 

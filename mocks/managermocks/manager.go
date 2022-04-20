@@ -10,7 +10,21 @@ type Manager struct {
 }
 
 // Start provides a mock function with given fields:
-func (_m *Manager) Start() {
+func (_m *Manager) Start() error {
+	ret := _m.Called()
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func() error); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Stop provides a mock function with given fields:
+func (_m *Manager) Stop() {
 	_m.Called()
 }
 
