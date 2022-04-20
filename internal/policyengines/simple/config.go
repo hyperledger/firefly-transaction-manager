@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	FixedGas          = "fixedGas"     // when not using a gas station - will be treated as a raw JSON string, so can be numeric 123, or string "123", or object {"maxPriorityFeePerGas":123})
-	WarnInterval      = "warnInterval" // warnings will be written to the log at this interval if mining has not occurred
+	FixedGasPrice     = "fixedGasPrice" // when not using a gas station - will be treated as a raw JSON string, so can be numeric 123, or string "123", or object {"maxPriorityFeePerGas":123})
+	WarnInterval      = "warnInterval"  // warnings will be written to the log at this interval if mining has not occurred
 	GasStationPrefix  = "gasstation"
 	GasStationMethod  = "method"
 	GasStationEnabled = "enabled"
@@ -39,7 +39,7 @@ const (
 )
 
 func (f *PolicyEngineFactory) InitPrefix(prefix config.Prefix) {
-	prefix.AddKnownKey(FixedGas)
+	prefix.AddKnownKey(FixedGasPrice)
 	prefix.AddKnownKey(WarnInterval, defaultWarnInterval)
 
 	gasStationPrefix := prefix.SubPrefix(GasStationPrefix)

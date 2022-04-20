@@ -60,7 +60,7 @@ func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler ht
 
 	config.Set(tmconfig.ManagerName, testManagerName)
 	config.Set(tmconfig.ReceiptsPollingInterval, "1ms")
-	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGas, "223344556677")
+	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	mm, err := NewManager(context.Background())
 	assert.NoError(t, err)
@@ -106,7 +106,7 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 	tmconfig.APIPrefix.Set(httpserver.HTTPConfAddress, "::::")
 
 	policyengines.RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
-	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGas, "223344556677")
+	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background())
 	assert.Regexp(t, "FF10104", err)

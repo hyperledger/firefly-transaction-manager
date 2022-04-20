@@ -30,7 +30,7 @@ func TestRegistry(t *testing.T) {
 	tmconfig.Reset()
 	RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
 
-	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGas, "12345")
+	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "12345")
 	p, err := NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBasePrefix, "simple")
 	assert.NotNil(t, p)
 	assert.NoError(t, err)
