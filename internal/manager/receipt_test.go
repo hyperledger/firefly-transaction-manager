@@ -47,6 +47,7 @@ func TestCheckReceiptE2EOk(t *testing.T) {
 				BlockNumber:      fftypes.NewFFBigInt(12345),
 				TransactionIndex: fftypes.NewFFBigInt(10),
 				BlockHash:        fftypes.NewRandB32().String(),
+				Success:          true,
 			}, 200
 		}),
 		func(w http.ResponseWriter, r *http.Request) {
@@ -55,6 +56,56 @@ func TestCheckReceiptE2EOk(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, mtx.ID, op.ID)
 			assert.Equal(t, fftypes.OpStatusSucceeded, op.Status)
+			w.WriteHeader(200)
+		},
+	)
+	defer cancel()
+
+	mc := m.confirmations.(*confirmationsmocks.Manager)
+	mc.On("Notify", mock.Anything).Run(func(args mock.Arguments) {
+		n := args[0].(*confirmations.Notification)
+		assert.Equal(t, confirmations.NewTransaction, n.NotificationType)
+		n.Transaction.Confirmed([]confirmations.BlockInfo{})
+	}).Return(nil).Once()
+	mc.On("Notify", mock.Anything).Run(func(args mock.Arguments) {
+		n := args[0].(*confirmations.Notification)
+		assert.Equal(t, confirmations.RemovedTransaction, n.NotificationType)
+	}).Return(nil).Once()
+
+	m.trackManaged(mtx)
+	m.checkReceipts()
+
+	err := m.checkReceiptCycle(m.pendingOpsByID[*mtx.ID])
+	assert.NoError(t, err)
+	assert.Empty(t, m.pendingOpsByID)
+
+	mc.AssertExpectations(t)
+}
+
+func TestCheckReceiptE2EOkReverted(t *testing.T) {
+
+	mtx := &fftm.ManagedTXOutput{
+		ID:          fftypes.NewUUID(),
+		FirstSubmit: fftypes.Now(),
+		Request:     &fftm.TransactionRequest{},
+	}
+
+	_, m, cancel := newTestManager(t,
+		testFFCAPIHandler(t, func(reqType ffcapi.RequestType, b []byte) (res interface{}, status int) {
+			assert.Equal(t, ffcapi.RequestTypeGetReceipt, reqType)
+			return &ffcapi.GetReceiptResponse{
+				BlockNumber:      fftypes.NewFFBigInt(12345),
+				TransactionIndex: fftypes.NewFFBigInt(10),
+				BlockHash:        fftypes.NewRandB32().String(),
+				Success:          false,
+			}, 200
+		}),
+		func(w http.ResponseWriter, r *http.Request) {
+			var op fftypes.Operation
+			err := json.NewDecoder(r.Body).Decode(&op)
+			assert.NoError(t, err)
+			assert.Equal(t, mtx.ID, op.ID)
+			assert.Equal(t, fftypes.OpStatusFailed, op.Status)
 			w.WriteHeader(200)
 		},
 	)

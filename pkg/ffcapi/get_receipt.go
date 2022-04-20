@@ -32,6 +32,7 @@ type GetReceiptResponse struct {
 	BlockNumber      *fftypes.FFBigInt `json:"blockNumber"`
 	TransactionIndex *fftypes.FFBigInt `json:"transactinIndex"`
 	BlockHash        string            `json:"blockHash"`
+	Success          bool              `json:"success"`
 	ExtraInfo        fftypes.JSONAny   `json:"extraInfo"`
 }
 

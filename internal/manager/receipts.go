@@ -71,7 +71,11 @@ func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
 	switch {
 	case pending.confirmed:
 		updated = true
-		newStatus = fftypes.OpStatusSucceeded
+		if mtx.Receipt.Success {
+			newStatus = fftypes.OpStatusSucceeded
+		} else {
+			newStatus = fftypes.OpStatusFailed
+		}
 	case pending.removed:
 		// Remove from our state
 		m.removeIfTracked(mtx.ID)
