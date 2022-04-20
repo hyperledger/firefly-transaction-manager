@@ -31,7 +31,7 @@ import (
 type ExecQueryRequest struct {
 	RequestBase
 	TransactionInput
-	BlockNumber **fftypes.FFBigInt `json:"blockNumber,omitempty"`
+	BlockNumber *fftypes.FFBigInt `json:"blockNumber,omitempty"`
 }
 
 type ExecQueryResponse struct {
