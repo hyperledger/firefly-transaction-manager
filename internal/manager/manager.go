@@ -48,7 +48,6 @@ type Manager interface {
 type manager struct {
 	ctx           context.Context
 	cancelCtx     func()
-	changeEvents  chan *fftypes.ChangeEvent
 	connectorAPI  ffcapi.API
 	confirmations confirmations.Manager
 	policyEngine  policyengine.PolicyEngine
@@ -80,7 +79,6 @@ type manager struct {
 func NewManager(ctx context.Context) (Manager, error) {
 	var err error
 	m := &manager{
-		changeEvents:     make(chan *fftypes.ChangeEvent),
 		connectorAPI:     ffcapi.NewFFCAPI(ctx),
 		ffCoreClient:     ffresty.New(ctx, tmconfig.FFCorePrefix),
 		fullScanRequests: make(chan bool, 1),
@@ -128,7 +126,6 @@ type pendingState struct {
 }
 
 func (m *manager) startChangeListener(ctx context.Context, w wsclient.WSClient) error {
-	log.L(m.ctx).Infof("Change listener connected")
 	cmd := fftypes.WSChangeEventCommand{
 		Type:        fftypes.WSChangeEventCommandTypeStart,
 		Collections: []string{"operations"},
@@ -137,6 +134,7 @@ func (m *manager) startChangeListener(ctx context.Context, w wsclient.WSClient) 
 		},
 	}
 	b, _ := json.Marshal(&cmd)
+	log.L(m.ctx).Infof("Change listener connected. Sent: %s", b)
 	return w.Send(ctx, b)
 }
 
@@ -291,7 +289,9 @@ func (m *manager) changeEventLoop() {
 	defer close(m.changeEventLoopDone)
 	for {
 		select {
-		case ce := <-m.changeEvents:
+		case b := <-m.wsClient.Receive():
+			var ce *fftypes.ChangeEvent
+			_ = json.Unmarshal(b, &ce)
 			m.handleEvent(ce)
 		case <-m.ctx.Done():
 			log.L(m.ctx).Infof("Change event loop exiting")
