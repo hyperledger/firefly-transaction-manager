@@ -64,7 +64,7 @@ func TestBadResponseContentType(t *testing.T) {
 
 	api := newAPI(ctx, prefix)
 	_, err := api.invokeAPI(ctx, &ExecQueryRequest{}, &ResponseBase{})
-	assert.Regexp(t, "FF201032", err)
+	assert.Regexp(t, "FF201013", err)
 
 }
 
@@ -80,6 +80,6 @@ func TestBadResponseError(t *testing.T) {
 	server.Close()
 	api := NewFFCAPI(ctx)
 	_, _, err := api.ExecQuery(ctx, &ExecQueryRequest{})
-	assert.Regexp(t, "FF201033", err)
+	assert.Regexp(t, "FF201014", err)
 
 }

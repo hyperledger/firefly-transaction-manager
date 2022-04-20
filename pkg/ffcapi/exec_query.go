@@ -36,11 +36,7 @@ type ExecQueryRequest struct {
 
 type ExecQueryResponse struct {
 	ResponseBase
-	Valid           bool              `json:"valid"` // false if the inputs could not be parsed
-	ValidationError string            `json:"validationError,omitempty"`
-	Success         bool              `json:"success"`
-	OnchainError    string            `json:"onchainError,omitempty"`
-	Outputs         []fftypes.JSONAny `json:"outputs"`
+	Outputs []*fftypes.JSONAny `json:"outputs"`
 }
 
 const RequestTypeExecQuery RequestType = "exec_query"
