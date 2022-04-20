@@ -103,11 +103,13 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 		if err != nil {
 			return false, err
 		}
-		res, _, err := cAPI.SendTransaction(ctx, &ffcapi.SendTransactionRequest{
+		sendTX := &ffcapi.SendTransactionRequest{
 			TransactionHeaders: mtx.Request.TransactionHeaders,
 			GasPrice:           mtx.GasPrice,
 			TransactionData:    mtx.TransactionData,
-		})
+		}
+		sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
+		res, _, err := cAPI.SendTransaction(ctx, sendTX)
 		if err != nil {
 			// A more sophisticated policy engine would consider the reason here, and potentially adjust the transaction for future attempts
 			return false, err
