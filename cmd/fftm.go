@@ -72,7 +72,7 @@ func run() error {
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	defer cancelCtx()
 	ctx = log.WithLogger(ctx, logrus.WithField("pid", fmt.Sprintf("%d", os.Getpid())))
-	ctx = log.WithLogger(ctx, logrus.WithField("prefix", "fftm"))
+	ctx = log.WithLogger(ctx, logrus.WithField("prefix", config.GetString(tmconfig.ManagerName)))
 
 	config.SetupLogging(ctx)
 
