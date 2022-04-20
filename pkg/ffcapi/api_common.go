@@ -90,7 +90,6 @@ type BlockInfo struct {
 	BlockNumber *fftypes.FFBigInt `json:"blockNumber"`
 	BlockHash   string            `json:"blockHash"`
 	ParentHash  string            `json:"parentHash"`
-	Timestamp   fftypes.FFTime    `json:"timestamp"`
 }
 
 // ErrorResponse allows blockchain connectors to encode useful information about an error in a JSON response body.
