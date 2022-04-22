@@ -48,6 +48,8 @@ var (
 	OperationsFullScanPageSize = ffc("operations.fullScan.pageSize")
 	// OperationsFullScanMinimumDelay the minimum delay between full scan attempts
 	OperationsFullScanMinimumDelay = ffc("operations.fullScan.minimumDelay")
+	// OperationsErrorHistoryCount the number of errors to retain in the operation
+	OperationsErrorHistoryCount = ffc("operations.errorHistoryCount")
 	// ReceiptPollingInterval how often to poll for transaction receipts (the policy engine gets a chance to intervene for each outstanding receipt, on each polling cycle)
 	ReceiptsPollingInterval = ffc("receipts.pollingInteval")
 	// PolicyEngineName the name of the policy engine to use
@@ -76,6 +78,7 @@ func setDefaults() {
 	viper.SetDefault(string(ConfirmationsBlockCacheSize), 1000)
 	viper.SetDefault(string(ConfirmationsBlockPollingInterval), "3s")
 	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
+	viper.SetDefault(string(OperationsErrorHistoryCount), 25)
 	viper.SetDefault(string(ReceiptsPollingInterval), "1s")
 	viper.SetDefault(string(PolicyEngineName), "simple")
 }

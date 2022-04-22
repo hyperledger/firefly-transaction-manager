@@ -56,6 +56,8 @@ const (
 	ErrorReasonInsufficientFunds ErrorReason = "insufficient_funds"
 	// ErrorReasonNotFound if the requested object (block/receipt etc.) was not found
 	ErrorReasonNotFound ErrorReason = "not_found"
+	// ErrorKnownTransaction if the exact transaction is already known
+	ErrorKnownTransaction ErrorReason = "known_transaction"
 )
 
 // Header is included consistently as a "ffcapi" structure on each request

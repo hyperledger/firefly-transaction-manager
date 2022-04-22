@@ -22,6 +22,12 @@ import (
 	"github.com/hyperledger/firefly/pkg/fftypes"
 )
 
+type ManagedTXError struct {
+	Time   *fftypes.FFTime    `json:"time"`
+	Error  string             `json:"error,omitempty"`
+	Mapped ffcapi.ErrorReason `json:"mapped,omitempty"`
+}
+
 // ManagedTXOutput is the structure stored into the operation in FireFly, that the policy
 // engine can use to apply policy, and apply updates to
 type ManagedTXOutput struct {
@@ -37,5 +43,6 @@ type ManagedTXOutput struct {
 	LastSubmit      *fftypes.FFTime            `json:"lastSubmit,omitempty"`
 	Request         *TransactionRequest        `json:"request,omitempty"`
 	Receipt         *ffcapi.GetReceiptResponse `json:"receipt,omitempty"`
+	ErrorHistory    []*ManagedTXError          `json:"errorHistory"`
 	Confirmations   []confirmations.BlockInfo  `json:"confirmations,omitempty"`
 }

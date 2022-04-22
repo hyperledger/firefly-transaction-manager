@@ -82,9 +82,10 @@ func TestFixedGasPriceOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.NoError(t, err)
 	assert.True(t, updated)
+	assert.Empty(t, reason)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
 	assert.Equal(t, `{
@@ -149,51 +150,13 @@ func TestGasStationSendOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.NoError(t, err)
+	assert.Empty(t, reason)
 	assert.True(t, updated)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
 	assert.Equal(t, `{"unit":"gwei","value":32.146027800733336}`, mtx.GasPrice.String())
-
-	mockFFCAPI.AssertExpectations(t)
-}
-
-func TestFixedGasPriceTXHashMismatch(t *testing.T) {
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGasPrice, `{
-		"maxPriorityFee":32.146027800733336,
-		"maxFee":32.14602781673334
-	}`)
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
-	assert.NoError(t, err)
-
-	mtx := &fftm.ManagedTXOutput{
-		Request: &fftm.TransactionRequest{
-			TransactionInput: ffcapi.TransactionInput{
-				TransactionHeaders: ffcapi.TransactionHeaders{
-					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
-				},
-			},
-		},
-		TransactionHash: "0x12345",
-		TransactionData: "SOME_RAW_TX_BYTES",
-	}
-
-	mockFFCAPI := &ffcapimocks.API{}
-	mockFFCAPI.On("SendTransaction", mock.Anything, mock.MatchedBy(func(req *ffcapi.SendTransactionRequest) bool {
-		return req.GasPrice.JSONObject().GetString("maxPriorityFee") == "32.146027800733336" &&
-			req.GasPrice.JSONObject().GetString("maxFee") == "32.14602781673334" &&
-			req.From == "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712" &&
-			req.TransactionData == "SOME_RAW_TX_BYTES"
-	})).Return(&ffcapi.SendTransactionResponse{
-		TransactionHash: "0x23456",
-	}, ffcapi.ErrorReason(""), nil)
-
-	ctx := context.Background()
-	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
-	assert.Regexp(t, "FF201024", err)
-	assert.True(t, updated)
 
 	mockFFCAPI.AssertExpectations(t)
 }
@@ -225,7 +188,7 @@ func TestGasStationSendFail(t *testing.T) {
 
 	mockFFCAPI := &ffcapimocks.API{}
 	ctx := context.Background()
-	_, err = p.Execute(ctx, mockFFCAPI, mtx)
+	_, _, err = p.Execute(ctx, mockFFCAPI, mtx)
 	assert.Regexp(t, "FF201021", err)
 
 }
@@ -254,7 +217,7 @@ func TestGasStationNonJSON(t *testing.T) {
 
 	mockFFCAPI := &ffcapimocks.API{}
 	ctx := context.Background()
-	_, err = p.Execute(ctx, mockFFCAPI, mtx)
+	_, _, err = p.Execute(ctx, mockFFCAPI, mtx)
 	assert.Regexp(t, "FF201021", err)
 
 }
@@ -287,7 +250,7 @@ func TestTXSendFail(t *testing.T) {
 	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("SendTransaction", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonInvalidInputs, fmt.Errorf("pop"))
 	ctx := context.Background()
-	_, err = p.Execute(ctx, mockFFCAPI, mtx)
+	_, _, err = p.Execute(ctx, mockFFCAPI, mtx)
 	assert.Regexp(t, "pop", err)
 
 }
@@ -315,7 +278,7 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 	mockFFCAPI := &ffcapimocks.API{}
 
 	ctx := context.Background()
-	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, _, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.NoError(t, err)
 	assert.True(t, updated)
 	assert.NotEmpty(t, mtx.PolicyInfo.JSONObject().GetString("lastWarnTime"))
@@ -347,8 +310,9 @@ func TestWarnStaleAdditionalWarning(t *testing.T) {
 	mockFFCAPI := &ffcapimocks.API{}
 
 	ctx := context.Background()
-	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.NoError(t, err)
+	assert.Empty(t, reason)
 	assert.True(t, updated)
 	assert.NotEmpty(t, mtx.PolicyInfo.JSONObject().GetString("lastWarnTime"))
 
@@ -380,7 +344,8 @@ func TestWarnStaleNoWarning(t *testing.T) {
 	mockFFCAPI := &ffcapimocks.API{}
 
 	ctx := context.Background()
-	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	assert.Empty(t, reason)
 	assert.NoError(t, err)
 	assert.False(t, updated)
 
@@ -413,7 +378,8 @@ func TestNoOpWithReceipt(t *testing.T) {
 	mockFFCAPI := &ffcapimocks.API{}
 
 	ctx := context.Background()
-	updated, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	assert.Empty(t, reason)
 	assert.NoError(t, err)
 	assert.False(t, updated)
 

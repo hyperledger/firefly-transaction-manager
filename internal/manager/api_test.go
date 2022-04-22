@@ -111,7 +111,6 @@ func TestSendTransactionE2E(t *testing.T) {
 				assert.Len(t, prepTX.Params, 1)
 				assert.Equal(t, "4276993775", prepTX.Params[0].JSONObject().GetString("value"))
 				res = ffcapi.PrepareTransactionResponse{
-					TransactionHash: "0x106215b9c0c9372e3f541beff0cdc3cd061a26f69f3808e28fd139a1abc9d345",
 					TransactionData: "RAW_UNSIGNED_BYTES",
 					Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
 				}
@@ -122,9 +121,12 @@ func TestSendTransactionE2E(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8", sendTX.From)
 				assert.Equal(t, "0xe1a078b9e2b145d0a7387f09277c6ae1d9470771", sendTX.To)
-				assert.Equal(t, uint64(1000000), sendTX.Gas.Uint64())
+				assert.Equal(t, uint64(2000000), sendTX.Gas.Uint64())
 				assert.Equal(t, `223344556677`, sendTX.GasPrice.String())
 				assert.Equal(t, "RAW_UNSIGNED_BYTES", sendTX.TransactionData)
+				res = ffcapi.SendTransactionResponse{
+					TransactionHash: "0x106215b9c0c9372e3f541beff0cdc3cd061a26f69f3808e28fd139a1abc9d345",
+				}
 
 				// We're at end of job for this test
 				close(txSent)

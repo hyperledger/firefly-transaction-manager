@@ -46,6 +46,7 @@ var (
 	ConfigOperationsFullScanMinimumDelay      = ffc("config.operations.fullScan.minimumDelay", "The minimum delay between full scans of the FireFly core API, when reconnecting, or recovering from missed events / errors", "duration")
 	ConfigOperationsFullScanPageSize          = ffc("config.operations.fullScan.pageSize", "The page size to use when performing a full scan of the ForeFly core API on startup, or recovery", "number")
 	ConfigOperationsFullScanStartupMaxRetries = ffc("config.operations.fullScan.startupMaxRetries", "The page size to use when performing a full scan of the ForeFly core API on startup, or recovery", "number")
+	ConfigOperationsErrorHistoryCount         = ffc("config.operations.errorHistoryCount", "The number of historical errors to retain in the operation", "number")
 
 	ConfigPolicyEngineName = ffc("config.policyengine.name", "The name of the policy engine to use", "string")
 

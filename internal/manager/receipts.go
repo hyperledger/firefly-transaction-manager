@@ -55,10 +55,27 @@ func (m *manager) checkReceipts() {
 	for _, pending := range allPending {
 		err := m.checkReceiptCycle(pending)
 		if err != nil {
-			log.L(m.ctx).Errorf("Failed to receipt cycle transaction=%s operation=%s", pending.mtx.TransactionHash, pending.mtx.ID)
+			log.L(m.ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
 		}
 	}
 
+}
+
+func (m *manager) addError(mtx *fftm.ManagedTXOutput, reason ffcapi.ErrorReason, err error) {
+	newLen := len(mtx.ErrorHistory) + 1
+	if newLen > m.errorHistoryCount {
+		newLen = m.errorHistoryCount
+	}
+	oldHistory := mtx.ErrorHistory
+	mtx.ErrorHistory = make([]*fftm.ManagedTXError, newLen)
+	mtx.ErrorHistory[0] = &fftm.ManagedTXError{
+		Time:   fftypes.Now(),
+		Mapped: reason,
+		Error:  err.Error(),
+	}
+	for i := 1; i < newLen; i++ {
+		mtx.ErrorHistory[i] = oldHistory[i-1]
+	}
 }
 
 // checkReceiptCycle runs against each pending item, on each cycle, and is the one place responsible
@@ -88,7 +105,12 @@ func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
 
 		// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 		// such as submitting for the first time, or raising the gas etc.
-		updated, err = m.policyEngine.Execute(m.ctx, m.connectorAPI, pending.mtx)
+		var reason ffcapi.ErrorReason
+		updated, reason, err = m.policyEngine.Execute(m.ctx, m.connectorAPI, pending.mtx)
+		if err != nil {
+			log.L(m.ctx).Errorf("Policy engine returned error for operation %s reason=%s: %s", mtx.ID, reason, err)
+			m.addError(mtx, reason, err)
+		}
 	}
 
 	if updated || err != nil {

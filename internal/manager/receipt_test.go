@@ -154,7 +154,7 @@ func TestCheckReceiptUpdateFFCoreWithError(t *testing.T) {
 
 	m.policyEngine = &policyenginemocks.PolicyEngine{}
 	pc := m.policyEngine.(*policyenginemocks.PolicyEngine)
-	pc.On("Execute", mock.Anything, mock.Anything, mtx).Return(false, fmt.Errorf("pop"))
+	pc.On("Execute", mock.Anything, mock.Anything, mtx).Return(false, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	m.trackManaged(mtx)
 	m.checkReceipts()
