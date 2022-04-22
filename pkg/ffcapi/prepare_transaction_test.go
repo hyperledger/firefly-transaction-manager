@@ -25,13 +25,13 @@ import (
 
 func TestPrepareTransactionOK(t *testing.T) {
 	a, cancel := newTestClient(t, &PrepareTransactionResponse{
-		TransactionHash: "0x12345",
+		TransactionData: "0x12345",
 	})
 	defer cancel()
 	res, reason, err := a.PrepareTransaction(context.Background(), &PrepareTransactionRequest{})
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
-	assert.Equal(t, "0x12345", res.TransactionHash)
+	assert.Equal(t, "0x12345", res.TransactionData)
 }
 
 func TestPrepareTransactionFail(t *testing.T) {

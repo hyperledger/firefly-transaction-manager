@@ -74,6 +74,7 @@ type manager struct {
 	fullScanPageSize        int64
 	fullScanMinDelay        time.Duration
 	receiptsPollingInterval time.Duration
+	errorHistoryCount       int
 }
 
 func NewManager(ctx context.Context) (Manager, error) {
@@ -93,6 +94,7 @@ func NewManager(ctx context.Context) (Manager, error) {
 		fullScanPageSize:        config.GetInt64(tmconfig.OperationsFullScanPageSize),
 		fullScanMinDelay:        config.GetDuration(tmconfig.OperationsFullScanMinimumDelay),
 		receiptsPollingInterval: config.GetDuration(tmconfig.ReceiptsPollingInterval),
+		errorHistoryCount:       config.GetInt(tmconfig.OperationsErrorHistoryCount),
 	}
 	m.ctx, m.cancelCtx = context.WithCancel(ctx)
 	if m.name == "" {
@@ -320,19 +322,32 @@ func (m *manager) waitForFirstScanAndStart() error {
 		return nil
 	}
 	log.L(m.ctx).Infof("Scan complete. Completing startup")
-	m.changeEventLoopDone = make(chan struct{})
 	m.receiptPollerDone = make(chan struct{})
-	go m.changeEventLoop()
 	go m.receiptPollingLoop()
 	go m.runAPIServer()
 	go m.confirmations.Start()
+	err := m.startWS()
+	if err == nil {
+		m.started = true
+	}
+	return err
+}
+
+func (m *manager) startWS() error {
 	if !m.wsDisabled {
+		m.changeEventLoopDone = make(chan struct{})
 		if err := m.wsClient.Connect(); err != nil {
 			return err
 		}
+		go m.changeEventLoop()
 	}
-	m.started = true
 	return nil
+}
+
+func (m *manager) waitWSStop() {
+	if !m.wsDisabled {
+		<-m.changeEventLoopDone
+	}
 }
 
 func (m *manager) Stop() {
@@ -341,10 +356,11 @@ func (m *manager) Stop() {
 
 func (m *manager) WaitStop() (err error) {
 	if m.started {
+		m.started = false
 		err = <-m.apiServerDone
-		<-m.changeEventLoopDone
 		<-m.fullScanLoopDone
 		<-m.receiptPollerDone
+		m.waitWSStop()
 	}
 	return err
 }

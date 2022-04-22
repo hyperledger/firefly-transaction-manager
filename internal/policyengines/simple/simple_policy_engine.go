@@ -78,7 +78,7 @@ type simplePolicyInfo struct {
 }
 
 // withPolicyInfo is a convenience helper to run some logic that accesses/updates our policy section
-func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *fftm.ManagedTXOutput, fn func(info *simplePolicyInfo) (updated bool, err error)) (updated bool, err error) {
+func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *fftm.ManagedTXOutput, fn func(info *simplePolicyInfo) (updated bool, reason ffcapi.ErrorReason, err error)) (updated bool, reason ffcapi.ErrorReason, err error) {
 	var info simplePolicyInfo
 	infoBytes := []byte(mtx.PolicyInfo.String())
 	if len(infoBytes) > 0 {
@@ -87,21 +87,21 @@ func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *fftm.Manag
 			log.L(ctx).Warnf("Failed to parse existing info `%s`: %s", infoBytes, err)
 		}
 	}
-	updated, err = fn(&info)
+	updated, reason, err = fn(&info)
 	if updated {
 		infoBytes, _ = json.Marshal(&info)
 		mtx.PolicyInfo = fftypes.JSONAnyPtrBytes(infoBytes)
 	}
-	return updated, err
+	return updated, reason, err
 }
 
-func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *fftm.ManagedTXOutput) (updated bool, err error) {
+func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *fftm.ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error) {
 	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
 
 		mtx.GasPrice, err = p.getGasPrice(ctx)
 		if err != nil {
-			return false, err
+			return false, "", err
 		}
 		sendTX := &ffcapi.SendTransactionRequest{
 			TransactionHeaders: mtx.Request.TransactionHeaders,
@@ -109,24 +109,25 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 			TransactionData:    mtx.TransactionData,
 		}
 		sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
-		res, _, err := cAPI.SendTransaction(ctx, sendTX)
+		sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
+		log.L(ctx).Infof("Sending transaction: %+v", sendTX)
+		res, reason, err := cAPI.SendTransaction(ctx, sendTX)
 		if err != nil {
 			// A more sophisticated policy engine would consider the reason here, and potentially adjust the transaction for future attempts
-			return false, err
+			return false, reason, err
 		}
-		if res.TransactionHash != mtx.TransactionHash {
-			return true, i18n.NewError(ctx, tmmsgs.MsgTransactionHashMismatch, mtx.TransactionHash, res.TransactionHash)
-		}
+		log.L(ctx).Infof("Transaction hash=%s", res.TransactionHash)
+		mtx.TransactionHash = res.TransactionHash
 		mtx.FirstSubmit = fftypes.Now()
 		mtx.LastSubmit = mtx.FirstSubmit
-		return true, nil
+		return true, "", nil
 
 	} else if mtx.Receipt == nil {
 
 		// A more sophisticated policy engine would look at the reason for the lack of a receipt, and consider taking progressive
 		// action such as increasing the gas cost slowly over time. This simple example shows how the policy engine
 		// can use the FireFly core operation as a store for its historical state/decisions (in this case the last time we warned).
-		return p.withPolicyInfo(ctx, mtx, func(info *simplePolicyInfo) (updated bool, err error) {
+		return p.withPolicyInfo(ctx, mtx, func(info *simplePolicyInfo) (updated bool, reason ffcapi.ErrorReason, err error) {
 			lastWarnTime := info.LastWarnTime
 			if lastWarnTime == nil {
 				lastWarnTime = mtx.FirstSubmit
@@ -136,14 +137,14 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 				secsSinceSubmit := float64(now.Time().Sub(*mtx.FirstSubmit.Time())) / float64(time.Second)
 				log.L(ctx).Warnf("Transaction %s (op=%s) has not been mined after %.2fs", mtx.TransactionHash, mtx.ID, secsSinceSubmit)
 				info.LastWarnTime = now
-				return true, nil
+				return true, "", nil
 			}
-			return false, nil
+			return false, "", nil
 		})
 
 	}
 	// No action in the case we have a receipt
-	return false, nil
+	return false, "", nil
 }
 
 // getGasPrice either uses a fixed gas price, or invokes a gas station API

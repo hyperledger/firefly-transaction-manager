@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -31,17 +32,19 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines/simple"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 	"github.com/hyperledger/firefly/pkg/config"
 	"github.com/hyperledger/firefly/pkg/ffresty"
 	"github.com/hyperledger/firefly/pkg/fftypes"
 	"github.com/hyperledger/firefly/pkg/httpserver"
+	"github.com/hyperledger/firefly/pkg/wsclient"
 	"github.com/stretchr/testify/assert"
 )
 
 const testManagerName = "unittest"
 
-func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler http.HandlerFunc) (string, *manager, func()) {
+func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler http.HandlerFunc, wsURL ...string) (string, *manager, func()) {
 	tmconfig.Reset()
 	policyengines.RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
 
@@ -62,13 +65,20 @@ func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler ht
 	config.Set(tmconfig.ReceiptsPollingInterval, "1ms")
 	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "223344556677")
 
+	if len(wsURL) > 0 {
+		tmconfig.FFCorePrefix.Set(ffresty.HTTPConfigURL, wsURL[0])
+	}
+
 	mm, err := NewManager(context.Background())
 	assert.NoError(t, err)
 	m := mm.(*manager)
 	mcm := &confirmationsmocks.Manager{}
 	m.confirmations = mcm
 	mcm.On("Start").Return().Maybe()
-	m.wsDisabled = true
+
+	if len(wsURL) == 0 {
+		m.wsDisabled = true
+	}
 
 	return fmt.Sprintf("http://127.0.0.1:%s", managerPort),
 		m,
@@ -114,6 +124,20 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 
 	_, err := NewManager(context.Background())
 	assert.Regexp(t, "FF10104", err)
+
+}
+
+func TestNewManagerFireFlyURLConfig(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.ManagerName, "test")
+	tmconfig.FFCorePrefix.Set(ffresty.HTTPConfigURL, ":::!badurl")
+
+	policyengines.RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
+	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "223344556677")
+
+	_, err := NewManager(context.Background())
+	assert.Regexp(t, "FF00149", err)
 
 }
 
@@ -465,5 +489,108 @@ func TestStartupCancelledDuringRetry(t *testing.T) {
 	m.fullScanMinDelay = 1 * time.Second
 
 	m.waitScanDelay(fftypes.Now())
+
+}
+
+func TestStartChangeEventListener(t *testing.T) {
+
+	var m *manager
+	_, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+
+	m.wsClient.Close()
+	err := m.startChangeListener(m.ctx, m.wsClient)
+	assert.Regexp(t, "FF00147", err)
+
+}
+
+func TestAddErrorMessageMax(t *testing.T) {
+
+	var m *manager
+	_, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+
+	m.errorHistoryCount = 2
+	mtx := &fftm.ManagedTXOutput{}
+	m.addError(mtx, ffcapi.ErrorReasonTransactionUnderpriced, fmt.Errorf("snap"))
+	m.addError(mtx, ffcapi.ErrorReasonTransactionUnderpriced, fmt.Errorf("crackle"))
+	m.addError(mtx, ffcapi.ErrorReasonTransactionUnderpriced, fmt.Errorf("pop"))
+	assert.Len(t, mtx.ErrorHistory, 2)
+	assert.Equal(t, "pop", mtx.ErrorHistory[0].Error)
+	assert.Equal(t, "crackle", mtx.ErrorHistory[1].Error)
+
+}
+
+func TestWSChangeDeliveryLookup(t *testing.T) {
+
+	opID := fftypes.NewUUID()
+	lookedUp := make(chan struct{})
+	toServer, fromServer, wsURL, done := wsclient.NewTestWSServer(
+		func(req *http.Request) {
+			switch req.URL.Path {
+			case `/admin/ws`:
+				return
+			case fmt.Sprintf("/admin/api/v1/operations/%s", opID):
+				close(lookedUp)
+			default:
+				assert.Fail(t, fmt.Sprintf("Unexpected path: %s", req.URL.Path))
+			}
+		},
+	)
+	defer done()
+
+	httpURL, err := url.Parse(wsURL)
+	assert.NoError(t, err)
+	httpURL.Scheme = "http"
+
+	_, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+		func(w http.ResponseWriter, r *http.Request) {},
+		httpURL.String(),
+	)
+	defer cancel()
+
+	m.startWS()
+
+	cmdJSON := <-toServer
+	var startCmd fftypes.WSChangeEventCommand
+	err = json.Unmarshal([]byte(cmdJSON), &startCmd)
+	assert.NoError(t, err)
+	assert.Equal(t, fftypes.WSChangeEventCommandTypeStart, startCmd.Type)
+
+	change := &fftypes.ChangeEvent{
+		Collection: "operations",
+		Type:       fftypes.ChangeEventTypeUpdated,
+		Namespace:  "ns1",
+		ID:         opID,
+	}
+	changeJSON, err := json.Marshal(&change)
+	assert.NoError(t, err)
+	fromServer <- string(changeJSON)
+
+	<-lookedUp
+
+	m.cancelCtx()
+	m.waitWSStop()
+
+}
+
+func TestWSConnectFail(t *testing.T) {
+
+	_, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	cancel()
+
+	m.wsDisabled = false
+	err := m.startWS()
+	assert.Regexp(t, "FF10158", err)
 
 }

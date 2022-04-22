@@ -48,7 +48,6 @@ type PrepareTransactionRequest struct {
 type PrepareTransactionResponse struct {
 	ResponseBase
 	Gas             *fftypes.FFBigInt `json:"gas"`
-	TransactionHash string            `json:"transactionHash"`
 	TransactionData string            `json:"transactionData"`
 }
 

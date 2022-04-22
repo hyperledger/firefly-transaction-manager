@@ -24,5 +24,5 @@ import (
 )
 
 type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *fftm.ManagedTXOutput) (updated bool, err error)
+	Execute(ctx context.Context, cAPI ffcapi.API, mtx *fftm.ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
 }
