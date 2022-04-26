@@ -47,8 +47,11 @@ var (
 	ConfigOperationsFullScanPageSize          = ffc("config.operations.fullScan.pageSize", "The page size to use when performing a full scan of the ForeFly core API on startup, or recovery", "number")
 	ConfigOperationsFullScanStartupMaxRetries = ffc("config.operations.fullScan.startupMaxRetries", "The page size to use when performing a full scan of the ForeFly core API on startup, or recovery", "number")
 	ConfigOperationsErrorHistoryCount         = ffc("config.operations.errorHistoryCount", "The number of historical errors to retain in the operation", "number")
+	ConfigOperationsChangeListenerEnabled     = ffc("config.operations.changeListener.enabled", "Whether to enable the change event listener to detect updates made to operations outside of the FFTM", "boolean")
 
 	ConfigPolicyEngineName = ffc("config.policyengine.name", "The name of the policy engine to use", "string")
+
+	ConfigLoopInterval = ffc("config.policyloop.interval", "Interval at which to invoke the policy engine to evaluate outstanding transactions", "duration")
 
 	ConfigPolicyEngineSimpleFixedGasPrice      = ffc("config.policyengine.simple.fixedGasPrice", "A fixed gasPrice value/structure to pass to the connector", "Raw JSON")
 	ConfigPolicyEngineSimpleWarnInterval       = ffc("config.policyengine.simple.warnInterval", "The time between warnings when a blockchain transaction has not been allocated a receipt", "duration")
@@ -57,6 +60,4 @@ var (
 	ConfigPolicyEngineSimpleGasStationURL      = ffc("config.policyengine.simple.gasstation.url", "The URL of a Gas Station API to call", "string")
 	ConfigPolicyEngineSimpleGasStationProxyURL = ffc("config.policyengine.simple.gasstation.proxy.url", "Optional HTTP proxy URL to use for the Gas Station API", "string")
 	ConfigPolicyEngineSimpleGasStationMethod   = ffc("config.policyengine.simple.gasstation.method", "The HTTP Method to use when invoking the Gas STation API", "string")
-
-	ConfigReceiptsPollingInterval = ffc("config.receipts.pollingInteval", "Interval between queries for receipts for all in-flight transactions that have not met the confirmation threshold", "duration")
 )

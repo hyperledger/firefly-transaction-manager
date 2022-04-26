@@ -89,9 +89,10 @@ type TransactionHeaders struct {
 }
 
 type BlockInfo struct {
-	BlockNumber *fftypes.FFBigInt `json:"blockNumber"`
-	BlockHash   string            `json:"blockHash"`
-	ParentHash  string            `json:"parentHash"`
+	BlockNumber       *fftypes.FFBigInt `json:"blockNumber"`
+	BlockHash         string            `json:"blockHash"`
+	ParentHash        string            `json:"parentHash"`
+	TransactionHashes []string          `json:"transactionHashes"`
 }
 
 // ErrorResponse allows blockchain connectors to encode useful information about an error in a JSON response body.

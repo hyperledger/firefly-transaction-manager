@@ -23,7 +23,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -38,7 +37,6 @@ import (
 	"github.com/hyperledger/firefly/pkg/ffresty"
 	"github.com/hyperledger/firefly/pkg/fftypes"
 	"github.com/hyperledger/firefly/pkg/httpserver"
-	"github.com/hyperledger/firefly/pkg/wsclient"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -62,10 +60,11 @@ func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler ht
 	tmconfig.APIPrefix.Set(httpserver.HTTPConfAddress, "127.0.0.1")
 
 	config.Set(tmconfig.ManagerName, testManagerName)
-	config.Set(tmconfig.ReceiptsPollingInterval, "1ms")
+	config.Set(tmconfig.PolicyLoopInterval, "1ms")
 	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	if len(wsURL) > 0 {
+		config.Set(tmconfig.OperationsChangeListenerEnabled, true)
 		tmconfig.FFCorePrefix.Set(ffresty.HTTPConfigURL, wsURL[0])
 	}
 
@@ -75,10 +74,6 @@ func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler ht
 	mcm := &confirmationsmocks.Manager{}
 	m.confirmations = mcm
 	mcm.On("Start").Return().Maybe()
-
-	if len(wsURL) == 0 {
-		m.wsDisabled = true
-	}
 
 	return fmt.Sprintf("http://127.0.0.1:%s", managerPort),
 		m,
@@ -423,13 +418,18 @@ func TestStartupScanMultiPageOK(t *testing.T) {
 			w.Write(b)
 		},
 	)
-	defer cancel()
 	m.fullScanMinDelay = 1 * time.Microsecond
 
-	err := m.Start()
-	assert.NoError(t, err)
+	m.fullScanRequests <- true
+	m.firstFullScanDone = make(chan error)
+	m.fullScanLoopDone = make(chan struct{})
+	go m.fullScanLoop()
 
+	<-m.firstFullScanDone
 	assert.Len(t, m.pendingOpsByID, 3)
+
+	cancel()
+	<-m.fullScanLoopDone
 
 }
 
@@ -524,73 +524,5 @@ func TestAddErrorMessageMax(t *testing.T) {
 	assert.Len(t, mtx.ErrorHistory, 2)
 	assert.Equal(t, "pop", mtx.ErrorHistory[0].Error)
 	assert.Equal(t, "crackle", mtx.ErrorHistory[1].Error)
-
-}
-
-func TestWSChangeDeliveryLookup(t *testing.T) {
-
-	opID := fftypes.NewUUID()
-	lookedUp := make(chan struct{})
-	toServer, fromServer, wsURL, done := wsclient.NewTestWSServer(
-		func(req *http.Request) {
-			switch req.URL.Path {
-			case `/admin/ws`:
-				return
-			case fmt.Sprintf("/admin/api/v1/operations/%s", opID):
-				close(lookedUp)
-			default:
-				assert.Fail(t, fmt.Sprintf("Unexpected path: %s", req.URL.Path))
-			}
-		},
-	)
-	defer done()
-
-	httpURL, err := url.Parse(wsURL)
-	assert.NoError(t, err)
-	httpURL.Scheme = "http"
-
-	_, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-		func(w http.ResponseWriter, r *http.Request) {},
-		httpURL.String(),
-	)
-	defer cancel()
-
-	m.startWS()
-
-	cmdJSON := <-toServer
-	var startCmd fftypes.WSChangeEventCommand
-	err = json.Unmarshal([]byte(cmdJSON), &startCmd)
-	assert.NoError(t, err)
-	assert.Equal(t, fftypes.WSChangeEventCommandTypeStart, startCmd.Type)
-
-	change := &fftypes.ChangeEvent{
-		Collection: "operations",
-		Type:       fftypes.ChangeEventTypeUpdated,
-		Namespace:  "ns1",
-		ID:         opID,
-	}
-	changeJSON, err := json.Marshal(&change)
-	assert.NoError(t, err)
-	fromServer <- string(changeJSON)
-
-	<-lookedUp
-
-	m.cancelCtx()
-	m.waitWSStop()
-
-}
-
-func TestWSConnectFail(t *testing.T) {
-
-	_, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
-	cancel()
-
-	m.wsDisabled = false
-	err := m.startWS()
-	assert.Regexp(t, "FF10158", err)
 
 }
