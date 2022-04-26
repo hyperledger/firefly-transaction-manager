@@ -50,8 +50,10 @@ var (
 	OperationsFullScanMinimumDelay = ffc("operations.fullScan.minimumDelay")
 	// OperationsErrorHistoryCount the number of errors to retain in the operation
 	OperationsErrorHistoryCount = ffc("operations.errorHistoryCount")
-	// ReceiptPollingInterval how often to poll for transaction receipts (the policy engine gets a chance to intervene for each outstanding receipt, on each polling cycle)
-	ReceiptsPollingInterval = ffc("receipts.pollingInteval")
+	// OperationsChangeListenerEnabled whether to enable the operation change listener
+	OperationsChangeListenerEnabled = ffc("operations.changeListener.enabled")
+	// PolicyLoopInterval how often to go round the loop executing the policy engine against all pending transactions to make decisions
+	PolicyLoopInterval = ffc("policyloop.interval")
 	// PolicyEngineName the name of the policy engine to use
 	PolicyEngineName = ffc("policyengine.name")
 )
@@ -79,7 +81,7 @@ func setDefaults() {
 	viper.SetDefault(string(ConfirmationsBlockPollingInterval), "3s")
 	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
 	viper.SetDefault(string(OperationsErrorHistoryCount), 25)
-	viper.SetDefault(string(ReceiptsPollingInterval), "1s")
+	viper.SetDefault(string(PolicyLoopInterval), "1s")
 	viper.SetDefault(string(PolicyEngineName), "simple")
 }
 

@@ -313,18 +313,20 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
 
 	confirmed := make(chan []BlockInfo, 1)
+	receiptReceived := make(chan *ffcapi.GetReceiptResponse, 1)
 	txToConfirmForkA := &TransactionInfo{
 		TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-		BlockHash:       "0x33eb56730878a08e126f2d52b19242d3b3127dc7611447255928be91b2dda455",
-		BlockNumber:     1001,
 		Confirmed: func(confirmations []BlockInfo) {
-			assert.Fail(t, "this is not the fork we are looking for")
+			confirmed <- confirmations
+		},
+		Receipt: func(receipt *ffcapi.GetReceiptResponse) {
+			receiptReceived <- receipt
 		},
 	}
 	block1002a := &BlockInfo{
 		BlockNumber: 1002,
 		BlockHash:   "0x46210d224888265c269359529618bf2f6adb2697ff52c63c10f16a2391bdd295",
-		ParentHash:  "0x33eb56730878a08e126f2d52b19242d3b3127dc7611447255928be91b2dda455",
+		ParentHash:  "0xea681fadcf56ee6254a0d30b255c56636ee9199c73c45f0dd5823759b2ad1ef8",
 	}
 	// We start with a notification for this one
 	bcm.Notify(&Notification{
@@ -332,18 +334,16 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		Transaction:      txToConfirmForkA,
 	})
 
-	txToConfirmForkB := &TransactionInfo{
-		TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-		BlockHash:       "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-		BlockNumber:     1001,
-		Confirmed: func(confirmations []BlockInfo) {
-			confirmed <- confirmations
-		},
+	block1001b := &BlockInfo{
+		BlockNumber:       1001,
+		BlockHash:         "0x33eb56730878a08e126f2d52b19242d3b3127dc7611447255928be91b2dda455",
+		ParentHash:        "0xe9afc4ff48efed19fc9256d2964c4194320d4d20dca25bb2ebcf7d047e1b83c6",
+		TransactionHashes: []string{txToConfirmForkA.TransactionHash},
 	}
 	block1002b := &BlockInfo{
 		BlockNumber: 1002,
 		BlockHash:   "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
-		ParentHash:  "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+		ParentHash:  "0x33eb56730878a08e126f2d52b19242d3b3127dc7611447255928be91b2dda455",
 	}
 	lastBlockDetected := false
 
@@ -368,14 +368,57 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 			BlockHash:   block1002a.BlockHash,
 			ParentHash:  block1002a.ParentHash,
 		},
-	}, ffcapi.ErrorReason(""), nil).Once().
-		Run(func(args mock.Arguments) {
-			// At this point submit the notification for the TX moving to the other fork
-			bcm.Notify(&Notification{
-				NotificationType: NewTransaction,
-				Transaction:      txToConfirmForkB,
-			})
-		})
+	}, ffcapi.ErrorReason(""), nil).Once()
+
+	// Transaction receipt is immediately available on fork A
+	mca.On("GetReceipt", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetReceiptRequest) bool {
+		return r.TransactionHash == txToConfirmForkA.TransactionHash
+	})).Return(&ffcapi.GetReceiptResponse{
+		BlockHash:        block1002a.ParentHash,
+		BlockNumber:      fftypes.NewFFBigInt(1001),
+		TransactionIndex: fftypes.NewFFBigInt(0),
+		Success:          true,
+	}, ffcapi.ErrorReason(""), nil).Once()
+
+	// Next we notify of the new block 1001b
+	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
+		return r.ListenerID == "listener1"
+	})).Return(&ffcapi.GetNewBlockHashesResponse{
+		BlockHashes: []string{
+			block1001b.BlockHash,
+		},
+	}, ffcapi.ErrorReason(""), nil).Once()
+	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+		return r.BlockHash == block1001b.BlockHash
+	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber:       fftypes.NewFFBigInt(int64(block1001b.BlockNumber)),
+			BlockHash:         block1001b.BlockHash,
+			ParentHash:        block1001b.ParentHash,
+			TransactionHashes: block1001b.TransactionHashes,
+		},
+	}, ffcapi.ErrorReason(""), nil).Once()
+
+	// Transaction receipt is then found on fork B via new block header notification
+	mca.On("GetReceipt", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetReceiptRequest) bool {
+		return r.TransactionHash == txToConfirmForkA.TransactionHash
+	})).Return(&ffcapi.GetReceiptResponse{
+		BlockHash:        block1001b.BlockHash,
+		BlockNumber:      fftypes.NewFFBigInt(1001),
+		TransactionIndex: fftypes.NewFFBigInt(0),
+		Success:          true,
+	}, ffcapi.ErrorReason(""), nil).Once()
+
+	// We will go and ask for block 1002 again, as the hash mismatches our updated notification
+	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1002
+	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1002b.BlockNumber)),
+			BlockHash:   block1002b.BlockHash,
+			ParentHash:  block1002b.ParentHash,
+		},
+	}, ffcapi.ErrorReason(""), nil).Once()
 
 	// Then we get the final fork up to our confirmation
 	block1003 := &BlockInfo{
@@ -415,17 +458,6 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	// We will go back and ask for block 1002 again, as the hash mismatches our updated notification
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
-		return r.BlockNumber.Uint64() == 1002
-	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
-		BlockInfo: ffcapi.BlockInfo{
-			BlockNumber: fftypes.NewFFBigInt(int64(block1002b.BlockNumber)),
-			BlockHash:   block1002b.BlockHash,
-			ParentHash:  block1002b.ParentHash,
-		},
-	}, ffcapi.ErrorReason(""), nil).Once()
-
 	// Subsequent calls get nothing, and blocks until close anyway
 	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
 		return r.ListenerID == "listener1"
@@ -438,6 +470,9 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil).Maybe()
 
 	bcm.Start()
+
+	receipt := <-receiptReceived
+	assert.True(t, receipt.Success)
 
 	dispatched := <-confirmed
 	assert.Equal(t, []BlockInfo{
@@ -588,14 +623,14 @@ func TestConfirmationsListenerFailWalkingChain(t *testing.T) {
 	bcm.done = make(chan struct{})
 
 	n := &Notification{
-		NotificationType: NewTransaction,
-		Transaction: &TransactionInfo{
+		NotificationType: NewEventLog,
+		Event: &EventInfo{
 			TransactionHash: "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-			BlockNumber:     1001,
 			BlockHash:       "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+			BlockNumber:     1001,
 		},
 	}
-	bcm.addOrReplaceItem(n.transactionPendingItem())
+	bcm.addOrReplaceItem(n.eventPendingItem())
 
 	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
 		ListenerID: "listener1",
@@ -687,7 +722,7 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 		return r.ListenerID == "listener1"
 	})).Return(&ffcapi.GetNewBlockHashesResponse{
 		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Once()
+	}, ffcapi.ErrorReason(""), nil)
 	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once().Run(func(args mock.Arguments) {
@@ -732,6 +767,7 @@ func TestConfirmationsListenerStopStream(t *testing.T) {
 	})).Return(&ffcapi.GetNewBlockHashesResponse{
 		BlockHashes: []string{},
 	}, ffcapi.ErrorReason(""), nil).Maybe()
+	mca.On("GetBlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Maybe()
 
 	bcm.Start()
 
@@ -791,8 +827,6 @@ func TestConfirmationsRemoveTransaction(t *testing.T) {
 
 	txInfo := &TransactionInfo{
 		TransactionHash: "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-		BlockHash:       "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-		BlockNumber:     1001,
 	}
 	bcm.addOrReplaceItem((&Notification{
 		Transaction: txInfo,
@@ -805,14 +839,12 @@ func TestConfirmationsRemoveTransaction(t *testing.T) {
 	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
 		ListenerID: "listener1",
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
+	mca.On("GetNewBlockHashes", mock.Anything, mock.Anything).Return(&ffcapi.GetNewBlockHashesResponse{
 		BlockHashes: []string{},
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
-		return r.BlockNumber.Uint64() == 1002
-	})).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Run(func(args mock.Arguments) {
+	mca.On("GetNewBlockHashes", mock.Anything, mock.Anything).Return(&ffcapi.GetNewBlockHashesResponse{
+		BlockHashes: []string{},
+	}, ffcapi.ErrorReason(""), nil).Once().Run(func(args mock.Arguments) {
 		bcm.cancelFunc()
 	})
 
@@ -1018,11 +1050,70 @@ func TestNotificationValidation(t *testing.T) {
 		NotificationType: NewTransaction,
 		Transaction: &TransactionInfo{
 			TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-			BlockHash:       "0x33eb56730878a08e126f2d52b19242d3b3127dc7611447255928be91b2dda455",
-			BlockNumber:     1001,
 			Confirmed:       func(confirmations []BlockInfo) {},
 		},
 	})
 	assert.NoError(t, err)
+
+}
+
+func TestCheckReceiptNotFound(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager(t, false)
+
+	mca.On("GetReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
+
+	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+	pending := &pendingItem{
+		pType:           pendingTypeTransaction,
+		transactionHash: txHash,
+	}
+	bcm.staleReceipts[pendingKeyForTX(txHash)] = pending
+	bcm.checkReceipt(pending)
+
+	assert.Nil(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
+
+}
+
+func TestCheckReceiptFail(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager(t, false)
+
+	mca.On("GetReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+	pending := &pendingItem{
+		pType:           pendingTypeTransaction,
+		transactionHash: txHash,
+	}
+	bcm.staleReceipts[pendingKeyForTX(txHash)] = pending
+	bcm.checkReceipt(pending)
+
+	assert.Equal(t, pending, bcm.staleReceipts[pendingKeyForTX(txHash)])
+
+}
+
+func TestCheckReceiptWalkFail(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager(t, false)
+
+	mca.On("GetReceipt", mock.Anything, mock.Anything).Return(&ffcapi.GetReceiptResponse{
+		BlockNumber:      fftypes.NewFFBigInt(12345),
+		BlockHash:        "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
+		TransactionIndex: fftypes.NewFFBigInt(10),
+	}, ffcapi.ErrorReason(""), nil)
+	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 12346
+	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+	pending := &pendingItem{
+		pType:           pendingTypeTransaction,
+		transactionHash: txHash,
+	}
+	bcm.staleReceipts[pendingKeyForTX(txHash)] = pending
+	bcm.checkReceipt(pending)
+
+	assert.Equal(t, pending, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
 }

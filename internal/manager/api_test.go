@@ -25,9 +25,12 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly/pkg/fftypes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 const sampleSendTX = `{
@@ -142,6 +145,11 @@ func TestSendTransactionE2E(t *testing.T) {
 		},
 	)
 	defer cancel()
+
+	mc := m.confirmations.(*confirmationsmocks.Manager)
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		return n.NotificationType == confirmations.NewTransaction
+	})).Return(nil)
 
 	m.Start()
 

@@ -61,20 +61,20 @@ type manager struct {
 	pendingOpsByID      map[fftypes.UUID]*pendingState
 	changeEventLoopDone chan struct{}
 	firstFullScanDone   chan error
-	receiptPollerDone   chan struct{}
+	policyLoopDone      chan struct{}
 	fullScanLoopDone    chan struct{}
 	fullScanRequests    chan bool
 	started             bool
 	apiServerDone       chan error
 
-	wsDisabled              bool
-	name                    string
-	opTypes                 []string
-	startupScanMaxRetries   int
-	fullScanPageSize        int64
-	fullScanMinDelay        time.Duration
-	receiptsPollingInterval time.Duration
-	errorHistoryCount       int
+	name                  string
+	opTypes               []string
+	startupScanMaxRetries int
+	fullScanPageSize      int64
+	fullScanMinDelay      time.Duration
+	policyLoopInterval    time.Duration
+	errorHistoryCount     int
+	enableChangeListener  bool
 }
 
 func NewManager(ctx context.Context) (Manager, error) {
@@ -88,13 +88,14 @@ func NewManager(ctx context.Context) (Manager, error) {
 		apiServerDone:    make(chan error),
 		pendingOpsByID:   make(map[fftypes.UUID]*pendingState),
 
-		name:                    config.GetString(tmconfig.ManagerName),
-		opTypes:                 config.GetStringSlice(tmconfig.OperationsTypes),
-		startupScanMaxRetries:   config.GetInt(tmconfig.OperationsFullScanStartupMaxRetries),
-		fullScanPageSize:        config.GetInt64(tmconfig.OperationsFullScanPageSize),
-		fullScanMinDelay:        config.GetDuration(tmconfig.OperationsFullScanMinimumDelay),
-		receiptsPollingInterval: config.GetDuration(tmconfig.ReceiptsPollingInterval),
-		errorHistoryCount:       config.GetInt(tmconfig.OperationsErrorHistoryCount),
+		name:                  config.GetString(tmconfig.ManagerName),
+		opTypes:               config.GetStringSlice(tmconfig.OperationsTypes),
+		startupScanMaxRetries: config.GetInt(tmconfig.OperationsFullScanStartupMaxRetries),
+		fullScanPageSize:      config.GetInt64(tmconfig.OperationsFullScanPageSize),
+		fullScanMinDelay:      config.GetDuration(tmconfig.OperationsFullScanMinimumDelay),
+		policyLoopInterval:    config.GetDuration(tmconfig.PolicyLoopInterval),
+		errorHistoryCount:     config.GetInt(tmconfig.OperationsErrorHistoryCount),
+		enableChangeListener:  config.GetBool(tmconfig.OperationsChangeListenerEnabled),
 	}
 	m.ctx, m.cancelCtx = context.WithCancel(ctx)
 	if m.name == "" {
@@ -121,23 +122,10 @@ func NewManager(ctx context.Context) (Manager, error) {
 }
 
 type pendingState struct {
-	mtx                  *fftm.ManagedTXOutput
-	confirmed            bool
-	removed              bool
-	lastReceiptBlockHash string
-}
-
-func (m *manager) startChangeListener(ctx context.Context, w wsclient.WSClient) error {
-	cmd := fftypes.WSChangeEventCommand{
-		Type:        fftypes.WSChangeEventCommandTypeStart,
-		Collections: []string{"operations"},
-		Filter: fftypes.ChangeEventFilter{
-			Types: []fftypes.ChangeEventType{fftypes.ChangeEventTypeUpdated},
-		},
-	}
-	b, _ := json.Marshal(&cmd)
-	log.L(m.ctx).Infof("Change listener connected. Sent: %s", b)
-	return w.Send(ctx, b)
+	mtx                     *fftm.ManagedTXOutput
+	confirmed               bool
+	removed                 bool
+	trackingTransactionHash string
 }
 
 func (m *manager) requestFullScan() {
@@ -272,36 +260,6 @@ func (m *manager) markCancelledIfTracked(opID *fftypes.UUID) {
 
 }
 
-func (m *manager) handleEvent(ce *fftypes.ChangeEvent) {
-	log.L(m.ctx).Debugf("%s:%s/%s operation change event received", ce.Namespace, ce.ID, ce.Type)
-	// Note that we only subscribe the events on update (this check is just belt and braces).
-	// The operation gets created before any connector is called, so the first event should be
-	// after we do the update from the prepare.
-	if ce.Collection == "operations" && ce.Type == fftypes.ChangeEventTypeUpdated {
-		m.mux.Lock()
-		_, knownID := m.pendingOpsByID[*ce.ID]
-		m.mux.Unlock()
-		if !knownID {
-			m.queryAndAddPending(ce.ID)
-		}
-	}
-}
-
-func (m *manager) changeEventLoop() {
-	defer close(m.changeEventLoopDone)
-	for {
-		select {
-		case b := <-m.wsClient.Receive():
-			var ce *fftypes.ChangeEvent
-			_ = json.Unmarshal(b, &ce)
-			m.handleEvent(ce)
-		case <-m.ctx.Done():
-			log.L(m.ctx).Infof("Change event loop exiting")
-			return
-		}
-	}
-}
-
 func (m *manager) Start() error {
 	m.fullScanRequests <- true
 	m.firstFullScanDone = make(chan error)
@@ -322,7 +280,7 @@ func (m *manager) waitForFirstScanAndStart() error {
 		return nil
 	}
 	log.L(m.ctx).Infof("Scan complete. Completing startup")
-	m.receiptPollerDone = make(chan struct{})
+	m.policyLoopDone = make(chan struct{})
 	go m.receiptPollingLoop()
 	go m.runAPIServer()
 	go m.confirmations.Start()
@@ -331,23 +289,6 @@ func (m *manager) waitForFirstScanAndStart() error {
 		m.started = true
 	}
 	return err
-}
-
-func (m *manager) startWS() error {
-	if !m.wsDisabled {
-		m.changeEventLoopDone = make(chan struct{})
-		if err := m.wsClient.Connect(); err != nil {
-			return err
-		}
-		go m.changeEventLoop()
-	}
-	return nil
-}
-
-func (m *manager) waitWSStop() {
-	if !m.wsDisabled {
-		<-m.changeEventLoopDone
-	}
 }
 
 func (m *manager) Stop() {
@@ -359,7 +300,7 @@ func (m *manager) WaitStop() (err error) {
 		m.started = false
 		err = <-m.apiServerDone
 		<-m.fullScanLoopDone
-		<-m.receiptPollerDone
+		<-m.policyLoopDone
 		m.waitWSStop()
 	}
 	return err

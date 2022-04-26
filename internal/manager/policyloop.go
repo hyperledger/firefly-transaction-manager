@@ -27,13 +27,13 @@ import (
 )
 
 func (m *manager) receiptPollingLoop() {
-	defer close(m.receiptPollerDone)
+	defer close(m.policyLoopDone)
 
 	for {
-		timer := time.NewTimer(m.receiptsPollingInterval)
+		timer := time.NewTimer(m.policyLoopInterval)
 		select {
 		case <-timer.C:
-			m.checkReceipts()
+			m.policyLoopCycle()
 		case <-m.ctx.Done():
 			log.L(m.ctx).Infof("Receipt poller exiting")
 			return
@@ -41,7 +41,7 @@ func (m *manager) receiptPollingLoop() {
 	}
 }
 
-func (m *manager) checkReceipts() {
+func (m *manager) policyLoopCycle() {
 
 	// Grab the lock to build a list of things to check
 	m.mux.Lock()
@@ -53,7 +53,7 @@ func (m *manager) checkReceipts() {
 
 	// Go through trying to query all of them
 	for _, pending := range allPending {
-		err := m.checkReceiptCycle(pending)
+		err := m.execPolicy(pending)
 		if err != nil {
 			log.L(m.ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
 		}
@@ -80,14 +80,16 @@ func (m *manager) addError(mtx *fftm.ManagedTXOutput, reason ffcapi.ErrorReason,
 
 // checkReceiptCycle runs against each pending item, on each cycle, and is the one place responsible
 // for state updates - to avoid those happening in parallel.
-func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
+func (m *manager) execPolicy(pending *pendingState) (err error) {
 
 	updated := true
+	completed := false
 	newStatus := fftypes.OpStatusPending
 	mtx := pending.mtx
 	switch {
 	case pending.confirmed:
 		updated = true
+		completed = true
 		if mtx.Receipt.Success {
 			newStatus = fftypes.OpStatusSucceeded
 		} else {
@@ -97,12 +99,6 @@ func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
 		// Remove from our state
 		m.removeIfTracked(mtx.ID)
 	default:
-		if mtx.FirstSubmit != nil {
-			if err = m.checkReceipt(pending); err != nil {
-				return err
-			}
-		}
-
 		// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 		// such as submitting for the first time, or raising the gas etc.
 		var reason ffcapi.ErrorReason
@@ -110,6 +106,9 @@ func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
 		if err != nil {
 			log.L(m.ctx).Errorf("Policy engine returned error for operation %s reason=%s: %s", mtx.ID, reason, err)
 			m.addError(mtx, reason, err)
+		} else if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
+			// If now submitted, add to confirmations manager for receipt checking
+			m.trackSubmittedTransaction(pending)
 		}
 	}
 
@@ -129,7 +128,7 @@ func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
 			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, newStatus, err)
 			return err
 		}
-		if pending.confirmed {
+		if completed {
 			// We can remove it now
 			m.removeIfTracked(mtx.ID)
 		}
@@ -138,33 +137,48 @@ func (m *manager) checkReceiptCycle(pending *pendingState) (err error) {
 	return nil
 }
 
-func (m *manager) checkReceipt(pending *pendingState) error {
-	mtx := pending.mtx
-	res, reason, err := m.connectorAPI.GetReceipt(m.ctx, &ffcapi.GetReceiptRequest{
-		TransactionHash: mtx.TransactionHash,
-	})
-	if err != nil {
-		if reason == ffcapi.ErrorReasonNotFound {
-			// If we previously thought we had a receipt, then tell the confirmation manager
-			// to remove this transaction, and update our state.
-			if mtx.Receipt != nil {
-				m.clearConfirmationTracking(mtx)
-				pending.lastReceiptBlockHash = ""
+func (m *manager) trackSubmittedTransaction(pending *pendingState) {
+	var err error
 
-			}
-		} else {
-			// Others errors are logged
-			return err
-		}
-	} else {
-		// If the receipt has been changed (it's new, or the block hash changed) then let
-		// the confirmation manager know to track it
-		pending.mtx.Receipt = res
-		if pending.lastReceiptBlockHash == "" || pending.lastReceiptBlockHash != res.BlockHash {
-			m.requestConfirmationsNewReceipt(pending)
-		}
+	// Clear any old transaction hash
+	if pending.trackingTransactionHash != "" {
+		err = m.confirmations.Notify(&confirmations.Notification{
+			NotificationType: confirmations.RemovedTransaction,
+			Transaction: &confirmations.TransactionInfo{
+				TransactionHash: pending.trackingTransactionHash,
+			},
+		})
 	}
-	return nil
+
+	// Notify of the new
+	if err == nil {
+		err = m.confirmations.Notify(&confirmations.Notification{
+			NotificationType: confirmations.NewTransaction,
+			Transaction: &confirmations.TransactionInfo{
+				TransactionHash: pending.mtx.TransactionHash,
+				Receipt: func(receipt *ffcapi.GetReceiptResponse) {
+					// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
+					m.mux.Lock()
+					pending.mtx.Receipt = receipt
+					m.mux.Unlock()
+				},
+				Confirmed: func(confirmations []confirmations.BlockInfo) {
+					// Will be picked up on the next policy loop cycle
+					m.mux.Lock()
+					pending.confirmed = true
+					pending.mtx.Confirmations = confirmations
+					m.mux.Unlock()
+				},
+			},
+		})
+	}
+
+	// Only reason for error here should be a cancelled context
+	if err != nil {
+		log.L(m.ctx).Infof("Error detected notifying confirmation manager: %s", err)
+	} else {
+		pending.trackingTransactionHash = pending.mtx.TransactionHash
+	}
 }
 
 func (m *manager) clearConfirmationTracking(mtx *fftm.ManagedTXOutput) {
@@ -173,26 +187,6 @@ func (m *manager) clearConfirmationTracking(mtx *fftm.ManagedTXOutput) {
 		NotificationType: confirmations.RemovedTransaction,
 		Transaction: &confirmations.TransactionInfo{
 			TransactionHash: mtx.TransactionHash,
-		},
-	})
-}
-
-func (m *manager) requestConfirmationsNewReceipt(pending *pendingState) {
-	pending.lastReceiptBlockHash = pending.mtx.Receipt.BlockHash
-	// The only error condition on confirmations manager is if we are exiting, which it logs
-	_ = m.confirmations.Notify(&confirmations.Notification{
-		NotificationType: confirmations.NewTransaction,
-		Transaction: &confirmations.TransactionInfo{
-			TransactionHash: pending.mtx.TransactionHash,
-			BlockHash:       pending.mtx.Receipt.BlockHash,
-			BlockNumber:     pending.mtx.Receipt.BlockNumber.Uint64(),
-			Confirmed: func(confirmations []confirmations.BlockInfo) {
-				// Will be picked up on the next receipt loop cycle
-				m.mux.Lock()
-				pending.confirmed = true
-				pending.mtx.Confirmations = confirmations
-				m.mux.Unlock()
-			},
 		},
 	})
 }

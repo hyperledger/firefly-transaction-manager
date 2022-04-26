@@ -65,13 +65,13 @@ type EventInfo struct {
 	TransactionHash  string
 	TransactionIndex uint64
 	LogIndex         uint64
+	Receipt          func(receipt *ffcapi.GetReceiptResponse)
 	Confirmed        func(confirmations []BlockInfo)
 }
 
 type TransactionInfo struct {
-	BlockHash       string
-	BlockNumber     uint64
 	TransactionHash string
+	Receipt         func(receipt *ffcapi.GetReceiptResponse)
 	Confirmed       func(confirmations []BlockInfo)
 }
 
@@ -81,9 +81,10 @@ type StoppedStreamInfo struct {
 }
 
 type BlockInfo struct {
-	BlockNumber uint64
-	BlockHash   string
-	ParentHash  string
+	BlockNumber       uint64
+	BlockHash         string
+	ParentHash        string
+	TransactionHashes []string
 }
 
 type blockConfirmationManager struct {
@@ -98,6 +99,7 @@ type blockConfirmationManager struct {
 	bcmNotifications      chan *Notification
 	highestBlockSeen      uint64
 	pending               map[string]*pendingItem
+	staleReceipts         map[string]*pendingItem
 	done                  chan struct{}
 }
 
@@ -110,6 +112,7 @@ func NewBlockConfirmationManager(ctx context.Context, connectorAPI ffcapi.API) (
 		blockListenerStale:    true,
 		bcmNotifications:      make(chan *Notification, config.GetInt(tmconfig.ConfirmationsNotificationQueueLength)),
 		pending:               make(map[string]*pendingItem),
+		staleReceipts:         make(map[string]*pendingItem),
 	}
 	bcm.ctx, bcm.cancelFunc = context.WithCancel(ctx)
 	bcm.blockCache, err = lru.New(config.GetInt(tmconfig.ConfirmationsBlockCacheSize))
@@ -129,16 +132,21 @@ const (
 // pendingItem could be a specific event that has been detected, but not confirmed yet.
 // Or it could be a transaction
 type pendingItem struct {
-	pType            pendingType
-	added            time.Time
-	confirmations    []*BlockInfo
-	confirmed        func(confirmations []BlockInfo)
-	transactionHash  string
-	streamID         string // events only
-	blockHash        string // can be notified of changes to this for receipts
-	blockNumber      uint64 // known at creation time for event logs
-	transactionIndex uint64 // known at creation time for event logs
-	logIndex         uint64 // events only
+	pType             pendingType
+	added             time.Time
+	confirmations     []*BlockInfo
+	receiptCallback   func(receipt *ffcapi.GetReceiptResponse)
+	confirmedCallback func(confirmations []BlockInfo)
+	transactionHash   string
+	streamID          string // events only
+	blockHash         string // can be notified of changes to this for receipts
+	blockNumber       uint64 // known at creation time for event logs
+	transactionIndex  uint64 // known at creation time for event logs
+	logIndex          uint64 // events only
+}
+
+func pendingKeyForTX(txHash string) string {
+	return fmt.Sprintf("TX:th=%s", txHash)
 }
 
 func (pi *pendingItem) getKey() string {
@@ -149,7 +157,7 @@ func (pi *pendingItem) getKey() string {
 		return fmt.Sprintf("Event[%s]:th=%s,bh=%s,bn=%d,ti=%d,li=%d", pi.streamID, pi.transactionHash, pi.blockHash, pi.blockNumber, pi.transactionIndex, pi.logIndex)
 	case pendingTypeTransaction:
 		// For transactions, it's simply the transaction hash that identifies it. It can go into any block
-		return fmt.Sprintf("TX:th=%s", pi.transactionHash)
+		return pendingKeyForTX(pi.transactionHash)
 	default:
 		panic("invalid pending item type")
 	}
@@ -165,24 +173,23 @@ func (pi *pendingItem) copyConfirmations() []BlockInfo {
 
 func (n *Notification) eventPendingItem() *pendingItem {
 	return &pendingItem{
-		pType:            pendingTypeEvent,
-		blockNumber:      n.Event.BlockNumber,
-		blockHash:        n.Event.BlockHash,
-		streamID:         n.Event.StreamID,
-		transactionHash:  n.Event.TransactionHash,
-		transactionIndex: n.Event.TransactionIndex,
-		logIndex:         n.Event.LogIndex,
-		confirmed:        n.Event.Confirmed,
+		pType:             pendingTypeEvent,
+		blockNumber:       n.Event.BlockNumber,
+		blockHash:         n.Event.BlockHash,
+		streamID:          n.Event.StreamID,
+		transactionHash:   n.Event.TransactionHash,
+		transactionIndex:  n.Event.TransactionIndex,
+		logIndex:          n.Event.LogIndex,
+		confirmedCallback: n.Event.Confirmed,
 	}
 }
 
 func (n *Notification) transactionPendingItem() *pendingItem {
 	return &pendingItem{
-		pType:           pendingTypeTransaction,
-		blockNumber:     n.Transaction.BlockNumber,
-		blockHash:       n.Transaction.BlockHash,
-		transactionHash: n.Transaction.TransactionHash,
-		confirmed:       n.Transaction.Confirmed,
+		pType:             pendingTypeTransaction,
+		transactionHash:   n.Transaction.TransactionHash,
+		receiptCallback:   n.Transaction.Receipt,
+		confirmedCallback: n.Transaction.Confirmed,
 	}
 }
 
@@ -218,7 +225,7 @@ func (bcm *blockConfirmationManager) Notify(n *Notification) error {
 			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
 		}
 	case NewTransaction, RemovedTransaction:
-		if n.Transaction == nil || n.Transaction.TransactionHash == "" || n.Transaction.BlockHash == "" {
+		if n.Transaction == nil || n.Transaction.TransactionHash == "" {
 			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
 		}
 	case StopStream:
@@ -281,11 +288,7 @@ func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*BlockInf
 		}
 		return nil, err
 	}
-	blockInfo := &BlockInfo{
-		BlockNumber: res.BlockNumber.Uint64(),
-		BlockHash:   res.BlockHash,
-		ParentHash:  res.ParentHash,
-	}
+	blockInfo := transformBlockInfo(&res.BlockInfo)
 	log.L(bcm.ctx).Debugf("Downloaded block header by hash: %d / %s parent=%s", blockInfo.BlockNumber, blockInfo.BlockHash, blockInfo.ParentHash)
 
 	bcm.addToCache(blockInfo)
@@ -312,15 +315,19 @@ func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expect
 		}
 		return nil, err
 	}
-	blockInfo := &BlockInfo{
-		BlockNumber: res.BlockNumber.Uint64(),
-		BlockHash:   res.BlockHash,
-		ParentHash:  res.ParentHash,
-	}
+	blockInfo := transformBlockInfo(&res.BlockInfo)
 	log.L(bcm.ctx).Debugf("Downloaded block header by number: %d / %s parent=%s", blockInfo.BlockNumber, blockInfo.BlockHash, blockInfo.ParentHash)
-
 	bcm.addToCache(blockInfo)
 	return blockInfo, nil
+}
+
+func transformBlockInfo(res *ffcapi.BlockInfo) *BlockInfo {
+	return &BlockInfo{
+		BlockNumber:       res.BlockNumber.Uint64(),
+		BlockHash:         res.BlockHash,
+		ParentHash:        res.ParentHash,
+		TransactionHashes: res.TransactionHashes,
+	}
 }
 
 func (bcm *blockConfirmationManager) confirmationsListener() {
@@ -377,9 +384,14 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 			log.L(bcm.ctx).Errorf("Failed processing notifications: %s", err)
 			continue
 		}
-
 		// Clear the notifications array now we've processed them (we keep the slice memory)
 		notifications = notifications[:0]
+
+		// Perform any receipt checks required, due to new notifications, previously failed
+		// receipt checks, or processing block headers
+		for _, pending := range bcm.staleReceipts {
+			bcm.checkReceipt(pending)
+		}
 
 	}
 
@@ -387,13 +399,18 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 
 func (bcm *blockConfirmationManager) processNotifications(notifications []*Notification) error {
 
-	var newItem *pendingItem
 	for _, n := range notifications {
 		switch n.NotificationType {
 		case NewEventLog:
-			newItem = n.eventPendingItem()
+			newItem := n.eventPendingItem()
+			bcm.addOrReplaceItem(newItem)
+			if err := bcm.walkChainForItem(newItem); err != nil {
+				return err
+			}
 		case NewTransaction:
-			newItem = n.transactionPendingItem()
+			newItem := n.transactionPendingItem()
+			bcm.addOrReplaceItem(newItem)
+			bcm.staleReceipts[newItem.getKey()] = newItem
 		case RemovedEventLog:
 			bcm.removeItem(n.eventPendingItem())
 		case RemovedTransaction:
@@ -404,22 +421,45 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 		}
 	}
 
-	if newItem != nil {
-		bcm.addOrReplaceItem(newItem)
-		if err := bcm.walkChainForItem(newItem); err != nil {
-			return err
-		}
-
-	}
-
 	return nil
+}
+
+func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem) {
+	res, reason, err := bcm.connectorAPI.GetReceipt(bcm.ctx, &ffcapi.GetReceiptRequest{
+		TransactionHash: pending.transactionHash,
+	})
+
+	if err != nil {
+		if reason == ffcapi.ErrorReasonNotFound {
+			log.L(bcm.ctx).Debugf("Receipt for transaction %s not yet available", pending.transactionHash)
+		} else {
+			// We need to keep checking this receipt until we've got a good return code
+			log.L(bcm.ctx).Debugf("Failed to query receipt for transaction %s: %s", pending.transactionHash, err)
+			return
+		}
+	} else {
+		pending.blockNumber = res.BlockNumber.Uint64()
+		pending.blockHash = res.BlockHash
+		log.L(bcm.ctx).Infof("Receipt for transaction %s downloaded. BlockNumber=%d BlockHash=%s", pending.transactionHash, pending.blockNumber, pending.blockHash)
+		// Notify of the receipt
+		if pending.receiptCallback != nil {
+			pending.receiptCallback(res)
+		}
+		// Need to walk the chain for this new receipt
+		if err = bcm.walkChainForItem(pending); err != nil {
+			log.L(bcm.ctx).Debugf("Failed to walk chain for transaction %s: %s", pending.transactionHash, err)
+			return
+		}
+	}
+	// No need to keep polling - either we now have a receipt, or normal block header monitoring will pick this one up
+	delete(bcm.staleReceipts, pending.getKey())
 }
 
 // streamStopped removes all pending work for a given stream, and notifies once done
 func (bcm *blockConfirmationManager) streamStopped(notification *Notification) {
-	for eventKey, pending := range bcm.pending {
+	for pendingKey, pending := range bcm.pending {
 		if pending.streamID == notification.StoppedStream.StreamID {
-			delete(bcm.pending, eventKey)
+			delete(bcm.pending, pendingKey)
 		}
 	}
 	close(notification.StoppedStream.Completed)
@@ -429,16 +469,17 @@ func (bcm *blockConfirmationManager) streamStopped(notification *Notification) {
 func (bcm *blockConfirmationManager) addOrReplaceItem(pending *pendingItem) {
 	pending.added = time.Now()
 	pending.confirmations = make([]*BlockInfo, 0, bcm.requiredConfirmations)
-	eventKey := pending.getKey()
-	bcm.pending[eventKey] = pending
-	log.L(bcm.ctx).Infof("Added pending item %s", eventKey)
+	pendingKey := pending.getKey()
+	bcm.pending[pendingKey] = pending
+	log.L(bcm.ctx).Infof("Added pending item %s", pendingKey)
 }
 
 // removeEvent is called by the goroutine on receipt of a remove event notification
 func (bcm *blockConfirmationManager) removeItem(pending *pendingItem) {
-	eventKey := pending.getKey()
-	log.L(bcm.ctx).Infof("Removing stale item %s", eventKey)
-	delete(bcm.pending, eventKey)
+	pendingKey := pending.getKey()
+	log.L(bcm.ctx).Infof("Removing stale item %s", pendingKey)
+	delete(bcm.pending, pendingKey)
+	delete(bcm.staleReceipts, pendingKey)
 }
 
 func (bcm *blockConfirmationManager) processBlockHashes(blockHashes []string) {
@@ -466,11 +507,23 @@ func (bcm *blockConfirmationManager) processBlockHashes(blockHashes []string) {
 
 func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 
+	// For any transactions in the block that are known to us, we need to mark them
+	// stale to go query the receipt
+	for _, txHash := range block.TransactionHashes {
+		txKey := pendingKeyForTX(txHash)
+		if pending, ok := bcm.pending[txKey]; ok {
+			if pending.blockHash != block.BlockHash {
+				log.L(bcm.ctx).Infof("Detected transaction %s added to block %d / %s - receipt check scheduled", txHash, block.BlockNumber, block.BlockHash)
+				bcm.staleReceipts[txKey] = pending
+			}
+		}
+	}
+
 	// Go through all the events, adding in the confirmations, and popping any out
 	// that have reached their threshold. Then drop the log before logging/processing them.
 	blockNumber := block.BlockNumber
 	var confirmed pendingItems
-	for eventKey, pending := range bcm.pending {
+	for pendingKey, pending := range bcm.pending {
 		// The block might appear at any point in the confirmation list
 		expectedParentHash := pending.blockHash
 		expectedBlockNumber := pending.blockNumber + 1
@@ -487,7 +540,7 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 			expectedBlockNumber++
 		}
 		if len(pending.confirmations) >= bcm.requiredConfirmations {
-			delete(bcm.pending, eventKey)
+			delete(bcm.pending, pendingKey)
 			confirmed = append(confirmed, pending)
 		}
 	}
@@ -502,9 +555,9 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 
 // dispatchConfirmed drive the event stream for any events that are confirmed, and prunes the state
 func (bcm *blockConfirmationManager) dispatchConfirmed(item *pendingItem) {
-	eventKey := item.getKey()
-	log.L(bcm.ctx).Infof("Confirmed with %d confirmations event=%s", len(item.confirmations), eventKey)
-	item.confirmed(item.copyConfirmations() /* a safe copy outside of our cache */)
+	pendingKey := item.getKey()
+	log.L(bcm.ctx).Infof("Confirmed with %d confirmations event=%s", len(item.confirmations), pendingKey)
+	item.confirmedCallback(item.copyConfirmations() /* a safe copy outside of our cache */)
 }
 
 // walkChain goes through each event and sees whether it's valid,
@@ -532,7 +585,13 @@ func (bcm *blockConfirmationManager) walkChain() error {
 
 func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem) (err error) {
 
-	eventKey := pending.getKey()
+	if pending.blockHash == "" {
+		// This is a transaction that we don't yet have the receipt for
+		log.L(bcm.ctx).Debugf("Transaction %s still awaiting receipt", pending.transactionHash)
+		return nil
+	}
+
+	pendingKey := pending.getKey()
 
 	blockNumber := pending.blockNumber + 1
 	expectedParentHash := pending.blockHash
@@ -540,7 +599,7 @@ func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem) (err
 	for {
 		// No point in walking past the highest block we've seen via the notifier
 		if bcm.highestBlockSeen > 0 && blockNumber > bcm.highestBlockSeen {
-			log.L(bcm.ctx).Debugf("Waiting for confirmation after block %d event=%s", bcm.highestBlockSeen, eventKey)
+			log.L(bcm.ctx).Debugf("Waiting for confirmation after block %d event=%s", bcm.highestBlockSeen, pendingKey)
 			return nil
 		}
 		block, err := bcm.getBlockByNumber(blockNumber, expectedParentHash)
@@ -548,12 +607,12 @@ func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem) (err
 			return err
 		}
 		if block == nil {
-			log.L(bcm.ctx).Infof("Block %d unavailable walking chain event=%s", blockNumber, eventKey)
+			log.L(bcm.ctx).Infof("Block %d unavailable walking chain event=%s", blockNumber, pendingKey)
 			return nil
 		}
 		candidateParentHash := block.ParentHash
 		if candidateParentHash != expectedParentHash {
-			log.L(bcm.ctx).Infof("Block mismatch in confirmations: block=%d expected=%s actual=%s confirmations=%d event=%s", blockNumber, expectedParentHash, candidateParentHash, len(pending.confirmations), eventKey)
+			log.L(bcm.ctx).Infof("Block mismatch in confirmations: block=%d expected=%s actual=%s confirmations=%d event=%s", blockNumber, expectedParentHash, candidateParentHash, len(pending.confirmations), pendingKey)
 			return nil
 		}
 		pending.confirmations = append(pending.confirmations, block)
