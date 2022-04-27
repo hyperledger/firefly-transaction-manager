@@ -100,7 +100,7 @@ type blockConfirmationManager struct {
 	bcmNotifications      chan *Notification
 	highestBlockSeen      uint64
 	pending               map[string]*pendingItem
-	staleReceipts         map[string]*pendingItem
+	staleReceipts         map[string]bool
 	done                  chan struct{}
 }
 
@@ -114,7 +114,7 @@ func NewBlockConfirmationManager(ctx context.Context, connectorAPI ffcapi.API) (
 		blockListenerStale:    true,
 		bcmNotifications:      make(chan *Notification, config.GetInt(tmconfig.ConfirmationsNotificationQueueLength)),
 		pending:               make(map[string]*pendingItem),
-		staleReceipts:         make(map[string]*pendingItem),
+		staleReceipts:         make(map[string]bool),
 	}
 	bcm.ctx, bcm.cancelFunc = context.WithCancel(ctx)
 	bcm.blockCache, err = lru.New(config.GetInt(tmconfig.ConfirmationsBlockCacheSize))
@@ -377,15 +377,6 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 			}
 		}
 
-		// Mark receipts stale after duration
-		bcm.staleReceiptCheck()
-
-		// Perform any receipt checks required, due to new notifications, previously failed
-		// receipt checks, or processing block headers
-		for _, pending := range bcm.staleReceipts {
-			bcm.checkReceipt(pending)
-		}
-
 		// Do the poll
 		blockHashes, err := bcm.pollBlockListener()
 		if err != nil {
@@ -405,6 +396,17 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 		// Clear the notifications array now we've processed them (we keep the slice memory)
 		notifications = notifications[:0]
 
+		// Mark receipts stale after duration
+		bcm.staleReceiptCheck()
+
+		// Perform any receipt checks required, due to new notifications, previously failed
+		// receipt checks, or processing block headers
+		for pendingKey := range bcm.staleReceipts {
+			if pending, ok := bcm.pending[pendingKey]; ok {
+				bcm.checkReceipt(pending)
+			}
+		}
+
 	}
 
 }
@@ -415,7 +417,7 @@ func (bcm *blockConfirmationManager) staleReceiptCheck() {
 		if pending.pType == pendingTypeTransaction && now.Sub(pending.lastReceiptcheck) > bcm.staleReceiptTimeout {
 			pendingKey := pending.getKey()
 			log.L(bcm.ctx).Infof("Marking receipt check stale for %s", pendingKey)
-			bcm.staleReceipts[pendingKey] = pending
+			bcm.staleReceipts[pendingKey] = true
 		}
 	}
 }
@@ -433,7 +435,7 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 		case NewTransaction:
 			newItem := n.transactionPendingItem()
 			bcm.addOrReplaceItem(newItem)
-			bcm.staleReceipts[newItem.getKey()] = newItem
+			bcm.staleReceipts[newItem.getKey()] = true
 		case RemovedEventLog:
 			bcm.removeItem(n.eventPendingItem())
 		case RemovedTransaction:
@@ -537,7 +539,7 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 		if pending, ok := bcm.pending[txKey]; ok {
 			if pending.blockHash != block.BlockHash {
 				log.L(bcm.ctx).Infof("Detected transaction %s added to block %d / %s - receipt check scheduled", txHash, block.BlockNumber, block.BlockHash)
-				bcm.staleReceipts[txKey] = pending
+				bcm.staleReceipts[txKey] = true
 			}
 		}
 	}

@@ -1069,10 +1069,11 @@ func TestCheckReceiptNotFound(t *testing.T) {
 		pType:           pendingTypeTransaction,
 		transactionHash: txHash,
 	}
-	bcm.staleReceipts[pendingKeyForTX(txHash)] = pending
+	bcm.pending[pending.getKey()] = pending
+	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
 	bcm.checkReceipt(pending)
 
-	assert.Nil(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
+	assert.False(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
 }
 
@@ -1087,10 +1088,11 @@ func TestCheckReceiptFail(t *testing.T) {
 		pType:           pendingTypeTransaction,
 		transactionHash: txHash,
 	}
-	bcm.staleReceipts[pendingKeyForTX(txHash)] = pending
+	bcm.pending[pending.getKey()] = pending
+	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
 	bcm.checkReceipt(pending)
 
-	assert.Equal(t, pending, bcm.staleReceipts[pendingKeyForTX(txHash)])
+	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
 }
 
@@ -1112,10 +1114,11 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 		pType:           pendingTypeTransaction,
 		transactionHash: txHash,
 	}
-	bcm.staleReceipts[pendingKeyForTX(txHash)] = pending
+	bcm.pending[pending.getKey()] = pending
+	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
 	bcm.checkReceipt(pending)
 
-	assert.Equal(t, pending, bcm.staleReceipts[pendingKeyForTX(txHash)])
+	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
 }
 
@@ -1132,6 +1135,6 @@ func TestStaleReceiptCheck(t *testing.T) {
 	bcm.pending[pending.getKey()] = pending
 	bcm.staleReceiptCheck()
 
-	assert.Equal(t, pending, bcm.staleReceipts[pendingKeyForTX(txHash)])
+	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
 }
