@@ -81,10 +81,10 @@ type StoppedStreamInfo struct {
 }
 
 type BlockInfo struct {
-	BlockNumber       uint64
-	BlockHash         string
-	ParentHash        string
-	TransactionHashes []string
+	BlockNumber       uint64   `json:"blockNumber"`
+	BlockHash         string   `json:"blockHash"`
+	ParentHash        string   `json:"parentHash"`
+	TransactionHashes []string `json:"transactionHashes,omitempty"`
 }
 
 type blockConfirmationManager struct {
@@ -95,6 +95,7 @@ type blockConfirmationManager struct {
 	connectorAPI          ffcapi.API
 	requiredConfirmations int
 	pollingInterval       time.Duration
+	staleReceiptTimeout   time.Duration
 	blockCache            *lru.Cache
 	bcmNotifications      chan *Notification
 	highestBlockSeen      uint64
@@ -109,6 +110,7 @@ func NewBlockConfirmationManager(ctx context.Context, connectorAPI ffcapi.API) (
 		connectorAPI:          connectorAPI,
 		requiredConfirmations: config.GetInt(tmconfig.ConfirmationsRequired),
 		pollingInterval:       config.GetDuration(tmconfig.ConfirmationsBlockPollingInterval),
+		staleReceiptTimeout:   config.GetDuration(tmconfig.ConfirmationsStaleReceiptTimeout),
 		blockListenerStale:    true,
 		bcmNotifications:      make(chan *Notification, config.GetInt(tmconfig.ConfirmationsNotificationQueueLength)),
 		pending:               make(map[string]*pendingItem),
@@ -135,6 +137,7 @@ type pendingItem struct {
 	pType             pendingType
 	added             time.Time
 	confirmations     []*BlockInfo
+	lastReceiptcheck  time.Time
 	receiptCallback   func(receipt *ffcapi.GetReceiptResponse)
 	confirmedCallback func(confirmations []BlockInfo)
 	transactionHash   string
@@ -166,7 +169,12 @@ func (pi *pendingItem) getKey() string {
 func (pi *pendingItem) copyConfirmations() []BlockInfo {
 	copy := make([]BlockInfo, len(pi.confirmations))
 	for i, c := range pi.confirmations {
-		copy[i] = *c
+		copy[i] = BlockInfo{
+			BlockNumber: c.BlockNumber,
+			BlockHash:   c.BlockHash,
+			ParentHash:  c.ParentHash,
+			// Don't include transaction hash array
+		}
 	}
 	return copy
 }
@@ -187,6 +195,7 @@ func (n *Notification) eventPendingItem() *pendingItem {
 func (n *Notification) transactionPendingItem() *pendingItem {
 	return &pendingItem{
 		pType:             pendingTypeTransaction,
+		lastReceiptcheck:  time.Now(),
 		transactionHash:   n.Transaction.TransactionHash,
 		receiptCallback:   n.Transaction.Receipt,
 		confirmedCallback: n.Transaction.Confirmed,
@@ -368,6 +377,15 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 			}
 		}
 
+		// Mark receipts stale after duration
+		bcm.staleReceiptCheck()
+
+		// Perform any receipt checks required, due to new notifications, previously failed
+		// receipt checks, or processing block headers
+		for _, pending := range bcm.staleReceipts {
+			bcm.checkReceipt(pending)
+		}
+
 		// Do the poll
 		blockHashes, err := bcm.pollBlockListener()
 		if err != nil {
@@ -387,14 +405,19 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 		// Clear the notifications array now we've processed them (we keep the slice memory)
 		notifications = notifications[:0]
 
-		// Perform any receipt checks required, due to new notifications, previously failed
-		// receipt checks, or processing block headers
-		for _, pending := range bcm.staleReceipts {
-			bcm.checkReceipt(pending)
-		}
-
 	}
 
+}
+
+func (bcm *blockConfirmationManager) staleReceiptCheck() {
+	now := time.Now()
+	for _, pending := range bcm.pending {
+		if pending.pType == pendingTypeTransaction && now.Sub(pending.lastReceiptcheck) > bcm.staleReceiptTimeout {
+			pendingKey := pending.getKey()
+			log.L(bcm.ctx).Infof("Marking receipt check stale for %s", pendingKey)
+			bcm.staleReceipts[pendingKey] = pending
+		}
+	}
 }
 
 func (bcm *blockConfirmationManager) processNotifications(notifications []*Notification) error {
@@ -524,24 +547,29 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 	blockNumber := block.BlockNumber
 	var confirmed pendingItems
 	for pendingKey, pending := range bcm.pending {
-		// The block might appear at any point in the confirmation list
-		expectedParentHash := pending.blockHash
-		expectedBlockNumber := pending.blockNumber + 1
-		for i := 0; i < (len(pending.confirmations) + 1); i++ {
-			if block.ParentHash == expectedParentHash && blockNumber == expectedBlockNumber {
-				pending.confirmations = append(pending.confirmations[0:i], block)
-				log.L(bcm.ctx).Infof("Confirmation %d at block %d / %s item=%s",
-					len(pending.confirmations), block.BlockNumber, block.BlockHash, pending.getKey())
-				break
+		if pending.blockHash != "" {
+
+			// The block might appear at any point in the confirmation list
+			expectedParentHash := pending.blockHash
+			expectedBlockNumber := pending.blockNumber + 1
+			for i := 0; i < (len(pending.confirmations) + 1); i++ {
+				log.L(bcm.ctx).Tracef("Comparing block number=%d parent=%s to %d / %s for %s", blockNumber, block.ParentHash, expectedBlockNumber, expectedParentHash, pendingKey)
+				if block.ParentHash == expectedParentHash && blockNumber == expectedBlockNumber {
+					pending.confirmations = append(pending.confirmations[0:i], block)
+					log.L(bcm.ctx).Infof("Confirmation %d at block %d / %s item=%s",
+						len(pending.confirmations), block.BlockNumber, block.BlockHash, pending.getKey())
+					break
+				}
+				if i < len(pending.confirmations) {
+					expectedParentHash = pending.confirmations[i].BlockHash
+				}
+				expectedBlockNumber++
 			}
-			if i < len(pending.confirmations) {
-				expectedParentHash = pending.confirmations[i].BlockHash
+			if len(pending.confirmations) >= bcm.requiredConfirmations {
+				delete(bcm.pending, pendingKey)
+				confirmed = append(confirmed, pending)
 			}
-			expectedBlockNumber++
-		}
-		if len(pending.confirmations) >= bcm.requiredConfirmations {
-			delete(bcm.pending, pendingKey)
-			confirmed = append(confirmed, pending)
+
 		}
 	}
 

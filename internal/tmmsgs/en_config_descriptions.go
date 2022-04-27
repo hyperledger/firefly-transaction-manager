@@ -32,6 +32,7 @@ var (
 	ConfigConfirmationsBlockPollingInterval     = ffc("config.confirmations.blockPollingInterval", "How often to poll for new block headers", "duration")
 	ConfigConfirmationsNotificationsQueueLength = ffc("config.confirmations.notificationQueueLength", "Internal queue length for notifying the confirmations manager of new transactions/events", "number")
 	ConfigConfirmationsRequired                 = ffc("config.confirmations.required", "Number of confirmations required to consider a transaction/event final", "number")
+	ConfigConfirmationsStaleReceiptTimeout      = ffc("config.confirmations.staleReceiptTimeout", "Duration after which to force a receipt check for a pending transaction", "duration")
 
 	ConfigConnectorURL      = ffc("config.connector.url", "The URL of the blockchain connector", "string")
 	ConfigConnectorVariant  = ffc("config.connector.variant", "The variant is the overall category of blockchain connector, defining things like how input/output definitions are passed", "string")
