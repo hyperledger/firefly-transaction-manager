@@ -134,6 +134,36 @@ func (_m *API) GetBlockInfoByNumber(ctx context.Context, req *ffcapi.GetBlockInf
 	return r0, r1, r2
 }
 
+// GetGasPrice provides a mock function with given fields: ctx, req
+func (_m *API) GetGasPrice(ctx context.Context, req *ffcapi.GetGasPriceRequest) (*ffcapi.GetGasPriceResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx, req)
+
+	var r0 *ffcapi.GetGasPriceResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.GetGasPriceRequest) *ffcapi.GetGasPriceResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.GetGasPriceResponse)
+		}
+	}
+
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.GetGasPriceRequest) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.GetGasPriceRequest) error); ok {
+		r2 = rf(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // GetNewBlockHashes provides a mock function with given fields: ctx, req
 func (_m *API) GetNewBlockHashes(ctx context.Context, req *ffcapi.GetNewBlockHashesRequest) (*ffcapi.GetNewBlockHashesResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
