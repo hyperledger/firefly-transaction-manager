@@ -82,10 +82,10 @@ type TransactionInput struct {
 
 type TransactionHeaders struct {
 	From  string            `json:"from"`
-	To    string            `json:"to"`
-	Nonce *fftypes.FFBigInt `json:"nonce"`
+	To    string            `json:"to,omitempty"`
+	Nonce *fftypes.FFBigInt `json:"nonce,omitempty"`
 	Gas   *fftypes.FFBigInt `json:"gas,omitempty"`
-	Value *fftypes.FFBigInt `json:"value"`
+	Value *fftypes.FFBigInt `json:"value,omitempty"`
 }
 
 type BlockInfo struct {
