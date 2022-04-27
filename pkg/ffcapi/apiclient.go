@@ -33,6 +33,7 @@ type API interface {
 	ExecQuery(ctx context.Context, req *ExecQueryRequest) (*ExecQueryResponse, ErrorReason, error)
 	GetBlockInfoByHash(ctx context.Context, req *GetBlockInfoByHashRequest) (*GetBlockInfoByHashResponse, ErrorReason, error)
 	GetBlockInfoByNumber(ctx context.Context, req *GetBlockInfoByNumberRequest) (*GetBlockInfoByNumberResponse, ErrorReason, error)
+	GetGasPrice(ctx context.Context, req *GetGasPriceRequest) (*GetGasPriceResponse, ErrorReason, error)
 	GetNewBlockHashes(ctx context.Context, req *GetNewBlockHashesRequest) (*GetNewBlockHashesResponse, ErrorReason, error)
 	GetNextNonce(ctx context.Context, req *GetNextNonceRequest) (*GetNextNonceResponse, ErrorReason, error)
 	GetReceipt(ctx context.Context, req *GetReceiptRequest) (*GetReceiptResponse, ErrorReason, error)

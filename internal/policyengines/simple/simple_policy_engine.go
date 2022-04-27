@@ -46,21 +46,24 @@ func (f *PolicyEngineFactory) Name() string {
 // - It submits the transaction once
 // - It logs errors transactions breach certain configured thresholds of staleness
 func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config.Prefix) (pe policyengine.PolicyEngine, err error) {
-	gasStationPrefix := prefix.SubPrefix(GasStationPrefix)
-	gasStationEnabled := gasStationPrefix.GetBool(GasStationEnabled)
+	gasOraclePrefix := prefix.SubPrefix(GasOraclePrefix)
 	p := &simplePolicyEngine{
 		warnInterval:  prefix.GetDuration(WarnInterval),
 		fixedGasPrice: fftypes.JSONAnyPtr(prefix.GetString(FixedGasPrice)),
 
-		gasStationMethod:        gasStationPrefix.GetString(GasStationMethod),
-		gasStationGJSON:         gasStationPrefix.GetString(GasStationGJSON),
-		gasStationQueryInterval: gasStationPrefix.GetDuration(GasStationQueryInterval),
+		gasOracleMethod:        gasOraclePrefix.GetString(GasOracleMethod),
+		gasOracleGJSON:         gasOraclePrefix.GetString(GasOracleGJSON),
+		gasOracleQueryInterval: gasOraclePrefix.GetDuration(GasOracleQueryInterval),
+		gasOracleMode:          gasOraclePrefix.GetString(GasOracleMode),
 	}
-	if gasStationEnabled {
-		p.gasStationClient = ffresty.New(ctx, gasStationPrefix)
-	}
-	if p.fixedGasPrice.IsNil() && p.gasStationClient == nil {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgNoGasConfigSetForPolicyEngine, prefix.Resolve(FixedGasPrice), gasStationPrefix.Resolve(GasStationEnabled))
+	switch p.gasOracleMode {
+	case GasOracleModeConnector:
+	case GasOracleModeRESTAPI:
+		p.gasOracleClient = ffresty.New(ctx, gasOraclePrefix)
+	default:
+		if p.fixedGasPrice.IsNil() {
+			return nil, i18n.NewError(ctx, tmmsgs.MsgNoGasConfigSetForPolicyEngine)
+		}
 	}
 	return p, nil
 }
@@ -69,12 +72,13 @@ type simplePolicyEngine struct {
 	fixedGasPrice *fftypes.JSONAny
 	warnInterval  time.Duration
 
-	gasStationClient        *resty.Client
-	gasStationMethod        string
-	gasStationGJSON         string
-	gasStationQueryInterval time.Duration
-	gasStationQueryValue    *fftypes.JSONAny
-	gasStationLastQueryTime *fftypes.FFTime
+	gasOracleMode          string
+	gasOracleClient        *resty.Client
+	gasOracleMethod        string
+	gasOracleGJSON         string
+	gasOracleQueryInterval time.Duration
+	gasOracleQueryValue    *fftypes.JSONAny
+	gasOracleLastQueryTime *fftypes.FFTime
 }
 
 type simplePolicyInfo struct {
@@ -103,7 +107,7 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
 
-		mtx.GasPrice, err = p.getGasPrice(ctx)
+		mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
 		if err != nil {
 			return false, "", err
 		}
@@ -152,29 +156,49 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 }
 
 // getGasPrice either uses a fixed gas price, or invokes a gas station API
-func (p *simplePolicyEngine) getGasPrice(ctx context.Context) (gasPrice *fftypes.JSONAny, err error) {
-	if p.gasStationClient != nil {
-		if p.gasStationQueryValue != nil && p.gasStationLastQueryTime != nil &&
-			time.Since(*p.gasStationLastQueryTime.Time()) < p.gasStationQueryInterval {
-			return p.gasStationQueryValue, nil
-		}
-
-		res, err := p.gasStationClient.R().
-			SetDoNotParseResponse(true).
-			Execute(p.gasStationMethod, "")
-		var rawResponse []byte
-		if err == nil {
-			rawResponse, err = ioutil.ReadAll(res.RawBody())
-		}
-		if err != nil {
-			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasStationAPI, -1, rawResponse)
-		}
-		if res.IsError() {
-			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasStationAPI, res.StatusCode(), rawResponse)
-		}
-		p.gasStationQueryValue = fftypes.JSONAnyPtr(gjson.Get(string(rawResponse), p.gasStationGJSON).Raw)
-		p.gasStationLastQueryTime = fftypes.Now()
-		return p.gasStationQueryValue, nil
+func (p *simplePolicyEngine) getGasPrice(ctx context.Context, cAPI ffcapi.API) (gasPrice *fftypes.JSONAny, err error) {
+	if p.gasOracleQueryValue != nil && p.gasOracleLastQueryTime != nil &&
+		time.Since(*p.gasOracleLastQueryTime.Time()) < p.gasOracleQueryInterval {
+		return p.gasOracleQueryValue, nil
 	}
-	return p.fixedGasPrice, nil
+	switch p.gasOracleMode {
+	case GasOracleModeRESTAPI:
+		// Make a REST call against an endpoint, and extract a value/structure to pass to the connector
+		gasPrice, err := p.getGasPriceAPI(ctx)
+		if err != nil {
+			return nil, err
+		}
+		p.gasOracleQueryValue = gasPrice
+		p.gasOracleLastQueryTime = fftypes.Now()
+		return p.gasOracleQueryValue, nil
+	case GasOracleModeConnector:
+		// Call the connector
+		res, _, err := cAPI.GetGasPrice(ctx, &ffcapi.GetGasPriceRequest{})
+		if err != nil {
+			return nil, err
+		}
+		p.gasOracleQueryValue = res.GasPrice
+		p.gasOracleLastQueryTime = fftypes.Now()
+		return p.gasOracleQueryValue, nil
+	default:
+		// Disabled - rust a fixed value
+		return p.fixedGasPrice, nil
+	}
+}
+
+func (p *simplePolicyEngine) getGasPriceAPI(ctx context.Context) (gasPrice *fftypes.JSONAny, err error) {
+	res, err := p.gasOracleClient.R().
+		SetDoNotParseResponse(true).
+		Execute(p.gasOracleMethod, "")
+	var rawResponse []byte
+	if err == nil {
+		rawResponse, err = ioutil.ReadAll(res.RawBody())
+	}
+	if err != nil {
+		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasOracleAPI, -1, rawResponse)
+	}
+	if res.IsError() {
+		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasOracleAPI, res.StatusCode(), rawResponse)
+	}
+	return fftypes.JSONAnyPtr(gjson.Get(string(rawResponse), p.gasOracleGJSON).Raw), nil
 }

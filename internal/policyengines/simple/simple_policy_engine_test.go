@@ -46,12 +46,14 @@ func newTestPolicyEngineFactory(t *testing.T) (*PolicyEngineFactory, config.Pref
 
 func TestMissingGasConfig(t *testing.T) {
 	f, prefix := newTestPolicyEngineFactory(t)
+	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeDisabled)
 	_, err := f.NewPolicyEngine(context.Background(), prefix)
 	assert.Regexp(t, "FF201020", err)
 }
 
 func TestFixedGasPriceOK(t *testing.T) {
 	f, prefix := newTestPolicyEngineFactory(t)
+	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeDisabled)
 	prefix.Set(FixedGasPrice, `{
 		"maxPriorityFee":32.146027800733336,
 		"maxFee":32.14602781673334
@@ -96,7 +98,7 @@ func TestFixedGasPriceOK(t *testing.T) {
 	mockFFCAPI.AssertExpectations(t)
 }
 
-func TestGasStationSendOK(t *testing.T) {
+func TestGasOracleSendOK(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, r.Method, http.MethodGet)
@@ -120,9 +122,9 @@ func TestGasStationSendOK(t *testing.T) {
 	}))
 
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasStationPrefix).Set(GasStationEnabled, true)
-	prefix.SubPrefix(GasStationPrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	prefix.SubPrefix(GasStationPrefix).Set(GasStationGJSON, `{"unit":!"gwei","value":standard.maxPriorityFee}`)
+	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
+	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleGJSON, `{"unit":!"gwei","value":standard.maxPriorityFee}`)
 	p, err := f.NewPolicyEngine(context.Background(), prefix)
 	assert.NoError(t, err)
 
@@ -161,12 +163,92 @@ func TestGasStationSendOK(t *testing.T) {
 
 	// Check cache after we close the gas station server
 	server.Close()
-	gasPrice, err := p.(*simplePolicyEngine).getGasPrice(ctx)
+	gasPrice, err := p.(*simplePolicyEngine).getGasPrice(ctx, mockFFCAPI)
 	assert.NoError(t, err)
 	assert.NotNil(t, gasPrice)
 }
 
-func TestGasStationSendFail(t *testing.T) {
+func TestConnectorGasOracleSendOK(t *testing.T) {
+
+	f, prefix := newTestPolicyEngineFactory(t)
+	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeConnector)
+	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	assert.NoError(t, err)
+
+	mtx := &fftm.ManagedTXOutput{
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionHash: "0x12345",
+		TransactionData: "SOME_RAW_TX_BYTES",
+	}
+
+	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("GetGasPrice", mock.Anything, mock.Anything).Return(&ffcapi.GetGasPriceResponse{
+		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
+	}, ffcapi.ErrorReason(""), nil).Once()
+	mockFFCAPI.On("SendTransaction", mock.Anything, mock.MatchedBy(func(req *ffcapi.SendTransactionRequest) bool {
+		return req.From == "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712" &&
+			req.TransactionData == "SOME_RAW_TX_BYTES"
+	})).Return(&ffcapi.SendTransactionResponse{
+		TransactionHash: "0x12345",
+	}, ffcapi.ErrorReason(""), nil)
+
+	ctx := context.Background()
+	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	assert.NoError(t, err)
+	assert.Empty(t, reason)
+	assert.True(t, updated)
+	assert.NotNil(t, mtx.FirstSubmit)
+	assert.NotNil(t, mtx.LastSubmit)
+	assert.Equal(t, `"12345"`, mtx.GasPrice.String())
+
+	mockFFCAPI.AssertExpectations(t)
+
+	// Check cache after we close the gas station server
+	gasPrice, err := p.(*simplePolicyEngine).getGasPrice(ctx, mockFFCAPI)
+	assert.NoError(t, err)
+	assert.NotNil(t, gasPrice)
+}
+
+func TestConnectorGasOracleFail(t *testing.T) {
+
+	f, prefix := newTestPolicyEngineFactory(t)
+	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeConnector)
+	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	assert.NoError(t, err)
+
+	mtx := &fftm.ManagedTXOutput{
+		Request: &fftm.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+				},
+			},
+		},
+		TransactionHash: "0x12345",
+		TransactionData: "SOME_RAW_TX_BYTES",
+	}
+
+	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("GetGasPrice", mock.Anything, mock.Anything).Return(&ffcapi.GetGasPriceResponse{
+		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
+	}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	ctx := context.Background()
+	_, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	assert.Regexp(t, "pop", err)
+	assert.Empty(t, reason)
+
+	mockFFCAPI.AssertExpectations(t)
+
+}
+
+func TestGasOracleSendFail(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
@@ -175,8 +257,8 @@ func TestGasStationSendFail(t *testing.T) {
 	defer server.Close()
 
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasStationPrefix).Set(GasStationEnabled, true)
-	prefix.SubPrefix(GasStationPrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
+	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
 	p, err := f.NewPolicyEngine(context.Background(), prefix)
 	assert.NoError(t, err)
 
@@ -198,14 +280,14 @@ func TestGasStationSendFail(t *testing.T) {
 
 }
 
-func TestGasStationNonJSON(t *testing.T) {
+func TestGasOracleNonJSON(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasStationPrefix).Set(GasStationEnabled, true)
-	prefix.SubPrefix(GasStationPrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
+	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
 	p, err := f.NewPolicyEngine(context.Background(), prefix)
 	assert.NoError(t, err)
 
@@ -236,8 +318,8 @@ func TestTXSendFail(t *testing.T) {
 	defer server.Close()
 
 	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasStationPrefix).Set(GasStationEnabled, true)
-	prefix.SubPrefix(GasStationPrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
+	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
 	p, err := f.NewPolicyEngine(context.Background(), prefix)
 	assert.NoError(t, err)
 
