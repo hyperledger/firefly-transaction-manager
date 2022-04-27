@@ -52,8 +52,9 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config
 		warnInterval:  prefix.GetDuration(WarnInterval),
 		fixedGasPrice: fftypes.JSONAnyPtr(prefix.GetString(FixedGasPrice)),
 
-		gasStationMethod: gasStationPrefix.GetString(GasStationMethod),
-		gasStationGJSON:  gasStationPrefix.GetString(GasStationGJSON),
+		gasStationMethod:        gasStationPrefix.GetString(GasStationMethod),
+		gasStationGJSON:         gasStationPrefix.GetString(GasStationGJSON),
+		gasStationQueryInterval: gasStationPrefix.GetDuration(GasStationQueryInterval),
 	}
 	if gasStationEnabled {
 		p.gasStationClient = ffresty.New(ctx, gasStationPrefix)
@@ -68,9 +69,12 @@ type simplePolicyEngine struct {
 	fixedGasPrice *fftypes.JSONAny
 	warnInterval  time.Duration
 
-	gasStationClient *resty.Client
-	gasStationMethod string
-	gasStationGJSON  string
+	gasStationClient        *resty.Client
+	gasStationMethod        string
+	gasStationGJSON         string
+	gasStationQueryInterval time.Duration
+	gasStationQueryValue    *fftypes.JSONAny
+	gasStationLastQueryTime *fftypes.FFTime
 }
 
 type simplePolicyInfo struct {
@@ -150,6 +154,11 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 // getGasPrice either uses a fixed gas price, or invokes a gas station API
 func (p *simplePolicyEngine) getGasPrice(ctx context.Context) (gasPrice *fftypes.JSONAny, err error) {
 	if p.gasStationClient != nil {
+		if p.gasStationQueryValue != nil && p.gasStationLastQueryTime != nil &&
+			time.Since(*p.gasStationLastQueryTime.Time()) < p.gasStationQueryInterval {
+			return p.gasStationQueryValue, nil
+		}
+
 		res, err := p.gasStationClient.R().
 			SetDoNotParseResponse(true).
 			Execute(p.gasStationMethod, "")
@@ -163,7 +172,9 @@ func (p *simplePolicyEngine) getGasPrice(ctx context.Context) (gasPrice *fftypes
 		if res.IsError() {
 			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasStationAPI, res.StatusCode(), rawResponse)
 		}
-		return fftypes.JSONAnyPtr(gjson.Get(string(rawResponse), p.gasStationGJSON).Raw), nil
+		p.gasStationQueryValue = fftypes.JSONAnyPtr(gjson.Get(string(rawResponse), p.gasStationGJSON).Raw)
+		p.gasStationLastQueryTime = fftypes.Now()
+		return p.gasStationQueryValue, nil
 	}
 	return p.fixedGasPrice, nil
 }

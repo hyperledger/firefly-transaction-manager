@@ -118,7 +118,6 @@ func TestGasStationSendOK(t *testing.T) {
 			"blockNumber":24962816
 		  }`))
 	}))
-	defer server.Close()
 
 	f, prefix := newTestPolicyEngineFactory(t)
 	prefix.SubPrefix(GasStationPrefix).Set(GasStationEnabled, true)
@@ -159,6 +158,12 @@ func TestGasStationSendOK(t *testing.T) {
 	assert.Equal(t, `{"unit":"gwei","value":32.146027800733336}`, mtx.GasPrice.String())
 
 	mockFFCAPI.AssertExpectations(t)
+
+	// Check cache after we close the gas station server
+	server.Close()
+	gasPrice, err := p.(*simplePolicyEngine).getGasPrice(ctx)
+	assert.NoError(t, err)
+	assert.NotNil(t, gasPrice)
 }
 
 func TestGasStationSendFail(t *testing.T) {
