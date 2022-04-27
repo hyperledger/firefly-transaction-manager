@@ -38,6 +38,8 @@ var (
 	ConfirmationsBlockCacheSize = ffc("confirmations.blockCacheSize")
 	// ConfirmationsBlockPollingInterval is the time between block polling
 	ConfirmationsBlockPollingInterval = ffc("confirmations.blockPollingInterval")
+	// ConfirmationsStaleReceiptTimeout the duration after which to force a receipt check for a pending transaction
+	ConfirmationsStaleReceiptTimeout = ffc("confirmations.staleReceiptTimeout")
 	// ConfirmationsNotificationQueueLength is the length of the internal queue to the block confirmations manager
 	ConfirmationsNotificationQueueLength = ffc("confirmations.notificationQueueLength")
 	// OperationsTypes the type of operations to monitor - only those that were submitted through the manager will have the required output format, so this is the superset
@@ -80,6 +82,7 @@ func setDefaults() {
 	viper.SetDefault(string(ConfirmationsBlockCacheSize), 1000)
 	viper.SetDefault(string(ConfirmationsBlockPollingInterval), "3s")
 	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
+	viper.SetDefault(string(ConfirmationsStaleReceiptTimeout), "1m")
 	viper.SetDefault(string(OperationsErrorHistoryCount), 25)
 	viper.SetDefault(string(PolicyLoopInterval), "1s")
 	viper.SetDefault(string(PolicyEngineName), "simple")

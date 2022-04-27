@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
@@ -1113,6 +1114,23 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 	}
 	bcm.staleReceipts[pendingKeyForTX(txHash)] = pending
 	bcm.checkReceipt(pending)
+
+	assert.Equal(t, pending, bcm.staleReceipts[pendingKeyForTX(txHash)])
+
+}
+
+func TestStaleReceiptCheck(t *testing.T) {
+
+	bcm, _ := newTestBlockConfirmationManager(t, false)
+
+	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+	pending := &pendingItem{
+		pType:            pendingTypeTransaction,
+		lastReceiptcheck: time.Now().Add(-1 * time.Hour),
+		transactionHash:  txHash,
+	}
+	bcm.pending[pending.getKey()] = pending
+	bcm.staleReceiptCheck()
 
 	assert.Equal(t, pending, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
