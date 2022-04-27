@@ -24,18 +24,20 @@ import (
 )
 
 const (
-	FixedGasPrice     = "fixedGasPrice" // when not using a gas station - will be treated as a raw JSON string, so can be numeric 123, or string "123", or object {"maxPriorityFeePerGas":123})
-	WarnInterval      = "warnInterval"  // warnings will be written to the log at this interval if mining has not occurred
-	GasStationPrefix  = "gasstation"
-	GasStationMethod  = "method"
-	GasStationEnabled = "enabled"
-	GasStationGJSON   = "gjson" // executes a GJSON query against the returned output: https://github.com/tidwall/gjson/blob/master/SYNTAX.md
+	FixedGasPrice           = "fixedGasPrice" // when not using a gas station - will be treated as a raw JSON string, so can be numeric 123, or string "123", or object {"maxPriorityFeePerGas":123})
+	WarnInterval            = "warnInterval"  // warnings will be written to the log at this interval if mining has not occurred
+	GasStationPrefix        = "gasstation"
+	GasStationMethod        = "method"
+	GasStationEnabled       = "enabled"
+	GasStationGJSON         = "gjson" // executes a GJSON query against the returned output: https://github.com/tidwall/gjson/blob/master/SYNTAX.md
+	GasStationQueryInterval = "queryInterval"
 )
 
 const (
-	defaultWarnInterval      = "15m"
-	defaultGasStationMethod  = http.MethodGet
-	defaultGasStationEnabled = false
+	defaultWarnInterval            = "15m"
+	defaultGasStationMethod        = http.MethodGet
+	defaultGasStationEnabled       = false
+	defaultGasStationQueryInterval = "5m"
 )
 
 func (f *PolicyEngineFactory) InitPrefix(prefix config.Prefix) {
@@ -46,6 +48,7 @@ func (f *PolicyEngineFactory) InitPrefix(prefix config.Prefix) {
 	ffresty.InitPrefix(gasStationPrefix)
 	gasStationPrefix.AddKnownKey(GasStationMethod, defaultGasStationMethod)
 	gasStationPrefix.AddKnownKey(GasStationEnabled, defaultGasStationEnabled)
+	gasStationPrefix.AddKnownKey(GasStationQueryInterval, defaultGasStationQueryInterval)
 	gasStationPrefix.AddKnownKey(GasStationGJSON)
 
 }
