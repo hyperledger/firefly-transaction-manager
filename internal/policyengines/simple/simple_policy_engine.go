@@ -58,6 +58,7 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config
 	}
 	switch p.gasOracleMode {
 	case GasOracleModeConnector:
+		// No initialization required
 	case GasOracleModeRESTAPI:
 		p.gasOracleClient = ffresty.New(ctx, gasOraclePrefix)
 	default:
