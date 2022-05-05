@@ -17,8 +17,8 @@
 package fftm
 
 import (
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
 // TransactionRequest is the external interface into sending transactions to the front-side of Transaction Manager

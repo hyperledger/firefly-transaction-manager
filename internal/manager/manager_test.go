@@ -27,16 +27,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/ffresty"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines"
 	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines/simple"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
-	"github.com/hyperledger/firefly/pkg/config"
-	"github.com/hyperledger/firefly/pkg/ffresty"
-	"github.com/hyperledger/firefly/pkg/fftypes"
-	"github.com/hyperledger/firefly/pkg/httpserver"
+	"github.com/hyperledger/firefly/pkg/core"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -86,10 +87,10 @@ func newTestManager(t *testing.T, cAPIHandler http.HandlerFunc, ffCoreHandler ht
 
 }
 
-func newTestOperation(t *testing.T, mtx *fftm.ManagedTXOutput, status fftypes.OpStatus) *fftypes.Operation {
+func newTestOperation(t *testing.T, mtx *fftm.ManagedTXOutput, status core.OpStatus) *core.Operation {
 	b, err := json.Marshal(&mtx)
 	assert.NoError(t, err)
-	op := &fftypes.Operation{
+	op := &core.Operation{
 		ID:     mtx.ID,
 		Status: status,
 	}
@@ -104,7 +105,7 @@ func TestNewManagerMissingName(t *testing.T) {
 	config.Set(tmconfig.ManagerName, "")
 
 	_, err := NewManager(context.Background())
-	assert.Regexp(t, "FF201018", err)
+	assert.Regexp(t, "FF21018", err)
 
 }
 
@@ -118,7 +119,7 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background())
-	assert.Regexp(t, "FF10104", err)
+	assert.Regexp(t, "FF00151", err)
 
 }
 
@@ -143,7 +144,7 @@ func TestNewManagerBadConfirmationsCacheSize(t *testing.T) {
 	config.Set(tmconfig.ConfirmationsBlockCacheSize, -1)
 
 	_, err := NewManager(context.Background())
-	assert.Regexp(t, "FF201015", err)
+	assert.Regexp(t, "FF21015", err)
 
 }
 
@@ -154,15 +155,15 @@ func TestNewManagerBadPolicyEngine(t *testing.T) {
 	config.Set(tmconfig.PolicyEngineName, "wrong")
 
 	_, err := NewManager(context.Background())
-	assert.Regexp(t, "FF201019", err)
+	assert.Regexp(t, "FF21019", err)
 
 }
 
 func TestChangeEventsNewBadOutput(t *testing.T) {
 
-	ce := &fftypes.ChangeEvent{
+	ce := &core.ChangeEvent{
 		ID:         fftypes.NewUUID(),
-		Type:       fftypes.ChangeEventTypeUpdated,
+		Type:       core.ChangeEventTypeUpdated,
 		Collection: "operations",
 		Namespace:  "ns1",
 	}
@@ -173,9 +174,9 @@ func TestChangeEventsNewBadOutput(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodGet, r.Method)
 			assert.Equal(t, fmt.Sprintf("/admin/api/v1/operations/%s", ce.ID), r.URL.Path)
-			b, err := json.Marshal(&fftypes.Operation{
+			b, err := json.Marshal(&core.Operation{
 				ID:     ce.ID,
-				Status: fftypes.OpStatusPending,
+				Status: core.OpStatusPending,
 				Output: fftypes.JSONObject{
 					"id": "!not a UUID",
 				},
@@ -195,9 +196,9 @@ func TestChangeEventsNewBadOutput(t *testing.T) {
 
 func TestChangeEventsWrongName(t *testing.T) {
 
-	ce := &fftypes.ChangeEvent{
+	ce := &core.ChangeEvent{
 		ID:         fftypes.NewUUID(),
-		Type:       fftypes.ChangeEventTypeUpdated,
+		Type:       core.ChangeEventTypeUpdated,
 		Collection: "operations",
 		Namespace:  "ns1",
 	}
@@ -212,7 +213,7 @@ func TestChangeEventsWrongName(t *testing.T) {
 				ID:       ce.ID,
 				FFTMName: "wrong",
 				Request:  &fftm.TransactionRequest{},
-			}, fftypes.OpStatusPending))
+			}, core.OpStatusPending))
 			assert.NoError(t, err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
@@ -228,9 +229,9 @@ func TestChangeEventsWrongName(t *testing.T) {
 
 func TestChangeEventsWrongID(t *testing.T) {
 
-	ce := &fftypes.ChangeEvent{
+	ce := &core.ChangeEvent{
 		ID:         fftypes.NewUUID(),
-		Type:       fftypes.ChangeEventTypeUpdated,
+		Type:       core.ChangeEventTypeUpdated,
 		Collection: "operations",
 		Namespace:  "ns1",
 	}
@@ -245,7 +246,7 @@ func TestChangeEventsWrongID(t *testing.T) {
 				ID:       fftypes.NewUUID(),
 				FFTMName: testManagerName,
 				Request:  &fftm.TransactionRequest{},
-			}, fftypes.OpStatusPending)
+			}, core.OpStatusPending)
 			op.ID = fftypes.NewUUID()
 			b, err := json.Marshal(&op)
 			assert.NoError(t, err)
@@ -263,9 +264,9 @@ func TestChangeEventsWrongID(t *testing.T) {
 
 func TestChangeEventsNilRequest(t *testing.T) {
 
-	ce := &fftypes.ChangeEvent{
+	ce := &core.ChangeEvent{
 		ID:         fftypes.NewUUID(),
-		Type:       fftypes.ChangeEventTypeUpdated,
+		Type:       core.ChangeEventTypeUpdated,
 		Collection: "operations",
 		Namespace:  "ns1",
 	}
@@ -279,7 +280,7 @@ func TestChangeEventsNilRequest(t *testing.T) {
 			op := newTestOperation(t, &fftm.ManagedTXOutput{
 				ID:       fftypes.NewUUID(),
 				FFTMName: testManagerName,
-			}, fftypes.OpStatusPending)
+			}, core.OpStatusPending)
 			b, err := json.Marshal(&op)
 			assert.NoError(t, err)
 			w.Header().Set("Content-Type", "application/json")
@@ -296,9 +297,9 @@ func TestChangeEventsNilRequest(t *testing.T) {
 
 func TestChangeEventsQueryFail(t *testing.T) {
 
-	ce := &fftypes.ChangeEvent{
+	ce := &core.ChangeEvent{
 		ID:         fftypes.NewUUID(),
-		Type:       fftypes.ChangeEventTypeUpdated,
+		Type:       core.ChangeEventTypeUpdated,
 		Collection: "operations",
 		Namespace:  "ns1",
 	}
@@ -326,9 +327,9 @@ func TestChangeEventsQueryFail(t *testing.T) {
 
 func TestChangeEventsMarkForCleanup(t *testing.T) {
 
-	ce := &fftypes.ChangeEvent{
+	ce := &core.ChangeEvent{
 		ID:         fftypes.NewUUID(),
-		Type:       fftypes.ChangeEventTypeUpdated,
+		Type:       core.ChangeEventTypeUpdated,
 		Collection: "operations",
 		Namespace:  "ns1",
 	}
@@ -337,7 +338,7 @@ func TestChangeEventsMarkForCleanup(t *testing.T) {
 		ID:       fftypes.NewUUID(),
 		FFTMName: testManagerName,
 		Request:  &fftm.TransactionRequest{},
-	}, fftypes.OpStatusFailed)
+	}, core.OpStatusFailed)
 
 	var m *manager
 	_, m, cancel := newTestManager(t,
@@ -366,21 +367,21 @@ func TestStartupScanMultiPageOK(t *testing.T) {
 		ID:       fftypes.NewUUID(),
 		FFTMName: testManagerName,
 		Request:  &fftm.TransactionRequest{},
-	}, fftypes.OpStatusPending)
+	}, core.OpStatusPending)
 	t1 := fftypes.FFTime(time.Now().Add(-10 * time.Minute))
 	op1.Created = &t1
 	op2 := newTestOperation(t, &fftm.ManagedTXOutput{
 		ID:       fftypes.NewUUID(),
 		FFTMName: testManagerName,
 		Request:  &fftm.TransactionRequest{},
-	}, fftypes.OpStatusPending)
+	}, core.OpStatusPending)
 	t2 := fftypes.FFTime(time.Now().Add(-5 * time.Minute))
 	op2.Created = &t2
 	op3 := newTestOperation(t, &fftm.ManagedTXOutput{
 		ID:       fftypes.NewUUID(),
 		FFTMName: testManagerName,
 		Request:  &fftm.TransactionRequest{},
-	}, fftypes.OpStatusPending)
+	}, core.OpStatusPending)
 	t3 := fftypes.FFTime(time.Now().Add(-1 * time.Minute))
 	op3.Created = &t3
 
@@ -399,13 +400,13 @@ func TestStartupScanMultiPageOK(t *testing.T) {
 				res = &fftypes.RESTError{Error: "not ready yet"}
 				status = 500
 			case 1:
-				res = []*fftypes.Operation{op1, op2}
+				res = []*core.Operation{op1, op2}
 				assert.Equal(t, "", r.URL.Query().Get("created"))
 			case 2:
-				res = []*fftypes.Operation{op2 /* simulate overlap */, op3}
+				res = []*core.Operation{op2 /* simulate overlap */, op3}
 				assert.Equal(t, fmt.Sprintf(">=%d", op2.Created.Time().UnixNano()), r.URL.Query().Get("created"))
 			case 3:
-				res = []*fftypes.Operation{}
+				res = []*core.Operation{}
 				assert.Equal(t, fmt.Sprintf(">=%d", op3.Created.Time().UnixNano()), r.URL.Query().Get("created"))
 			default:
 				assert.Fail(t, "should have stopped after empty page")
@@ -446,7 +447,7 @@ func TestStartupScanFail(t *testing.T) {
 	m.fullScanMinDelay = 1 * time.Microsecond
 
 	err := m.Start()
-	assert.Regexp(t, "FF201017", err)
+	assert.Regexp(t, "FF21017", err)
 
 }
 

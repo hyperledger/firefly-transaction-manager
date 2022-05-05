@@ -21,11 +21,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly/pkg/config"
-	"github.com/hyperledger/firefly/pkg/fftypes"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -52,7 +52,7 @@ func TestBCMInitError(t *testing.T) {
 	config.Set(tmconfig.ConfirmationsBlockCacheSize, -1)
 	mca := &ffcapimocks.API{}
 	_, err := NewBlockConfirmationManager(context.Background(), mca)
-	assert.Regexp(t, "FF201015", err)
+	assert.Regexp(t, "FF21015", err)
 }
 
 func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
@@ -1034,17 +1034,17 @@ func TestNotificationValidation(t *testing.T) {
 	err := bcm.Notify(&Notification{
 		NotificationType: NewTransaction,
 	})
-	assert.Regexp(t, "FF201016", err)
+	assert.Regexp(t, "FF21016", err)
 
 	err = bcm.Notify(&Notification{
 		NotificationType: NewEventLog,
 	})
-	assert.Regexp(t, "FF201016", err)
+	assert.Regexp(t, "FF21016", err)
 
 	err = bcm.Notify(&Notification{
 		NotificationType: StopStream,
 	})
-	assert.Regexp(t, "FF201016", err)
+	assert.Regexp(t, "FF21016", err)
 
 	bcm.cancelFunc()
 	err = bcm.Notify(&Notification{

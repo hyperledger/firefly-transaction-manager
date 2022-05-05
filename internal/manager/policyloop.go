@@ -19,11 +19,12 @@ package manager
 import (
 	"time"
 
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
-	"github.com/hyperledger/firefly/pkg/fftypes"
-	"github.com/hyperledger/firefly/pkg/log"
+	"github.com/hyperledger/firefly/pkg/core"
 )
 
 func (m *manager) receiptPollingLoop() {
@@ -84,16 +85,16 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 
 	updated := true
 	completed := false
-	newStatus := fftypes.OpStatusPending
+	newStatus := core.OpStatusPending
 	mtx := pending.mtx
 	switch {
 	case pending.confirmed:
 		updated = true
 		completed = true
 		if mtx.Receipt.Success {
-			newStatus = fftypes.OpStatusSucceeded
+			newStatus = core.OpStatusSucceeded
 		} else {
-			newStatus = fftypes.OpStatusFailed
+			newStatus = core.OpStatusFailed
 		}
 	case pending.removed:
 		// Remove from our state

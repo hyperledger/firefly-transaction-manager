@@ -18,6 +18,9 @@ coverage.html:
 coverage: test coverage.html
 lint: ${LINT}
 		GOGC=20 $(LINT) run -v --timeout 5m
+ffcapi:
+		$(eval FFCAPI_PATH := $(shell $(VGO) list -f '{{.Dir}}' github.com/hyperledger/firefly-common/pkg/ffcapi))
+	
 ${MOCKERY}:
 		$(VGO) install github.com/vektra/mockery/cmd/mockery@latest
 ${LINT}:
@@ -26,11 +29,11 @@ ${LINT}:
 
 define makemock
 mocks: mocks-$(strip $(1))-$(strip $(2))
-mocks-$(strip $(1))-$(strip $(2)): ${MOCKERY}
+mocks-$(strip $(1))-$(strip $(2)): ${MOCKERY} ffcapi
 	${MOCKERY} --case underscore --dir $(1) --name $(2) --outpkg $(3) --output mocks/$(strip $(3))
 endef
 
-$(eval $(call makemock, pkg/ffcapi,                  API,                 ffcapimocks))
+$(eval $(call makemock, $${FFCAPI_PATH},             API,                 ffcapimocks))
 $(eval $(call makemock, pkg/policyengine,            PolicyEngine,        policyenginemocks))
 $(eval $(call makemock, internal/confirmations,      Manager,             confirmationsmocks))
 $(eval $(call makemock, internal/manager,            Manager,             managermocks))
@@ -45,7 +48,7 @@ clean:
 		$(VGO) clean
 deps:
 		$(VGO) get ./fftm
-swagger:
-		$(VGO) test ./internal/apiserver -timeout=10s -tags swagger
+docs:
+		$(VGO) test ./cmd -timeout=10s -tags docs
 docker:
 		docker build --build-arg BUILD_VERSION=${BUILD_VERSION} ${DOCKER_ARGS} -t hyperledger/firefly-transaction-manager .

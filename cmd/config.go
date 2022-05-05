@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hyperledger/firefly/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/spf13/cobra"
 )
 

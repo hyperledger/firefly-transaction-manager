@@ -19,9 +19,10 @@ package manager
 import (
 	"context"
 
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
-	"github.com/hyperledger/firefly/pkg/fftypes"
+	"github.com/hyperledger/firefly/pkg/core"
 )
 
 func (m *manager) sendManagedTransaction(ctx context.Context, request *fftm.TransactionRequest) (*fftm.ManagedTXOutput, error) {
@@ -60,7 +61,7 @@ func (m *manager) sendManagedTransaction(ctx context.Context, request *fftm.Tran
 	}
 	if err = m.writeManagedTX(ctx, &opUpdate{
 		ID:     mtx.ID,
-		Status: fftypes.OpStatusPending,
+		Status: core.OpStatusPending,
 		Output: mtx,
 	}); err != nil {
 		return nil, err

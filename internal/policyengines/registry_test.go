@@ -37,6 +37,6 @@ func TestRegistry(t *testing.T) {
 
 	p, err = NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBasePrefix, "bob")
 	assert.Nil(t, p)
-	assert.Regexp(t, "FF201019", err)
+	assert.Regexp(t, "FF21019", err)
 
 }

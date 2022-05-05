@@ -23,13 +23,13 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/manager"
 	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines"
 	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines/simple"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
-	"github.com/hyperledger/firefly/pkg/config"
-	"github.com/hyperledger/firefly/pkg/i18n"
-	"github.com/hyperledger/firefly/pkg/log"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )

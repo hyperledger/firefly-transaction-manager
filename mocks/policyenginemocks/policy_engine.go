@@ -5,7 +5,7 @@ package policyenginemocks
 import (
 	context "context"
 
-	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	ffcapi "github.com/hyperledger/firefly-common/pkg/ffcapi"
 	fftm "github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 
 	mock "github.com/stretchr/testify/mock"

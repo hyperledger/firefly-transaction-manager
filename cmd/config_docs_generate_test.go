@@ -14,36 +14,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ffcapi
+//go:build docs
+// +build docs
+
+package cmd
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
-	"github.com/hyperledger/firefly/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestExecQueryOK(t *testing.T) {
-	a, cancel := newTestClient(t, &ExecQueryResponse{
-		Outputs: []*fftypes.JSONAny{fftypes.JSONAnyPtr("{}")},
-	})
-	defer cancel()
-	res, reason, err := a.ExecQuery(context.Background(), &ExecQueryRequest{})
+func TestGenerateConfigDocs(t *testing.T) {
+	// Initialize config of all plugins
+	initConfig()
+	f, err := os.Create(filepath.Join("..", "config.md"))
 	assert.NoError(t, err)
-	assert.Empty(t, reason)
-	assert.Len(t, res.Outputs, 1)
-}
-
-func TestExecQueryFail(t *testing.T) {
-	a, cancel := newTestClient(t, &ResponseBase{
-		ErrorResponse: ErrorResponse{
-			Error:  "pop",
-			Reason: ErrorReasonInvalidInputs,
-		},
-	})
-	defer cancel()
-	_, reason, err := a.ExecQuery(context.Background(), &ExecQueryRequest{})
-	assert.Equal(t, ErrorReasonInvalidInputs, reason)
-	assert.Regexp(t, "FF201012.*pop", err)
+	generatedConfig, err := config.GenerateConfigMarkdown(context.Background(), config.GetKnownKeys())
+	assert.NoError(t, err)
+	_, err = f.Write(generatedConfig)
+	assert.NoError(t, err)
+	err = f.Close()
+	assert.NoError(t, err)
 }

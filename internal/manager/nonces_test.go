@@ -22,9 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
-	"github.com/hyperledger/firefly/pkg/fftypes"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -19,10 +19,10 @@ package manager
 import (
 	"context"
 
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
-	"github.com/hyperledger/firefly/pkg/fftypes"
-	"github.com/hyperledger/firefly/pkg/log"
 )
 
 type lockedNonce struct {

@@ -20,17 +20,17 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/hyperledger/firefly/pkg/fftypes"
-	"github.com/hyperledger/firefly/pkg/log"
-	"github.com/hyperledger/firefly/pkg/wsclient"
+	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-common/pkg/wsclient"
+	"github.com/hyperledger/firefly/pkg/core"
 )
 
 func (m *manager) startChangeListener(ctx context.Context, w wsclient.WSClient) error {
-	cmd := fftypes.WSChangeEventCommand{
-		Type:        fftypes.WSChangeEventCommandTypeStart,
+	cmd := core.WSChangeEventCommand{
+		Type:        core.WSChangeEventCommandTypeStart,
 		Collections: []string{"operations"},
-		Filter: fftypes.ChangeEventFilter{
-			Types: []fftypes.ChangeEventType{fftypes.ChangeEventTypeUpdated},
+		Filter: core.ChangeEventFilter{
+			Types: []core.ChangeEventType{core.ChangeEventTypeUpdated},
 		},
 	}
 	b, _ := json.Marshal(&cmd)
@@ -38,9 +38,9 @@ func (m *manager) startChangeListener(ctx context.Context, w wsclient.WSClient) 
 	return w.Send(ctx, b)
 }
 
-func (m *manager) handleEvent(ce *fftypes.ChangeEvent) {
+func (m *manager) handleEvent(ce *core.ChangeEvent) {
 	log.L(m.ctx).Debugf("%s:%s/%s operation change event received", ce.Namespace, ce.ID, ce.Type)
-	if ce.Collection == "operations" && ce.Type == fftypes.ChangeEventTypeUpdated {
+	if ce.Collection == "operations" && ce.Type == core.ChangeEventTypeUpdated {
 		m.mux.Lock()
 		_, knownID := m.pendingOpsByID[*ce.ID]
 		m.mux.Unlock()
@@ -59,7 +59,7 @@ func (m *manager) changeEventLoop() {
 	for {
 		select {
 		case b := <-m.wsClient.Receive():
-			var ce *fftypes.ChangeEvent
+			var ce *core.ChangeEvent
 			_ = json.Unmarshal(b, &ce)
 			m.handleEvent(ce)
 		case <-m.ctx.Done():

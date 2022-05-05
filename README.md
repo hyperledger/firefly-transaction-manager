@@ -22,3 +22,7 @@ Plugable microservice component of Hyperledger FireFly, responsible for:
   - At least once delivery API
 
 ![Hyperledger FireFly Transaction Manager](./images/firefly_transaction_manager.jpg)
+
+# Configuration
+
+See [config.md](./config.md)

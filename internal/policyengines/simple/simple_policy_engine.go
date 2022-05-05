@@ -17,22 +17,22 @@
 package simple
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"text/template"
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/ffresty"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
-	"github.com/hyperledger/firefly/pkg/config"
-	"github.com/hyperledger/firefly/pkg/ffresty"
-	"github.com/hyperledger/firefly/pkg/fftypes"
-	"github.com/hyperledger/firefly/pkg/i18n"
-	"github.com/hyperledger/firefly/pkg/log"
-	"github.com/tidwall/gjson"
 )
 
 type PolicyEngineFactory struct{}
@@ -52,7 +52,6 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config
 		fixedGasPrice: fftypes.JSONAnyPtr(prefix.GetString(FixedGasPrice)),
 
 		gasOracleMethod:        gasOraclePrefix.GetString(GasOracleMethod),
-		gasOracleGJSON:         gasOraclePrefix.GetString(GasOracleGJSON),
 		gasOracleQueryInterval: gasOraclePrefix.GetDuration(GasOracleQueryInterval),
 		gasOracleMode:          gasOraclePrefix.GetString(GasOracleMode),
 	}
@@ -61,6 +60,14 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config
 		// No initialization required
 	case GasOracleModeRESTAPI:
 		p.gasOracleClient = ffresty.New(ctx, gasOraclePrefix)
+		templateString := gasOraclePrefix.GetString(GasOracleTemplate)
+		if templateString == "" {
+			return nil, i18n.NewError(ctx, tmmsgs.MsgMissingGOTemplate)
+		}
+		p.gasOracleTemplate, err = template.New("").Parse(templateString)
+		if err != nil {
+			return nil, i18n.NewError(ctx, tmmsgs.MsgBadGOTemplate, err)
+		}
 	default:
 		if p.fixedGasPrice.IsNil() {
 			return nil, i18n.NewError(ctx, tmmsgs.MsgNoGasConfigSetForPolicyEngine)
@@ -76,7 +83,7 @@ type simplePolicyEngine struct {
 	gasOracleMode          string
 	gasOracleClient        *resty.Client
 	gasOracleMethod        string
-	gasOracleGJSON         string
+	gasOracleTemplate      *template.Template
 	gasOracleQueryInterval time.Duration
 	gasOracleQueryValue    *fftypes.JSONAny
 	gasOracleLastQueryTime *fftypes.FFTime
@@ -188,18 +195,20 @@ func (p *simplePolicyEngine) getGasPrice(ctx context.Context, cAPI ffcapi.API) (
 }
 
 func (p *simplePolicyEngine) getGasPriceAPI(ctx context.Context) (gasPrice *fftypes.JSONAny, err error) {
+	var jsonResponse map[string]interface{}
 	res, err := p.gasOracleClient.R().
-		SetDoNotParseResponse(true).
+		SetResult(&jsonResponse).
 		Execute(p.gasOracleMethod, "")
-	var rawResponse []byte
-	if err == nil {
-		rawResponse, err = ioutil.ReadAll(res.RawBody())
-	}
 	if err != nil {
-		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasOracleAPI, -1, rawResponse)
+		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasOracleAPI, -1, err.Error())
 	}
 	if res.IsError() {
-		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasOracleAPI, res.StatusCode(), rawResponse)
+		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasOracleAPI, res.StatusCode(), res.RawResponse)
 	}
-	return fftypes.JSONAnyPtr(gjson.Get(string(rawResponse), p.gasOracleGJSON).Raw), nil
+	buff := new(bytes.Buffer)
+	err = p.gasOracleTemplate.Execute(buff, jsonResponse)
+	if err != nil {
+		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgGasOracleResultError)
+	}
+	return fftypes.JSONAnyPtr(buff.String()), nil
 }

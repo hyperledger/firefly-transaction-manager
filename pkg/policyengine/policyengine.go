@@ -19,7 +19,7 @@ package policyengine
 import (
 	"context"
 
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 )
 
