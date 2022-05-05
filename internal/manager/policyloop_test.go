@@ -22,12 +22,13 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
-	"github.com/hyperledger/firefly/pkg/fftypes"
+	"github.com/hyperledger/firefly/pkg/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -49,11 +50,11 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	_, m, cancel := newTestManager(t,
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
-			var op fftypes.Operation
+			var op core.Operation
 			err := json.NewDecoder(r.Body).Decode(&op)
 			assert.NoError(t, err)
 			assert.Equal(t, mtx.ID, op.ID)
-			assert.Equal(t, fftypes.OpStatusSucceeded, op.Status)
+			assert.Equal(t, core.OpStatusSucceeded, op.Status)
 			w.WriteHeader(200)
 		},
 	)
@@ -98,11 +99,11 @@ func TestPolicyLoopE2EOkReverted(t *testing.T) {
 	_, m, cancel := newTestManager(t,
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
-			var op fftypes.Operation
+			var op core.Operation
 			err := json.NewDecoder(r.Body).Decode(&op)
 			assert.NoError(t, err)
 			assert.Equal(t, mtx.ID, op.ID)
-			assert.Equal(t, fftypes.OpStatusFailed, op.Status)
+			assert.Equal(t, core.OpStatusFailed, op.Status)
 			w.WriteHeader(200)
 		},
 	)
@@ -147,11 +148,11 @@ func TestPolicyLoopUpdateFFCoreWithError(t *testing.T) {
 	_, m, cancel := newTestManager(t,
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
-			var op fftypes.Operation
+			var op core.Operation
 			err := json.NewDecoder(r.Body).Decode(&op)
 			assert.NoError(t, err)
 			assert.Equal(t, mtx.ID, op.ID)
-			assert.Equal(t, fftypes.OpStatusPending, op.Status)
+			assert.Equal(t, core.OpStatusPending, op.Status)
 			w.WriteHeader(200)
 		},
 	)
@@ -209,7 +210,7 @@ func TestPolicyLoopUpdateOpFail(t *testing.T) {
 	m.policyLoopCycle()
 
 	err := m.execPolicy(m.pendingOpsByID[*mtx.ID])
-	assert.Regexp(t, "FF201017.*pop", err)
+	assert.Regexp(t, "FF21017.*pop", err)
 	assert.NotEmpty(t, m.pendingOpsByID)
 
 	mc.AssertExpectations(t)
@@ -240,15 +241,15 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 			}
 		}),
 		func(w http.ResponseWriter, r *http.Request) {
-			var op fftypes.Operation
+			var op core.Operation
 			err := json.NewDecoder(r.Body).Decode(&op)
 			assert.NoError(t, err)
 			assert.Equal(t, mtx.ID, op.ID)
 			opUpdateCount++
 			if opUpdateCount == 1 {
-				assert.Equal(t, fftypes.OpStatusPending, op.Status)
+				assert.Equal(t, core.OpStatusPending, op.Status)
 			} else {
-				assert.Equal(t, fftypes.OpStatusSucceeded, op.Status)
+				assert.Equal(t, core.OpStatusSucceeded, op.Status)
 			}
 			w.WriteHeader(200)
 		},

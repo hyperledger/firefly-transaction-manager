@@ -22,17 +22,18 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
-	"github.com/hyperledger/firefly/pkg/fftypes"
-	"github.com/hyperledger/firefly/pkg/i18n"
-	"github.com/hyperledger/firefly/pkg/log"
+	"github.com/hyperledger/firefly/pkg/core"
 )
 
 // opUpdate allows us to avoid JSONObject serialization to a map before we upload our managedTXOutput
 type opUpdate struct {
 	ID     *fftypes.UUID         `json:"id"`
-	Status fftypes.OpStatus      `json:"status"`
+	Status core.OpStatus         `json:"status"`
 	Output *fftm.ManagedTXOutput `json:"output"`
 	Error  string                `json:"error,omitempty"`
 }
@@ -40,7 +41,7 @@ type opUpdate struct {
 func (m *manager) writeManagedTX(ctx context.Context, opUpdate *opUpdate) error {
 	log.L(ctx).Debugf("Updating operation %s status=%s", opUpdate.ID, opUpdate.Status)
 	var errorInfo fftypes.RESTError
-	var op fftypes.Operation
+	var op core.Operation
 	res, err := m.ffCoreClient.R().
 		SetResult(&op).
 		SetError(&errorInfo).
@@ -58,7 +59,7 @@ func (m *manager) writeManagedTX(ctx context.Context, opUpdate *opUpdate) error 
 
 func (m *manager) queryAndAddPending(opID *fftypes.UUID) {
 	var errorInfo fftypes.RESTError
-	var op *fftypes.Operation
+	var op *core.Operation
 	res, err := m.ffCoreClient.R().
 		SetResult(&op).
 		SetError(&errorInfo).
@@ -78,20 +79,20 @@ func (m *manager) queryAndAddPending(opID *fftypes.UUID) {
 	// If the operation has been marked as success (by us or otherwise), or failed, then
 	// we can remove it. If we resolved it, then we would have cleared it up on the .
 	switch op.Status {
-	case fftypes.OpStatusSucceeded, fftypes.OpStatusFailed:
+	case core.OpStatusSucceeded, core.OpStatusFailed:
 		m.markCancelledIfTracked(op.ID)
-	case fftypes.OpStatusPending:
+	case core.OpStatusPending:
 		m.trackIfManaged(op)
 	}
 }
 
-func (m *manager) readOperationPage(lastOp *fftypes.Operation) ([]*fftypes.Operation, error) {
+func (m *manager) readOperationPage(lastOp *core.Operation) ([]*core.Operation, error) {
 	var errorInfo fftypes.RESTError
-	var ops []*fftypes.Operation
+	var ops []*core.Operation
 	query := url.Values{
 		"sort":   []string{"created"},
 		"type":   m.opTypes,
-		"status": []string{string(fftypes.OpStatusPending)},
+		"status": []string{string(core.OpStatusPending)},
 	}
 	if lastOp != nil {
 		// For all but the 1st page, we use the last operation as the reference point.

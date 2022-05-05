@@ -16,23 +16,25 @@
 
 package tmmsgs
 
-import "github.com/hyperledger/firefly/pkg/i18n"
+import "github.com/hyperledger/firefly-common/pkg/i18n"
 
 var ffe = i18n.FFE
 
 //revive:disable
 var (
-	MsgInvalidOutputType             = ffe("FF201010", "Invalid output type: %s")
-	MsgConnectorError                = ffe("FF201012", "Connector failed request. requestId=%s reason=%s error: %s")
-	MsgConnectorInvalidConentType    = ffe("FF201013", "Connector failed request. requestId=%s invalid response content type: %s")
-	MsgConnectorFailInvoke           = ffe("FF201014", "Connector failed request. requestId=%s failed to call connector API")
-	MsgCacheInitFail                 = ffe("FF201015", "Failed to initialize cache")
-	MsgInvalidConfirmationRequest    = ffe("FF201016", "Invalid confirmation request %+v")
-	MsgCoreError                     = ffe("FF201017", "Error from core status=%d: %s")
-	MsgConfigParamNotSet             = ffe("FF201018", "Configuration parameter '%s' must be set")
-	MsgPolicyEngineNotRegistered     = ffe("FF201019", "No policy engine registered with name '%s'")
-	MsgNoGasConfigSetForPolicyEngine = ffe("FF201020", "A fixed gas price must be set when not using a gas oracle")
-	MsgErrorQueryingGasOracleAPI     = ffe("FF201021", "Error from gas station API [%d]: %s")
-	MsgErrorInvalidRequest           = ffe("FF201022", "Invalid request")
-	MsgUnsupportedRequestType        = ffe("FF201023", "Unsupported request type: %s")
+	MsgInvalidOutputType             = ffe("FF21010", "Invalid output type: %s")
+	MsgConnectorError                = ffe("FF21012", "Connector failed request. requestId=%s reason=%s error: %s")
+	MsgConnectorInvalidConentType    = ffe("FF21013", "Connector failed request. requestId=%s invalid response content type: %s")
+	MsgCacheInitFail                 = ffe("FF21015", "Failed to initialize cache")
+	MsgInvalidConfirmationRequest    = ffe("FF21016", "Invalid confirmation request %+v")
+	MsgCoreError                     = ffe("FF21017", "Error from core status=%d: %s")
+	MsgConfigParamNotSet             = ffe("FF21018", "Configuration parameter '%s' must be set")
+	MsgPolicyEngineNotRegistered     = ffe("FF21019", "No policy engine registered with name '%s'")
+	MsgNoGasConfigSetForPolicyEngine = ffe("FF21020", "A fixed gas price must be set when not using a gas oracle")
+	MsgErrorQueryingGasOracleAPI     = ffe("FF21021", "Error from gas station API [%d]: %s")
+	MsgErrorInvalidRequest           = ffe("FF21022", "Invalid request")
+	MsgUnsupportedRequestType        = ffe("FF21023", "Unsupported request type: %s")
+	MsgMissingGOTemplate             = ffe("FF21024", "Missing template for processing response from Gas Oracle REST API")
+	MsgBadGOTemplate                 = ffe("FF21025", "Invalid Go template: %s")
+	MsgGasOracleResultError          = ffe("FF21026", "Error processing result from gas station API via template")
 )

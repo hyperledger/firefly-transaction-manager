@@ -61,7 +61,7 @@ func TestRunBadConfig(t *testing.T) {
 	defer rootCmd.SetArgs([]string{})
 
 	err := Execute()
-	assert.Regexp(t, "FF201018", err)
+	assert.Regexp(t, "FF21018", err)
 
 }
 
@@ -70,6 +70,6 @@ func TestRunFailStartup(t *testing.T) {
 	defer rootCmd.SetArgs([]string{})
 
 	err := Execute()
-	assert.Regexp(t, "FF201017", err)
+	assert.Regexp(t, "FF21017", err)
 
 }

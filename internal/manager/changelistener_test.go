@@ -23,8 +23,9 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/hyperledger/firefly/pkg/fftypes"
-	"github.com/hyperledger/firefly/pkg/wsclient"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/wsclient"
+	"github.com/hyperledger/firefly/pkg/core"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -60,14 +61,14 @@ func TestWSChangeDeliveryLookup(t *testing.T) {
 	m.startWS()
 
 	cmdJSON := <-toServer
-	var startCmd fftypes.WSChangeEventCommand
+	var startCmd core.WSChangeEventCommand
 	err = json.Unmarshal([]byte(cmdJSON), &startCmd)
 	assert.NoError(t, err)
-	assert.Equal(t, fftypes.WSChangeEventCommandTypeStart, startCmd.Type)
+	assert.Equal(t, core.WSChangeEventCommandTypeStart, startCmd.Type)
 
-	change := &fftypes.ChangeEvent{
+	change := &core.ChangeEvent{
 		Collection: "operations",
-		Type:       fftypes.ChangeEventTypeUpdated,
+		Type:       core.ChangeEventTypeUpdated,
 		Namespace:  "ns1",
 		ID:         opID,
 	}
@@ -92,6 +93,6 @@ func TestWSConnectFail(t *testing.T) {
 
 	m.enableChangeListener = true
 	err := m.startWS()
-	assert.Regexp(t, "FF10158", err)
+	assert.Regexp(t, "FF00154", err)
 
 }

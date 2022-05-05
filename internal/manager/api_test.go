@@ -25,10 +25,10 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly/pkg/fftypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -183,7 +183,7 @@ func TestSendInvalidRequestNoHeaders(t *testing.T) {
 		Post(url)
 	assert.NoError(t, err)
 	assert.Equal(t, 400, res.StatusCode())
-	assert.Regexp(t, "FF201022", errRes.Error)
+	assert.Regexp(t, "FF21022", errRes.Error)
 }
 
 func TestSendInvalidRequestWrongType(t *testing.T) {
@@ -208,7 +208,7 @@ func TestSendInvalidRequestWrongType(t *testing.T) {
 		Post(url)
 	assert.NoError(t, err)
 	assert.Equal(t, 400, res.StatusCode())
-	assert.Regexp(t, "FF201023", errRes.Error)
+	assert.Regexp(t, "FF21023", errRes.Error)
 }
 
 func TestSendInvalidRequestFail(t *testing.T) {
@@ -240,7 +240,7 @@ func TestSendInvalidRequestFail(t *testing.T) {
 		Post(url)
 	assert.NoError(t, err)
 	assert.Equal(t, 500, res.StatusCode())
-	assert.Regexp(t, "FF201012", errRes.Error)
+	assert.Regexp(t, "FF00157", errRes.Error)
 }
 
 func TestSendTransactionPrepareFail(t *testing.T) {

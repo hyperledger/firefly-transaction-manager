@@ -17,11 +17,11 @@
 package tmconfig
 
 import (
-	"github.com/hyperledger/firefly/pkg/config"
-	"github.com/hyperledger/firefly/pkg/ffresty"
-	"github.com/hyperledger/firefly/pkg/fftypes"
-	"github.com/hyperledger/firefly/pkg/httpserver"
-	"github.com/hyperledger/firefly/pkg/wsclient"
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffresty"
+	"github.com/hyperledger/firefly-common/pkg/httpserver"
+	"github.com/hyperledger/firefly-common/pkg/wsclient"
+	"github.com/hyperledger/firefly/pkg/core"
 	"github.com/spf13/viper"
 )
 
@@ -66,15 +66,17 @@ var FFCorePrefix config.Prefix
 
 var APIPrefix config.Prefix
 
+var CorsConfig config.Prefix
+
 var PolicyEngineBasePrefix config.Prefix
 
 func setDefaults() {
 	viper.SetDefault(string(OperationsFullScanPageSize), 100)
 	viper.SetDefault(string(OperationsFullScanMinimumDelay), "5s")
 	viper.SetDefault(string(OperationsTypes), []string{
-		fftypes.OpTypeBlockchainInvoke.String(),
-		fftypes.OpTypeBlockchainPinBatch.String(),
-		fftypes.OpTypeTokenCreatePool.String(),
+		core.OpTypeBlockchainInvoke.String(),
+		core.OpTypeBlockchainPinBatch.String(),
+		core.OpTypeTokenCreatePool.String(),
 	})
 	viper.SetDefault(string(OperationsFullScanStartupMaxRetries), 10)
 	viper.SetDefault(string(ConnectorVariant), "evm")
@@ -100,6 +102,9 @@ func Reset() {
 
 	APIPrefix = config.NewPluginConfig("api")
 	httpserver.InitHTTPConfPrefix(APIPrefix, 5008)
+
+	CorsConfig = config.NewPluginConfig("cors")
+	httpserver.InitCORSConfig(CorsConfig)
 
 	PolicyEngineBasePrefix = config.NewPluginConfig("policyengine")
 	// policy engines must be registered outside of this package

@@ -23,20 +23,21 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/ffresty"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/httpserver"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-common/pkg/wsclient"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/policyengines"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
-	"github.com/hyperledger/firefly/pkg/config"
-	"github.com/hyperledger/firefly/pkg/ffresty"
-	"github.com/hyperledger/firefly/pkg/fftypes"
-	"github.com/hyperledger/firefly/pkg/httpserver"
-	"github.com/hyperledger/firefly/pkg/i18n"
-	"github.com/hyperledger/firefly/pkg/log"
-	"github.com/hyperledger/firefly/pkg/wsclient"
+	"github.com/hyperledger/firefly/pkg/core"
 )
 
 type Manager interface {
@@ -80,7 +81,7 @@ type manager struct {
 func NewManager(ctx context.Context) (Manager, error) {
 	var err error
 	m := &manager{
-		connectorAPI:     ffcapi.NewFFCAPI(ctx),
+		connectorAPI:     ffcapi.NewFFCAPIClient(ctx, tmconfig.ConnectorPrefix, ffcapi.Variant(config.GetString(tmconfig.ConnectorVariant))),
 		ffCoreClient:     ffresty.New(ctx, tmconfig.FFCorePrefix),
 		fullScanRequests: make(chan bool, 1),
 		nextNonces:       make(map[string]uint64),
@@ -114,7 +115,7 @@ func NewManager(ctx context.Context) (Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIPrefix)
+	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIPrefix, tmconfig.CorsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,7 @@ func (m *manager) fullScan() error {
 	log.L(m.ctx).Debugf("Reading all operations after connect")
 	var page int64
 	var read, added int
-	var lastOp *fftypes.Operation
+	var lastOp *core.Operation
 	for {
 		ops, err := m.readOperationPage(lastOp)
 		if err != nil {
@@ -210,7 +211,7 @@ func (m *manager) fullScan() error {
 	}
 }
 
-func (m *manager) trackIfManaged(op *fftypes.Operation) {
+func (m *manager) trackIfManaged(op *core.Operation) {
 	outputJSON := []byte(op.Output.String())
 	var mtx fftm.ManagedTXOutput
 	err := json.Unmarshal(outputJSON, &mtx)

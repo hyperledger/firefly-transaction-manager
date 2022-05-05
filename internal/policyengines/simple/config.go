@@ -19,8 +19,8 @@ package simple
 import (
 	"net/http"
 
-	"github.com/hyperledger/firefly/pkg/config"
-	"github.com/hyperledger/firefly/pkg/ffresty"
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffresty"
 )
 
 const (
@@ -29,7 +29,7 @@ const (
 	GasOraclePrefix        = "gasOracle"
 	GasOracleMode          = "mode"
 	GasOracleMethod        = "method"
-	GasOracleGJSON         = "gjson"
+	GasOracleTemplate      = "template"
 	GasOracleQueryInterval = "queryInterval"
 )
 
@@ -55,6 +55,6 @@ func (f *PolicyEngineFactory) InitPrefix(prefix config.Prefix) {
 	gasOraclePrefix.AddKnownKey(GasOracleMethod, defaultGasOracleMethod)
 	gasOraclePrefix.AddKnownKey(GasOracleMode, defaultGasOracleMode)
 	gasOraclePrefix.AddKnownKey(GasOracleQueryInterval, defaultGasOracleQueryInterval)
-	gasOraclePrefix.AddKnownKey(GasOracleGJSON)
+	gasOraclePrefix.AddKnownKey(GasOracleTemplate)
 
 }
