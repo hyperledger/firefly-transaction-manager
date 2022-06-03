@@ -35,30 +35,30 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func newTestPolicyEngineFactory(t *testing.T) (*PolicyEngineFactory, config.Prefix) {
+func newTestPolicyEngineFactory(t *testing.T) (*PolicyEngineFactory, config.Section) {
 	tmconfig.Reset()
-	prefix := config.NewPluginConfig("unittest.simple")
+	conf := config.RootSection("unittest.simple")
 	f := &PolicyEngineFactory{}
-	f.InitPrefix(prefix)
+	f.InitConfig(conf)
 	assert.Equal(t, "simple", f.Name())
-	return f, prefix
+	return f, conf
 }
 
 func TestMissingGasConfig(t *testing.T) {
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeDisabled)
-	_, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
+	_, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.Regexp(t, "FF21020", err)
 }
 
 func TestFixedGasPriceOK(t *testing.T) {
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeDisabled)
-	prefix.Set(FixedGasPrice, `{
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
+	conf.Set(FixedGasPrice, `{
 		"maxPriorityFee":32.146027800733336,
 		"maxFee":32.14602781673334
 	}`)
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &policyengine.ManagedTXOutput{
@@ -122,11 +122,11 @@ func TestGasOracleSendOK(t *testing.T) {
 		  }`))
 	}))
 
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
-	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleTemplate, `{"unit":"gwei","value":{{ .standard.maxPriorityFee }}}`)
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
+	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, `{"unit":"gwei","value":{{ .standard.maxPriorityFee }}}`)
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &policyengine.ManagedTXOutput{
@@ -171,9 +171,9 @@ func TestGasOracleSendOK(t *testing.T) {
 
 func TestConnectorGasOracleSendOK(t *testing.T) {
 
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeConnector)
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &policyengine.ManagedTXOutput{
@@ -218,9 +218,9 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 
 func TestConnectorGasOracleFail(t *testing.T) {
 
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeConnector)
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &policyengine.ManagedTXOutput{
@@ -257,11 +257,11 @@ func TestGasOracleSendFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleTemplate, "{{ . }}")
-	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
+	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &policyengine.ManagedTXOutput{
@@ -287,10 +287,10 @@ func TestGasOracleMissingTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
-	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	_, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
+	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	_, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.Regexp(t, "FF21024", err)
 
 }
@@ -300,11 +300,11 @@ func TestGasOracleBadTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleTemplate, "{{ !!! wrong")
-	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	_, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ !!! wrong")
+	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	_, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.Regexp(t, "FF21025", err)
 
 }
@@ -317,11 +317,11 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleTemplate, "{{ .wrong.thing | len }}")
-	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ .wrong.thing | len }}")
+	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &policyengine.ManagedTXOutput{
@@ -347,11 +347,11 @@ func TestGasOracleNonJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleTemplate, "{{ . }}")
-	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
+	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &policyengine.ManagedTXOutput{
@@ -380,11 +380,11 @@ func TestTXSendFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleMode, GasOracleModeRESTAPI)
-	prefix.SubPrefix(GasOraclePrefix).Set(GasOracleTemplate, "{{ . }}")
-	prefix.SubPrefix(GasOraclePrefix).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
+	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &policyengine.ManagedTXOutput{
@@ -407,9 +407,9 @@ func TestTXSendFail(t *testing.T) {
 }
 
 func TestWarnStaleWarningCannotParse(t *testing.T) {
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGasPrice, `12345`)
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
@@ -438,9 +438,9 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 }
 
 func TestWarnStaleAdditionalWarning(t *testing.T) {
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGasPrice, `12345`)
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
@@ -471,10 +471,10 @@ func TestWarnStaleAdditionalWarning(t *testing.T) {
 }
 
 func TestWarnStaleNoWarning(t *testing.T) {
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGasPrice, `12345`)
-	prefix.Set(WarnInterval, "100s")
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(WarnInterval, "100s")
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
@@ -504,10 +504,10 @@ func TestWarnStaleNoWarning(t *testing.T) {
 }
 
 func TestNoOpWithReceipt(t *testing.T) {
-	f, prefix := newTestPolicyEngineFactory(t)
-	prefix.Set(FixedGasPrice, `12345`)
-	prefix.Set(WarnInterval, "100s")
-	p, err := f.NewPolicyEngine(context.Background(), prefix)
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(WarnInterval, "100s")
+	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
 	submitTime := fftypes.Now()

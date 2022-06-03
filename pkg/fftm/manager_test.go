@@ -46,25 +46,25 @@ const testManagerName = "unittest"
 
 func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...string) (string, *manager, func()) {
 	tmconfig.Reset()
-	policyengines.RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
+	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
 
 	ffCoreServer := httptest.NewServer(ffCoreHandler)
-	tmconfig.FFCorePrefix.Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", ffCoreServer.Listener.Addr()))
+	tmconfig.FFCoreConfig.Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", ffCoreServer.Listener.Addr()))
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.NoError(t, err)
 	managerPort := strings.Split(ln.Addr().String(), ":")[1]
 	ln.Close()
-	tmconfig.APIPrefix.Set(httpserver.HTTPConfPort, managerPort)
-	tmconfig.APIPrefix.Set(httpserver.HTTPConfAddress, "127.0.0.1")
+	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, managerPort)
+	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
 
 	config.Set(tmconfig.ManagerName, testManagerName)
 	config.Set(tmconfig.PolicyLoopInterval, "1ms")
-	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "223344556677")
+	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	if len(wsURL) > 0 {
 		config.Set(tmconfig.OperationsChangeListenerEnabled, true)
-		tmconfig.FFCorePrefix.Set(ffresty.HTTPConfigURL, wsURL[0])
+		tmconfig.FFCoreConfig.Set(ffresty.HTTPConfigURL, wsURL[0])
 	}
 
 	mm, err := NewManager(context.Background(), &ffcapimocks.API{})
@@ -111,10 +111,10 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 
 	tmconfig.Reset()
 	config.Set(tmconfig.ManagerName, "test")
-	tmconfig.APIPrefix.Set(httpserver.HTTPConfAddress, "::::")
+	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "::::")
 
-	policyengines.RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
-	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "223344556677")
+	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background(), nil)
 	assert.Regexp(t, "FF00151", err)
@@ -125,10 +125,10 @@ func TestNewManagerFireFlyURLConfig(t *testing.T) {
 
 	tmconfig.Reset()
 	config.Set(tmconfig.ManagerName, "test")
-	tmconfig.FFCorePrefix.Set(ffresty.HTTPConfigURL, ":::!badurl")
+	tmconfig.FFCoreConfig.Set(ffresty.HTTPConfigURL, ":::!badurl")
 
-	policyengines.RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
-	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "223344556677")
+	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background(), nil)
 	assert.Regexp(t, "FF00149", err)

@@ -82,7 +82,7 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	var err error
 	m := &manager{
 		connector:        connector,
-		ffCoreClient:     ffresty.New(ctx, tmconfig.FFCorePrefix),
+		ffCoreClient:     ffresty.New(ctx, tmconfig.FFCoreConfig),
 		fullScanRequests: make(chan bool, 1),
 		nextNonces:       make(map[string]uint64),
 		lockedNonces:     make(map[string]*lockedNonce),
@@ -106,16 +106,16 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBasePrefix, config.GetString(tmconfig.PolicyEngineName))
+	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
 	if err != nil {
 		return nil, err
 	}
-	wsconfig := wsclient.GenerateConfigFromPrefix(tmconfig.FFCorePrefix)
+	wsconfig := wsclient.GenerateConfig(tmconfig.FFCoreConfig)
 	m.wsClient, err = wsclient.New(m.ctx, wsconfig, nil, m.startChangeListener)
 	if err != nil {
 		return nil, err
 	}
-	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIPrefix, tmconfig.CorsConfig)
+	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
 	if err != nil {
 		return nil, err
 	}

@@ -59,13 +59,13 @@ var (
 	PolicyEngineName = ffc("policyengine.name")
 )
 
-var FFCorePrefix config.Prefix
+var FFCoreConfig config.Section
 
-var APIPrefix config.Prefix
+var APIConfig config.Section
 
-var CorsConfig config.Prefix
+var CorsConfig config.Section
 
-var PolicyEngineBasePrefix config.Prefix
+var PolicyEngineBaseConfig config.Section
 
 func setDefaults() {
 	viper.SetDefault(string(OperationsFullScanPageSize), 100)
@@ -90,17 +90,17 @@ func setDefaults() {
 func Reset() {
 	config.RootConfigReset(setDefaults)
 
-	FFCorePrefix = config.NewPluginConfig("ffcore")
-	wsclient.InitPrefix(FFCorePrefix)
-	FFCorePrefix.SetDefault(wsclient.WSConfigKeyPath, "/admin/ws")
+	FFCoreConfig = config.RootSection("ffcore")
+	wsclient.InitConfig(FFCoreConfig)
+	FFCoreConfig.SetDefault(wsclient.WSConfigKeyPath, "/admin/ws")
 
-	APIPrefix = config.NewPluginConfig("api")
-	httpserver.InitHTTPConfPrefix(APIPrefix, 5008)
+	APIConfig = config.RootSection("api")
+	httpserver.InitHTTPConfig(APIConfig, 5008)
 
-	CorsConfig = config.NewPluginConfig("cors")
+	CorsConfig = config.RootSection("cors")
 	httpserver.InitCORSConfig(CorsConfig)
 
-	PolicyEngineBasePrefix = config.NewPluginConfig("policyengine")
+	PolicyEngineBaseConfig = config.RootSection("policyengine")
 	// policy engines must be registered outside of this package
 
 }

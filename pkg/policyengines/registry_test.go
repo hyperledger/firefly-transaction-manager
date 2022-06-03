@@ -28,14 +28,14 @@ import (
 func TestRegistry(t *testing.T) {
 
 	tmconfig.Reset()
-	RegisterEngine(tmconfig.PolicyEngineBasePrefix, &simple.PolicyEngineFactory{})
+	RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
 
-	tmconfig.PolicyEngineBasePrefix.SubPrefix("simple").Set(simple.FixedGasPrice, "12345")
-	p, err := NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBasePrefix, "simple")
+	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "12345")
+	p, err := NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBaseConfig, "simple")
 	assert.NotNil(t, p)
 	assert.NoError(t, err)
 
-	p, err = NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBasePrefix, "bob")
+	p, err = NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBaseConfig, "bob")
 	assert.Nil(t, p)
 	assert.Regexp(t, "FF21019", err)
 

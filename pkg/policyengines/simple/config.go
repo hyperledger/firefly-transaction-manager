@@ -26,7 +26,7 @@ import (
 const (
 	FixedGasPrice          = "fixedGasPrice" // when not using a gas station - will be treated as a raw JSON string, so can be numeric 123, or string "123", or object {"maxPriorityFeePerGas":123})
 	WarnInterval           = "warnInterval"  // warnings will be written to the log at this interval if mining has not occurred
-	GasOraclePrefix        = "gasOracle"
+	GasOracleConfig        = "gasOracle"
 	GasOracleMode          = "mode"
 	GasOracleMethod        = "method"
 	GasOracleTemplate      = "template"
@@ -46,15 +46,15 @@ const (
 	defaultGasOracleMode          = GasOracleModeDisabled
 )
 
-func (f *PolicyEngineFactory) InitPrefix(prefix config.Prefix) {
-	prefix.AddKnownKey(FixedGasPrice)
-	prefix.AddKnownKey(WarnInterval, defaultWarnInterval)
+func (f *PolicyEngineFactory) InitConfig(conf config.Section) {
+	conf.AddKnownKey(FixedGasPrice)
+	conf.AddKnownKey(WarnInterval, defaultWarnInterval)
 
-	gasOraclePrefix := prefix.SubPrefix(GasOraclePrefix)
-	ffresty.InitPrefix(gasOraclePrefix)
-	gasOraclePrefix.AddKnownKey(GasOracleMethod, defaultGasOracleMethod)
-	gasOraclePrefix.AddKnownKey(GasOracleMode, defaultGasOracleMode)
-	gasOraclePrefix.AddKnownKey(GasOracleQueryInterval, defaultGasOracleQueryInterval)
-	gasOraclePrefix.AddKnownKey(GasOracleTemplate)
+	gasOracleConfig := conf.SubSection(GasOracleConfig)
+	ffresty.InitConfig(gasOracleConfig)
+	gasOracleConfig.AddKnownKey(GasOracleMethod, defaultGasOracleMethod)
+	gasOracleConfig.AddKnownKey(GasOracleMode, defaultGasOracleMode)
+	gasOracleConfig.AddKnownKey(GasOracleQueryInterval, defaultGasOracleQueryInterval)
+	gasOracleConfig.AddKnownKey(GasOracleTemplate)
 
 }

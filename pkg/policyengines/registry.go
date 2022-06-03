@@ -27,23 +27,23 @@ import (
 
 var policyEngines = make(map[string]Factory)
 
-func NewPolicyEngine(ctx context.Context, basePrefix config.Prefix, name string) (policyengine.PolicyEngine, error) {
+func NewPolicyEngine(ctx context.Context, baseConfig config.Section, name string) (policyengine.PolicyEngine, error) {
 	factory, ok := policyEngines[name]
 	if !ok {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgPolicyEngineNotRegistered, name)
 	}
-	return factory.NewPolicyEngine(ctx, basePrefix.SubPrefix(name))
+	return factory.NewPolicyEngine(ctx, baseConfig.SubSection(name))
 }
 
 type Factory interface {
 	Name() string
-	InitPrefix(prefix config.Prefix)
-	NewPolicyEngine(ctx context.Context, prefix config.Prefix) (policyengine.PolicyEngine, error)
+	InitConfig(conf config.Section)
+	NewPolicyEngine(ctx context.Context, conf config.Section) (policyengine.PolicyEngine, error)
 }
 
-func RegisterEngine(basePrefix config.Prefix, factory Factory) string {
+func RegisterEngine(baseConfig config.Section, factory Factory) string {
 	name := factory.Name()
 	policyEngines[name] = factory
-	factory.InitPrefix(basePrefix.SubPrefix(name))
+	factory.InitConfig(baseConfig.SubSection(name))
 	return name
 }

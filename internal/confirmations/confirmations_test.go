@@ -321,18 +321,24 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 
 	// The next filter gives us 1002a, which will later be removed
 	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	// Notify of the first confirmation for the first receipt - 1002a
-	blockHashes <- &ffcapi.BlockHashEvent{
-		BlockHashes: []string{
-			block1002a.BlockHash,
-		},
-	}
 	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
+
+	// First check while walking the chain does not yield a block
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1002
+	})).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Once()
 
 	// Transaction receipt is immediately available on fork A
 	mca.On("TransactionReceipt", mock.Anything, mock.MatchedBy(func(r *ffcapi.TransactionReceiptRequest) bool {
 		return r.TransactionHash == txToConfirmForkA.TransactionHash
-	})).Return(&ffcapi.TransactionReceiptResponse{
+	})).Run(func(args mock.Arguments) {
+		// Notify of the first confirmation for the first receipt - 1002a
+		blockHashes <- &ffcapi.BlockHashEvent{
+			BlockHashes: []string{
+				block1002a.BlockHash,
+			},
+		}
+	}).Return(&ffcapi.TransactionReceiptResponse{
 		BlockHash:        block1002a.ParentHash,
 		BlockNumber:      fftypes.NewFFBigInt(1001),
 		TransactionIndex: fftypes.NewFFBigInt(0),

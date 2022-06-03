@@ -44,22 +44,22 @@ func (f *PolicyEngineFactory) Name() string {
 // - It uses a public gas estimation
 // - It submits the transaction once
 // - It logs errors transactions breach certain configured thresholds of staleness
-func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, prefix config.Prefix) (pe policyengine.PolicyEngine, err error) {
-	gasOraclePrefix := prefix.SubPrefix(GasOraclePrefix)
+func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, conf config.Section) (pe policyengine.PolicyEngine, err error) {
+	gasOracleConfig := conf.SubSection(GasOracleConfig)
 	p := &simplePolicyEngine{
-		warnInterval:  prefix.GetDuration(WarnInterval),
-		fixedGasPrice: fftypes.JSONAnyPtr(prefix.GetString(FixedGasPrice)),
+		warnInterval:  conf.GetDuration(WarnInterval),
+		fixedGasPrice: fftypes.JSONAnyPtr(conf.GetString(FixedGasPrice)),
 
-		gasOracleMethod:        gasOraclePrefix.GetString(GasOracleMethod),
-		gasOracleQueryInterval: gasOraclePrefix.GetDuration(GasOracleQueryInterval),
-		gasOracleMode:          gasOraclePrefix.GetString(GasOracleMode),
+		gasOracleMethod:        gasOracleConfig.GetString(GasOracleMethod),
+		gasOracleQueryInterval: gasOracleConfig.GetDuration(GasOracleQueryInterval),
+		gasOracleMode:          gasOracleConfig.GetString(GasOracleMode),
 	}
 	switch p.gasOracleMode {
 	case GasOracleModeConnector:
 		// No initialization required
 	case GasOracleModeRESTAPI:
-		p.gasOracleClient = ffresty.New(ctx, gasOraclePrefix)
-		templateString := gasOraclePrefix.GetString(GasOracleTemplate)
+		p.gasOracleClient = ffresty.New(ctx, gasOracleConfig)
+		templateString := gasOracleConfig.GetString(GasOracleTemplate)
 		if templateString == "" {
 			return nil, i18n.NewError(ctx, tmmsgs.MsgMissingGOTemplate)
 		}
