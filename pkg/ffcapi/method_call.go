@@ -32,5 +32,5 @@ type MethodCallRequest struct {
 }
 
 type MethodCallResponse struct {
-	Outputs *fftypes.JSONAny `json:"outputs"`
+	Outputs *fftypes.JSONAny `json:"outputs"` // The data output from the method call - can be array or object structure
 }

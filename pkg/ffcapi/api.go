@@ -74,10 +74,10 @@ type BlockHashEvent struct {
 // The implementation is responsible for ensuring all events on a listener are
 // ordered on to this channel in the exact sequence from the blockchain.
 type Event struct {
-	ListenerID *fftypes.UUID    `json:"listenerId"` // the ID of the event listener for this event
-	Data       *fftypes.JSONAny `json:"data"`       // the JSON data to deliver for this event
-	ProtocolID string           `json:"protocolId"` // a protocol identifier for the event, that is string sortable per https://hyperledger.github.io/firefly/reference/types/blockchainevent.html#protocol-id
-	Info       *fftypes.JSONAny `json:"info"`       // additional blockchain specific information
+	ListenerID *fftypes.UUID      `json:"listenerId"` // the ID of the event listener for this event
+	Data       *fftypes.JSONAny   `json:"data"`       // the JSON data to deliver for this event (can be array or object structure)
+	ProtocolID string             `json:"protocolId"` // a protocol identifier for the event, that is string sortable per https://hyperledger.github.io/firefly/reference/types/blockchainevent.html#protocol-id
+	Info       fftypes.JSONObject `json:"info"`       // additional blockchain specific information
 }
 
 // ErrorReason are a set of standard error conditions that a blockchain connector can return
@@ -110,7 +110,7 @@ const (
 // - The supplied value is passed through for each input parameter. It could be any JSON type (simple number/boolean/string, or complex object/array). The blockchain connection is responsible for serializing these according to the rules in the interface.
 type TransactionInput struct {
 	TransactionHeaders
-	Method fftypes.JSONAny    `json:"method"`
+	Method *fftypes.JSONAny   `json:"method"`
 	Params []*fftypes.JSONAny `json:"params"`
 }
 

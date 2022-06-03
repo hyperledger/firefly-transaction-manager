@@ -14,19 +14,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ffcapi
+package events
 
 import (
+	"context"
+
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 )
 
-type EventListenerAddRequest struct {
-	ID         *fftypes.UUID           `json:"uuid"`
-	Events     fftypes.JSONObjectArray `json:"events"`
-	Options    fftypes.JSONObject      `json:"options"`
-	Checkpoint fftypes.JSONObject      `json:"checkpoint"`
+type listener struct {
+	definition *fftm.Listener
 }
 
-type EventListenerAddResponse struct {
-	Events chan<- Event
+func (l *listener) ID() *fftypes.UUID {
+	return l.definition.ID
+}
+
+func (l *listener) Start(ctx context.Context) error {
+	return nil
+}
+
+func (l *listener) RequestStop(ctx context.Context) {
+
+}
+
+func (l *listener) WaitStopped(ctx context.Context) {
+
 }

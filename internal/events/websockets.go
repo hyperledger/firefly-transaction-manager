@@ -14,19 +14,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ffcapi
-
-import (
-	"github.com/hyperledger/firefly-common/pkg/fftypes"
-)
-
-type EventListenerAddRequest struct {
-	ID         *fftypes.UUID           `json:"uuid"`
-	Events     fftypes.JSONObjectArray `json:"events"`
-	Options    fftypes.JSONObject      `json:"options"`
-	Checkpoint fftypes.JSONObject      `json:"checkpoint"`
-}
-
-type EventListenerAddResponse struct {
-	Events chan<- Event
-}
+package events

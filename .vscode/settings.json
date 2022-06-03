@@ -12,6 +12,7 @@
     "devdocs",
     "Devel",
     "distmode",
+    "estype",
     "ethconnect",
     "eventstream",
     "fabconnect",
@@ -64,6 +65,7 @@
     "upgrader",
     "upserts",
     "Warnf",
+    "whconfig",
     "wsclient",
     "wsconfig"
   ],

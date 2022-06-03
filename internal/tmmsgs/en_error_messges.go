@@ -42,4 +42,6 @@ var (
 	MsgMissingGOTemplate             = ffe("FF21024", "Missing template for processing response from Gas Oracle REST API")
 	MsgBadGOTemplate                 = ffe("FF21025", "Invalid Go template: %s")
 	MsgGasOracleResultError          = ffe("FF21026", "Error processing result from gas station API via template")
+	MsgStreamStateError              = ffe("FF21027", "Event stream is in %s state")
+	MsgMissingName                   = ffe("FF21028", "Name is required")
 )
