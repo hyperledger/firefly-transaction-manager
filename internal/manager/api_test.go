@@ -197,7 +197,7 @@ func TestSendInvalidRequestWrongType(t *testing.T) {
 
 	req := strings.NewReader(`{
 		"headers": {
-			"id": "` + fftypes.NewUUID().String() + `",
+			"id": "ns1:` + fftypes.NewUUID().String() + `",
 			"type": "wrong"
 		}
 	}`)
@@ -229,7 +229,7 @@ func TestSendInvalidRequestFail(t *testing.T) {
 
 	req := strings.NewReader(`{
 		"headers": {
-			"id": "` + fftypes.NewUUID().String() + `",
+			"id": "ns1:` + fftypes.NewUUID().String() + `",
 			"type": "SendTransaction"
 		}
 	}`)

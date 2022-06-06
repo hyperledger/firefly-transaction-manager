@@ -53,17 +53,13 @@ func (m *manager) sendManagedTransaction(ctx context.Context, request *fftm.Tran
 	// to the background worker.
 	mtx := &fftm.ManagedTXOutput{
 		FFTMName:        m.name,
-		ID:              request.Headers.ID, // on input the request ID must be the Operation ID
+		ID:              request.Headers.ID, // on input the request ID must be the namespaced operation ID
 		Nonce:           fftypes.NewFFBigInt(int64(lockedNonce.nonce)),
 		Gas:             prepared.Gas,
 		TransactionData: prepared.TransactionData,
 		Request:         request,
 	}
-	if err = m.writeManagedTX(ctx, &opUpdate{
-		ID:     mtx.ID,
-		Status: core.OpStatusPending,
-		Output: mtx,
-	}); err != nil {
+	if err := m.writeManagedTX(m.ctx, mtx, core.OpStatusPending, ""); err != nil {
 		return nil, err
 	}
 

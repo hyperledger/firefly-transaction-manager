@@ -41,7 +41,7 @@ const (
 func TestPolicyLoopE2EOk(t *testing.T) {
 
 	mtx := &fftm.ManagedTXOutput{
-		ID:              fftypes.NewUUID(),
+		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
 		Request:         &fftm.TransactionRequest{},
@@ -53,7 +53,6 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 			var op core.Operation
 			err := json.NewDecoder(r.Body).Decode(&op)
 			assert.NoError(t, err)
-			assert.Equal(t, mtx.ID, op.ID)
 			assert.Equal(t, core.OpStatusSucceeded, op.Status)
 			w.WriteHeader(200)
 		},
@@ -80,7 +79,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	m.trackManaged(mtx)
 	m.policyLoopCycle()
 
-	err := m.execPolicy(m.pendingOpsByID[*mtx.ID])
+	err := m.execPolicy(m.pendingOpsByID[mtx.ID])
 	assert.NoError(t, err)
 	assert.Empty(t, m.pendingOpsByID)
 
@@ -90,7 +89,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 func TestPolicyLoopE2EOkReverted(t *testing.T) {
 
 	mtx := &fftm.ManagedTXOutput{
-		ID:              fftypes.NewUUID(),
+		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
 		Request:         &fftm.TransactionRequest{},
@@ -102,7 +101,6 @@ func TestPolicyLoopE2EOkReverted(t *testing.T) {
 			var op core.Operation
 			err := json.NewDecoder(r.Body).Decode(&op)
 			assert.NoError(t, err)
-			assert.Equal(t, mtx.ID, op.ID)
 			assert.Equal(t, core.OpStatusFailed, op.Status)
 			w.WriteHeader(200)
 		},
@@ -129,7 +127,7 @@ func TestPolicyLoopE2EOkReverted(t *testing.T) {
 	m.trackManaged(mtx)
 	m.policyLoopCycle()
 
-	err := m.execPolicy(m.pendingOpsByID[*mtx.ID])
+	err := m.execPolicy(m.pendingOpsByID[mtx.ID])
 	assert.NoError(t, err)
 	assert.Empty(t, m.pendingOpsByID)
 
@@ -139,7 +137,7 @@ func TestPolicyLoopE2EOkReverted(t *testing.T) {
 func TestPolicyLoopUpdateFFCoreWithError(t *testing.T) {
 
 	mtx := &fftm.ManagedTXOutput{
-		ID:              fftypes.NewUUID(),
+		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
 		Request:         &fftm.TransactionRequest{},
@@ -151,7 +149,6 @@ func TestPolicyLoopUpdateFFCoreWithError(t *testing.T) {
 			var op core.Operation
 			err := json.NewDecoder(r.Body).Decode(&op)
 			assert.NoError(t, err)
-			assert.Equal(t, mtx.ID, op.ID)
 			assert.Equal(t, core.OpStatusPending, op.Status)
 			w.WriteHeader(200)
 		},
@@ -165,7 +162,7 @@ func TestPolicyLoopUpdateFFCoreWithError(t *testing.T) {
 	m.trackManaged(mtx)
 	m.policyLoopCycle()
 
-	err := m.execPolicy(m.pendingOpsByID[*mtx.ID])
+	err := m.execPolicy(m.pendingOpsByID[mtx.ID])
 	assert.NoError(t, err)
 	assert.NotEmpty(t, m.pendingOpsByID)
 }
@@ -173,7 +170,7 @@ func TestPolicyLoopUpdateFFCoreWithError(t *testing.T) {
 func TestPolicyLoopUpdateOpFail(t *testing.T) {
 
 	mtx := &fftm.ManagedTXOutput{
-		ID:              fftypes.NewUUID(),
+		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
 		Request:         &fftm.TransactionRequest{},
@@ -209,7 +206,7 @@ func TestPolicyLoopUpdateOpFail(t *testing.T) {
 	m.trackManaged(mtx)
 	m.policyLoopCycle()
 
-	err := m.execPolicy(m.pendingOpsByID[*mtx.ID])
+	err := m.execPolicy(m.pendingOpsByID[mtx.ID])
 	assert.Regexp(t, "FF21017.*pop", err)
 	assert.NotEmpty(t, m.pendingOpsByID)
 
@@ -219,7 +216,7 @@ func TestPolicyLoopUpdateOpFail(t *testing.T) {
 func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 
 	mtx := &fftm.ManagedTXOutput{
-		ID:      fftypes.NewUUID(),
+		ID:      "ns1:" + fftypes.NewUUID().String(),
 		Request: &fftm.TransactionRequest{},
 	}
 
@@ -244,7 +241,6 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 			var op core.Operation
 			err := json.NewDecoder(r.Body).Decode(&op)
 			assert.NoError(t, err)
-			assert.Equal(t, mtx.ID, op.ID)
 			opUpdateCount++
 			if opUpdateCount == 1 {
 				assert.Equal(t, core.OpStatusPending, op.Status)
@@ -283,12 +279,12 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	})).Return(nil)
 
 	m.trackManaged(mtx)
-	pending := m.pendingOpsByID[*mtx.ID]
+	pending := m.pendingOpsByID[mtx.ID]
 	pending.trackingTransactionHash = sampleTXHash
 
 	m.policyLoopCycle()
 
-	err := m.execPolicy(m.pendingOpsByID[*mtx.ID])
+	err := m.execPolicy(m.pendingOpsByID[mtx.ID])
 	assert.NoError(t, err)
 	assert.Empty(t, m.pendingOpsByID)
 
@@ -298,7 +294,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 func TestPolicyLoopCycleCleanupRemoved(t *testing.T) {
 
 	mtx := &fftm.ManagedTXOutput{
-		ID:      fftypes.NewUUID(),
+		ID:      "ns1:" + fftypes.NewUUID().String(),
 		Request: &fftm.TransactionRequest{},
 	}
 
@@ -314,7 +310,7 @@ func TestPolicyLoopCycleCleanupRemoved(t *testing.T) {
 	m.trackManaged(mtx)
 	m.markCancelledIfTracked(mtx.ID)
 
-	err := m.execPolicy(m.pendingOpsByID[*mtx.ID])
+	err := m.execPolicy(m.pendingOpsByID[mtx.ID])
 	assert.NoError(t, err)
 	assert.Empty(t, m.pendingOpsByID)
 }

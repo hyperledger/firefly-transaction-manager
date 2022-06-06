@@ -29,6 +29,7 @@
     "fftypes",
     "finalizers",
     "GJSON",
+    "hyperledger",
     "Infof",
     "IPFS",
     "mtxs",

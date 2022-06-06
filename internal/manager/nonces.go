@@ -20,14 +20,13 @@ import (
 	"context"
 
 	"github.com/hyperledger/firefly-common/pkg/ffcapi"
-	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 )
 
 type lockedNonce struct {
 	m        *manager
-	opID     *fftypes.UUID
+	nsOpID   string
 	signer   string
 	unlocked chan struct{}
 	nonce    uint64
@@ -49,7 +48,7 @@ func (ln *lockedNonce) complete(ctx context.Context) {
 	ln.m.mux.Unlock()
 }
 
-func (m *manager) assignAndLockNonce(ctx context.Context, opID *fftypes.UUID, signer string) (*lockedNonce, error) {
+func (m *manager) assignAndLockNonce(ctx context.Context, nsOpID, signer string) (*lockedNonce, error) {
 
 	for {
 		// Take the lock to query our nonce cache, and check if we are already locked
@@ -59,7 +58,7 @@ func (m *manager) assignAndLockNonce(ctx context.Context, opID *fftypes.UUID, si
 		if !isLocked {
 			locked = &lockedNonce{
 				m:        m,
-				opID:     opID,
+				nsOpID:   nsOpID,
 				signer:   signer,
 				unlocked: make(chan struct{}),
 			}

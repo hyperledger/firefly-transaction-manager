@@ -19,6 +19,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -59,7 +60,7 @@ type manager struct {
 	mux                 sync.Mutex
 	nextNonces          map[string]uint64
 	lockedNonces        map[string]*lockedNonce
-	pendingOpsByID      map[fftypes.UUID]*pendingState
+	pendingOpsByID      map[string]*pendingState
 	changeEventLoopDone chan struct{}
 	firstFullScanDone   chan error
 	policyLoopDone      chan struct{}
@@ -87,7 +88,7 @@ func NewManager(ctx context.Context) (Manager, error) {
 		nextNonces:       make(map[string]uint64),
 		lockedNonces:     make(map[string]*lockedNonce),
 		apiServerDone:    make(chan error),
-		pendingOpsByID:   make(map[fftypes.UUID]*pendingState),
+		pendingOpsByID:   make(map[string]*pendingState),
 
 		name:                  config.GetString(tmconfig.ManagerName),
 		opTypes:               config.GetStringSlice(tmconfig.OperationsTypes),
@@ -223,7 +224,7 @@ func (m *manager) trackIfManaged(op *core.Operation) {
 		log.L(m.ctx).Debugf("Operation %s is not managed by us (fftm=%s)", op.ID, mtx.FFTMName)
 		return
 	}
-	if !op.ID.Equals(mtx.ID) {
+	if fmt.Sprintf("%s:%s", op.Namespace, op.ID) != mtx.ID {
 		log.L(m.ctx).Warnf("Operation %s contains an invalid ID %s in the output", op.ID, mtx.ID)
 		return
 	}
@@ -237,7 +238,7 @@ func (m *manager) trackIfManaged(op *core.Operation) {
 func (m *manager) trackManaged(mtx *fftm.ManagedTXOutput) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	_, existing := m.pendingOpsByID[*mtx.ID]
+	_, existing := m.pendingOpsByID[mtx.ID]
 	if !existing {
 		nextNonce, ok := m.nextNonces[mtx.Request.From]
 		nonce := mtx.Nonce.Uint64()
@@ -245,15 +246,15 @@ func (m *manager) trackManaged(mtx *fftm.ManagedTXOutput) {
 			log.L(m.ctx).Debugf("Nonce %d in-flight. Next nonce: %d", nonce, nonce+1)
 			m.nextNonces[mtx.Request.From] = nonce + 1
 		}
-		m.pendingOpsByID[*mtx.ID] = &pendingState{
+		m.pendingOpsByID[mtx.ID] = &pendingState{
 			mtx: mtx,
 		}
 	}
 }
 
-func (m *manager) markCancelledIfTracked(opID *fftypes.UUID) {
+func (m *manager) markCancelledIfTracked(nsOpID string) {
 	m.mux.Lock()
-	pending, existing := m.pendingOpsByID[*opID]
+	pending, existing := m.pendingOpsByID[nsOpID]
 	if existing {
 		pending.removed = true
 	}

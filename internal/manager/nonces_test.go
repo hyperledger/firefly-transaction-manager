@@ -47,14 +47,14 @@ func TestNonceCached(t *testing.T) {
 	go func() {
 		defer close(done1)
 
-		ln, err := m.assignAndLockNonce(context.Background(), fftypes.NewUUID(), "0x12345")
+		ln, err := m.assignAndLockNonce(context.Background(), "ns1:"+fftypes.NewUUID().String(), "0x12345")
 		assert.NoError(t, err)
 		assert.Equal(t, uint64(1111), ln.nonce)
 		close(locked1)
 
 		time.Sleep(1 * time.Millisecond)
 		ln.spent = &fftm.ManagedTXOutput{
-			ID:    fftypes.NewUUID(),
+			ID:    "ns1:" + fftypes.NewUUID().String(),
 			Nonce: fftypes.NewFFBigInt(int64(ln.nonce)),
 			Request: &fftm.TransactionRequest{
 				TransactionInput: ffcapi.TransactionInput{
@@ -71,7 +71,7 @@ func TestNonceCached(t *testing.T) {
 		defer close(done2)
 
 		<-locked1
-		ln, err := m.assignAndLockNonce(context.Background(), fftypes.NewUUID(), "0x12345")
+		ln, err := m.assignAndLockNonce(context.Background(), "ns2:"+fftypes.NewUUID().String(), "0x12345")
 		assert.NoError(t, err)
 
 		assert.Equal(t, uint64(1112), ln.nonce)

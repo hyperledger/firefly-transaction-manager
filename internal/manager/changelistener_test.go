@@ -38,7 +38,7 @@ func TestWSChangeDeliveryLookup(t *testing.T) {
 			switch req.URL.Path {
 			case `/admin/ws`:
 				return
-			case fmt.Sprintf("/admin/api/v1/operations/%s", opID):
+			case fmt.Sprintf("/spi/v1/operations/ns1:%s", opID):
 				close(lookedUp)
 			default:
 				assert.Fail(t, fmt.Sprintf("Unexpected path: %s", req.URL.Path))

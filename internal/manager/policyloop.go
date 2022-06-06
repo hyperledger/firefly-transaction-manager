@@ -119,12 +119,7 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 			// In the case of errors, we keep the record updated with the latest error - but leave it in Pending
 			errorString = err.Error()
 		}
-		err := m.writeManagedTX(m.ctx, &opUpdate{
-			ID:     mtx.ID,
-			Status: newStatus,
-			Output: mtx,
-			Error:  errorString,
-		})
+		err := m.writeManagedTX(m.ctx, mtx, newStatus, errorString)
 		if err != nil {
 			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, newStatus, err)
 			return err
@@ -192,11 +187,11 @@ func (m *manager) clearConfirmationTracking(mtx *fftm.ManagedTXOutput) {
 	})
 }
 
-func (m *manager) removeIfTracked(opID *fftypes.UUID) {
+func (m *manager) removeIfTracked(nsOpID string) {
 	m.mux.Lock()
-	pending, existing := m.pendingOpsByID[*opID]
+	pending, existing := m.pendingOpsByID[nsOpID]
 	if existing {
-		delete(m.pendingOpsByID, *opID)
+		delete(m.pendingOpsByID, nsOpID)
 	}
 	m.mux.Unlock()
 	// Outside the lock tap the confirmation manager on the shoulder so it can clean up too
