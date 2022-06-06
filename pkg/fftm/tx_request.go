@@ -18,7 +18,6 @@ package fftm
 
 import (
 	"github.com/hyperledger/firefly-common/pkg/ffcapi"
-	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
 // TransactionRequest is the external interface into sending transactions to the front-side of Transaction Manager
@@ -29,8 +28,8 @@ type TransactionRequest struct {
 }
 
 type RequestHeaders struct {
-	ID   *fftypes.UUID `json:"id"`
-	Type RequestType   `json:"type"`
+	ID   string      `json:"id"`
+	Type RequestType `json:"type"`
 }
 
 type RequestType string

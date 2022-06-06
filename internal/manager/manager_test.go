@@ -91,8 +91,9 @@ func newTestOperation(t *testing.T, mtx *fftm.ManagedTXOutput, status core.OpSta
 	b, err := json.Marshal(&mtx)
 	assert.NoError(t, err)
 	op := &core.Operation{
-		ID:     mtx.ID,
-		Status: status,
+		Namespace: strings.Split(mtx.ID, ":")[0],
+		ID:        fftypes.MustParseUUID(strings.Split(mtx.ID, ":")[1]),
+		Status:    status,
 	}
 	err = json.Unmarshal(b, &op.Output)
 	assert.NoError(t, err)
@@ -173,7 +174,7 @@ func TestChangeEventsNewBadOutput(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodGet, r.Method)
-			assert.Equal(t, fmt.Sprintf("/admin/api/v1/operations/%s", ce.ID), r.URL.Path)
+			assert.Equal(t, fmt.Sprintf("/spi/v1/operations/ns1:%s", ce.ID), r.URL.Path)
 			b, err := json.Marshal(&core.Operation{
 				ID:     ce.ID,
 				Status: core.OpStatusPending,
@@ -208,9 +209,9 @@ func TestChangeEventsWrongName(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodGet, r.Method)
-			assert.Equal(t, fmt.Sprintf("/admin/api/v1/operations/%s", ce.ID), r.URL.Path)
+			assert.Equal(t, fmt.Sprintf("/spi/v1/operations/ns1:%s", ce.ID), r.URL.Path)
 			b, err := json.Marshal(newTestOperation(t, &fftm.ManagedTXOutput{
-				ID:       ce.ID,
+				ID:       "ns1:" + ce.ID.String(),
 				FFTMName: "wrong",
 				Request:  &fftm.TransactionRequest{},
 			}, core.OpStatusPending))
@@ -241,9 +242,9 @@ func TestChangeEventsWrongID(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodGet, r.Method)
-			assert.Equal(t, fmt.Sprintf("/admin/api/v1/operations/%s", ce.ID), r.URL.Path)
+			assert.Equal(t, fmt.Sprintf("/spi/v1/operations/ns1:%s", ce.ID), r.URL.Path)
 			op := newTestOperation(t, &fftm.ManagedTXOutput{
-				ID:       fftypes.NewUUID(),
+				ID:       "ns1:" + ce.ID.String(),
 				FFTMName: testManagerName,
 				Request:  &fftm.TransactionRequest{},
 			}, core.OpStatusPending)
@@ -276,9 +277,9 @@ func TestChangeEventsNilRequest(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodGet, r.Method)
-			assert.Equal(t, fmt.Sprintf("/admin/api/v1/operations/%s", ce.ID), r.URL.Path)
+			assert.Equal(t, fmt.Sprintf("/spi/v1/operations/ns1:%s", ce.ID), r.URL.Path)
 			op := newTestOperation(t, &fftm.ManagedTXOutput{
-				ID:       fftypes.NewUUID(),
+				ID:       "ns1:" + ce.ID.String(),
 				FFTMName: testManagerName,
 			}, core.OpStatusPending)
 			b, err := json.Marshal(&op)
@@ -309,7 +310,7 @@ func TestChangeEventsQueryFail(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodGet, r.Method)
-			assert.Equal(t, fmt.Sprintf("/admin/api/v1/operations/%s", ce.ID), r.URL.Path)
+			assert.Equal(t, fmt.Sprintf("/spi/v1/operations/ns1:%s", ce.ID), r.URL.Path)
 			w.WriteHeader(404)
 		},
 	)
@@ -335,7 +336,7 @@ func TestChangeEventsMarkForCleanup(t *testing.T) {
 	}
 
 	op := newTestOperation(t, &fftm.ManagedTXOutput{
-		ID:       fftypes.NewUUID(),
+		ID:       "ns1:" + ce.ID.String(),
 		FFTMName: testManagerName,
 		Request:  &fftm.TransactionRequest{},
 	}, core.OpStatusFailed)
@@ -345,7 +346,7 @@ func TestChangeEventsMarkForCleanup(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodGet, r.Method)
-			assert.Equal(t, fmt.Sprintf("/admin/api/v1/operations/%s", ce.ID), r.URL.Path)
+			assert.Equal(t, fmt.Sprintf("/spi/v1/operations/ns1:%s", ce.ID), r.URL.Path)
 			b, err := json.Marshal(&op)
 			assert.NoError(t, err)
 			w.Header().Set("Content-Type", "application/json")
@@ -356,29 +357,29 @@ func TestChangeEventsMarkForCleanup(t *testing.T) {
 	defer cancel()
 
 	m.trackIfManaged(op)
-	m.handleEvent(ce)
-	assert.True(t, m.pendingOpsByID[*op.ID].removed)
+	m.queryAndAddPending(fmt.Sprintf("%s:%s", ce.Namespace, ce.ID))
+	assert.True(t, m.pendingOpsByID[fmt.Sprintf("%s:%s", ce.Namespace, ce.ID)].removed)
 
 }
 
 func TestStartupScanMultiPageOK(t *testing.T) {
 
 	op1 := newTestOperation(t, &fftm.ManagedTXOutput{
-		ID:       fftypes.NewUUID(),
+		ID:       "ns1:" + fftypes.NewUUID().String(),
 		FFTMName: testManagerName,
 		Request:  &fftm.TransactionRequest{},
 	}, core.OpStatusPending)
 	t1 := fftypes.FFTime(time.Now().Add(-10 * time.Minute))
 	op1.Created = &t1
 	op2 := newTestOperation(t, &fftm.ManagedTXOutput{
-		ID:       fftypes.NewUUID(),
+		ID:       "ns1:" + fftypes.NewUUID().String(),
 		FFTMName: testManagerName,
 		Request:  &fftm.TransactionRequest{},
 	}, core.OpStatusPending)
 	t2 := fftypes.FFTime(time.Now().Add(-5 * time.Minute))
 	op2.Created = &t2
 	op3 := newTestOperation(t, &fftm.ManagedTXOutput{
-		ID:       fftypes.NewUUID(),
+		ID:       "ns1:" + fftypes.NewUUID().String(),
 		FFTMName: testManagerName,
 		Request:  &fftm.TransactionRequest{},
 	}, core.OpStatusPending)
@@ -392,7 +393,7 @@ func TestStartupScanMultiPageOK(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {},
 		func(w http.ResponseWriter, r *http.Request) {
 			assert.Equal(t, http.MethodGet, r.Method)
-			assert.Equal(t, "/admin/api/v1/operations", r.URL.Path)
+			assert.Equal(t, "/spi/v1/operations", r.URL.Path)
 			status := 200
 			var res interface{}
 			switch call {
@@ -525,5 +526,22 @@ func TestAddErrorMessageMax(t *testing.T) {
 	assert.Len(t, mtx.ErrorHistory, 2)
 	assert.Equal(t, "pop", mtx.ErrorHistory[0].Error)
 	assert.Equal(t, "crackle", mtx.ErrorHistory[1].Error)
+
+}
+
+func TestUnparsableOperation(t *testing.T) {
+
+	var m *manager
+	_, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+
+	m.trackIfManaged(&core.Operation{
+		Output: fftypes.JSONObject{
+			"test": map[bool]bool{false: true},
+		},
+	})
 
 }

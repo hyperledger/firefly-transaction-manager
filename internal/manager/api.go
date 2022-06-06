@@ -41,7 +41,7 @@ func (m *manager) runAPIServer() {
 }
 
 func (m *manager) validateRequest(ctx context.Context, tReq *fftm.TransactionRequest) error {
-	if tReq == nil || tReq.Headers.ID == nil || tReq.Headers.Type == "" {
+	if tReq == nil || tReq.Headers.ID == "" || tReq.Headers.Type == "" {
 		log.L(ctx).Warnf("Invalid request: %+v", tReq)
 		return i18n.NewError(ctx, tmmsgs.MsgErrorInvalidRequest)
 	}
@@ -60,7 +60,7 @@ func (m *manager) apiHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		statusCode = 400
 	} else {
-		ctx = log.WithLogField(ctx, "requestId", tReq.Headers.ID.String())
+		ctx = log.WithLogField(ctx, "requestId", tReq.Headers.ID)
 		switch tReq.Headers.Type {
 		case fftm.RequestTypeSendTransaction:
 			resBody, err = m.sendManagedTransaction(ctx, tReq)

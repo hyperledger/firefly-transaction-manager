@@ -19,6 +19,7 @@ package manager
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-common/pkg/wsclient"
@@ -41,15 +42,16 @@ func (m *manager) startChangeListener(ctx context.Context, w wsclient.WSClient) 
 func (m *manager) handleEvent(ce *core.ChangeEvent) {
 	log.L(m.ctx).Debugf("%s:%s/%s operation change event received", ce.Namespace, ce.ID, ce.Type)
 	if ce.Collection == "operations" && ce.Type == core.ChangeEventTypeUpdated {
+		nsOpID := fmt.Sprintf("%s:%s", ce.Namespace, ce.ID)
 		m.mux.Lock()
-		_, knownID := m.pendingOpsByID[*ce.ID]
+		_, knownID := m.pendingOpsByID[nsOpID]
 		m.mux.Unlock()
 		if !knownID {
 			// Currently the only action taken for change events, is to check we are
 			// tracking the transaction. However, as only transactions we submitted are
 			// valid and we do a full query on startup - the change listener is a little
 			// redundant (and disabled by default)
-			m.queryAndAddPending(ce.ID)
+			m.queryAndAddPending(nsOpID)
 		}
 	}
 }

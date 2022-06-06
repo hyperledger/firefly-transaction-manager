@@ -32,22 +32,25 @@ import (
 
 // opUpdate allows us to avoid JSONObject serialization to a map before we upload our managedTXOutput
 type opUpdate struct {
-	ID     *fftypes.UUID         `json:"id"`
 	Status core.OpStatus         `json:"status"`
 	Output *fftm.ManagedTXOutput `json:"output"`
-	Error  string                `json:"error,omitempty"`
+	Error  string                `json:"error"`
 }
 
-func (m *manager) writeManagedTX(ctx context.Context, opUpdate *opUpdate) error {
-	log.L(ctx).Debugf("Updating operation %s status=%s", opUpdate.ID, opUpdate.Status)
+func (m *manager) writeManagedTX(ctx context.Context, mtx *fftm.ManagedTXOutput, status core.OpStatus, errString string) error {
+	log.L(ctx).Debugf("Updating operation %s status=%s", mtx.ID, status)
 	var errorInfo fftypes.RESTError
 	var op core.Operation
 	res, err := m.ffCoreClient.R().
 		SetResult(&op).
 		SetError(&errorInfo).
-		SetBody(opUpdate).
+		SetBody(&opUpdate{
+			Output: mtx,
+			Status: status,
+			Error:  errString,
+		}).
 		SetContext(ctx).
-		Put(fmt.Sprintf("/admin/api/v1/operations/%s", opUpdate.ID))
+		Put(fmt.Sprintf("/spi/v1/operations/%s", mtx.ID))
 	if err != nil {
 		return err
 	}
@@ -57,13 +60,13 @@ func (m *manager) writeManagedTX(ctx context.Context, opUpdate *opUpdate) error 
 	return nil
 }
 
-func (m *manager) queryAndAddPending(opID *fftypes.UUID) {
+func (m *manager) queryAndAddPending(nsOpID string) {
 	var errorInfo fftypes.RESTError
 	var op *core.Operation
 	res, err := m.ffCoreClient.R().
 		SetResult(&op).
 		SetError(&errorInfo).
-		Get(fmt.Sprintf("/admin/api/v1/operations/%s", opID))
+		Get(fmt.Sprintf("/spi/v1/operations/%s", nsOpID))
 	if err == nil {
 		// Operations are not deleted, so we consider not found the same as any other error
 		if res.IsError() {
@@ -80,7 +83,7 @@ func (m *manager) queryAndAddPending(opID *fftypes.UUID) {
 	// we can remove it. If we resolved it, then we would have cleared it up on the .
 	switch op.Status {
 	case core.OpStatusSucceeded, core.OpStatusFailed:
-		m.markCancelledIfTracked(op.ID)
+		m.markCancelledIfTracked(nsOpID)
 	case core.OpStatusPending:
 		m.trackIfManaged(op)
 	}
@@ -107,7 +110,7 @@ func (m *manager) readOperationPage(lastOp *core.Operation) ([]*core.Operation, 
 		SetQueryParamsFromValues(query).
 		SetResult(&ops).
 		SetError(&errorInfo).
-		Get("/admin/api/v1/operations")
+		Get("/spi/v1/operations")
 	if err != nil {
 		return nil, i18n.WrapError(m.ctx, err, tmmsgs.MsgCoreError, -1, err)
 	}

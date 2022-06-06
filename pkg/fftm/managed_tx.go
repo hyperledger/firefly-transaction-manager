@@ -32,7 +32,7 @@ type ManagedTXError struct {
 // engine can use to apply policy, and apply updates to
 type ManagedTXOutput struct {
 	FFTMName        string                     `json:"fftmName"`
-	ID              *fftypes.UUID              `json:"id"`
+	ID              string                     `json:"id"`
 	Nonce           *fftypes.FFBigInt          `json:"nonce"`
 	Gas             *fftypes.FFBigInt          `json:"gas"`
 	TransactionHash string                     `json:"transactionHash,omitempty"`
