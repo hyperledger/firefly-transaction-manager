@@ -50,7 +50,7 @@ func (m *manager) writeManagedTX(ctx context.Context, mtx *fftm.ManagedTXOutput,
 			Error:  errString,
 		}).
 		SetContext(ctx).
-		Put(fmt.Sprintf("/spi/v1/operations/%s", mtx.ID))
+		Patch(fmt.Sprintf("/spi/v1/operations/%s", mtx.ID))
 	if err != nil {
 		return err
 	}

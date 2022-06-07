@@ -297,7 +297,7 @@ func TestSendTransactionUpdateFireFlyFail(t *testing.T) {
 			return res, status
 		}),
 		func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodPut {
+			if r.Method == http.MethodPatch {
 				errRes := fftypes.RESTError{Error: "pop"}
 				b, err := json.Marshal(&errRes)
 				assert.NoError(t, err)
