@@ -14,14 +14,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package ffcapi
 
 import (
-	"context"
-
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
+type EventListenerAddRequest struct {
+	ID         *fftypes.UUID      `json:"uuid"`
+	Events     []*fftypes.JSONAny `json:"events"`
+	Options    *fftypes.JSONAny   `json:"options"`
+	Checkpoint *fftypes.JSONAny   `json:"checkpoint"`
+}
+
+type EventListenerAddResponse struct {
+	Events chan<- Event
 }

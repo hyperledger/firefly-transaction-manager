@@ -24,12 +24,12 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/hyperledger/firefly-common/pkg/config"
-	"github.com/hyperledger/firefly-common/pkg/ffcapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 // Manager listens to the blocks on the chain, and attributes confirmations to
@@ -65,13 +65,13 @@ type EventInfo struct {
 	TransactionHash  string
 	TransactionIndex uint64
 	LogIndex         uint64
-	Receipt          func(receipt *ffcapi.GetReceiptResponse)
+	Receipt          func(receipt *ffcapi.TransactionReceiptResponse)
 	Confirmed        func(confirmations []BlockInfo)
 }
 
 type TransactionInfo struct {
 	TransactionHash string
-	Receipt         func(receipt *ffcapi.GetReceiptResponse)
+	Receipt         func(receipt *ffcapi.TransactionReceiptResponse)
 	Confirmed       func(confirmations []BlockInfo)
 }
 
@@ -90,9 +90,8 @@ type BlockInfo struct {
 type blockConfirmationManager struct {
 	ctx                   context.Context
 	cancelFunc            func()
-	blockListenerID       string
+	connector             ffcapi.API
 	blockListenerStale    bool
-	connectorAPI          ffcapi.API
 	requiredConfirmations int
 	pollingInterval       time.Duration
 	staleReceiptTimeout   time.Duration
@@ -104,14 +103,14 @@ type blockConfirmationManager struct {
 	done                  chan struct{}
 }
 
-func NewBlockConfirmationManager(ctx context.Context, connectorAPI ffcapi.API) (Manager, error) {
+func NewBlockConfirmationManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	var err error
 	bcm := &blockConfirmationManager{
-		connectorAPI:          connectorAPI,
+		connector:             connector,
+		blockListenerStale:    true,
 		requiredConfirmations: config.GetInt(tmconfig.ConfirmationsRequired),
 		pollingInterval:       config.GetDuration(tmconfig.ConfirmationsBlockPollingInterval),
 		staleReceiptTimeout:   config.GetDuration(tmconfig.ConfirmationsStaleReceiptTimeout),
-		blockListenerStale:    true,
 		bcmNotifications:      make(chan *Notification, config.GetInt(tmconfig.ConfirmationsNotificationQueueLength)),
 		pending:               make(map[string]*pendingItem),
 		staleReceipts:         make(map[string]bool),
@@ -137,8 +136,8 @@ type pendingItem struct {
 	pType             pendingType
 	added             time.Time
 	confirmations     []*BlockInfo
-	lastReceiptcheck  time.Time
-	receiptCallback   func(receipt *ffcapi.GetReceiptResponse)
+	lastReceiptCheck  time.Time
+	receiptCallback   func(receipt *ffcapi.TransactionReceiptResponse)
 	confirmedCallback func(confirmations []BlockInfo)
 	transactionHash   string
 	streamID          string // events only
@@ -195,7 +194,7 @@ func (n *Notification) eventPendingItem() *pendingItem {
 func (n *Notification) transactionPendingItem() *pendingItem {
 	return &pendingItem{
 		pType:             pendingTypeTransaction,
-		lastReceiptcheck:  time.Now(),
+		lastReceiptCheck:  time.Now(),
 		transactionHash:   n.Transaction.TransactionHash,
 		receiptCallback:   n.Transaction.Receipt,
 		confirmedCallback: n.Transaction.Confirmed,
@@ -251,32 +250,6 @@ func (bcm *blockConfirmationManager) Notify(n *Notification) error {
 	return nil
 }
 
-func (bcm *blockConfirmationManager) createBlockListener() error {
-	res, _, err := bcm.connectorAPI.CreateBlockListener(bcm.ctx, &ffcapi.CreateBlockListenerRequest{})
-	if err != nil {
-		return err
-	}
-	bcm.blockListenerStale = false
-	bcm.blockListenerID = res.ListenerID
-	log.L(bcm.ctx).Infof("Created blockListener: %s", bcm.blockListenerID)
-	return err
-}
-
-func (bcm *blockConfirmationManager) pollBlockListener() ([]string, error) {
-	ctx, cancel := context.WithTimeout(bcm.ctx, 30*time.Second)
-	defer cancel()
-	res, reason, err := bcm.connectorAPI.GetNewBlockHashes(ctx, &ffcapi.GetNewBlockHashesRequest{
-		ListenerID: bcm.blockListenerID,
-	})
-	if err != nil {
-		if reason == ffcapi.ErrorReasonNotFound {
-			bcm.blockListenerStale = true
-		}
-		return nil, err
-	}
-	return res.BlockHashes, nil
-}
-
 func (bcm *blockConfirmationManager) addToCache(blockInfo *BlockInfo) {
 	bcm.blockCache.Add(blockInfo.BlockHash, blockInfo)
 	bcm.blockCache.Add(strconv.FormatUint(blockInfo.BlockNumber, 10), blockInfo)
@@ -288,7 +261,7 @@ func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*BlockInf
 		return cached.(*BlockInfo), nil
 	}
 
-	res, reason, err := bcm.connectorAPI.GetBlockInfoByHash(bcm.ctx, &ffcapi.GetBlockInfoByHashRequest{
+	res, reason, err := bcm.connector.BlockInfoByHash(bcm.ctx, &ffcapi.BlockInfoByHashRequest{
 		BlockHash: blockHash,
 	})
 	if err != nil {
@@ -315,7 +288,7 @@ func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expect
 			return blockInfo, nil
 		}
 	}
-	res, reason, err := bcm.connectorAPI.GetBlockInfoByNumber(bcm.ctx, &ffcapi.GetBlockInfoByNumberRequest{
+	res, reason, err := bcm.connector.BlockInfoByNumber(bcm.ctx, &ffcapi.BlockInfoByNumberRequest{
 		BlockNumber: fftypes.NewFFBigInt(int64(blockNumber)),
 	})
 	if err != nil {
@@ -336,6 +309,21 @@ func transformBlockInfo(res *ffcapi.BlockInfo) *BlockInfo {
 		BlockHash:         res.BlockHash,
 		ParentHash:        res.ParentHash,
 		TransactionHashes: res.TransactionHashes,
+	}
+}
+
+func (bcm *blockConfirmationManager) getNewBlockHashes() []string {
+	var blockHashes []string
+	for {
+		select {
+		case bhe := <-bcm.connector.NewBlockHashes():
+			if bhe.GapPotential {
+				bcm.blockListenerStale = true
+			}
+			blockHashes = append(blockHashes, bhe.BlockHashes...)
+		default:
+			return blockHashes
+		}
 	}
 }
 
@@ -364,28 +352,16 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 		}
 		pollTimer = time.NewTimer(bcm.pollingInterval)
 
-		// Setup a blockListener if we're missing one
 		if bcm.blockListenerStale {
-			if err := bcm.createBlockListener(); err != nil {
-				log.L(bcm.ctx).Errorf("Failed to create blockListener: %s", err)
-				continue
-			}
-
 			if err := bcm.walkChain(); err != nil {
 				log.L(bcm.ctx).Errorf("Failed to create walk chain after restoring blockListener: %s", err)
 				continue
 			}
-		}
-
-		// Do the poll
-		blockHashes, err := bcm.pollBlockListener()
-		if err != nil {
-			log.L(bcm.ctx).Errorf("Failed to retrieve blocks from blockListener: %s", err)
-			continue
+			bcm.blockListenerStale = false
 		}
 
 		// Process each new block
-		bcm.processBlockHashes(blockHashes)
+		bcm.processBlockHashes(bcm.getNewBlockHashes())
 
 		// Process any new notifications - we do this at the end, so it can benefit
 		// from knowing the latest highestBlockSeen
@@ -414,7 +390,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 func (bcm *blockConfirmationManager) staleReceiptCheck() {
 	now := time.Now()
 	for _, pending := range bcm.pending {
-		if pending.pType == pendingTypeTransaction && now.Sub(pending.lastReceiptcheck) > bcm.staleReceiptTimeout {
+		if pending.pType == pendingTypeTransaction && now.Sub(pending.lastReceiptCheck) > bcm.staleReceiptTimeout {
 			pendingKey := pending.getKey()
 			log.L(bcm.ctx).Infof("Marking receipt check stale for %s", pendingKey)
 			bcm.staleReceipts[pendingKey] = true
@@ -450,7 +426,7 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 }
 
 func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem) {
-	res, reason, err := bcm.connectorAPI.GetReceipt(bcm.ctx, &ffcapi.GetReceiptRequest{
+	res, reason, err := bcm.connector.TransactionReceipt(bcm.ctx, &ffcapi.TransactionReceiptRequest{
 		TransactionHash: pending.transactionHash,
 	})
 

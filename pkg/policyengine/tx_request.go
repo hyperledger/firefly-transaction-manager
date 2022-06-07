@@ -17,11 +17,24 @@
 package policyengine
 
 import (
-	"context"
-
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
+// TransactionRequest is the external interface into sending transactions to the front-side of Transaction Manager
+// Note this is a deliberate match for the EthConnect subset that is supported by FireFly core
+type TransactionRequest struct {
+	Headers RequestHeaders `json:"headers"`
+	ffcapi.TransactionInput
 }
+
+type RequestHeaders struct {
+	ID   string      `json:"id"`
+	Type RequestType `json:"type"`
+}
+
+type RequestType string
+
+const (
+	RequestTypeSendTransaction = "SendTransaction"
+	RequestTypeQuery           = "Query"
+)

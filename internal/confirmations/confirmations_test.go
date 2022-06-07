@@ -22,10 +22,10 @@ import (
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
-	"github.com/hyperledger/firefly-common/pkg/ffcapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -70,24 +70,15 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 			confirmed <- confirmations
 		},
 	}
-	lastBlockDetected := false
-
-	// Establish the block filter
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once()
 
 	// First poll for changes gives nothing, but we load up the event at this point for the next round
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Run(func(args mock.Arguments) {
+	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
+	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
 		bcm.Notify(&Notification{
 			NotificationType: NewEventLog,
 			Event:            eventToConfirm,
 		})
-	}).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Once()
+	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
 
 	// Next time round gives a block that is in the confirmation chain, but one block ahead
 	block1003 := &BlockInfo{
@@ -95,16 +86,16 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 		BlockHash:   "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 		ParentHash:  "0x46210d224888265c269359529618bf2f6adb2697ff52c63c10f16a2391bdd295",
 	}
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{block1003.BlockHash},
-	}, ffcapi.ErrorReason(""), nil).Once()
+	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
+		blockHashes <- &ffcapi.BlockHashEvent{
+			BlockHashes: []string{block1003.BlockHash},
+		}
+	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
 
 	// The next filter gives us 1003 - which is two blocks ahead of our notified log
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1003.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1003.BlockNumber)),
 			BlockHash:   block1003.BlockHash,
@@ -118,9 +109,9 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 		BlockHash:   "0x46210d224888265c269359529618bf2f6adb2697ff52c63c10f16a2391bdd295",
 		ParentHash:  "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 	}
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
-	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1002.BlockNumber)),
 			BlockHash:   block1002.BlockHash,
@@ -137,16 +128,17 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 		BlockHash:   "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
 		ParentHash:  "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 	}
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{block1004.BlockHash},
-	}, ffcapi.ErrorReason(""), nil).Once()
+
+	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
+		blockHashes <- &ffcapi.BlockHashEvent{
+			BlockHashes: []string{block1004.BlockHash},
+		}
+	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
 
 	// Which then gets downloaded, and should complete the confirmation
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1004.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1004.BlockNumber)),
 			BlockHash:   block1004.BlockHash,
@@ -154,16 +146,8 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	// Subsequent calls get nothing, and blocks until close anyway
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Run(func(args mock.Arguments) {
-		if lastBlockDetected {
-			<-bcm.ctx.Done()
-		}
-	}).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Maybe()
+	// Subsequent calls get nothing
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 
 	bcm.Start()
 
@@ -195,12 +179,6 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 			confirmed <- confirmations
 		},
 	}
-	lastBlockDetected := false
-
-	// Establish the block filter
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once()
 
 	// The next filter gives us 1002, and a first 1003 block - which will later be removed
 	block1002 := &BlockInfo{
@@ -213,26 +191,28 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 		BlockHash:   "0x46210d224888265c269359529618bf2f6adb2697ff52c63c10f16a2391bdd295",
 		ParentHash:  "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 	}
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{
-			block1002.BlockHash,
-			block1003a.BlockHash,
-		},
-	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+
+	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
+	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
+		blockHashes <- &ffcapi.BlockHashEvent{
+			BlockHashes: []string{
+				block1002.BlockHash,
+				block1003a.BlockHash,
+			},
+		}
+	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1002.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1002.BlockNumber)),
 			BlockHash:   block1002.BlockHash,
 			ParentHash:  block1002.ParentHash,
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1003a.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1003a.BlockNumber)),
 			BlockHash:   block1003a.BlockHash,
@@ -251,26 +231,26 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 		BlockHash:   "0x110282339db2dfe4bfd13d78375f7883048cac6bc12f8393bd080a4e263d5d21",
 		ParentHash:  "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
 	}
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{
-			block1003b.BlockHash,
-			block1004.BlockHash,
-		},
-	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
+		blockHashes <- &ffcapi.BlockHashEvent{
+			BlockHashes: []string{
+				block1003b.BlockHash,
+				block1004.BlockHash,
+			},
+		}
+	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1003b.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1003b.BlockNumber)),
 			BlockHash:   block1003b.BlockHash,
 			ParentHash:  block1003b.ParentHash,
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1004.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1004.BlockNumber)),
 			BlockHash:   block1004.BlockHash,
@@ -278,16 +258,8 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	// Subsequent calls get nothing, and blocks until close anyway
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Run(func(args mock.Arguments) {
-		if lastBlockDetected {
-			<-bcm.ctx.Done()
-		}
-	}).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Maybe()
+	// Subsequent calls get nothing
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 
 	bcm.Start()
 
@@ -314,13 +286,13 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
 
 	confirmed := make(chan []BlockInfo, 1)
-	receiptReceived := make(chan *ffcapi.GetReceiptResponse, 1)
+	receiptReceived := make(chan *ffcapi.TransactionReceiptResponse, 1)
 	txToConfirmForkA := &TransactionInfo{
 		TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
 		Confirmed: func(confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
-		Receipt: func(receipt *ffcapi.GetReceiptResponse) {
+		Receipt: func(receipt *ffcapi.TransactionReceiptResponse) {
 			receiptReceived <- receipt
 		},
 	}
@@ -346,24 +318,37 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		BlockHash:   "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
 		ParentHash:  "0x33eb56730878a08e126f2d52b19242d3b3127dc7611447255928be91b2dda455",
 	}
-	lastBlockDetected := false
-
-	// Establish the block filter
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once()
 
 	// The next filter gives us 1002a, which will later be removed
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
+	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
+	// Notify of the first confirmation for the first receipt - 1002a
+	blockHashes <- &ffcapi.BlockHashEvent{
 		BlockHashes: []string{
 			block1002a.BlockHash,
 		},
+	}
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
+
+	// Transaction receipt is immediately available on fork A
+	mca.On("TransactionReceipt", mock.Anything, mock.MatchedBy(func(r *ffcapi.TransactionReceiptRequest) bool {
+		return r.TransactionHash == txToConfirmForkA.TransactionHash
+	})).Return(&ffcapi.TransactionReceiptResponse{
+		BlockHash:        block1002a.ParentHash,
+		BlockNumber:      fftypes.NewFFBigInt(1001),
+		TransactionIndex: fftypes.NewFFBigInt(0),
+		Success:          true,
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1002a.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Run(func(args mock.Arguments) {
+		// Next we notify of the new block 1001b
+		blockHashes <- &ffcapi.BlockHashEvent{
+			BlockHashes: []string{
+				block1001b.BlockHash,
+			},
+		}
+	}).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1002a.BlockNumber)),
 			BlockHash:   block1002a.BlockHash,
@@ -371,27 +356,9 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	// Transaction receipt is immediately available on fork A
-	mca.On("GetReceipt", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetReceiptRequest) bool {
-		return r.TransactionHash == txToConfirmForkA.TransactionHash
-	})).Return(&ffcapi.GetReceiptResponse{
-		BlockHash:        block1002a.ParentHash,
-		BlockNumber:      fftypes.NewFFBigInt(1001),
-		TransactionIndex: fftypes.NewFFBigInt(0),
-		Success:          true,
-	}, ffcapi.ErrorReason(""), nil).Once()
-
-	// Next we notify of the new block 1001b
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{
-			block1001b.BlockHash,
-		},
-	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1001b.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber:       fftypes.NewFFBigInt(int64(block1001b.BlockNumber)),
 			BlockHash:         block1001b.BlockHash,
@@ -401,24 +368,13 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil).Once()
 
 	// Transaction receipt is then found on fork B via new block header notification
-	mca.On("GetReceipt", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetReceiptRequest) bool {
+	mca.On("TransactionReceipt", mock.Anything, mock.MatchedBy(func(r *ffcapi.TransactionReceiptRequest) bool {
 		return r.TransactionHash == txToConfirmForkA.TransactionHash
-	})).Return(&ffcapi.GetReceiptResponse{
+	})).Return(&ffcapi.TransactionReceiptResponse{
 		BlockHash:        block1001b.BlockHash,
 		BlockNumber:      fftypes.NewFFBigInt(1001),
 		TransactionIndex: fftypes.NewFFBigInt(0),
 		Success:          true,
-	}, ffcapi.ErrorReason(""), nil).Once()
-
-	// We will go and ask for block 1002 again, as the hash mismatches our updated notification
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
-		return r.BlockNumber.Uint64() == 1002
-	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
-		BlockInfo: ffcapi.BlockInfo{
-			BlockNumber: fftypes.NewFFBigInt(int64(block1002b.BlockNumber)),
-			BlockHash:   block1002b.BlockHash,
-			ParentHash:  block1002b.ParentHash,
-		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
 	// Then we get the final fork up to our confirmation
@@ -432,26 +388,39 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		BlockHash:   "0x110282339db2dfe4bfd13d78375f7883048cac6bc12f8393bd080a4e263d5d21",
 		ParentHash:  "0xaf47ddbd9ba81736f808045b7fccc2179bba360573b362c82544f7360db0802e",
 	}
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{
-			block1003.BlockHash,
-			block1004.BlockHash,
+
+	// We will go and ask for block 1002 again, as the hash mismatches our updated notification
+	// Give the right answer now
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1002
+	})).Run(func(args mock.Arguments) {
+		// Notify of the new block 1003/1004
+		blockHashes <- &ffcapi.BlockHashEvent{
+			BlockHashes: []string{
+				block1003.BlockHash,
+				block1004.BlockHash,
+			},
+		}
+	}).Return(&ffcapi.BlockInfoByNumberResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1002b.BlockNumber)),
+			BlockHash:   block1002b.BlockHash,
+			ParentHash:  block1002b.ParentHash,
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1003.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1003.BlockNumber)),
 			BlockHash:   block1003.BlockHash,
 			ParentHash:  block1003.ParentHash,
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1004.BlockHash
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1004.BlockNumber)),
 			BlockHash:   block1004.BlockHash,
@@ -459,16 +428,8 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	// Subsequent calls get nothing, and blocks until close anyway
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Run(func(args mock.Arguments) {
-		if lastBlockDetected {
-			<-bcm.ctx.Done()
-		}
-	}).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Maybe()
+	// Subsequent calls get nothing
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 
 	bcm.Start()
 
@@ -505,17 +466,9 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 		},
 	}
 
-	// Establish the block filter
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once()
-
 	// We don't notify of any new blocks
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil)
+	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 
 	// Then we should walk the chain by number to fill in 1002/1003, because our HWM is 1003
 	block1002 := &BlockInfo{
@@ -533,27 +486,27 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 		BlockHash:   "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
 		ParentHash:  "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 	}
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
-	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1002.BlockNumber)),
 			BlockHash:   block1002.BlockHash,
 			ParentHash:  block1002.ParentHash,
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1003
-	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1003.BlockNumber)),
 			BlockHash:   block1003.BlockHash,
 			ParentHash:  block1003.ParentHash,
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1004
-	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1004.BlockNumber)),
 			BlockHash:   block1004.BlockHash,
@@ -599,25 +552,6 @@ func TestSortPendingEvents(t *testing.T) {
 	}, events)
 }
 
-func TestCreateBlockFilterFail(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-	bcm.done = make(chan struct{})
-	bcm.blockListenerID = "listener1"
-
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(
-		&ffcapi.CreateBlockListenerResponse{ListenerID: "listener1"},
-		ffcapi.ErrorReason(""),
-		fmt.Errorf("pop"),
-	).Once().Run(func(args mock.Arguments) {
-		bcm.cancelFunc()
-	})
-
-	bcm.confirmationsListener()
-
-	mca.AssertExpectations(t)
-}
-
 func TestConfirmationsListenerFailWalkingChain(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
@@ -633,61 +567,30 @@ func TestConfirmationsListenerFailWalkingChain(t *testing.T) {
 	}
 	bcm.addOrReplaceItem(n.eventPendingItem())
 
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once().Run(func(args mock.Arguments) {
-		bcm.cancelFunc()
-	})
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
-	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
+	})).Run(func(args mock.Arguments) {
+		bcm.cancelFunc()
+	}).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
 
 	bcm.confirmationsListener()
 
 	mca.AssertExpectations(t)
 }
 
-func TestConfirmationsListenerFailPollingBlocks(t *testing.T) {
+func TestConfirmationsListenerStalePollingBlocks(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 	bcm.done = make(chan struct{})
 
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once().Run(func(args mock.Arguments) {
+	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
+	blockHashes <- &ffcapi.BlockHashEvent{
+		GapPotential: true,
+	}
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
+	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
 		bcm.cancelFunc()
-	})
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
-
-	bcm.confirmationsListener()
-
-	mca.AssertExpectations(t)
-}
-
-func TestConfirmationsListenerLostFilterReestablish(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-	bcm.done = make(chan struct{})
-
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once().Twice()
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReasonNotFound, fmt.Errorf("pop")).Once()
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Run(func(args mock.Arguments) {
-		bcm.cancelFunc()
-	})
+	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 
 	bcm.confirmationsListener()
 
@@ -716,15 +619,9 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 		Event:            eventToConfirm,
 	})
 
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil)
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once().Run(func(args mock.Arguments) {
 		bcm.cancelFunc()
@@ -760,15 +657,9 @@ func TestConfirmationsListenerStopStream(t *testing.T) {
 		},
 	})
 
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Maybe()
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Maybe()
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Maybe()
+	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
+	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Maybe()
 
 	bcm.Start()
 
@@ -800,15 +691,9 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 		Event:            eventInfo,
 	})
 
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetNewBlockHashes", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetNewBlockHashesRequest) bool {
-		return r.ListenerID == "listener1"
-	})).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
 	})).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Run(func(args mock.Arguments) {
 		bcm.cancelFunc()
@@ -837,17 +722,11 @@ func TestConfirmationsRemoveTransaction(t *testing.T) {
 		Transaction:      txInfo,
 	})
 
-	mca.On("CreateBlockListener", mock.Anything, mock.Anything).Return(&ffcapi.CreateBlockListenerResponse{
-		ListenerID: "listener1",
-	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetNewBlockHashes", mock.Anything, mock.Anything).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetNewBlockHashes", mock.Anything, mock.Anything).Return(&ffcapi.GetNewBlockHashesResponse{
-		BlockHashes: []string{},
-	}, ffcapi.ErrorReason(""), nil).Once().Run(func(args mock.Arguments) {
+	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
+	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
+	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
 		bcm.cancelFunc()
-	})
+	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 
 	bcm.confirmationsListener()
 	<-bcm.done
@@ -871,9 +750,9 @@ func TestWalkChainForEventBlockNotInConfirmationChain(t *testing.T) {
 		},
 	}).eventPendingItem()
 
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
-	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(1002),
 			BlockHash:   "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
@@ -902,7 +781,7 @@ func TestWalkChainForEventBlockLookupFail(t *testing.T) {
 		},
 	}).eventPendingItem()
 
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
 
@@ -917,7 +796,7 @@ func TestProcessBlockHashesLookupFail(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
 	blockHash := "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8"
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == blockHash
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
 
@@ -940,18 +819,18 @@ func TestGetBlockByNumberForceLookupMismatchedBlockType(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
-	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(1002),
 			BlockHash:   "0x110282339db2dfe4bfd13d78375f7883048cac6bc12f8393bd080a4e263d5d21",
 			ParentHash:  "0xaf47ddbd9ba81736f808045b7fccc2179bba360573b362c82544f7360db0802e",
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
-	})).Return(&ffcapi.GetBlockInfoByNumberResponse{
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(1002),
 			BlockHash:   "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
@@ -980,9 +859,9 @@ func TestGetBlockByHashCached(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df"
-	})).Return(&ffcapi.GetBlockInfoByHashResponse{
+	})).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(1003),
 			BlockHash:   "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
@@ -1005,7 +884,7 @@ func TestGetBlockNotFound(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
-	mca.On("GetBlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByHashRequest) bool {
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df"
 	})).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Once()
 
@@ -1062,7 +941,7 @@ func TestCheckReceiptNotFound(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
-	mca.On("GetReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
+	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
 
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 	pending := &pendingItem{
@@ -1081,7 +960,7 @@ func TestCheckReceiptFail(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
-	mca.On("GetReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 	pending := &pendingItem{
@@ -1100,12 +979,12 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
-	mca.On("GetReceipt", mock.Anything, mock.Anything).Return(&ffcapi.GetReceiptResponse{
+	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(&ffcapi.TransactionReceiptResponse{
 		BlockNumber:      fftypes.NewFFBigInt(12345),
 		BlockHash:        "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 		TransactionIndex: fftypes.NewFFBigInt(10),
 	}, ffcapi.ErrorReason(""), nil)
-	mca.On("GetBlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.GetBlockInfoByNumberRequest) bool {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 12346
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
@@ -1129,7 +1008,7 @@ func TestStaleReceiptCheck(t *testing.T) {
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 	pending := &pendingItem{
 		pType:            pendingTypeTransaction,
-		lastReceiptcheck: time.Now().Add(-1 * time.Hour),
+		lastReceiptCheck: time.Now().Add(-1 * time.Hour),
 		transactionHash:  txHash,
 	}
 	bcm.pending[pending.getKey()] = pending

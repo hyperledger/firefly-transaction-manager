@@ -5,7 +5,7 @@ package ffcapimocks
 import (
 	context "context"
 
-	ffcapi "github.com/hyperledger/firefly-common/pkg/ffcapi"
+	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -14,28 +14,28 @@ type API struct {
 	mock.Mock
 }
 
-// CreateBlockListener provides a mock function with given fields: ctx, req
-func (_m *API) CreateBlockListener(ctx context.Context, req *ffcapi.CreateBlockListenerRequest) (*ffcapi.CreateBlockListenerResponse, ffcapi.ErrorReason, error) {
+// BlockInfoByHash provides a mock function with given fields: ctx, req
+func (_m *API) BlockInfoByHash(ctx context.Context, req *ffcapi.BlockInfoByHashRequest) (*ffcapi.BlockInfoByHashResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.CreateBlockListenerResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.CreateBlockListenerRequest) *ffcapi.CreateBlockListenerResponse); ok {
+	var r0 *ffcapi.BlockInfoByHashResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.BlockInfoByHashRequest) *ffcapi.BlockInfoByHashResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.CreateBlockListenerResponse)
+			r0 = ret.Get(0).(*ffcapi.BlockInfoByHashResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.CreateBlockListenerRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.BlockInfoByHashRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.CreateBlockListenerRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.BlockInfoByHashRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
@@ -44,28 +44,28 @@ func (_m *API) CreateBlockListener(ctx context.Context, req *ffcapi.CreateBlockL
 	return r0, r1, r2
 }
 
-// ExecQuery provides a mock function with given fields: ctx, req
-func (_m *API) ExecQuery(ctx context.Context, req *ffcapi.ExecQueryRequest) (*ffcapi.ExecQueryResponse, ffcapi.ErrorReason, error) {
+// BlockInfoByNumber provides a mock function with given fields: ctx, req
+func (_m *API) BlockInfoByNumber(ctx context.Context, req *ffcapi.BlockInfoByNumberRequest) (*ffcapi.BlockInfoByNumberResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.ExecQueryResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.ExecQueryRequest) *ffcapi.ExecQueryResponse); ok {
+	var r0 *ffcapi.BlockInfoByNumberResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.BlockInfoByNumberRequest) *ffcapi.BlockInfoByNumberResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.ExecQueryResponse)
+			r0 = ret.Get(0).(*ffcapi.BlockInfoByNumberResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.ExecQueryRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.BlockInfoByNumberRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.ExecQueryRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.BlockInfoByNumberRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
@@ -74,28 +74,28 @@ func (_m *API) ExecQuery(ctx context.Context, req *ffcapi.ExecQueryRequest) (*ff
 	return r0, r1, r2
 }
 
-// GetBlockInfoByHash provides a mock function with given fields: ctx, req
-func (_m *API) GetBlockInfoByHash(ctx context.Context, req *ffcapi.GetBlockInfoByHashRequest) (*ffcapi.GetBlockInfoByHashResponse, ffcapi.ErrorReason, error) {
+// EventListenerAdd provides a mock function with given fields: ctx, req
+func (_m *API) EventListenerAdd(ctx context.Context, req *ffcapi.EventListenerAddRequest) (*ffcapi.EventListenerAddResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.GetBlockInfoByHashResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.GetBlockInfoByHashRequest) *ffcapi.GetBlockInfoByHashResponse); ok {
+	var r0 *ffcapi.EventListenerAddResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.EventListenerAddRequest) *ffcapi.EventListenerAddResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.GetBlockInfoByHashResponse)
+			r0 = ret.Get(0).(*ffcapi.EventListenerAddResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.GetBlockInfoByHashRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.EventListenerAddRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.GetBlockInfoByHashRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.EventListenerAddRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
@@ -104,28 +104,28 @@ func (_m *API) GetBlockInfoByHash(ctx context.Context, req *ffcapi.GetBlockInfoB
 	return r0, r1, r2
 }
 
-// GetBlockInfoByNumber provides a mock function with given fields: ctx, req
-func (_m *API) GetBlockInfoByNumber(ctx context.Context, req *ffcapi.GetBlockInfoByNumberRequest) (*ffcapi.GetBlockInfoByNumberResponse, ffcapi.ErrorReason, error) {
+// EventListenerRemove provides a mock function with given fields: ctx, req
+func (_m *API) EventListenerRemove(ctx context.Context, req *ffcapi.EventListenerRemoveRequest) (*ffcapi.EventListenerRemoveResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.GetBlockInfoByNumberResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.GetBlockInfoByNumberRequest) *ffcapi.GetBlockInfoByNumberResponse); ok {
+	var r0 *ffcapi.EventListenerRemoveResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.EventListenerRemoveRequest) *ffcapi.EventListenerRemoveResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.GetBlockInfoByNumberResponse)
+			r0 = ret.Get(0).(*ffcapi.EventListenerRemoveResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.GetBlockInfoByNumberRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.EventListenerRemoveRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.GetBlockInfoByNumberRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.EventListenerRemoveRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
@@ -134,28 +134,44 @@ func (_m *API) GetBlockInfoByNumber(ctx context.Context, req *ffcapi.GetBlockInf
 	return r0, r1, r2
 }
 
-// GetGasPrice provides a mock function with given fields: ctx, req
-func (_m *API) GetGasPrice(ctx context.Context, req *ffcapi.GetGasPriceRequest) (*ffcapi.GetGasPriceResponse, ffcapi.ErrorReason, error) {
+// Events provides a mock function with given fields:
+func (_m *API) Events() <-chan *ffcapi.Event {
+	ret := _m.Called()
+
+	var r0 <-chan *ffcapi.Event
+	if rf, ok := ret.Get(0).(func() <-chan *ffcapi.Event); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(<-chan *ffcapi.Event)
+		}
+	}
+
+	return r0
+}
+
+// GasPriceEstimate provides a mock function with given fields: ctx, req
+func (_m *API) GasPriceEstimate(ctx context.Context, req *ffcapi.GasPriceEstimateRequest) (*ffcapi.GasPriceEstimateResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.GetGasPriceResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.GetGasPriceRequest) *ffcapi.GetGasPriceResponse); ok {
+	var r0 *ffcapi.GasPriceEstimateResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.GasPriceEstimateRequest) *ffcapi.GasPriceEstimateResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.GetGasPriceResponse)
+			r0 = ret.Get(0).(*ffcapi.GasPriceEstimateResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.GetGasPriceRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.GasPriceEstimateRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.GetGasPriceRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.GasPriceEstimateRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
@@ -164,28 +180,28 @@ func (_m *API) GetGasPrice(ctx context.Context, req *ffcapi.GetGasPriceRequest) 
 	return r0, r1, r2
 }
 
-// GetNewBlockHashes provides a mock function with given fields: ctx, req
-func (_m *API) GetNewBlockHashes(ctx context.Context, req *ffcapi.GetNewBlockHashesRequest) (*ffcapi.GetNewBlockHashesResponse, ffcapi.ErrorReason, error) {
+// MethodCall provides a mock function with given fields: ctx, req
+func (_m *API) MethodCall(ctx context.Context, req *ffcapi.MethodCallRequest) (*ffcapi.MethodCallResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.GetNewBlockHashesResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.GetNewBlockHashesRequest) *ffcapi.GetNewBlockHashesResponse); ok {
+	var r0 *ffcapi.MethodCallResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.MethodCallRequest) *ffcapi.MethodCallResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.GetNewBlockHashesResponse)
+			r0 = ret.Get(0).(*ffcapi.MethodCallResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.GetNewBlockHashesRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.MethodCallRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.GetNewBlockHashesRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.MethodCallRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
@@ -194,28 +210,44 @@ func (_m *API) GetNewBlockHashes(ctx context.Context, req *ffcapi.GetNewBlockHas
 	return r0, r1, r2
 }
 
-// GetNextNonce provides a mock function with given fields: ctx, req
-func (_m *API) GetNextNonce(ctx context.Context, req *ffcapi.GetNextNonceRequest) (*ffcapi.GetNextNonceResponse, ffcapi.ErrorReason, error) {
+// NewBlockHashes provides a mock function with given fields:
+func (_m *API) NewBlockHashes() <-chan *ffcapi.BlockHashEvent {
+	ret := _m.Called()
+
+	var r0 <-chan *ffcapi.BlockHashEvent
+	if rf, ok := ret.Get(0).(func() <-chan *ffcapi.BlockHashEvent); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(<-chan *ffcapi.BlockHashEvent)
+		}
+	}
+
+	return r0
+}
+
+// NextNonceForSigner provides a mock function with given fields: ctx, req
+func (_m *API) NextNonceForSigner(ctx context.Context, req *ffcapi.NextNonceForSignerRequest) (*ffcapi.NextNonceForSignerResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.GetNextNonceResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.GetNextNonceRequest) *ffcapi.GetNextNonceResponse); ok {
+	var r0 *ffcapi.NextNonceForSignerResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.NextNonceForSignerRequest) *ffcapi.NextNonceForSignerResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.GetNextNonceResponse)
+			r0 = ret.Get(0).(*ffcapi.NextNonceForSignerResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.GetNextNonceRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.NextNonceForSignerRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.GetNextNonceRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.NextNonceForSignerRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
@@ -224,28 +256,28 @@ func (_m *API) GetNextNonce(ctx context.Context, req *ffcapi.GetNextNonceRequest
 	return r0, r1, r2
 }
 
-// GetReceipt provides a mock function with given fields: ctx, req
-func (_m *API) GetReceipt(ctx context.Context, req *ffcapi.GetReceiptRequest) (*ffcapi.GetReceiptResponse, ffcapi.ErrorReason, error) {
+// TransactionPrepare provides a mock function with given fields: ctx, req
+func (_m *API) TransactionPrepare(ctx context.Context, req *ffcapi.TransactionPrepareRequest) (*ffcapi.TransactionPrepareResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.GetReceiptResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.GetReceiptRequest) *ffcapi.GetReceiptResponse); ok {
+	var r0 *ffcapi.TransactionPrepareResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.TransactionPrepareRequest) *ffcapi.TransactionPrepareResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.GetReceiptResponse)
+			r0 = ret.Get(0).(*ffcapi.TransactionPrepareResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.GetReceiptRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.TransactionPrepareRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.GetReceiptRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.TransactionPrepareRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
@@ -254,28 +286,28 @@ func (_m *API) GetReceipt(ctx context.Context, req *ffcapi.GetReceiptRequest) (*
 	return r0, r1, r2
 }
 
-// PrepareTransaction provides a mock function with given fields: ctx, req
-func (_m *API) PrepareTransaction(ctx context.Context, req *ffcapi.PrepareTransactionRequest) (*ffcapi.PrepareTransactionResponse, ffcapi.ErrorReason, error) {
+// TransactionReceipt provides a mock function with given fields: ctx, req
+func (_m *API) TransactionReceipt(ctx context.Context, req *ffcapi.TransactionReceiptRequest) (*ffcapi.TransactionReceiptResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.PrepareTransactionResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.PrepareTransactionRequest) *ffcapi.PrepareTransactionResponse); ok {
+	var r0 *ffcapi.TransactionReceiptResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.TransactionReceiptRequest) *ffcapi.TransactionReceiptResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.PrepareTransactionResponse)
+			r0 = ret.Get(0).(*ffcapi.TransactionReceiptResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.PrepareTransactionRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.TransactionReceiptRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.PrepareTransactionRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.TransactionReceiptRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
@@ -284,28 +316,28 @@ func (_m *API) PrepareTransaction(ctx context.Context, req *ffcapi.PrepareTransa
 	return r0, r1, r2
 }
 
-// SendTransaction provides a mock function with given fields: ctx, req
-func (_m *API) SendTransaction(ctx context.Context, req *ffcapi.SendTransactionRequest) (*ffcapi.SendTransactionResponse, ffcapi.ErrorReason, error) {
+// TransactionSend provides a mock function with given fields: ctx, req
+func (_m *API) TransactionSend(ctx context.Context, req *ffcapi.TransactionSendRequest) (*ffcapi.TransactionSendResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
-	var r0 *ffcapi.SendTransactionResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.SendTransactionRequest) *ffcapi.SendTransactionResponse); ok {
+	var r0 *ffcapi.TransactionSendResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.TransactionSendRequest) *ffcapi.TransactionSendResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.SendTransactionResponse)
+			r0 = ret.Get(0).(*ffcapi.TransactionSendResponse)
 		}
 	}
 
 	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.SendTransactionRequest) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.TransactionSendRequest) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.SendTransactionRequest) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.TransactionSendRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)

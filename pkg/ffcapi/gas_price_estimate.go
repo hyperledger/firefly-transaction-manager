@@ -14,14 +14,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package ffcapi
 
-import (
-	"context"
+import "github.com/hyperledger/firefly-common/pkg/fftypes"
 
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-)
+type GasPriceEstimateRequest struct {
+}
 
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
+type GasPriceEstimateResponse struct {
+	GasPrice *fftypes.JSONAny `json:"gasPrice"`
 }

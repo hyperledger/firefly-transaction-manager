@@ -14,14 +14,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package ffcapi
 
 import (
-	"context"
-
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
+// NextNonceForSignerRequest used to do a query for the next nonce to use for a
+// given signing identity. This is only used when there are no pending
+// operations outstanding for this signer known to the transaction manager.
+type NextNonceForSignerRequest struct {
+	Signer string `json:"signer"`
+}
+
+type NextNonceForSignerResponse struct {
+	Nonce *fftypes.FFBigInt `json:"nonce"`
 }

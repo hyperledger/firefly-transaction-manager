@@ -14,14 +14,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package ffcapi
 
-import (
-	"context"
+type BlockInfoByHashRequest struct {
+	BlockHash string `json:"blockHash"`
+}
 
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-)
-
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
+type BlockInfoByHashResponse struct {
+	BlockInfo
 }

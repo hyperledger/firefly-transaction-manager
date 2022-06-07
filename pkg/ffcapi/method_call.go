@@ -14,14 +14,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package ffcapi
 
 import (
-	"context"
-
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
+// MethodCallRequest requests execution of a smart contract method in order to either:
+// 1) Query state
+// 2) Attempt to extract the revert reason from an on-chain failure to execute a transaction
+//
+// See the list of standard error reasons that should be returned for situations that can be
+// detected by the back-end connector.
+type MethodCallRequest struct {
+	TransactionInput
+	BlockNumber *fftypes.FFBigInt `json:"blockNumber,omitempty"`
+}
+
+type MethodCallResponse struct {
+	Outputs *fftypes.JSONAny `json:"outputs"`
 }

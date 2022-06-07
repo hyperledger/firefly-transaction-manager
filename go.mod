@@ -9,8 +9,6 @@ require (
 	github.com/hyperledger/firefly v1.0.1-0.20220505194321-9f59036d0b4e
 	github.com/hyperledger/firefly-common v0.1.2
 	github.com/sirupsen/logrus v1.8.1
-	github.com/spf13/cobra v1.3.0
 	github.com/spf13/viper v1.11.0
 	github.com/stretchr/testify v1.7.1
-	gopkg.in/yaml.v2 v2.4.0
 )

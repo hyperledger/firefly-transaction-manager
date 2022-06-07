@@ -18,7 +18,6 @@ package tmconfig
 
 import (
 	"github.com/hyperledger/firefly-common/pkg/config"
-	"github.com/hyperledger/firefly-common/pkg/ffresty"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-common/pkg/wsclient"
 	"github.com/hyperledger/firefly/pkg/core"
@@ -60,8 +59,6 @@ var (
 	PolicyEngineName = ffc("policyengine.name")
 )
 
-var ConnectorPrefix config.Prefix
-
 var FFCorePrefix config.Prefix
 
 var APIPrefix config.Prefix
@@ -92,9 +89,6 @@ func setDefaults() {
 
 func Reset() {
 	config.RootConfigReset(setDefaults)
-
-	ConnectorPrefix = config.NewPluginConfig("connector")
-	ffresty.InitPrefix(ConnectorPrefix)
 
 	FFCorePrefix = config.NewPluginConfig("ffcore")
 	wsclient.InitPrefix(FFCorePrefix)

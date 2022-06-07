@@ -14,14 +14,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package ffcapi
 
 import (
-	"context"
-
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
-type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
+type TransactionReceiptRequest struct {
+	TransactionHash string `json:"transactionHash"`
+}
+
+type TransactionReceiptResponse struct {
+	BlockNumber      *fftypes.FFBigInt `json:"blockNumber"`
+	TransactionIndex *fftypes.FFBigInt `json:"transactionIndex"`
+	BlockHash        string            `json:"blockHash"`
+	Success          bool              `json:"success"`
+	ExtraInfo        fftypes.JSONAny   `json:"extraInfo"`
 }
