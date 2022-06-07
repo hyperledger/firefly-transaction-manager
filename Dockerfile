@@ -1,4 +1,4 @@
-FROM golang:1.16-buster AS builder
+FROM golang:1.17-buster AS builder
 ARG BUILD_VERSION
 ENV BUILD_VERSION=${BUILD_VERSION}
 ADD . /fftm
