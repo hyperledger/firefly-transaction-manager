@@ -39,7 +39,7 @@ type Stream interface {
 	AddOrUpdateListener(ctx context.Context, s *fftm.Listener) error       // Add or update a listener
 	RemoveListener(ctx context.Context, id *fftypes.UUID) error            // Stop and remove a listener
 	UpdateDefinition(ctx context.Context, updates *fftm.EventStream) error // Apply definition updates (if there are changes)
-	Definition() *fftm.EventStream                                         // Retrieve the current definition to persist
+	Definition() *fftm.EventStream                                         // Retrieve the merged definition to persist
 	Start(ctx context.Context) error                                       // Start delivery
 	Stop(ctx context.Context) error                                        // Stop delivery (does not remove checkpoints)
 	Delete(ctx context.Context) error                                      // Stop delivery, and clean up any checkpoint
@@ -243,14 +243,14 @@ func (es *eventStream) UpdateDefinition(ctx context.Context, updates *fftm.Event
 
 	es.mux.Lock()
 	es.spec = merged
-	defer es.mux.Unlock()
+	es.mux.Unlock()
 
 	if changed {
 		if err := es.Stop(ctx); err != nil {
-			return i18n.NewError(ctx, tmmsgs.MsgStopFailedUpdatingESConfig)
+			return i18n.NewError(ctx, tmmsgs.MsgStopFailedUpdatingESConfig, err)
 		}
 		if err := es.Start(ctx); err != nil {
-			return i18n.NewError(ctx, tmmsgs.MsgStartFailedUpdatingESConfig)
+			return i18n.NewError(ctx, tmmsgs.MsgStartFailedUpdatingESConfig, err)
 		}
 	}
 
@@ -289,7 +289,7 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *fftm.Liste
 		FromBlock: spec.FromBlock,
 	}, spec.Options)
 	if err != nil {
-		return err
+		return i18n.NewError(ctx, tmmsgs.MsgBadListenerOptions, err)
 	}
 
 	// Check if this is a new listener, an update, or a no-op
@@ -298,6 +298,7 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *fftm.Liste
 	if exists {
 		if mergedOptions == l.options && safeCompareFilterList(spec.Filters, l.filters) {
 			log.L(ctx).Infof("Event listener already configured on stream")
+			es.mux.Unlock()
 			return nil
 		}
 		l.options = mergedOptions
@@ -366,13 +367,15 @@ func (es *eventStream) Start(ctx context.Context) error {
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.currentState = startedState
 	es.initAction(startedState)
+	go es.eventLoop(startedState)
+	var lastErr error
 	for _, l := range es.listeners {
 		if err := l.start(startedState); err != nil {
-			return err
+			log.L(ctx).Errorf("Failed to start event listener %s: %s", l.id, err)
+			lastErr = err
 		}
 	}
-	go es.eventLoop(startedState)
-	return nil
+	return lastErr
 }
 
 func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, error) {
@@ -384,9 +387,6 @@ func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, er
 	}
 	log.L(ctx).Infof("Stopping event stream %s", es)
 
-	if startedState == nil {
-		return nil, nil
-	}
 	// Cancel the context, stop stop the event loop, and shut down the action (WebSockets in particular)
 	startedState.cancelCtx()
 
@@ -394,6 +394,7 @@ func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, er
 	for _, l := range es.listeners {
 		err := l.stop(startedState)
 		if err != nil {
+			_ = es.checkSetStateLocked(ctx, streamStateStopping, streamStateStarted) // restore started state
 			return nil, err
 		}
 	}

@@ -32,7 +32,7 @@ import (
 // WebSocketChannels is provided to allow us to do a blocking send to a namespace that will complete once a client connects on it
 // We also provide a channel to listen on for closing of the connection, to allow a select to wake on a blocking send
 type WebSocketChannels interface {
-	GetChannels(topic string) (chan<- interface{}, chan<- interface{}, <-chan error)
+	GetChannels(topic string) (senderChannel chan<- interface{}, broadcastChannel chan<- interface{}, receiverChannel <-chan error)
 	SendReply(message interface{})
 }
 

@@ -19,10 +19,15 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
@@ -40,18 +45,37 @@ func testESConf(t *testing.T, j string) (spec *fftm.EventStream) {
 	return spec
 }
 
-func newTestEventStream(t *testing.T) (es *eventStream) {
+func newTestEventStream(t *testing.T, conf string) (es *eventStream) {
 	tmconfig.Reset()
+	config.Set(tmconfig.EventStreamsDefaultsBatchTimeout, "1us")
 	InitDefaults()
-	ees, err := NewEventStream(context.Background(), testESConf(t, `{
-		"name": "ut_stream"
-	}`),
+	ees, err := NewEventStream(context.Background(), testESConf(t, conf),
 		&ffcapimocks.API{},
 		&persistencemocks.EventStreamPersistence{},
 		&confirmationsmocks.Manager{},
 		&wsmocks.WebSocketChannels{})
 	assert.NoError(t, err)
 	return ees.(*eventStream)
+}
+
+func mockWSChannels(es *eventStream) (chan interface{}, chan interface{}, chan error) {
+	wsc := es.wsChannels.(*wsmocks.WebSocketChannels)
+	senderChannel := make(chan interface{}, 1)
+	broadcastChannel := make(chan interface{}, 1)
+	receiverChannel := make(chan error, 1)
+	wsc.On("GetChannels", "ut_stream").Return((chan<- interface{})(senderChannel), (chan<- interface{})(broadcastChannel), (<-chan error)(receiverChannel))
+	return senderChannel, broadcastChannel, receiverChannel
+}
+
+func TestNewTestEventStreamBadConfig(t *testing.T) {
+	tmconfig.Reset()
+	InitDefaults()
+	_, err := NewEventStream(context.Background(), testESConf(t, `{}`),
+		&ffcapimocks.API{},
+		&persistencemocks.EventStreamPersistence{},
+		&confirmationsmocks.Manager{},
+		&wsmocks.WebSocketChannels{})
+	assert.Regexp(t, "FF21028", err)
 }
 
 func TestConfigNewDefaultsUpdate(t *testing.T) {
@@ -129,15 +153,6 @@ func TestConfigNewDefaultsUpdate(t *testing.T) {
 
 }
 
-func TestConfigNewMissingName(t *testing.T) {
-	tmconfig.Reset()
-	InitDefaults()
-
-	_, _, err := mergeValidateEsConfig(context.Background(), nil, testESConf(t, `{}`))
-	assert.Regexp(t, "FF21028", err)
-
-}
-
 func TestConfigNewMissingWebhookConf(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
@@ -148,6 +163,37 @@ func TestConfigNewMissingWebhookConf(t *testing.T) {
 		"websocket": {}
 	}`))
 	assert.Regexp(t, "FF21030", err)
+
+}
+
+func TestConfigBadWebSocketDistModeConf(t *testing.T) {
+	tmconfig.Reset()
+	InitDefaults()
+
+	_, _, err := mergeValidateEsConfig(context.Background(), nil, testESConf(t, `{
+		"name": "test",
+		"type": "websocket",
+		"websocket": {
+			"distributionMode":"wrong"
+		}
+	}`))
+	assert.Regexp(t, "FF21034", err)
+
+}
+
+func TestConfigWebSocketBroadcast(t *testing.T) {
+	tmconfig.Reset()
+	InitDefaults()
+
+	es, _, err := mergeValidateEsConfig(context.Background(), nil, testESConf(t, `{
+		"name": "test",
+		"type": "websocket",
+		"websocket": {
+			"distributionMode":"broadcast"
+		}
+	}`))
+	assert.NoError(t, err)
+	assert.Equal(t, fftm.DistributionModeBroadcast, *es.WebSocket.DistributionMode)
 
 }
 
@@ -182,9 +228,24 @@ func TestConfigNewWebhookRetryMigration(t *testing.T) {
 
 }
 
-func TestEventStreamsE2EMigrationThenStart(t *testing.T) {
+func TestInitActionBadAction(t *testing.T) {
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+	badType := fftm.EventStreamType("wrong")
+	es.spec.Type = &badType
+	assert.Panics(t, func() {
+		es.initAction(&startedStreamState{
+			ctx: context.Background(),
+		})
+	})
+}
 
-	es := newTestEventStream(t)
+func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
 
 	addr := "0x12345"
 	l := &fftm.Listener{
@@ -204,29 +265,22 @@ func TestEventStreamsE2EMigrationThenStart(t *testing.T) {
 		return customOptions.JSONObject().GetString("option1") == "value1"
 	})).Return(*fftypes.JSONAnyPtr(`{"option1":"value1","option2":"value2"}`), nil)
 
-	started := make(chan struct{})
+	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
-		assert.NotNil(t, r.Done)
-		assert.NotNil(t, r.EventStream)
-		assert.JSONEq(t, `{
-			"event": {"event":"definition"},
-			"address": "0x12345"
-		}`, r.Filters[0].String())
-		assert.JSONEq(t, `{
-			"option1":"value1",
-			"option2":"value2"
-		}`, r.Options.String())
+		started <- r
 		return r.ID.Equals(l.ID)
-	})).Run(func(args mock.Arguments) {
-		close(started)
-	}).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
+	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
 
-	stopped := make(chan struct{})
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
 		return r.ID.Equals(l.ID)
-	})).Run(func(args mock.Arguments) {
-		close(stopped)
-	}).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+
+	msp := es.persistence.(*persistencemocks.EventStreamPersistence)
+	msp.On("StoreCheckpoint", mock.Anything, mock.MatchedBy(func(cp *persistence.EventStreamCheckpoint) bool {
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].JSONObject().GetString("cp1data") == "stuff"
+	})).Return(nil)
+
+	senderChannel, _, receiverChannel := mockWSChannels(es)
 
 	err := es.AddOrUpdateListener(es.bgCtx, l)
 	assert.NoError(t, err)
@@ -234,12 +288,466 @@ func TestEventStreamsE2EMigrationThenStart(t *testing.T) {
 	err = es.Start(es.bgCtx)
 	assert.NoError(t, err)
 
-	<-started
+	r := <-started
+
+	assert.JSONEq(t, `{
+			"event": {"event":"definition"},
+			"address": "0x12345"
+		}`, r.Filters[0].String())
+	assert.JSONEq(t, `{
+			"option1":"value1",
+			"option2":"value2"
+		}`, r.Options.String())
+
+	r.EventStream <- &ffcapi.ListenerUpdate{
+		ListenerID: l.ID,
+		Checkpoint: fftypes.JSONAnyPtr(`{"cp1data": "stuff"}`),
+		Events: []*ffcapi.Event{
+			{
+				Data:       fftypes.JSONAnyPtr(`{"k1":"v1"}`),
+				ProtocolID: "000000000042/000013/000001",
+				Info:       fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
+			},
+		},
+	}
+
+	batch1 := (<-senderChannel).([]*ffcapi.EventWithContext)
+	assert.Len(t, batch1, 1)
+	assert.Equal(t, "v1", batch1[0].Data.JSONObject().GetString("k1"))
+
+	receiverChannel <- nil // ack
 
 	err = es.Stop(es.bgCtx)
 	assert.NoError(t, err)
 
-	<-stopped
+	<-r.Done
 
 	mfc.AssertExpectations(t)
+}
+
+func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
+
+	receivedWebhook := make(chan []*ffcapi.EventWithContext, 1)
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/test/path", r.URL.Path)
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "application/json", r.Header.Get("content-type"))
+		var events []*ffcapi.EventWithContext
+		err := json.NewDecoder(r.Body).Decode(&events)
+		assert.NoError(t, err)
+		receivedWebhook <- events
+	}))
+	defer s.Close()
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream",
+		"type": "webhook",
+		"webhook": {
+			"url": "`+fmt.Sprintf("http://%s/test/path", s.Listener.Addr())+`"
+		}
+	}`)
+
+	l := &fftm.Listener{
+		ID:   fftypes.NewUUID(),
+		Name: "ut_listener",
+		Filters: []fftypes.JSONAny{
+			`{"event":"definition1"}`,
+			`{"event":"definition2"}`,
+		},
+		Options:   fftypes.JSONAnyPtr(`{"option1":"value1"}`),
+		FromBlock: "12345",
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.MatchedBy(func(standard *ffcapi.ListenerOptions) bool {
+		return standard.FromBlock == "12345"
+	}), mock.MatchedBy(func(customOptions *fftypes.JSONAny) bool {
+		return customOptions.JSONObject().GetString("option1") == "value1"
+	})).Return(*fftypes.JSONAnyPtr(`{"option1":"value1","option2":"value2"}`), nil)
+
+	started := make(chan *ffcapi.EventListenerAddRequest, 1)
+	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
+		started <- r
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
+
+	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+
+	msp := es.persistence.(*persistencemocks.EventStreamPersistence)
+	msp.On("StoreCheckpoint", mock.Anything, mock.MatchedBy(func(cp *persistence.EventStreamCheckpoint) bool {
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].JSONObject().GetString("cp1data") == "stuff"
+	})).Return(nil)
+
+	err := es.AddOrUpdateListener(es.bgCtx, l)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	r := <-started
+
+	assert.JSONEq(t, `{"event":"definition1"}`, r.Filters[0].String())
+	assert.JSONEq(t, `{"event":"definition2"}`, r.Filters[1].String())
+	assert.JSONEq(t, `{
+			"option1":"value1",
+			"option2":"value2"
+		}`, r.Options.String())
+
+	r.EventStream <- &ffcapi.ListenerUpdate{
+		ListenerID: l.ID,
+		Checkpoint: fftypes.JSONAnyPtr(`{"cp1data": "stuff"}`),
+		Events: []*ffcapi.Event{
+			{
+				Data:       fftypes.JSONAnyPtr(`{"k1":"v1"}`),
+				ProtocolID: "000000000042/000013/000001",
+				Info:       fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
+			},
+		},
+	}
+
+	batch1 := <-receivedWebhook
+	assert.Len(t, batch1, 1)
+	assert.Equal(t, "v1", batch1[0].Data.JSONObject().GetString("k1"))
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	<-r.Done
+
+	mfc.AssertExpectations(t)
+}
+
+func TestConnectorRejectListener(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	l := &fftm.Listener{
+		ID:      fftypes.NewUUID(),
+		Name:    "ut_listener",
+		Filters: []fftypes.JSONAny{`badness`},
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), fmt.Errorf("pop"))
+
+	err := es.AddOrUpdateListener(es.bgCtx, l)
+	assert.Regexp(t, "FF21040.*pop", err)
+
+	mfc.AssertExpectations(t)
+}
+
+func TestUpdateStreamStarted(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	l := &fftm.Listener{
+		ID:      fftypes.NewUUID(),
+		Name:    "ut_listener",
+		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+
+	started := make(chan *ffcapi.EventListenerAddRequest, 1)
+	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
+		started <- r
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil).Twice()
+
+	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
+
+	err := es.AddOrUpdateListener(es.bgCtx, l)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	r := <-started
+
+	defNoChange := testESConf(t, `{
+		"name": "ut_stream"
+	}`)
+	err = es.UpdateDefinition(context.Background(), defNoChange)
+	assert.NoError(t, err)
+
+	defChanged := testESConf(t, `{
+		"name": "ut_stream2"
+	}`)
+	err = es.UpdateDefinition(context.Background(), defChanged)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "ut_stream2", *es.Definition().Name)
+
+	<-r.Done
+	r = <-started
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	<-r.Done
+
+	mfc.AssertExpectations(t)
+}
+
+func TestUpdateListenerStarted(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	l1 := &fftm.Listener{
+		ID:      fftypes.NewUUID(),
+		Name:    "ut_listener",
+		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil).Times(3)
+
+	started := make(chan *ffcapi.EventListenerAddRequest, 1)
+	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
+		started <- r
+		return r.ID.Equals(l1.ID)
+	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil).Twice()
+
+	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
+		return r.ID.Equals(l1.ID)
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
+
+	err := es.AddOrUpdateListener(es.bgCtx, l1)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	r := <-started
+
+	// Double add the same
+	err = es.AddOrUpdateListener(es.bgCtx, l1)
+	assert.NoError(t, err)
+
+	l2 := &fftm.Listener{
+		ID:      l1.ID,
+		Name:    "ut_listener",
+		Filters: []fftypes.JSONAny{`{"event":"definition2"}`},
+	}
+
+	// Change the event definition
+	err = es.AddOrUpdateListener(es.bgCtx, l2)
+	assert.NoError(t, err)
+
+	r = <-started
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	<-r.Done
+
+	mfc.AssertExpectations(t)
+}
+
+func TestUpdateListenerFail(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	l1 := &fftm.Listener{
+		ID:      fftypes.NewUUID(),
+		Name:    "ut_listener",
+		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil).Times(3)
+
+	started := make(chan *ffcapi.EventListenerAddRequest, 1)
+	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
+		started <- r
+		return r.ID.Equals(l1.ID)
+	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
+	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
+		return r.ID.Equals(l1.ID)
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	err := es.AddOrUpdateListener(es.bgCtx, l1)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	r := <-started
+
+	// Double add the same
+	err = es.AddOrUpdateListener(es.bgCtx, l1)
+	assert.NoError(t, err)
+
+	l2 := &fftm.Listener{
+		ID:      l1.ID,
+		Name:    "ut_listener",
+		Filters: []fftypes.JSONAny{`{"event":"definition2"}`},
+	}
+
+	err = es.AddOrUpdateListener(es.bgCtx, l2)
+	assert.Regexp(t, "pop", err)
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	<-r.Done
+
+	mfc.AssertExpectations(t)
+}
+
+func TestUpdateEventStreamBad(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "old_name"
+	}`)
+
+	defNoChange := testESConf(t, `{
+		"name": "new_name",
+		"type": "wrong"
+	}`)
+	err := es.UpdateDefinition(context.Background(), defNoChange)
+	assert.Regexp(t, "FF21029", err)
+
+	assert.Equal(t, "old_name", *es.Definition().Name)
+
+}
+
+func TestUpdateStreamRestartFail(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	l := &fftm.Listener{
+		ID:      fftypes.NewUUID(),
+		Name:    "ut_listener",
+		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+
+	started := make(chan *ffcapi.EventListenerAddRequest, 1)
+	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
+		started <- r
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
+
+	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
+
+	err := es.AddOrUpdateListener(es.bgCtx, l)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	r := <-started
+
+	defChanged := testESConf(t, `{
+		"name": "ut_stream2"
+	}`)
+	err = es.UpdateDefinition(context.Background(), defChanged)
+	assert.Regexp(t, "FF21032.*pop", err)
+
+	<-r.Done
+	r = <-started
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	<-r.Done
+
+	mfc.AssertExpectations(t)
+}
+
+func TestUpdateStreamStopFail(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	l := &fftm.Listener{
+		ID:      fftypes.NewUUID(),
+		Name:    "ut_listener",
+		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+
+	started := make(chan *ffcapi.EventListenerAddRequest, 1)
+	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
+		started <- r
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
+
+	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	err := es.AddOrUpdateListener(es.bgCtx, l)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	r := <-started
+
+	defChanged := testESConf(t, `{
+		"name": "ut_stream2"
+	}`)
+	err = es.UpdateDefinition(context.Background(), defChanged)
+	assert.Regexp(t, "FF21031.*pop", err)
+
+	<-r.Done
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	<-r.Done
+
+	mfc.AssertExpectations(t)
+}
+
+func TestStopWhenNotStarted(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	err := es.Stop(es.bgCtx)
+	assert.Regexp(t, "FF21027", err)
+
+}
+
+func TestSafeCompareFilterListDiffLen(t *testing.T) {
+	assert.False(t, safeCompareFilterList([]fftypes.JSONAny{}, []fftypes.JSONAny{`{}`}))
 }
