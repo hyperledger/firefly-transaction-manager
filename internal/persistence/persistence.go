@@ -14,36 +14,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package events
+package persistence
 
 import (
 	"context"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 )
 
-type listener struct {
-	definition *fftm.Listener
-	checkpoint *fftypes.JSONAny
+type EventStreamCheckpoint struct {
+	StreamID  *fftypes.UUID                     `json:"streamId"`
+	Time      *fftypes.FFTime                   `json:"time"`
+	Listeners map[fftypes.UUID]*fftypes.JSONAny `json:"listeners"`
 }
 
-func (l *listener) Checkpoint() *fftypes.JSONAny {
-	return l.checkpoint
-}
-
-func (l *listener) UpdateCheckpoint(cp *fftypes.JSONAny) {
-	l.checkpoint = cp
-}
-
-func (l *listener) Start(ctx context.Context) error {
-	return nil
-}
-
-func (l *listener) RequestStop(ctx context.Context) {
-
-}
-
-func (l *listener) WaitStopped(ctx context.Context) {
-
+type EventStreamPersistence interface {
+	StoreCheckpoint(ctx context.Context, checkpoint *EventStreamCheckpoint) error
+	ReadCheckpoint(ctx context.Context, streamID *fftypes.UUID) (*EventStreamCheckpoint, error)
+	DeleteCheckpoint(ctx context.Context, streamID *fftypes.UUID) error
 }

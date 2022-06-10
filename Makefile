@@ -31,9 +31,11 @@ mocks-$(strip $(1))-$(strip $(2)): ${MOCKERY}
 	${MOCKERY} --case underscore --dir $(1) --name $(2) --outpkg $(3) --output mocks/$(strip $(3))
 endef
 
-$(eval $(call makemock, pkg/ffcapi,                  API,                 ffcapimocks))
-$(eval $(call makemock, pkg/policyengine,            PolicyEngine,        policyenginemocks))
-$(eval $(call makemock, internal/confirmations,      Manager,             confirmationsmocks))
+$(eval $(call makemock, pkg/ffcapi,             API,                    ffcapimocks))
+$(eval $(call makemock, pkg/policyengine,       PolicyEngine,           policyenginemocks))
+$(eval $(call makemock, internal/confirmations, Manager,                confirmationsmocks))
+$(eval $(call makemock, internal/persistence,   EventStreamPersistence, persistencemocks))
+$(eval $(call makemock, internal/ws,            WebSocketChannels,      wsmocks))
 
 go-mod-tidy: .ALWAYS
 		$(VGO) mod tidy

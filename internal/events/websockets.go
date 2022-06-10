@@ -68,7 +68,7 @@ func newWebSocketAction(parentCtx context.Context, wsChannels ws.WebSocketChanne
 }
 
 // attemptBatch attempts to deliver a batch over socket IO
-func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.Event) error {
+func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
 	var err error
 
 	// Get a blocking channel to send and receive on our chosen namespace

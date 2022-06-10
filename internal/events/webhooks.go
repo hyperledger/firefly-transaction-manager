@@ -92,7 +92,7 @@ func newWebhookAction(ctx context.Context, spec *fftm.WebhookConfig) *webhookAct
 }
 
 // attemptWebhookAction performs a single attempt of a webhook action
-func (w *webhookAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.Event) error {
+func (w *webhookAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
 	// We perform DNS resolution before each attempt, to exclude private IP address ranges from the target
 	u, _ := url.Parse(*w.spec.URL)
 	addr, err := net.ResolveIPAddr("ip4", u.Hostname())

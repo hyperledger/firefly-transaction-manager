@@ -74,10 +74,21 @@ type BlockHashEvent struct {
 // The implementation is responsible for ensuring all events on a listener are
 // ordered on to this channel in the exact sequence from the blockchain.
 type Event struct {
-	ListenerID *fftypes.UUID    `json:"listenerId"` // the ID of the event listener for this event
 	Data       *fftypes.JSONAny `json:"data"`       // the JSON data to deliver for this event (can be array or object structure)
 	ProtocolID string           `json:"protocolId"` // a protocol identifier for the event, that is string sortable per https://hyperledger.github.io/firefly/reference/types/blockchainevent.html#protocol-id
 	Info       *fftypes.JSONAny `json:"info"`       // additional blockchain specific information
+}
+
+type EventWithContext struct {
+	StreamID   *fftypes.UUID `json:"streamId"`   // the ID of the event stream for this event
+	ListenerID *fftypes.UUID `json:"listenerId"` // the ID of the event listener for this event
+	Event
+}
+
+type ListenerUpdate struct {
+	ListenerID *fftypes.UUID    `json:"listenerId"`       // the ID of the event listener for this update - expected to be the same for all events in the events array
+	Checkpoint *fftypes.JSONAny `json:"checkpoint"`       // checkpoint information for the listener. This should be supplied regularly even if there are no events, to minimize recovery time after restart
+	Events     []*Event         `json:"events,omitempty"` // zero or more events. Can be nil for checkpoint-only updates
 }
 
 // ErrorReason are a set of standard error conditions that a blockchain connector can return

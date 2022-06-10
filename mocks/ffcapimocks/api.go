@@ -159,22 +159,6 @@ func (_m *API) EventListenerVerifyOptions(ctx context.Context, options *fftypes.
 	return r0, r1
 }
 
-// Events provides a mock function with given fields:
-func (_m *API) Events() <-chan *ffcapi.Event {
-	ret := _m.Called()
-
-	var r0 <-chan *ffcapi.Event
-	if rf, ok := ret.Get(0).(func() <-chan *ffcapi.Event); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(<-chan *ffcapi.Event)
-		}
-	}
-
-	return r0
-}
-
 // GasPriceEstimate provides a mock function with given fields: ctx, req
 func (_m *API) GasPriceEstimate(ctx context.Context, req *ffcapi.GasPriceEstimateRequest) (*ffcapi.GasPriceEstimateResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)

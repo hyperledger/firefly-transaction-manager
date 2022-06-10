@@ -27,6 +27,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-common/pkg/retry"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
@@ -34,13 +35,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 )
 
-type EventStreamPersistence interface {
-	StoreCheckpoint(ctx context.Context, streamID *fftypes.UUID, listenerID *fftypes.UUID, checkpoint *fftypes.JSONAny) error
-	ReadCheckpoint(ctx context.Context, streamID *fftypes.UUID, listenerID *fftypes.UUID) (*fftypes.JSONAny, error)
-	DeleteCheckpoint(ctx context.Context, streamID *fftypes.UUID, listenerID *fftypes.UUID) error
-}
-
-type EventStream interface {
+type Stream interface {
 	AddOrUpdateListener(ctx context.Context, s *fftm.Listener) error       // Add or update a listener
 	RemoveListener(ctx context.Context, id *fftypes.UUID) error            // Stop and remove a listener
 	UpdateDefinition(ctx context.Context, updates *fftm.EventStream) error // Apply definition updates (if there are changes)
@@ -88,12 +83,13 @@ func InitDefaults() {
 }
 
 type eventStreamAction interface {
-	attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.Event) error
+	attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error
 }
 
 type eventStreamBatch struct {
 	number         int
-	events         []*ffcapi.Event
+	events         []*ffcapi.EventWithContext
+	checkpoints    map[fftypes.UUID]*fftypes.JSONAny
 	timeoutContext context.Context
 	timeoutCancel  func()
 }
@@ -104,7 +100,7 @@ type eventStream struct {
 	mux           sync.Mutex
 	state         streamState
 	connector     ffcapi.API
-	persistence   EventStreamPersistence
+	persistence   persistence.EventStreamPersistence
 	confirmations confirmations.Manager
 	listeners     map[fftypes.UUID]*listener
 	wsChannels    ws.WebSocketChannels
@@ -114,7 +110,7 @@ type eventStream struct {
 		cancelCtx     func()
 		action        eventStreamAction
 		eventLoopDone chan struct{}
-		events        chan *ffcapi.Event
+		updates       chan *ffcapi.ListenerUpdate
 	}
 }
 
@@ -122,10 +118,10 @@ func NewEventStream(
 	bgCtx context.Context,
 	persistedSpec *fftm.EventStream,
 	connector ffcapi.API,
-	persistence EventStreamPersistence,
+	persistence persistence.EventStreamPersistence,
 	confirmations confirmations.Manager,
 	wsChannels ws.WebSocketChannels,
-) (ees EventStream, err error) {
+) (ees Stream, err error) {
 	es := &eventStream{
 		bgCtx:         log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String()),
 		state:         streamStateStopped,
@@ -296,7 +292,7 @@ func (es *eventStream) Start(ctx context.Context) error {
 	es.startedState.ctx, es.startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.initAction()
 	es.startedState.eventLoopDone = make(chan struct{})
-	es.startedState.events = make(chan *ffcapi.Event, int(*es.spec.BatchSize))
+	es.startedState.updates = make(chan *ffcapi.ListenerUpdate, int(*es.spec.BatchSize))
 	go es.eventLoop()
 	return nil
 }
@@ -354,10 +350,8 @@ func (es *eventStream) Delete(ctx context.Context) error {
 	// If we error out, that way the caller can retry.
 	es.mux.Lock()
 	defer es.mux.Unlock()
-	for _, l := range es.listeners {
-		if err := es.persistence.DeleteCheckpoint(ctx, es.spec.ID, l.ID()); err != nil {
-			return err
-		}
+	if err := es.persistence.DeleteCheckpoint(ctx, es.spec.ID); err != nil {
+		return err
 	}
 	return es.checkSetStateLocked(ctx, streamStateStopped, streamStateDeleted)
 }
@@ -379,22 +373,43 @@ func (es *eventStream) eventLoop() {
 			timeoutContext = ctx
 		}
 		select {
-		case event := <-es.startedState.events:
+		case update := <-es.startedState.updates:
 			if batch == nil {
 				batchNumber++
-				batch = &eventStreamBatch{number: batchNumber}
+				batch = &eventStreamBatch{
+					number:      batchNumber,
+					checkpoints: make(map[fftypes.UUID]*fftypes.JSONAny),
+				}
 				batch.timeoutContext, batch.timeoutCancel = context.WithTimeout(ctx, batchTimeout)
 			}
-			batch.events = append(batch.events, event)
+			if update.Checkpoint != nil {
+				batch.checkpoints[*update.ListenerID] = update.Checkpoint
+			}
+			for _, event := range update.Events {
+				batch.events = append(batch.events, &ffcapi.EventWithContext{
+					StreamID:   es.spec.ID,
+					ListenerID: update.ListenerID,
+					Event:      *event,
+				})
+			}
 		case <-timeoutContext.Done():
+			if batch == nil {
+				// The started context exited, we are stopping
+				log.L(ctx).Debugf("Event poller exiting")
+				return
+			}
+			// Otherwise we timed out
 			timedOut = true
 		}
 
 		if batch != nil && (timedOut || len(batch.events) >= maxSize) {
 			batch.timeoutCancel()
-			err := es.performActionWithRetry(batch)
+			err := es.performActionsWithRetry(batch)
+			if err == nil {
+				err = es.writeCheckpoint(batch)
+			}
 			if err != nil {
-				log.L(ctx).Debugf("Operation update worker exiting: %s", err)
+				log.L(ctx).Debugf("Event poller exiting: %s", err)
 				return
 			}
 			batch = nil
@@ -403,8 +418,13 @@ func (es *eventStream) eventLoop() {
 }
 
 // performActionWithRetry performs an action, with exponential back-off retry up
-// to a given threshold
-func (es *eventStream) performActionWithRetry(batch *eventStreamBatch) (err error) {
+// to a given threshold. Only returns error in the case that the context is closed.
+func (es *eventStream) performActionsWithRetry(batch *eventStreamBatch) (err error) {
+	// We may not have anything to do, if we only had checkpoints in the batch timeout cycle
+	if len(batch.events) == 0 {
+		return nil
+	}
+
 	ctx := es.startedState.ctx
 	startTime := time.Now()
 	for {
@@ -425,6 +445,7 @@ func (es *eventStream) performActionWithRetry(batch *eventStreamBatch) (err erro
 		log.L(ctx).Errorf("Batch failed short retry after %.2fs secs. ErrorHandling=%s BlockedRetryDelay=%.2fs ",
 			time.Since(startTime), *es.spec.ErrorHandling, time.Duration(*es.spec.BlockedRetryDelay).Seconds())
 		if *es.spec.ErrorHandling == fftm.ErrorHandlingTypeSkip {
+			// Swallow the error now we have logged it
 			return nil
 		}
 		select {
@@ -434,4 +455,29 @@ func (es *eventStream) performActionWithRetry(batch *eventStreamBatch) (err erro
 			return i18n.NewError(ctx, i18n.MsgContextCanceled)
 		}
 	}
+}
+
+func (es *eventStream) writeCheckpoint(batch *eventStreamBatch) (err error) {
+	// We update the checkpoints (under lock) for all listeners with events in this batch.
+	// The last event for any listener in the batch wins.
+	es.mux.Lock()
+	cp := &persistence.EventStreamCheckpoint{
+		StreamID:  es.spec.ID,
+		Time:      fftypes.Now(),
+		Listeners: make(map[fftypes.UUID]*fftypes.JSONAny),
+	}
+	for lID, lCP := range batch.checkpoints {
+		if l, ok := es.listeners[lID]; ok {
+			l.UpdateCheckpoint(lCP)
+		}
+	}
+	for lID, l := range es.listeners {
+		cp.Listeners[lID] = l.checkpoint
+	}
+	es.mux.Unlock()
+
+	// We only return if the context is cancelled, or the checkpoint succeeds
+	return es.retry.Do(es.startedState.ctx, "action", func(attempt int) (retry bool, err error) {
+		return true, es.persistence.StoreCheckpoint(es.startedState.ctx, cp)
+	})
 }

@@ -24,14 +24,32 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 	"github.com/stretchr/testify/assert"
 )
 
-func testESConf(t *testing.T, j string) (es *fftm.EventStream) {
-	err := json.Unmarshal([]byte(j), &es)
+func testESConf(t *testing.T, j string) (spec *fftm.EventStream) {
+	err := json.Unmarshal([]byte(j), &spec)
 	assert.NoError(t, err)
-	return es
+	return spec
+}
+
+func newTestEventStream(t *testing.T) (es *eventStream) {
+	tmconfig.Reset()
+	InitDefaults()
+	ees, err := NewEventStream(context.Background(), testESConf(t, `{
+		"name": "ut_stream"
+	}`),
+		&ffcapimocks.API{},
+		&persistencemocks.EventStreamPersistence{},
+		&confirmationsmocks.Manager{},
+		&wsmocks.WebSocketChannels{})
+	assert.NoError(t, err)
+	return ees.(*eventStream)
 }
 
 func TestConfigNewDefaultsUpdate(t *testing.T) {
