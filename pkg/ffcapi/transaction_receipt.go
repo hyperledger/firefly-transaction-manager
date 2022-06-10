@@ -25,9 +25,9 @@ type TransactionReceiptRequest struct {
 }
 
 type TransactionReceiptResponse struct {
-	BlockNumber      *fftypes.FFBigInt  `json:"blockNumber"`
-	TransactionIndex *fftypes.FFBigInt  `json:"transactionIndex"`
-	BlockHash        string             `json:"blockHash"`
-	Success          bool               `json:"success"`
-	ExtraInfo        fftypes.JSONObject `json:"extraInfo"`
+	BlockNumber      *fftypes.FFBigInt `json:"blockNumber"`
+	TransactionIndex *fftypes.FFBigInt `json:"transactionIndex"`
+	BlockHash        string            `json:"blockHash"`
+	Success          bool              `json:"success"`
+	ExtraInfo        *fftypes.JSONAny  `json:"extraInfo"`
 }

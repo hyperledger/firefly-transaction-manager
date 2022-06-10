@@ -52,6 +52,9 @@ type API interface {
 	// TransactionSend combines a previously prepared encoded transaction, with a current gas price, and submits it to the transaction pool of the blockchain for mining
 	TransactionSend(ctx context.Context, req *TransactionSendRequest) (*TransactionSendResponse, ErrorReason, error)
 
+	// EventListenerVerifyOptions validates the configuration options for a listener, applying any defaults needed by the connector, and returning the update options for FFTM to persist
+	EventListenerVerifyOptions(ctx context.Context, options *fftypes.JSONAny) (*fftypes.JSONAny, error)
+
 	// EventListenerAdd begins/resumes listening on set of events that must be consistently ordered. Blockchain specific signatures of the events are included, along with initial conditions (initial block number etc.), and the last stored checkpoint (if any)
 	EventListenerAdd(ctx context.Context, req *EventListenerAddRequest) (*EventListenerAddResponse, ErrorReason, error)
 
@@ -60,9 +63,6 @@ type API interface {
 
 	// NewBlockHashes should dynamically push the hashes of all new blocks detected from the blockchain, if confirmations are supported
 	NewBlockHashes() <-chan *BlockHashEvent
-
-	// Events is the channel over which all events are delivered
-	Events() <-chan *Event
 }
 
 type BlockHashEvent struct {
@@ -74,10 +74,10 @@ type BlockHashEvent struct {
 // The implementation is responsible for ensuring all events on a listener are
 // ordered on to this channel in the exact sequence from the blockchain.
 type Event struct {
-	ListenerID *fftypes.UUID      `json:"listenerId"` // the ID of the event listener for this event
-	Data       *fftypes.JSONAny   `json:"data"`       // the JSON data to deliver for this event (can be array or object structure)
-	ProtocolID string             `json:"protocolId"` // a protocol identifier for the event, that is string sortable per https://hyperledger.github.io/firefly/reference/types/blockchainevent.html#protocol-id
-	Info       fftypes.JSONObject `json:"info"`       // additional blockchain specific information
+	ListenerID *fftypes.UUID    `json:"listenerId"` // the ID of the event listener for this event
+	Data       *fftypes.JSONAny `json:"data"`       // the JSON data to deliver for this event (can be array or object structure)
+	ProtocolID string           `json:"protocolId"` // a protocol identifier for the event, that is string sortable per https://hyperledger.github.io/firefly/reference/types/blockchainevent.html#protocol-id
+	Info       *fftypes.JSONAny `json:"info"`       // additional blockchain specific information
 }
 
 // ErrorReason are a set of standard error conditions that a blockchain connector can return

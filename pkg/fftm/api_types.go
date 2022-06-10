@@ -26,8 +26,8 @@ import (
 type DistributionMode = fftypes.FFEnum
 
 var (
-	DistributionModeBroadcast = fftypes.FFEnumValue("distmode", "broadcast")
-	DistributionModeWLD       = fftypes.FFEnumValue("distmode", "workloadDistribution")
+	DistributionModeBroadcast   = fftypes.FFEnumValue("distmode", "broadcast")
+	DistributionModeLoadBalance = fftypes.FFEnumValue("distmode", "load_balance")
 )
 
 type EventStreamType = fftypes.FFEnum
@@ -52,32 +52,30 @@ type EventStream struct {
 	Suspended *bool            `ffstruct:"eventstream" json:"suspended,omitempty"`
 	Type      *EventStreamType `ffstruct:"eventstream" json:"type,omitempty" ffenum:"estype"`
 
-	BatchSize         *uint64            `ffstruct:"eventstream" json:"batchSize,omitempty"`
-	BatchTimeout      *uint64            `ffstruct:"eventstream" json:"batchTimeout,omitempty"`
-	ErrorHandling     *ErrorHandlingType `ffstruct:"eventstream" json:"errorHandling,omitempty"`
-	RetryTimeout      *uint64            `ffstruct:"eventstream" json:"retryTimeout,omitempty"`
-	BlockedRetryDelay *uint64            `ffstruct:"eventstream" json:"blockedRetryDelay,omitempty"`
+	ErrorHandling     *ErrorHandlingType  `ffstruct:"eventstream" json:"errorHandling"`
+	BatchSize         *uint64             `ffstruct:"eventstream" json:"batchSize"`
+	BatchTimeout      *fftypes.FFDuration `ffstruct:"eventstream" json:"batchTimeout"`
+	RetryTimeout      *fftypes.FFDuration `ffstruct:"eventstream" json:"retryTimeout"`
+	BlockedRetryDelay *fftypes.FFDuration `ffstruct:"eventstream" json:"blockedRetryDelay"`
 
-	DeprecatedBatchTimeoutMS       *uint64 `ffstruct:"eventstream" json:"batchTimeoutMS,omitempty"`       // we now allow duration units like 100ms / 10s
-	DeprecatedRetryTimeoutSec      *uint64 `ffstruct:"eventstream" json:"retryTimeoutSec,omitempty"`      // we now allow duration units like 100ms / 10s
-	DeprecatedBlockedRetryDelaySec *uint64 `ffstruct:"eventstream" json:"blockedRetryDelaySec,omitempty"` // we now allow duration units like 100ms / 10s
+	DeprecatedBatchTimeoutMS       *uint64 `ffstruct:"eventstream" json:"batchTimeoutMS,omitempty"`       // input only, for backwards compatibility
+	DeprecatedRetryTimeoutSec      *uint64 `ffstruct:"eventstream" json:"retryTimeoutSec,omitempty"`      // input only, for backwards compatibility
+	DeprecatedBlockedRetryDelaySec *uint64 `ffstruct:"eventstream" json:"blockedRetryDelaySec,omitempty"` // input only, for backwards compatibility
 
-	Webhook   *WebhookConfig     `ffstruct:"eventstream" json:"webhook,omitempty"`
-	WebSocket *WebSocketConfig   `ffstruct:"eventstream" json:"websocket,omitempty"`
-	Options   fftypes.JSONObject `ffstruct:"eventstream" json:"options,omitempty"`
+	Webhook   *WebhookConfig   `ffstruct:"eventstream" json:"webhook,omitempty"`
+	WebSocket *WebSocketConfig `ffstruct:"eventstream" json:"websocket,omitempty"`
 }
 
 type WebhookConfig struct {
-	URL                         string            `ffstruct:"whconfig" json:"url,omitempty"`
-	Headers                     map[string]string `ffstruct:"whconfig" json:"headers,omitempty"`
-	TLSkipHostVerify            bool              `ffstruct:"whconfig" json:"tlsSkipHostVerify,omitempty"`
-	RequestTimeoutSec           uint32            `ffstruct:"whconfig" json:"requestTimeout,omitempty"`
-	DeprecatedRequestTimeoutSec uint32            `ffstruct:"whconfig" json:"requestTimeoutSec,omitempty"` // we now allow duration units like 100ms / 10s
+	URL                         *string             `ffstruct:"whconfig" json:"url,omitempty"`
+	Headers                     map[string]string   `ffstruct:"whconfig" json:"headers,omitempty"`
+	TLSkipHostVerify            *bool               `ffstruct:"whconfig" json:"tlsSkipHostVerify,omitempty"`
+	RequestTimeout              *fftypes.FFDuration `ffstruct:"whconfig" json:"requestTimeout,omitempty"`
+	DeprecatedRequestTimeoutSec *int64              `ffstruct:"whconfig" json:"requestTimeoutSec,omitempty"` // input only, for backwards compatibility
 }
 
 type WebSocketConfig struct {
-	Topic            string           `ffstruct:"wsconfig" json:"topic,omitempty"`
-	DistributionMode DistributionMode `ffstruct:"wsconfig" json:"distributionMode,omitempty"`
+	DistributionMode *DistributionMode `ffstruct:"wsconfig" json:"distributionMode,omitempty"`
 }
 
 type Listener struct {
@@ -89,69 +87,89 @@ type Listener struct {
 	FromBlock string             `ffstruct:"listener" json:"fromBlock,omitempty"`
 }
 
-func CheckUpdateString(target **string, old *string, new *string, defValue string) bool {
-	if new == nil {
-		*target = new
+// CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset
+func CheckUpdateString(changed bool, merged **string, old *string, new *string, defValue string) bool {
+	if new != nil {
+		*merged = new
 	} else {
-		*target = old
+		*merged = old
 	}
-	if *target == nil {
+	if *merged == nil {
 		v := defValue
-		*target = &v
+		*merged = &v
 		return true
 	}
-	return *old != *new
+	return changed || old == nil || *old != **merged
 }
 
-func CheckUpdateBool(target **bool, old *bool, new *bool, defValue bool) bool {
-	if new == nil {
-		*target = new
+// CheckUpdateBool helper merges supplied configuration, with a base, and applies a default if unset
+func CheckUpdateBool(changed bool, merged **bool, old *bool, new *bool, defValue bool) bool {
+	if new != nil {
+		*merged = new
 	} else {
-		*target = old
+		*merged = old
 	}
-	if *target == nil {
+	if *merged == nil {
 		v := defValue
-		*target = &v
+		*merged = &v
 		return true
 	}
-	return *old != *new
+	return changed || old == nil || *old != **merged
 }
 
-func CheckUpdateUint64(target **uint64, old *uint64, new *uint64, defValue uint64) bool {
-	if new == nil {
-		*target = new
+// CheckUpdateUint64 helper merges supplied configuration, with a base, and applies a default if unset
+func CheckUpdateUint64(changed bool, merged **uint64, old *uint64, new *uint64, defValue int64) bool {
+	if new != nil {
+		*merged = new
 	} else {
-		*target = old
+		*merged = old
 	}
-	if *target == nil {
-		v := defValue
-		*target = &v
+	if *merged == nil {
+		v := uint64(defValue)
+		*merged = &v
 		return true
 	}
-	return *old != *new
+	return changed || old == nil || *old != **merged
 }
 
-func CheckUpdateEnum(target **fftypes.FFEnum, old *fftypes.FFEnum, new *fftypes.FFEnum, defValue fftypes.FFEnum) bool {
-	if new == nil {
-		*target = new
+// CheckUpdateDuration helper merges supplied configuration, with a base, and applies a default if unset
+func CheckUpdateDuration(changed bool, merged **fftypes.FFDuration, old *fftypes.FFDuration, new *fftypes.FFDuration, defValue fftypes.FFDuration) bool {
+	if new != nil {
+		*merged = new
 	} else {
-		*target = old
+		*merged = old
 	}
-	if *target == nil {
+	if *merged == nil {
 		v := defValue
-		*target = &v
+		*merged = &v
 		return true
 	}
-	return *old != *new
+	return changed || old == nil || *old != **merged
 }
 
-func CheckUpdateObject(target *fftypes.JSONObject, old fftypes.JSONObject, new fftypes.JSONObject) bool {
-	if new == nil {
-		*target = old
+// CheckUpdateEnum helper merges supplied configuration, with a base, and applies a default if unset
+func CheckUpdateEnum(changed bool, merged **fftypes.FFEnum, old *fftypes.FFEnum, new *fftypes.FFEnum, defValue fftypes.FFEnum) bool {
+	if new != nil {
+		*merged = new
+	} else {
+		*merged = old
+	}
+	if *merged == nil {
+		v := defValue
+		*merged = &v
+		return true
+	}
+	return changed || old == nil || *old != **merged
+}
+
+// CheckUpdateStringMap helper merges supplied configuration, with a base, and applies a default if unset
+func CheckUpdateStringMap(changed bool, merged *map[string]string, old map[string]string, new map[string]string) bool {
+	if new != nil {
+		*merged = old
 		return false
 	}
-	*target = new
-	if old == nil {
+	*merged = new
+	if old == nil || changed {
 		return true
 	}
 	jsonOld, _ := json.Marshal(old)

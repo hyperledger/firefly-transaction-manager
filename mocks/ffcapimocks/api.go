@@ -5,7 +5,9 @@ package ffcapimocks
 import (
 	context "context"
 
+	fftypes "github.com/hyperledger/firefly-common/pkg/fftypes"
 	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -132,6 +134,29 @@ func (_m *API) EventListenerRemove(ctx context.Context, req *ffcapi.EventListene
 	}
 
 	return r0, r1, r2
+}
+
+// EventListenerVerifyOptions provides a mock function with given fields: ctx, options
+func (_m *API) EventListenerVerifyOptions(ctx context.Context, options *fftypes.JSONAny) (*fftypes.JSONAny, error) {
+	ret := _m.Called(ctx, options)
+
+	var r0 *fftypes.JSONAny
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.JSONAny) *fftypes.JSONAny); ok {
+		r0 = rf(ctx, options)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*fftypes.JSONAny)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.JSONAny) error); ok {
+		r1 = rf(ctx, options)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Events provides a mock function with given fields:

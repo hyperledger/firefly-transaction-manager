@@ -15,3 +15,106 @@
 // limitations under the License.
 
 package events
+
+import (
+	"context"
+
+	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
+	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+)
+
+func mergeValidateWsConfig(ctx context.Context, changed bool, base *fftm.WebSocketConfig, updates *fftm.WebSocketConfig) (*fftm.WebSocketConfig, bool, error) {
+
+	if base == nil {
+		base = &fftm.WebSocketConfig{}
+	}
+	if updates == nil {
+		updates = &fftm.WebSocketConfig{}
+	}
+	merged := &fftm.WebSocketConfig{}
+
+	// Distribution mode
+	changed = fftm.CheckUpdateEnum(changed, &merged.DistributionMode, base.DistributionMode, updates.DistributionMode, esDefaults.websocketDistributionMode)
+	switch *merged.DistributionMode {
+	case fftm.DistributionModeLoadBalance, fftm.DistributionMode("workloaddistribution"):
+		// Migrate old "workloadDistribution" enum value to more consistent with other FF enums "load_balance"
+		*merged.DistributionMode = fftm.DistributionModeLoadBalance
+	case fftm.DistributionModeBroadcast:
+	default:
+		return nil, false, i18n.NewError(ctx, tmmsgs.MsgInvalidDistributionMode, *merged.DistributionMode)
+	}
+
+	return merged, changed, nil
+}
+
+type webSocketAction struct {
+	ctx        context.Context
+	topic      string
+	spec       *fftm.WebSocketConfig
+	wsChannels ws.WebSocketChannels
+}
+
+func newWebSocketAction(parentCtx context.Context, wsChannels ws.WebSocketChannels, spec *fftm.WebSocketConfig, topic string) *webSocketAction {
+	return &webSocketAction{
+		ctx:        log.WithLogField(parentCtx, "action", "websocket"),
+		spec:       spec,
+		wsChannels: wsChannels,
+		topic:      topic,
+	}
+}
+
+// attemptBatch attempts to deliver a batch over socket IO
+func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.Event) error {
+	var err error
+
+	// Get a blocking channel to send and receive on our chosen namespace
+	sender, broadcaster, receiver := w.wsChannels.GetChannels(w.topic)
+
+	var channel chan<- interface{}
+	switch *w.spec.DistributionMode {
+	case fftm.DistributionModeBroadcast:
+		channel = broadcaster
+	case fftm.DistributionModeLoadBalance:
+		channel = sender
+	default:
+		return i18n.NewError(ctx, tmmsgs.MsgInvalidDistributionMode, *w.spec.DistributionMode)
+	}
+
+	// Clear out any current ack/error
+	purging := true
+	for purging {
+		select {
+		case err1 := <-receiver:
+			log.L(w.ctx).Warnf("Cleared out spurious ack (could be from previous disconnect). err=%s", err1)
+		default:
+			purging = false
+		}
+	}
+
+	// Sent the batch of events
+	select {
+	case channel <- events:
+		break
+	case <-w.ctx.Done():
+		err = i18n.NewError(w.ctx, tmmsgs.MsgWebSocketInterruptedSend)
+	}
+
+	// If we ever add more distribution modes, we may want to change this logic from a simple if statement
+	if err == nil && *w.spec.DistributionMode != fftm.DistributionModeBroadcast {
+		// Wait for the next ack or exception
+		select {
+		case err = <-receiver:
+			break
+		case <-w.ctx.Done():
+			err = i18n.NewError(w.ctx, tmmsgs.MsgWebSocketInterruptedReceive)
+		}
+	}
+
+	// Pass back any exception from the client
+	log.L(w.ctx).Infof("WebSocket event batch %d complete (len=%d). err=%v", batchNumber, len(events), err)
+	return err
+}

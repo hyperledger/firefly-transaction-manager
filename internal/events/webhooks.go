@@ -15,3 +15,123 @@
 // limitations under the License.
 
 package events
+
+import (
+	"context"
+	"crypto/tls"
+	"net"
+	"net/url"
+	"time"
+
+	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffresty"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+)
+
+func mergeValidateWhConfig(ctx context.Context, changed bool, base *fftm.WebhookConfig, updates *fftm.WebhookConfig) (*fftm.WebhookConfig, bool, error) {
+
+	if base == nil {
+		base = &fftm.WebhookConfig{}
+	}
+	if updates == nil {
+		updates = &fftm.WebhookConfig{}
+	}
+	merged := &fftm.WebhookConfig{}
+
+	// URL (no default - must be set)
+	changed = fftm.CheckUpdateString(changed, &merged.URL, base.URL, updates.URL, "")
+	if *merged.URL == "" {
+		return nil, false, i18n.NewError(ctx, tmmsgs.MsgMissingWebhookURL)
+	}
+
+	// Headers
+	changed = fftm.CheckUpdateStringMap(changed, &merged.Headers, base.Headers, updates.Headers)
+
+	// Skip host verify (disable TLS checking)
+	changed = fftm.CheckUpdateBool(changed, &merged.TLSkipHostVerify, base.TLSkipHostVerify, updates.TLSkipHostVerify, false)
+
+	// Request timeout
+	if updates.DeprecatedRequestTimeoutSec != nil {
+		dv := fftypes.FFDuration(*updates.DeprecatedRequestTimeoutSec) * fftypes.FFDuration(time.Second)
+		changed = fftm.CheckUpdateDuration(changed, &merged.RequestTimeout, base.RequestTimeout, &dv, esDefaults.webhookRequestTimeout)
+	} else {
+		changed = fftm.CheckUpdateDuration(changed, &merged.RequestTimeout, base.RequestTimeout, updates.RequestTimeout, esDefaults.webhookRequestTimeout)
+	}
+
+	return merged, changed, nil
+}
+
+type webhookAction struct {
+	allowPrivateIPs bool
+	headers         map[string]string
+	spec            *fftm.WebhookConfig
+	client          *resty.Client
+}
+
+func newWebhookAction(ctx context.Context, spec *fftm.WebhookConfig) *webhookAction {
+	client := ffresty.New(ctx, tmconfig.WebhookPrefix)     // majority of settings come from config
+	client.SetTimeout(time.Duration(*spec.RequestTimeout)) // request timeout set per stream
+	if *spec.TLSkipHostVerify {
+		client.SetTLSClientConfig(&tls.Config{
+			InsecureSkipVerify: true,
+		})
+	}
+
+	return &webhookAction{
+		spec:            spec,
+		allowPrivateIPs: config.GetBool(tmconfig.WebhooksAllowPrivateIPs),
+		client:          client,
+	}
+}
+
+// attemptWebhookAction performs a single attempt of a webhook action
+func (w *webhookAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.Event) error {
+	// We perform DNS resolution before each attempt, to exclude private IP address ranges from the target
+	u, _ := url.Parse(*w.spec.URL)
+	addr, err := net.ResolveIPAddr("ip4", u.Hostname())
+	if err != nil {
+		return err
+	}
+	if w.isAddressBlocked(addr) {
+		return i18n.NewError(ctx, tmmsgs.MsgBlockWebhookAddress, u.Hostname())
+	}
+	var resBody []byte
+	req := w.client.R().
+		SetContext(ctx).
+		SetBody(events).
+		SetResult(&resBody).
+		SetError(&resBody)
+	req.Header.Set("Content-Type", "application/json")
+	for h, v := range w.spec.Headers {
+		req.Header.Set(h, v)
+	}
+	res, err := req.Post(u.String())
+	if err != nil {
+		log.L(ctx).Errorf("Webhook %s (%s) [%d]: %s", *w.spec.URL, u, res.StatusCode(), err)
+		return err
+	}
+	if res.IsError() {
+		log.L(ctx).Errorf("Webhook %s (%s) [%d]: %s", *w.spec.URL, u, res.StatusCode(), resBody)
+		return i18n.NewError(ctx, tmmsgs.MsgWebhookFailed, res.StatusCode())
+	}
+	return err
+}
+
+// isAddressBlocked allows blocking of all of the "private" address blocks defined by IPv4
+func (w *webhookAction) isAddressBlocked(ip *net.IPAddr) bool {
+	ip4 := ip.IP.To4()
+	return !w.allowPrivateIPs &&
+		(ip4[0] == 0 ||
+			ip4[0] >= 224 ||
+			ip4[0] == 127 ||
+			ip4[0] == 10 ||
+			(ip4[0] == 172 && ip4[1] >= 16 && ip4[1] < 32) ||
+			(ip4[0] == 192 && ip4[1] == 168))
+}

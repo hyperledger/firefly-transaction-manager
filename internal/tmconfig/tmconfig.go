@@ -18,6 +18,7 @@ package tmconfig
 
 import (
 	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffresty"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-common/pkg/wsclient"
 	"github.com/hyperledger/firefly/pkg/core"
@@ -27,36 +28,32 @@ import (
 var ffc = config.AddRootKey
 
 var (
-	// ManagerName is a name for this manager, that must be unique if there are multiple managers on this node
-	ManagerName = ffc("manager.name")
-	// ConnectorVariant is the variant setting to add to all requests to the backend connector
-	ConnectorVariant = ffc("connector.variant")
-	// ConfirmationsRequired is the number of confirmations required for a transaction to be considered final
-	ConfirmationsRequired = ffc("confirmations.required")
-	// ConfirmationsBlockCacheSize is the size of the block cache
-	ConfirmationsBlockCacheSize = ffc("confirmations.blockCacheSize")
-	// ConfirmationsBlockPollingInterval is the time between block polling
-	ConfirmationsBlockPollingInterval = ffc("confirmations.blockPollingInterval")
-	// ConfirmationsStaleReceiptTimeout the duration after which to force a receipt check for a pending transaction
-	ConfirmationsStaleReceiptTimeout = ffc("confirmations.staleReceiptTimeout")
-	// ConfirmationsNotificationQueueLength is the length of the internal queue to the block confirmations manager
-	ConfirmationsNotificationQueueLength = ffc("confirmations.notificationQueueLength")
-	// OperationsTypes the type of operations to monitor - only those that were submitted through the manager will have the required output format, so this is the superset
-	OperationsTypes = ffc("operations.types")
-	// OperationsFullScanStartupMaxRetries is the maximum times to try the scan on first startup, before failing startup
-	OperationsFullScanStartupMaxRetries = ffc("operations.fullScan.startupMaxRetries")
-	// OperationsPageSize page size for polling
-	OperationsFullScanPageSize = ffc("operations.fullScan.pageSize")
-	// OperationsFullScanMinimumDelay the minimum delay between full scan attempts
-	OperationsFullScanMinimumDelay = ffc("operations.fullScan.minimumDelay")
-	// OperationsErrorHistoryCount the number of errors to retain in the operation
-	OperationsErrorHistoryCount = ffc("operations.errorHistoryCount")
-	// OperationsChangeListenerEnabled whether to enable the operation change listener
-	OperationsChangeListenerEnabled = ffc("operations.changeListener.enabled")
-	// PolicyLoopInterval how often to go round the loop executing the policy engine against all pending transactions to make decisions
-	PolicyLoopInterval = ffc("policyloop.interval")
-	// PolicyEngineName the name of the policy engine to use
-	PolicyEngineName = ffc("policyengine.name")
+	ManagerName                                   = ffc("manager.name")
+	ConnectorVariant                              = ffc("connector.variant")
+	ConfirmationsRequired                         = ffc("confirmations.required")
+	ConfirmationsBlockCacheSize                   = ffc("confirmations.blockCacheSize")
+	ConfirmationsBlockPollingInterval             = ffc("confirmations.blockPollingInterval")
+	ConfirmationsStaleReceiptTimeout              = ffc("confirmations.staleReceiptTimeout")
+	ConfirmationsNotificationQueueLength          = ffc("confirmations.notificationQueueLength")
+	OperationsTypes                               = ffc("operations.types")
+	OperationsFullScanStartupMaxRetries           = ffc("operations.fullScan.startupMaxRetries")
+	OperationsFullScanPageSize                    = ffc("operations.fullScan.pageSize")
+	OperationsFullScanMinimumDelay                = ffc("operations.fullScan.minimumDelay")
+	OperationsErrorHistoryCount                   = ffc("operations.errorHistoryCount")
+	OperationsChangeListenerEnabled               = ffc("operations.changeListener.enabled")
+	PolicyLoopInterval                            = ffc("policyloop.interval")
+	PolicyEngineName                              = ffc("policyengine.name")
+	EventStreamsDefaultsBatchSize                 = ffc("eventstreams.defaults.batchSize")
+	EventStreamsDefaultsBatchTimeout              = ffc("eventstreams.defaults.batchTimeout")
+	EventStreamsDefaultsErrorHandling             = ffc("eventstreams.defaults.errorHandling")
+	EventStreamsDefaultsRetryTimeout              = ffc("eventstreams.defaults.retryTimeout")
+	EventStreamsDefaultsBlockedRetryDelay         = ffc("eventstreams.defaults.blockedRetryDelay")
+	EventStreamsDefaultsWebhookRequestTimeout     = ffc("eventstreams.defaults.webhookRequestTimeout")
+	EventStreamsDefaultsWebsocketDistributionMode = ffc("eventstreams.defaults.websocketDistributionMode")
+	EventStreamsRetryInitDelay                    = ffc("eventstreams.retry.initialDelay")
+	EventStreamsRetryMaxDelay                     = ffc("eventstreams.retry.maxDelay")
+	EventStreamsRetryFactor                       = ffc("eventstreams.retry.factor")
+	WebhooksAllowPrivateIPs                       = ffc("webhooks.allowPrivateIPs")
 )
 
 var FFCoreConfig config.Section
@@ -66,6 +63,8 @@ var APIConfig config.Section
 var CorsConfig config.Section
 
 var PolicyEngineBaseConfig config.Section
+
+var WebhookPrefix config.Section
 
 func setDefaults() {
 	viper.SetDefault(string(OperationsFullScanPageSize), 100)
@@ -85,6 +84,14 @@ func setDefaults() {
 	viper.SetDefault(string(OperationsErrorHistoryCount), 25)
 	viper.SetDefault(string(PolicyLoopInterval), "1s")
 	viper.SetDefault(string(PolicyEngineName), "simple")
+
+	viper.SetDefault(string(EventStreamsDefaultsBatchSize), 50)
+	viper.SetDefault(string(EventStreamsDefaultsBatchTimeout), "5s")
+	viper.SetDefault(string(EventStreamsDefaultsErrorHandling), "block")
+	viper.SetDefault(string(EventStreamsDefaultsRetryTimeout), "30s")
+	viper.SetDefault(string(EventStreamsDefaultsBlockedRetryDelay), "30s")
+	viper.SetDefault(string(EventStreamsDefaultsWebhookRequestTimeout), "30s")
+	viper.SetDefault(string(EventStreamsDefaultsWebsocketDistributionMode), "loadbalanced")
 }
 
 func Reset() {
@@ -99,6 +106,9 @@ func Reset() {
 
 	CorsConfig = config.RootSection("cors")
 	httpserver.InitCORSConfig(CorsConfig)
+
+	WebhookPrefix = config.RootSection("webhooks")
+	ffresty.InitConfig(WebhookPrefix)
 
 	PolicyEngineBaseConfig = config.RootSection("policyengine")
 	// policy engines must be registered outside of this package
