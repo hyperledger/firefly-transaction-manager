@@ -91,7 +91,7 @@ func setDefaults() {
 	viper.SetDefault(string(EventStreamsDefaultsRetryTimeout), "30s")
 	viper.SetDefault(string(EventStreamsDefaultsBlockedRetryDelay), "30s")
 	viper.SetDefault(string(EventStreamsDefaultsWebhookRequestTimeout), "30s")
-	viper.SetDefault(string(EventStreamsDefaultsWebsocketDistributionMode), "loadbalanced")
+	viper.SetDefault(string(EventStreamsDefaultsWebsocketDistributionMode), "load_balance")
 }
 
 func Reset() {

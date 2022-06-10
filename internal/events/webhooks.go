@@ -70,7 +70,6 @@ func mergeValidateWhConfig(ctx context.Context, changed bool, base *fftm.Webhook
 
 type webhookAction struct {
 	allowPrivateIPs bool
-	headers         map[string]string
 	spec            *fftm.WebhookConfig
 	client          *resty.Client
 }

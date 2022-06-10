@@ -53,7 +53,7 @@ type API interface {
 	TransactionSend(ctx context.Context, req *TransactionSendRequest) (*TransactionSendResponse, ErrorReason, error)
 
 	// EventListenerVerifyOptions validates the configuration options for a listener, applying any defaults needed by the connector, and returning the update options for FFTM to persist
-	EventListenerVerifyOptions(ctx context.Context, options *fftypes.JSONAny) (*fftypes.JSONAny, error)
+	EventListenerVerifyOptions(ctx context.Context, standardOptions *ListenerOptions, customOptions *fftypes.JSONAny) (fftypes.JSONAny, error)
 
 	// EventListenerAdd begins/resumes listening on set of events that must be consistently ordered. Blockchain specific signatures of the events are included, along with initial conditions (initial block number etc.), and the last stored checkpoint (if any)
 	EventListenerAdd(ctx context.Context, req *EventListenerAddRequest) (*EventListenerAddResponse, ErrorReason, error)
@@ -63,6 +63,10 @@ type API interface {
 
 	// NewBlockHashes should dynamically push the hashes of all new blocks detected from the blockchain, if confirmations are supported
 	NewBlockHashes() <-chan *BlockHashEvent
+}
+
+type ListenerOptions struct {
+	FromBlock string `json:"fromBlock"`
 }
 
 type BlockHashEvent struct {

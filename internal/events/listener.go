@@ -17,33 +17,32 @@
 package events
 
 import (
-	"context"
-
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 type listener struct {
-	definition *fftm.Listener
+	es         *eventStream
+	id         *fftypes.UUID
+	filters    []fftypes.JSONAny
+	options    fftypes.JSONAny
 	checkpoint *fftypes.JSONAny
 }
 
-func (l *listener) Checkpoint() *fftypes.JSONAny {
-	return l.checkpoint
+func (l *listener) stop(startedState *startedStreamState) error {
+	_, _, err := l.es.connector.EventListenerRemove(startedState.ctx, &ffcapi.EventListenerRemoveRequest{
+		ID: l.id,
+	})
+	return err
 }
 
-func (l *listener) UpdateCheckpoint(cp *fftypes.JSONAny) {
-	l.checkpoint = cp
-}
-
-func (l *listener) Start(ctx context.Context) error {
-	return nil
-}
-
-func (l *listener) RequestStop(ctx context.Context) {
-
-}
-
-func (l *listener) WaitStopped(ctx context.Context) {
-
+func (l *listener) start(startedState *startedStreamState) error {
+	_, _, err := l.es.connector.EventListenerAdd(startedState.ctx, &ffcapi.EventListenerAddRequest{
+		ID:          l.id,
+		Filters:     l.filters,
+		Options:     l.options,
+		EventStream: startedState.updates,
+		Done:        startedState.ctx.Done(),
+	})
+	return err
 }

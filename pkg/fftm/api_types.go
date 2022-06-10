@@ -79,12 +79,14 @@ type WebSocketConfig struct {
 }
 
 type Listener struct {
-	ID        *fftypes.UUID      `ffstruct:"listener" json:"id,omitempty"`
-	Name      string             `ffstruct:"listener" json:"name"`
-	Stream    string             `ffstruct:"listener" json:"stream"`
-	Event     *fftypes.JSONAny   `ffstruct:"listener" json:"event"`
-	Options   fftypes.JSONObject `ffstruct:"listener" json:"options"`
-	FromBlock string             `ffstruct:"listener" json:"fromBlock,omitempty"`
+	ID                *fftypes.UUID     `ffstruct:"listener" json:"id,omitempty"`
+	Name              string            `ffstruct:"listener" json:"name"`
+	Stream            string            `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
+	DeprecatedAddress *string           `ffstruct:"listener" json:"address,omitempty"`
+	DeprecatedEvent   *fftypes.JSONAny  `ffstruct:"listener" json:"event,omitempty"`
+	Filters           []fftypes.JSONAny `ffstruct:"listener" json:"filters"`
+	Options           *fftypes.JSONAny  `ffstruct:"listener" json:"options"`
+	FromBlock         string            `ffstruct:"listener" json:"fromBlock,omitempty"`
 }
 
 // CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset

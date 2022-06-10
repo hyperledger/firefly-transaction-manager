@@ -28,8 +28,10 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func testESConf(t *testing.T, j string) (spec *fftm.EventStream) {
@@ -78,7 +80,7 @@ func TestConfigNewDefaultsUpdate(t *testing.T) {
 		"suspended":false,
 		"type":"websocket",
 		"websocket": {
-			"distributionMode":"loadbalanced"
+			"distributionMode":"load_balance"
 		}
 	}`, string(b))
 
@@ -178,4 +180,66 @@ func TestConfigNewWebhookRetryMigration(t *testing.T) {
 
 	assert.Equal(t, fftypes.FFDuration(5*time.Second), *es.Webhook.RequestTimeout)
 
+}
+
+func TestEventStreamsE2EMigrationThenStart(t *testing.T) {
+
+	es := newTestEventStream(t)
+
+	addr := "0x12345"
+	l := &fftm.Listener{
+		ID:                fftypes.NewUUID(),
+		Name:              "ut_listener",
+		DeprecatedAddress: &addr,
+		DeprecatedEvent:   fftypes.JSONAnyPtr(`{"event":"definition"}`),
+		Options:           fftypes.JSONAnyPtr(`{"option1":"value1"}`),
+		FromBlock:         "12345",
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.MatchedBy(func(standard *ffcapi.ListenerOptions) bool {
+		return standard.FromBlock == "12345"
+	}), mock.MatchedBy(func(customOptions *fftypes.JSONAny) bool {
+		return customOptions.JSONObject().GetString("option1") == "value1"
+	})).Return(*fftypes.JSONAnyPtr(`{"option1":"value1","option2":"value2"}`), nil)
+
+	started := make(chan struct{})
+	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
+		assert.NotNil(t, r.Done)
+		assert.NotNil(t, r.EventStream)
+		assert.JSONEq(t, `{
+			"event": {"event":"definition"},
+			"address": "0x12345"
+		}`, r.Filters[0].String())
+		assert.JSONEq(t, `{
+			"option1":"value1",
+			"option2":"value2"
+		}`, r.Options.String())
+		return r.ID.Equals(l.ID)
+	})).Run(func(args mock.Arguments) {
+		close(started)
+	}).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
+
+	stopped := make(chan struct{})
+	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
+		return r.ID.Equals(l.ID)
+	})).Run(func(args mock.Arguments) {
+		close(stopped)
+	}).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+
+	err := es.AddOrUpdateListener(es.bgCtx, l)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	<-started
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	<-stopped
+
+	mfc.AssertExpectations(t)
 }

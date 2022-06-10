@@ -136,22 +136,20 @@ func (_m *API) EventListenerRemove(ctx context.Context, req *ffcapi.EventListene
 	return r0, r1, r2
 }
 
-// EventListenerVerifyOptions provides a mock function with given fields: ctx, options
-func (_m *API) EventListenerVerifyOptions(ctx context.Context, options *fftypes.JSONAny) (*fftypes.JSONAny, error) {
-	ret := _m.Called(ctx, options)
+// EventListenerVerifyOptions provides a mock function with given fields: ctx, standardOptions, customOptions
+func (_m *API) EventListenerVerifyOptions(ctx context.Context, standardOptions *ffcapi.ListenerOptions, customOptions *fftypes.JSONAny) (fftypes.JSONAny, error) {
+	ret := _m.Called(ctx, standardOptions, customOptions)
 
-	var r0 *fftypes.JSONAny
-	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.JSONAny) *fftypes.JSONAny); ok {
-		r0 = rf(ctx, options)
+	var r0 fftypes.JSONAny
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) fftypes.JSONAny); ok {
+		r0 = rf(ctx, standardOptions, customOptions)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*fftypes.JSONAny)
-		}
+		r0 = ret.Get(0).(fftypes.JSONAny)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.JSONAny) error); ok {
-		r1 = rf(ctx, options)
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) error); ok {
+		r1 = rf(ctx, standardOptions, customOptions)
 	} else {
 		r1 = ret.Error(1)
 	}

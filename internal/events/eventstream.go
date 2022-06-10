@@ -94,6 +94,15 @@ type eventStreamBatch struct {
 	timeoutCancel  func()
 }
 
+type startedStreamState struct {
+	ctx           context.Context
+	cancelCtx     func()
+	startTime     *fftypes.FFTime
+	action        eventStreamAction
+	eventLoopDone chan struct{}
+	updates       chan *ffcapi.ListenerUpdate
+}
+
 type eventStream struct {
 	bgCtx         context.Context
 	spec          *fftm.EventStream
@@ -105,13 +114,7 @@ type eventStream struct {
 	listeners     map[fftypes.UUID]*listener
 	wsChannels    ws.WebSocketChannels
 	retry         *retry.Retry
-	startedState  struct {
-		ctx           context.Context
-		cancelCtx     func()
-		action        eventStreamAction
-		eventLoopDone chan struct{}
-		updates       chan *ffcapi.ListenerUpdate
-	}
+	currentState  *startedStreamState
 }
 
 func NewEventStream(
@@ -141,16 +144,17 @@ func NewEventStream(
 	return es, nil
 }
 
-func (es *eventStream) initAction() {
-	ctx := es.startedState.ctx
+func (es *eventStream) initAction(startedState *startedStreamState) {
+	ctx := startedState.ctx
 	switch *es.spec.Type {
 	case fftm.EventStreamTypeWebhook:
-		es.startedState.action = newWebhookAction(ctx, es.spec.Webhook)
+		startedState.action = newWebhookAction(ctx, es.spec.Webhook)
 	case fftm.EventStreamTypeWebSocket:
-		es.startedState.action = newWebSocketAction(ctx, es.wsChannels, es.spec.WebSocket, *es.spec.Name)
+		startedState.action = newWebSocketAction(ctx, es.wsChannels, es.spec.WebSocket, *es.spec.Name)
+	default:
+		// mergeValidateEsConfig always be called previous to this
+		panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
 	}
-	// mergeValidateEsConfig always be called previous to this
-	panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
 }
 
 func mergeValidateEsConfig(ctx context.Context, base *fftm.EventStream, updates *fftm.EventStream) (merged *fftm.EventStream, changed bool, err error) {
@@ -253,8 +257,73 @@ func (es *eventStream) UpdateDefinition(ctx context.Context, updates *fftm.Event
 	return nil
 }
 
-func (es *eventStream) AddOrUpdateListener(ctx context.Context, s *fftm.Listener) error {
-	return nil
+func safeCompareFilterList(a, b []fftypes.JSONAny) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *fftm.Listener) error {
+
+	// Allow a single "event" object to be specified instead of a filter, with an optional "address".
+	// This is migrated to the new syntax: `"filters":[{"address":"0x1235","event":{...}}]`
+	// (only expected to work for the eth connector that supports address/event)
+	if spec.Filters == nil && spec.DeprecatedEvent != nil {
+		migrationFilter := fftypes.JSONObject{
+			"event": spec.DeprecatedEvent,
+		}
+		if spec.DeprecatedAddress != nil {
+			migrationFilter["address"] = *spec.DeprecatedAddress
+		}
+		spec.Filters = []fftypes.JSONAny{fftypes.JSONAny(migrationFilter.String())}
+	}
+
+	// The connector needs to validate the options
+	mergedOptions, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.ListenerOptions{
+		FromBlock: spec.FromBlock,
+	}, spec.Options)
+	if err != nil {
+		return err
+	}
+
+	// Check if this is a new listener, an update, or a no-op
+	es.mux.Lock()
+	l, exists := es.listeners[*spec.ID]
+	if exists {
+		if mergedOptions == l.options && safeCompareFilterList(spec.Filters, l.filters) {
+			log.L(ctx).Infof("Event listener already configured on stream")
+			return nil
+		}
+		l.options = mergedOptions
+		l.filters = spec.Filters
+	} else {
+		es.listeners[*spec.ID] = &listener{
+			es:      es,
+			id:      spec.ID,
+			options: mergedOptions,
+			filters: spec.Filters,
+		}
+	}
+	// Take a copy of the current started state, before unlocking
+	startedState := es.currentState
+	es.mux.Unlock()
+	if startedState == nil {
+		return nil
+	}
+
+	// We need to restart any streams
+	if exists {
+		if err := l.stop(startedState); err != nil {
+			return err
+		}
+	}
+	return l.start(startedState)
 }
 
 func (es *eventStream) RemoveListener(ctx context.Context, id *fftypes.UUID) error {
@@ -289,52 +358,64 @@ func (es *eventStream) Start(ctx context.Context) error {
 	}
 	log.L(ctx).Infof("Starting event stream %s", es)
 
-	es.startedState.ctx, es.startedState.cancelCtx = context.WithCancel(es.bgCtx)
-	es.initAction()
-	es.startedState.eventLoopDone = make(chan struct{})
-	es.startedState.updates = make(chan *ffcapi.ListenerUpdate, int(*es.spec.BatchSize))
-	go es.eventLoop()
+	startedState := &startedStreamState{
+		startTime:     fftypes.Now(),
+		eventLoopDone: make(chan struct{}),
+		updates:       make(chan *ffcapi.ListenerUpdate, int(*es.spec.BatchSize)),
+	}
+	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
+	es.currentState = startedState
+	es.initAction(startedState)
+	for _, l := range es.listeners {
+		if err := l.start(startedState); err != nil {
+			return err
+		}
+	}
+	go es.eventLoop(startedState)
 	return nil
 }
 
-func (es *eventStream) requestStop(ctx context.Context) ([]*listener, error) {
+func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, error) {
 	es.mux.Lock()
+	startedState := es.currentState
 	defer es.mux.Unlock()
 	if err := es.checkSetStateLocked(ctx, streamStateStarted, streamStateStopping); err != nil {
 		return nil, err
 	}
 	log.L(ctx).Infof("Stopping event stream %s", es)
 
+	if startedState == nil {
+		return nil, nil
+	}
 	// Cancel the context, stop stop the event loop, and shut down the action (WebSockets in particular)
-	es.startedState.cancelCtx()
+	startedState.cancelCtx()
 
 	// Stop all the listeners - we hold the lock during this
-	listeners := make([]*listener, 0, len(es.listeners))
 	for _, l := range es.listeners {
-		l.RequestStop(ctx)
-		listeners = append(listeners, l)
+		err := l.stop(startedState)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return listeners, nil
+	return startedState, nil
 }
 
 func (es *eventStream) Stop(ctx context.Context) error {
 
 	// Request the stop - this phase is locked, and gives us a safe copy of the listeners array to use outside the lock
-	listeners, err := es.requestStop(ctx)
-	if err != nil {
+	startedState, err := es.requestStop(ctx)
+	if err != nil || startedState == nil {
 		return err
 	}
 
-	// Wait for each listener to stop
-	for _, l := range listeners {
-		l.WaitStopped(ctx)
-	}
-
 	// Wait for our event loop to stop
-	<-es.startedState.eventLoopDone
+	<-startedState.eventLoopDone
 
 	// Transition to stopped (takes the lock again)
-	return es.checkSetState(ctx, streamStateStopping, streamStateStopped)
+	es.mux.Lock()
+	es.currentState = nil
+	defer es.mux.Unlock()
+	return es.checkSetStateLocked(ctx, streamStateStopping, streamStateStopped)
 }
 
 func (es *eventStream) Delete(ctx context.Context) error {
@@ -356,9 +437,9 @@ func (es *eventStream) Delete(ctx context.Context) error {
 	return es.checkSetStateLocked(ctx, streamStateStopped, streamStateDeleted)
 }
 
-func (es *eventStream) eventLoop() {
-	defer close(es.startedState.eventLoopDone)
-	ctx := es.startedState.ctx
+func (es *eventStream) eventLoop(startedState *startedStreamState) {
+	defer close(startedState.eventLoopDone)
+	ctx := startedState.ctx
 	batchTimeout := time.Duration(*es.spec.BatchTimeout)
 	maxSize := int(*es.spec.BatchSize)
 	batchNumber := 0
@@ -373,7 +454,7 @@ func (es *eventStream) eventLoop() {
 			timeoutContext = ctx
 		}
 		select {
-		case update := <-es.startedState.updates:
+		case update := <-startedState.updates:
 			if batch == nil {
 				batchNumber++
 				batch = &eventStreamBatch{
@@ -404,9 +485,9 @@ func (es *eventStream) eventLoop() {
 
 		if batch != nil && (timedOut || len(batch.events) >= maxSize) {
 			batch.timeoutCancel()
-			err := es.performActionsWithRetry(batch)
+			err := es.performActionsWithRetry(startedState, batch)
 			if err == nil {
-				err = es.writeCheckpoint(batch)
+				err = es.writeCheckpoint(startedState, batch)
 			}
 			if err != nil {
 				log.L(ctx).Debugf("Event poller exiting: %s", err)
@@ -419,18 +500,18 @@ func (es *eventStream) eventLoop() {
 
 // performActionWithRetry performs an action, with exponential back-off retry up
 // to a given threshold. Only returns error in the case that the context is closed.
-func (es *eventStream) performActionsWithRetry(batch *eventStreamBatch) (err error) {
+func (es *eventStream) performActionsWithRetry(startedState *startedStreamState, batch *eventStreamBatch) (err error) {
 	// We may not have anything to do, if we only had checkpoints in the batch timeout cycle
 	if len(batch.events) == 0 {
 		return nil
 	}
 
-	ctx := es.startedState.ctx
+	ctx := startedState.ctx
 	startTime := time.Now()
 	for {
 		// Short exponential back-off retry
 		err := es.retry.Do(ctx, "action", func(attempt int) (retry bool, err error) {
-			err = es.startedState.action.attemptBatch(ctx, batch.number, attempt, batch.events)
+			err = startedState.action.attemptBatch(ctx, batch.number, attempt, batch.events)
 			if err != nil {
 				log.L(ctx).Errorf("Batch %d attempt %d failed. err=%s",
 					batch.number, attempt, err)
@@ -443,7 +524,7 @@ func (es *eventStream) performActionsWithRetry(batch *eventStreamBatch) (err err
 		}
 		// We're in blocked retry delay
 		log.L(ctx).Errorf("Batch failed short retry after %.2fs secs. ErrorHandling=%s BlockedRetryDelay=%.2fs ",
-			time.Since(startTime), *es.spec.ErrorHandling, time.Duration(*es.spec.BlockedRetryDelay).Seconds())
+			time.Since(startTime).Seconds(), *es.spec.ErrorHandling, time.Duration(*es.spec.BlockedRetryDelay).Seconds())
 		if *es.spec.ErrorHandling == fftm.ErrorHandlingTypeSkip {
 			// Swallow the error now we have logged it
 			return nil
@@ -457,7 +538,7 @@ func (es *eventStream) performActionsWithRetry(batch *eventStreamBatch) (err err
 	}
 }
 
-func (es *eventStream) writeCheckpoint(batch *eventStreamBatch) (err error) {
+func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *eventStreamBatch) (err error) {
 	// We update the checkpoints (under lock) for all listeners with events in this batch.
 	// The last event for any listener in the batch wins.
 	es.mux.Lock()
@@ -468,7 +549,7 @@ func (es *eventStream) writeCheckpoint(batch *eventStreamBatch) (err error) {
 	}
 	for lID, lCP := range batch.checkpoints {
 		if l, ok := es.listeners[lID]; ok {
-			l.UpdateCheckpoint(lCP)
+			l.checkpoint = lCP
 		}
 	}
 	for lID, l := range es.listeners {
@@ -477,7 +558,7 @@ func (es *eventStream) writeCheckpoint(batch *eventStreamBatch) (err error) {
 	es.mux.Unlock()
 
 	// We only return if the context is cancelled, or the checkpoint succeeds
-	return es.retry.Do(es.startedState.ctx, "action", func(attempt int) (retry bool, err error) {
-		return true, es.persistence.StoreCheckpoint(es.startedState.ctx, cp)
+	return es.retry.Do(startedState.ctx, "action", func(attempt int) (retry bool, err error) {
+		return true, es.persistence.StoreCheckpoint(startedState.ctx, cp)
 	})
 }
