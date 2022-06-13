@@ -351,3 +351,21 @@ func TestSendReply(t *testing.T) {
 	c.ReadJSON(&val)
 	assert.Equal("Hello World", val)
 }
+
+func TestListenTopicClosing(t *testing.T) {
+
+	w, ts := newTestWebSocketServer()
+	defer ts.Close()
+	w.getTopic("test")
+
+	c := &webSocketConnection{
+		server:   w,
+		topics:   make(map[string]*webSocketTopic),
+		closing:  make(chan struct{}),
+		newTopic: make(chan bool),
+	}
+	close(c.closing)
+	c.listenTopic(&webSocketTopic{
+		topic: "test",
+	})
+}
