@@ -58,8 +58,7 @@ func newTestEventStream(t *testing.T, conf string) (es *eventStream) {
 	return ees.(*eventStream)
 }
 
-func mockWSChannels(es *eventStream) (chan interface{}, chan interface{}, chan error) {
-	wsc := es.wsChannels.(*wsmocks.WebSocketChannels)
+func mockWSChannels(wsc *wsmocks.WebSocketChannels) (chan interface{}, chan interface{}, chan error) {
 	senderChannel := make(chan interface{}, 1)
 	broadcastChannel := make(chan interface{}, 1)
 	receiverChannel := make(chan error, 1)
@@ -280,13 +279,16 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].JSONObject().GetString("cp1data") == "stuff"
 	})).Return(nil)
 
-	senderChannel, _, receiverChannel := mockWSChannels(es)
+	senderChannel, _, receiverChannel := mockWSChannels(es.wsChannels.(*wsmocks.WebSocketChannels))
 
 	err := es.AddOrUpdateListener(es.bgCtx, l)
 	assert.NoError(t, err)
 
 	err = es.Start(es.bgCtx)
 	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx) // double start is error
+	assert.Regexp(t, "FF21027", err)
 
 	r := <-started
 
@@ -501,7 +503,55 @@ func TestUpdateStreamStarted(t *testing.T) {
 	mfc.AssertExpectations(t)
 }
 
-func TestUpdateListenerStarted(t *testing.T) {
+func TestAddRemoveListener(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	l := &fftm.Listener{
+		ID:      fftypes.NewUUID(),
+		Name:    "ut_listener",
+		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+
+	started := make(chan *ffcapi.EventListenerAddRequest, 1)
+	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
+		started <- r
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	err := es.AddOrUpdateListener(es.bgCtx, l)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	r := <-started
+
+	err = es.RemoveListener(es.bgCtx, l.ID)
+	assert.NoError(t, err)
+
+	err = es.RemoveListener(es.bgCtx, l.ID)
+	assert.NoError(t, err)
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	<-r.Done
+
+	mfc.AssertExpectations(t)
+}
+
+func TestUpdateListenerAndDeleteStarted(t *testing.T) {
 
 	es := newTestEventStream(t, `{
 		"name": "ut_stream"
@@ -527,6 +577,10 @@ func TestUpdateListenerStarted(t *testing.T) {
 		return r.ID.Equals(l1.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
 
+	msp := es.persistence.(*persistencemocks.EventStreamPersistence)
+	msp.On("DeleteCheckpoint", mock.Anything, es.spec.ID).Return(fmt.Errorf("pop")).Once()
+	msp.On("DeleteCheckpoint", mock.Anything, es.spec.ID).Return(nil)
+
 	err := es.AddOrUpdateListener(es.bgCtx, l1)
 	assert.NoError(t, err)
 
@@ -551,7 +605,10 @@ func TestUpdateListenerStarted(t *testing.T) {
 
 	r = <-started
 
-	err = es.Stop(es.bgCtx)
+	err = es.Delete(es.bgCtx)
+	assert.Regexp(t, "pop", err)
+
+	err = es.Delete(es.bgCtx)
 	assert.NoError(t, err)
 
 	<-r.Done
@@ -707,7 +764,7 @@ func TestUpdateStreamStopFail(t *testing.T) {
 		return r.ID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
+	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Twice()
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
 		return r.ID.Equals(l.ID)
@@ -727,7 +784,8 @@ func TestUpdateStreamStopFail(t *testing.T) {
 	err = es.UpdateDefinition(context.Background(), defChanged)
 	assert.Regexp(t, "FF21031.*pop", err)
 
-	<-r.Done
+	err = es.Delete(context.Background())
+	assert.Regexp(t, "pop", err)
 
 	err = es.Stop(es.bgCtx)
 	assert.NoError(t, err)
@@ -750,4 +808,188 @@ func TestStopWhenNotStarted(t *testing.T) {
 
 func TestSafeCompareFilterListDiffLen(t *testing.T) {
 	assert.False(t, safeCompareFilterList([]fftypes.JSONAny{}, []fftypes.JSONAny{`{}`}))
+}
+
+func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream",
+		"websocket": {
+			"distributionMode": "broadcast"
+		}
+	}`)
+
+	l := &fftm.Listener{
+		ID:        fftypes.NewUUID(),
+		Name:      "ut_listener",
+		Filters:   []fftypes.JSONAny{`{"event":"definition1"}`},
+		Options:   fftypes.JSONAnyPtr(`{"option1":"value1"}`),
+		FromBlock: "12345",
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+
+	started := make(chan *ffcapi.EventListenerAddRequest, 1)
+	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
+		started <- r
+		return r.ID.Equals(l.ID)
+	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+
+	first := true
+	done := make(chan struct{})
+	msp := es.persistence.(*persistencemocks.EventStreamPersistence)
+	msp.On("StoreCheckpoint", mock.Anything, mock.Anything).Return(fmt.Errorf("pop")).Run(func(args mock.Arguments) {
+		if first {
+			go func() {
+				// Close here so we exit the loop
+				err := es.Stop(es.bgCtx)
+				assert.NoError(t, err)
+				close(done)
+			}()
+			first = false
+		}
+	})
+
+	_, broadcastChannel, _ := mockWSChannels(es.wsChannels.(*wsmocks.WebSocketChannels))
+
+	err := es.AddOrUpdateListener(es.bgCtx, l)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	r := <-started
+
+	r.EventStream <- &ffcapi.ListenerUpdate{
+		ListenerID: l.ID,
+		Checkpoint: fftypes.JSONAnyPtr(`{"cp1data": "stuff"}`),
+		Events: []*ffcapi.Event{
+			{
+				Data:       fftypes.JSONAnyPtr(`{"k1":"v1"}`),
+				ProtocolID: "000000000042/000013/000001",
+				Info:       fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
+			},
+		},
+	}
+	batch1 := (<-broadcastChannel).([]*ffcapi.EventWithContext)
+	assert.Len(t, batch1, 1)
+	assert.Equal(t, "v1", batch1[0].Data.JSONObject().GetString("k1"))
+
+	<-r.Done
+	<-done
+
+	mfc.AssertExpectations(t)
+}
+
+func TestActionRetryOk(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream",
+		"errorHandling": "skip",
+		"retryTimeout": "1s"
+	}`)
+
+	err := es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	es.mux.Lock()
+	callCount := 0
+	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+		callCount++
+		if callCount > 1 {
+			return nil
+		}
+		return fmt.Errorf("pop")
+	}
+	es.mux.Unlock()
+
+	// No-op
+	err = es.performActionsWithRetry(es.currentState, &eventStreamBatch{})
+	assert.NoError(t, err)
+
+	// retry then ok
+	err = es.performActionsWithRetry(es.currentState, &eventStreamBatch{
+		events: []*ffcapi.EventWithContext{
+			{StreamID: es.spec.ID, ListenerID: fftypes.NewUUID()},
+		},
+	})
+	assert.NoError(t, err)
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+}
+
+func TestActionRetrySkip(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream",
+		"errorHandling": "skip",
+		"blockedRetryDelay": "0s",
+		"retryTimeout": "0s"
+	}`)
+
+	err := es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	es.mux.Lock()
+	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+		return fmt.Errorf("pop")
+	}
+	es.mux.Unlock()
+
+	// Skip behavior
+	err = es.performActionsWithRetry(es.currentState, &eventStreamBatch{
+		events: []*ffcapi.EventWithContext{
+			{StreamID: es.spec.ID, ListenerID: fftypes.NewUUID()},
+		},
+	})
+	assert.NoError(t, err)
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+}
+
+func TestActionRetryBlock(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream",
+		"errorHandling": "block",
+		"blockedRetryDelay": "0s",
+		"retryTimeout": "0s"
+	}`)
+
+	err := es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	es.mux.Lock()
+	callCount := 0
+	done := make(chan struct{})
+	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+		callCount++
+		if callCount == 1 {
+			go func() {
+				err = es.Stop(es.bgCtx)
+				assert.NoError(t, err)
+				close(done)
+			}()
+		}
+		return fmt.Errorf("pop")
+	}
+	es.mux.Unlock()
+
+	// Skip behavior
+	err = es.performActionsWithRetry(es.currentState, &eventStreamBatch{
+		events: []*ffcapi.EventWithContext{
+			{StreamID: es.spec.ID, ListenerID: fftypes.NewUUID()},
+		},
+	})
+	assert.Regexp(t, "FF00154", err)
+
+	<-done
+	assert.Greater(t, callCount, 1)
 }

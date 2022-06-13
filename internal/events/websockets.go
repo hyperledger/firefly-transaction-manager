@@ -52,15 +52,13 @@ func mergeValidateWsConfig(ctx context.Context, changed bool, base *fftm.WebSock
 }
 
 type webSocketAction struct {
-	ctx        context.Context
 	topic      string
 	spec       *fftm.WebSocketConfig
 	wsChannels ws.WebSocketChannels
 }
 
-func newWebSocketAction(parentCtx context.Context, wsChannels ws.WebSocketChannels, spec *fftm.WebSocketConfig, topic string) *webSocketAction {
+func newWebSocketAction(wsChannels ws.WebSocketChannels, spec *fftm.WebSocketConfig, topic string) *webSocketAction {
 	return &webSocketAction{
-		ctx:        log.WithLogField(parentCtx, "action", "websocket"),
 		spec:       spec,
 		wsChannels: wsChannels,
 		topic:      topic,
@@ -89,7 +87,7 @@ func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt
 	for purging {
 		select {
 		case err1 := <-receiver:
-			log.L(w.ctx).Warnf("Cleared out spurious ack (could be from previous disconnect). err=%s", err1)
+			log.L(ctx).Warnf("Cleared out spurious ack (could be from previous disconnect). err=%v", err1)
 		default:
 			purging = false
 		}
@@ -99,22 +97,27 @@ func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt
 	select {
 	case channel <- events:
 		break
-	case <-w.ctx.Done():
-		err = i18n.NewError(w.ctx, tmmsgs.MsgWebSocketInterruptedSend)
+	case <-ctx.Done():
+		err = i18n.NewError(ctx, tmmsgs.MsgWebSocketInterruptedSend)
 	}
 
 	// If we ever add more distribution modes, we may want to change this logic from a simple if statement
 	if err == nil && *w.spec.DistributionMode != fftm.DistributionModeBroadcast {
-		// Wait for the next ack or exception
-		select {
-		case err = <-receiver:
-			break
-		case <-w.ctx.Done():
-			err = i18n.NewError(w.ctx, tmmsgs.MsgWebSocketInterruptedReceive)
-		}
+		err = w.waitForAck(ctx, receiver)
 	}
 
 	// Pass back any exception from the client
-	log.L(w.ctx).Infof("WebSocket event batch %d complete (len=%d). err=%v", batchNumber, len(events), err)
+	log.L(ctx).Infof("WebSocket event batch %d complete (len=%d). err=%v", batchNumber, len(events), err)
+	return err
+}
+
+func (w *webSocketAction) waitForAck(ctx context.Context, receiver <-chan error) (err error) {
+	// Wait for the next ack or exception
+	select {
+	case err = <-receiver:
+		break
+	case <-ctx.Done():
+		err = i18n.NewError(ctx, tmmsgs.MsgWebSocketInterruptedReceive)
+	}
 	return err
 }

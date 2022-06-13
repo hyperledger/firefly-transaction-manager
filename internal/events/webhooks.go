@@ -74,8 +74,8 @@ type webhookAction struct {
 	client          *resty.Client
 }
 
-func newWebhookAction(ctx context.Context, spec *fftm.WebhookConfig) *webhookAction {
-	client := ffresty.New(ctx, tmconfig.WebhookPrefix)     // majority of settings come from config
+func newWebhookAction(bgCtx context.Context, spec *fftm.WebhookConfig) *webhookAction {
+	client := ffresty.New(bgCtx, tmconfig.WebhookPrefix)   // majority of settings come from config
 	client.SetTimeout(time.Duration(*spec.RequestTimeout)) // request timeout set per stream
 	if *spec.TLSkipHostVerify {
 		client.SetTLSClientConfig(&tls.Config{
@@ -96,10 +96,10 @@ func (w *webhookAction) attemptBatch(ctx context.Context, batchNumber, attempt i
 	u, _ := url.Parse(*w.spec.URL)
 	addr, err := net.ResolveIPAddr("ip4", u.Hostname())
 	if err != nil {
-		return err
+		return i18n.NewError(ctx, tmmsgs.MsgInvalidHost, u.Hostname())
 	}
 	if w.isAddressBlocked(addr) {
-		return i18n.NewError(ctx, tmmsgs.MsgBlockWebhookAddress, u.Hostname())
+		return i18n.NewError(ctx, tmmsgs.MsgBlockWebhookAddress, addr, u.Hostname())
 	}
 	var resBody []byte
 	req := w.client.R().
@@ -113,12 +113,12 @@ func (w *webhookAction) attemptBatch(ctx context.Context, batchNumber, attempt i
 	}
 	res, err := req.Post(u.String())
 	if err != nil {
-		log.L(ctx).Errorf("Webhook %s (%s) [%d]: %s", *w.spec.URL, u, res.StatusCode(), err)
-		return err
+		log.L(ctx).Errorf("Webhook %s (%s): %s", *w.spec.URL, u, err)
+		return i18n.NewError(ctx, tmmsgs.MsgWebhookErr, err)
 	}
 	if res.IsError() {
 		log.L(ctx).Errorf("Webhook %s (%s) [%d]: %s", *w.spec.URL, u, res.StatusCode(), resBody)
-		return i18n.NewError(ctx, tmmsgs.MsgWebhookFailed, res.StatusCode())
+		err = i18n.NewError(ctx, tmmsgs.MsgWebhookFailedStatus, res.StatusCode())
 	}
 	return err
 }

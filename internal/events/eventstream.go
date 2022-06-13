@@ -82,9 +82,7 @@ func InitDefaults() {
 	}
 }
 
-type eventStreamAction interface {
-	attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error
-}
+type eventStreamAction func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error
 
 type eventStreamBatch struct {
 	number         int
@@ -148,9 +146,9 @@ func (es *eventStream) initAction(startedState *startedStreamState) {
 	ctx := startedState.ctx
 	switch *es.spec.Type {
 	case fftm.EventStreamTypeWebhook:
-		startedState.action = newWebhookAction(ctx, es.spec.Webhook)
+		startedState.action = newWebhookAction(ctx, es.spec.Webhook).attemptBatch
 	case fftm.EventStreamTypeWebSocket:
-		startedState.action = newWebSocketAction(ctx, es.wsChannels, es.spec.WebSocket, *es.spec.Name)
+		startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
 	default:
 		// mergeValidateEsConfig always be called previous to this
 		panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
@@ -327,21 +325,31 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *fftm.Liste
 	return l.start(startedState)
 }
 
-func (es *eventStream) RemoveListener(ctx context.Context, id *fftypes.UUID) error {
-	return nil
+func (es *eventStream) RemoveListener(ctx context.Context, id *fftypes.UUID) (err error) {
+	es.mux.Lock()
+	l, exists := es.listeners[*id]
+	if !exists {
+		log.L(ctx).Warnf("Removing listener not in map: %s", id)
+		es.mux.Unlock()
+		return nil
+	}
+	startedState := es.currentState
+	delete(es.listeners, *id)
+	es.mux.Unlock()
+
+	log.L(ctx).Warnf("Removing listener: %s", id)
+	if startedState != nil {
+		err = l.stop(startedState)
+	}
+	return err
 }
 
 func (es *eventStream) String() string {
 	return es.spec.ID.String()
 }
 
+// checkSetState - caller must have locked the mux when calling this
 func (es *eventStream) checkSetState(ctx context.Context, requiredState streamState, newState ...streamState) error {
-	es.mux.Lock()
-	defer es.mux.Unlock()
-	return es.checkSetStateLocked(ctx, requiredState, newState...)
-}
-
-func (es *eventStream) checkSetStateLocked(ctx context.Context, requiredState streamState, newState ...streamState) error {
 	if es.state != requiredState {
 		return i18n.NewError(ctx, tmmsgs.MsgStreamStateError, es.state)
 	}
@@ -354,7 +362,7 @@ func (es *eventStream) checkSetStateLocked(ctx context.Context, requiredState st
 func (es *eventStream) Start(ctx context.Context) error {
 	es.mux.Lock()
 	defer es.mux.Unlock()
-	if err := es.checkSetStateLocked(ctx, streamStateStopped, streamStateStarted); err != nil {
+	if err := es.checkSetState(ctx, streamStateStopped, streamStateStarted); err != nil {
 		return err
 	}
 	log.L(ctx).Infof("Starting event stream %s", es)
@@ -382,7 +390,7 @@ func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, er
 	es.mux.Lock()
 	startedState := es.currentState
 	defer es.mux.Unlock()
-	if err := es.checkSetStateLocked(ctx, streamStateStarted, streamStateStopping); err != nil {
+	if err := es.checkSetState(ctx, streamStateStarted, streamStateStopping); err != nil {
 		return nil, err
 	}
 	log.L(ctx).Infof("Stopping event stream %s", es)
@@ -394,7 +402,7 @@ func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, er
 	for _, l := range es.listeners {
 		err := l.stop(startedState)
 		if err != nil {
-			_ = es.checkSetStateLocked(ctx, streamStateStopping, streamStateStarted) // restore started state
+			_ = es.checkSetState(ctx, streamStateStopping, streamStateStarted) // restore started state
 			return nil, err
 		}
 	}
@@ -416,7 +424,7 @@ func (es *eventStream) Stop(ctx context.Context) error {
 	es.mux.Lock()
 	es.currentState = nil
 	defer es.mux.Unlock()
-	return es.checkSetStateLocked(ctx, streamStateStopping, streamStateStopped)
+	return es.checkSetState(ctx, streamStateStopping, streamStateStopped)
 }
 
 func (es *eventStream) Delete(ctx context.Context) error {
@@ -435,7 +443,7 @@ func (es *eventStream) Delete(ctx context.Context) error {
 	if err := es.persistence.DeleteCheckpoint(ctx, es.spec.ID); err != nil {
 		return err
 	}
-	return es.checkSetStateLocked(ctx, streamStateStopped, streamStateDeleted)
+	return es.checkSetState(ctx, streamStateStopped, streamStateDeleted)
 }
 
 func (es *eventStream) eventLoop(startedState *startedStreamState) {
@@ -512,11 +520,11 @@ func (es *eventStream) performActionsWithRetry(startedState *startedStreamState,
 	for {
 		// Short exponential back-off retry
 		err := es.retry.Do(ctx, "action", func(attempt int) (retry bool, err error) {
-			err = startedState.action.attemptBatch(ctx, batch.number, attempt, batch.events)
+			err = startedState.action(ctx, batch.number, attempt, batch.events)
 			if err != nil {
 				log.L(ctx).Errorf("Batch %d attempt %d failed. err=%s",
 					batch.number, attempt, err)
-				return time.Since(startTime) > time.Duration(*es.spec.RetryTimeout), err
+				return time.Since(startTime) < time.Duration(*es.spec.RetryTimeout), err
 			}
 			return false, nil
 		})
@@ -559,7 +567,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	es.mux.Unlock()
 
 	// We only return if the context is cancelled, or the checkpoint succeeds
-	return es.retry.Do(startedState.ctx, "action", func(attempt int) (retry bool, err error) {
+	return es.retry.Do(startedState.ctx, "checkpoint", func(attempt int) (retry bool, err error) {
 		return true, es.persistence.StoreCheckpoint(startedState.ctx, cp)
 	})
 }
