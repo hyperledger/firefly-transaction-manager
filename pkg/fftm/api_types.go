@@ -167,14 +167,17 @@ func CheckUpdateEnum(changed bool, merged **fftypes.FFEnum, old *fftypes.FFEnum,
 // CheckUpdateStringMap helper merges supplied configuration, with a base, and applies a default if unset
 func CheckUpdateStringMap(changed bool, merged *map[string]string, old map[string]string, new map[string]string) bool {
 	if new != nil {
+		*merged = new
+		changed = changed || (old == nil)
+	} else {
 		*merged = old
-		return false
+		return false // new was nil, we cannot have changed
 	}
-	*merged = new
-	if old == nil || changed {
+	if changed {
 		return true
 	}
+	// We need to compare otherwise
 	jsonOld, _ := json.Marshal(old)
-	jsonNew, _ := json.Marshal(old)
+	jsonNew, _ := json.Marshal(new)
 	return !bytes.Equal(jsonOld, jsonNew)
 }
