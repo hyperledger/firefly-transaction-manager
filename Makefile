@@ -34,7 +34,7 @@ endef
 $(eval $(call makemock, pkg/ffcapi,             API,                    ffcapimocks))
 $(eval $(call makemock, pkg/policyengine,       PolicyEngine,           policyenginemocks))
 $(eval $(call makemock, internal/confirmations, Manager,                confirmationsmocks))
-$(eval $(call makemock, internal/persistence,   EventStreamPersistence, persistencemocks))
+$(eval $(call makemock, internal/persistence,   Persistence, persistencemocks))
 $(eval $(call makemock, internal/ws,            WebSocketChannels,      wsmocks))
 
 go-mod-tidy: .ALWAYS

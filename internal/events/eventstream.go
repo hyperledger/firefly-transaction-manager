@@ -107,7 +107,7 @@ type eventStream struct {
 	mux           sync.Mutex
 	state         streamState
 	connector     ffcapi.API
-	persistence   persistence.EventStreamPersistence
+	persistence   persistence.Persistence
 	confirmations confirmations.Manager
 	listeners     map[fftypes.UUID]*listener
 	wsChannels    ws.WebSocketChannels
@@ -119,7 +119,7 @@ func NewEventStream(
 	bgCtx context.Context,
 	persistedSpec *fftm.EventStream,
 	connector ffcapi.API,
-	persistence persistence.EventStreamPersistence,
+	persistence persistence.Persistence,
 	confirmations confirmations.Manager,
 	wsChannels ws.WebSocketChannels,
 ) (ees Stream, err error) {
@@ -551,7 +551,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	// We update the checkpoints (under lock) for all listeners with events in this batch.
 	// The last event for any listener in the batch wins.
 	es.mux.Lock()
-	cp := &persistence.EventStreamCheckpoint{
+	cp := &fftm.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
 		Time:      fftypes.Now(),
 		Listeners: make(map[fftypes.UUID]*fftypes.JSONAny),
@@ -568,6 +568,6 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 
 	// We only return if the context is cancelled, or the checkpoint succeeds
 	return es.retry.Do(startedState.ctx, "checkpoint", func(attempt int) (retry bool, err error) {
-		return true, es.persistence.StoreCheckpoint(startedState.ctx, cp)
+		return true, es.persistence.WriteCheckpoint(startedState.ctx, cp)
 	})
 }

@@ -54,6 +54,10 @@ var (
 	EventStreamsRetryMaxDelay                     = ffc("eventstreams.retry.maxDelay")
 	EventStreamsRetryFactor                       = ffc("eventstreams.retry.factor")
 	WebhooksAllowPrivateIPs                       = ffc("webhooks.allowPrivateIPs")
+	PersistenceType                               = ffc("persistence.type")
+	PersistenceLevelDBPath                        = ffc("persistence.leveldb.path")
+	PersistenceLevelDBMaxHandles                  = ffc("persistence.leveldb.maxHandles")
+	PersistenceLevelDBSyncWrites                  = ffc("persistence.leveldb.syncWrites")
 )
 
 var FFCoreConfig config.Section
@@ -93,6 +97,10 @@ func setDefaults() {
 	viper.SetDefault(string(EventStreamsDefaultsWebhookRequestTimeout), "30s")
 	viper.SetDefault(string(EventStreamsDefaultsWebsocketDistributionMode), "load_balance")
 	viper.SetDefault(string(WebhooksAllowPrivateIPs), true)
+
+	viper.SetDefault(string(PersistenceType), "leveldb")
+	viper.SetDefault(string(PersistenceLevelDBMaxHandles), 100)
+	viper.SetDefault(string(PersistenceLevelDBSyncWrites), true)
 }
 
 func Reset() {

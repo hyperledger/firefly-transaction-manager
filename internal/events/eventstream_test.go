@@ -27,7 +27,6 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
@@ -51,7 +50,7 @@ func newTestEventStream(t *testing.T, conf string) (es *eventStream) {
 	InitDefaults()
 	ees, err := NewEventStream(context.Background(), testESConf(t, conf),
 		&ffcapimocks.API{},
-		&persistencemocks.EventStreamPersistence{},
+		&persistencemocks.Persistence{},
 		&confirmationsmocks.Manager{},
 		&wsmocks.WebSocketChannels{})
 	assert.NoError(t, err)
@@ -71,7 +70,7 @@ func TestNewTestEventStreamBadConfig(t *testing.T) {
 	InitDefaults()
 	_, err := NewEventStream(context.Background(), testESConf(t, `{}`),
 		&ffcapimocks.API{},
-		&persistencemocks.EventStreamPersistence{},
+		&persistencemocks.Persistence{},
 		&confirmationsmocks.Manager{},
 		&wsmocks.WebSocketChannels{})
 	assert.Regexp(t, "FF21028", err)
@@ -274,8 +273,8 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 		return r.ID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.EventStreamPersistence)
-	msp.On("StoreCheckpoint", mock.Anything, mock.MatchedBy(func(cp *persistence.EventStreamCheckpoint) bool {
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *fftm.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].JSONObject().GetString("cp1data") == "stuff"
 	})).Return(nil)
 
@@ -378,8 +377,8 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 		return r.ID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.EventStreamPersistence)
-	msp.On("StoreCheckpoint", mock.Anything, mock.MatchedBy(func(cp *persistence.EventStreamCheckpoint) bool {
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *fftm.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].JSONObject().GetString("cp1data") == "stuff"
 	})).Return(nil)
 
@@ -577,7 +576,7 @@ func TestUpdateListenerAndDeleteStarted(t *testing.T) {
 		return r.ID.Equals(l1.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
 
-	msp := es.persistence.(*persistencemocks.EventStreamPersistence)
+	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("DeleteCheckpoint", mock.Anything, es.spec.ID).Return(fmt.Errorf("pop")).Once()
 	msp.On("DeleteCheckpoint", mock.Anything, es.spec.ID).Return(nil)
 
@@ -840,8 +839,8 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 
 	first := true
 	done := make(chan struct{})
-	msp := es.persistence.(*persistencemocks.EventStreamPersistence)
-	msp.On("StoreCheckpoint", mock.Anything, mock.Anything).Return(fmt.Errorf("pop")).Run(func(args mock.Arguments) {
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("WriteCheckpoint", mock.Anything, mock.Anything).Return(fmt.Errorf("pop")).Run(func(args mock.Arguments) {
 		if first {
 			go func() {
 				// Close here so we exit the loop

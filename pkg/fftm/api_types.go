@@ -66,6 +66,12 @@ type EventStream struct {
 	WebSocket *WebSocketConfig `ffstruct:"eventstream" json:"websocket,omitempty"`
 }
 
+type EventStreamCheckpoint struct {
+	StreamID  *fftypes.UUID                     `json:"streamId"`
+	Time      *fftypes.FFTime                   `json:"time"`
+	Listeners map[fftypes.UUID]*fftypes.JSONAny `json:"listeners"`
+}
+
 type WebhookConfig struct {
 	URL                         *string             `ffstruct:"whconfig" json:"url,omitempty"`
 	Headers                     map[string]string   `ffstruct:"whconfig" json:"headers,omitempty"`
@@ -81,7 +87,7 @@ type WebSocketConfig struct {
 type Listener struct {
 	ID                *fftypes.UUID     `ffstruct:"listener" json:"id,omitempty"`
 	Name              string            `ffstruct:"listener" json:"name"`
-	Stream            string            `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
+	StreamID          *fftypes.UUID     `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
 	DeprecatedAddress *string           `ffstruct:"listener" json:"address,omitempty"`
 	DeprecatedEvent   *fftypes.JSONAny  `ffstruct:"listener" json:"event,omitempty"`
 	Filters           []fftypes.JSONAny `ffstruct:"listener" json:"filters"`
