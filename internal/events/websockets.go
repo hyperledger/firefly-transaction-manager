@@ -23,27 +23,27 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 )
 
-func mergeValidateWsConfig(ctx context.Context, changed bool, base *fftm.WebSocketConfig, updates *fftm.WebSocketConfig) (*fftm.WebSocketConfig, bool, error) {
+func mergeValidateWsConfig(ctx context.Context, changed bool, base *apitypes.WebSocketConfig, updates *apitypes.WebSocketConfig) (*apitypes.WebSocketConfig, bool, error) {
 
 	if base == nil {
-		base = &fftm.WebSocketConfig{}
+		base = &apitypes.WebSocketConfig{}
 	}
 	if updates == nil {
-		updates = &fftm.WebSocketConfig{}
+		updates = &apitypes.WebSocketConfig{}
 	}
-	merged := &fftm.WebSocketConfig{}
+	merged := &apitypes.WebSocketConfig{}
 
 	// Distribution mode
-	changed = fftm.CheckUpdateEnum(changed, &merged.DistributionMode, base.DistributionMode, updates.DistributionMode, esDefaults.websocketDistributionMode)
+	changed = apitypes.CheckUpdateEnum(changed, &merged.DistributionMode, base.DistributionMode, updates.DistributionMode, esDefaults.websocketDistributionMode)
 	switch *merged.DistributionMode {
-	case fftm.DistributionModeLoadBalance, fftm.DistributionMode("workloaddistribution"):
+	case apitypes.DistributionModeLoadBalance, apitypes.DistributionMode("workloaddistribution"):
 		// Migrate old "workloadDistribution" enum value to more consistent with other FF enums "load_balance"
-		*merged.DistributionMode = fftm.DistributionModeLoadBalance
-	case fftm.DistributionModeBroadcast:
+		*merged.DistributionMode = apitypes.DistributionModeLoadBalance
+	case apitypes.DistributionModeBroadcast:
 	default:
 		return nil, false, i18n.NewError(ctx, tmmsgs.MsgInvalidDistributionMode, *merged.DistributionMode)
 	}
@@ -53,11 +53,11 @@ func mergeValidateWsConfig(ctx context.Context, changed bool, base *fftm.WebSock
 
 type webSocketAction struct {
 	topic      string
-	spec       *fftm.WebSocketConfig
+	spec       *apitypes.WebSocketConfig
 	wsChannels ws.WebSocketChannels
 }
 
-func newWebSocketAction(wsChannels ws.WebSocketChannels, spec *fftm.WebSocketConfig, topic string) *webSocketAction {
+func newWebSocketAction(wsChannels ws.WebSocketChannels, spec *apitypes.WebSocketConfig, topic string) *webSocketAction {
 	return &webSocketAction{
 		spec:       spec,
 		wsChannels: wsChannels,
@@ -74,9 +74,9 @@ func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt
 
 	var channel chan<- interface{}
 	switch *w.spec.DistributionMode {
-	case fftm.DistributionModeBroadcast:
+	case apitypes.DistributionModeBroadcast:
 		channel = broadcaster
-	case fftm.DistributionModeLoadBalance:
+	case apitypes.DistributionModeLoadBalance:
 		channel = sender
 	default:
 		return i18n.NewError(ctx, tmmsgs.MsgInvalidDistributionMode, *w.spec.DistributionMode)
@@ -102,7 +102,7 @@ func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt
 	}
 
 	// If we ever add more distribution modes, we may want to change this logic from a simple if statement
-	if err == nil && *w.spec.DistributionMode != fftm.DistributionModeBroadcast {
+	if err == nil && *w.spec.DistributionMode != apitypes.DistributionModeBroadcast {
 		err = w.waitForAck(ctx, receiver)
 	}
 

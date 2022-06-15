@@ -27,7 +27,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -142,11 +142,11 @@ func (p *leveldbPersistence) deleteKeys(ctx context.Context, keys ...[]byte) err
 	return nil
 }
 
-func (p *leveldbPersistence) WriteCheckpoint(ctx context.Context, checkpoint *fftm.EventStreamCheckpoint) error {
+func (p *leveldbPersistence) WriteCheckpoint(ctx context.Context, checkpoint *apitypes.EventStreamCheckpoint) error {
 	return p.writeJSON(ctx, p.checkpointKey(checkpoint.StreamID), checkpoint)
 }
 
-func (p *leveldbPersistence) GetCheckpoint(ctx context.Context, streamID *fftypes.UUID) (cp *fftm.EventStreamCheckpoint, err error) {
+func (p *leveldbPersistence) GetCheckpoint(ctx context.Context, streamID *fftypes.UUID) (cp *apitypes.EventStreamCheckpoint, err error) {
 	err = p.readJSON(ctx, p.checkpointKey(streamID), &cp)
 	return cp, err
 }
@@ -155,23 +155,23 @@ func (p *leveldbPersistence) DeleteCheckpoint(ctx context.Context, streamID *fft
 	return p.deleteKeys(ctx, p.checkpointKey(streamID))
 }
 
-func (p *leveldbPersistence) ListStreams(ctx context.Context, after *fftypes.UUID, limit int) ([]*fftm.EventStream, error) {
-	streams := make([]*fftm.EventStream, 0)
+func (p *leveldbPersistence) ListStreams(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.EventStream, error) {
+	streams := make([]*apitypes.EventStream, 0)
 	if err := p.listJSON(ctx, "eventstreams/", after.String(), limit,
-		func() interface{} { var v *fftm.EventStream; return &v },
-		func(v interface{}) { streams = append(streams, *(v.(**fftm.EventStream))) },
+		func() interface{} { var v *apitypes.EventStream; return &v },
+		func(v interface{}) { streams = append(streams, *(v.(**apitypes.EventStream))) },
 	); err != nil {
 		return nil, err
 	}
 	return streams, nil
 }
 
-func (p *leveldbPersistence) GetStream(ctx context.Context, streamID *fftypes.UUID) (es *fftm.EventStream, err error) {
+func (p *leveldbPersistence) GetStream(ctx context.Context, streamID *fftypes.UUID) (es *apitypes.EventStream, err error) {
 	err = p.readJSON(ctx, p.streamKey(streamID), &es)
 	return es, err
 }
 
-func (p *leveldbPersistence) WriteStream(ctx context.Context, spec *fftm.EventStream) error {
+func (p *leveldbPersistence) WriteStream(ctx context.Context, spec *apitypes.EventStream) error {
 	return p.writeJSON(ctx, p.streamKey(spec.ID), spec)
 }
 
@@ -179,35 +179,35 @@ func (p *leveldbPersistence) DeleteStream(ctx context.Context, streamID *fftypes
 	return p.deleteKeys(ctx, p.streamKey(streamID))
 }
 
-func (p *leveldbPersistence) ListListeners(ctx context.Context, after *fftypes.UUID, limit int) ([]*fftm.Listener, error) {
-	listeners := make([]*fftm.Listener, 0)
+func (p *leveldbPersistence) ListListeners(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.Listener, error) {
+	listeners := make([]*apitypes.Listener, 0)
 	if err := p.listJSON(ctx, "listeners/", after.String(), limit,
-		func() interface{} { var v *fftm.Listener; return &v },
-		func(v interface{}) { listeners = append(listeners, *(v.(**fftm.Listener))) },
+		func() interface{} { var v *apitypes.Listener; return &v },
+		func(v interface{}) { listeners = append(listeners, *(v.(**apitypes.Listener))) },
 	); err != nil {
 		return nil, err
 	}
 	return listeners, nil
 }
 
-func (p *leveldbPersistence) ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, streamID *fftypes.UUID) ([]*fftm.Listener, error) {
-	listeners := make([]*fftm.Listener, 0)
+func (p *leveldbPersistence) ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, streamID *fftypes.UUID) ([]*apitypes.Listener, error) {
+	listeners := make([]*apitypes.Listener, 0)
 	if err := p.listJSON(ctx, "listeners/", after.String(), limit,
-		func() interface{} { var v *fftm.Listener; return &v },
-		func(v interface{}) { listeners = append(listeners, *(v.(**fftm.Listener))) },
-		func(v interface{}) bool { return (*(v.(**fftm.Listener))).StreamID.Equals(streamID) },
+		func() interface{} { var v *apitypes.Listener; return &v },
+		func(v interface{}) { listeners = append(listeners, *(v.(**apitypes.Listener))) },
+		func(v interface{}) bool { return (*(v.(**apitypes.Listener))).StreamID.Equals(streamID) },
 	); err != nil {
 		return nil, err
 	}
 	return listeners, nil
 }
 
-func (p *leveldbPersistence) GetListener(ctx context.Context, listenerID *fftypes.UUID) (l *fftm.Listener, err error) {
+func (p *leveldbPersistence) GetListener(ctx context.Context, listenerID *fftypes.UUID) (l *apitypes.Listener, err error) {
 	err = p.readJSON(ctx, p.listenerKey(listenerID), &l)
 	return l, err
 }
 
-func (p *leveldbPersistence) WriteListener(ctx context.Context, spec *fftm.Listener) error {
+func (p *leveldbPersistence) WriteListener(ctx context.Context, spec *apitypes.Listener) error {
 	return p.writeJSON(ctx, p.listenerKey(spec.ID), spec)
 }
 

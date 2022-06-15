@@ -25,7 +25,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
@@ -81,17 +81,17 @@ func TestReadWriteStreams(t *testing.T) {
 	defer done()
 
 	ctx := context.Background()
-	s1 := &fftm.EventStream{
+	s1 := &apitypes.EventStream{
 		ID:   UUIDVersion1(), // ensure we get sequentially ascending IDs
 		Name: strPtr("stream1"),
 	}
 	p.WriteStream(ctx, s1)
-	s2 := &fftm.EventStream{
+	s2 := &apitypes.EventStream{
 		ID:   UUIDVersion1(),
 		Name: strPtr("stream2"),
 	}
 	p.WriteStream(ctx, s2)
-	s3 := &fftm.EventStream{
+	s3 := &apitypes.EventStream{
 		ID:   UUIDVersion1(),
 		Name: strPtr("stream3"),
 	}
@@ -150,21 +150,21 @@ func TestReadWriteListeners(t *testing.T) {
 	sID1 := UUIDVersion1()
 	sID2 := UUIDVersion1()
 
-	s1l1 := &fftm.Listener{
+	s1l1 := &apitypes.Listener{
 		ID:       UUIDVersion1(),
 		StreamID: sID1,
 	}
 	err := p.WriteListener(ctx, s1l1)
 	assert.NoError(t, err)
 
-	s2l1 := &fftm.Listener{
+	s2l1 := &apitypes.Listener{
 		ID:       UUIDVersion1(),
 		StreamID: sID2,
 	}
 	err = p.WriteListener(ctx, s2l1)
 	assert.NoError(t, err)
 
-	s1l2 := &fftm.Listener{
+	s1l2 := &apitypes.Listener{
 		ID:       UUIDVersion1(),
 		StreamID: sID1,
 	}
@@ -212,10 +212,10 @@ func TestReadWriteCheckpoints(t *testing.T) {
 	defer done()
 
 	ctx := context.Background()
-	cp1 := &fftm.EventStreamCheckpoint{
+	cp1 := &apitypes.EventStreamCheckpoint{
 		StreamID: UUIDVersion1(),
 	}
-	cp2 := &fftm.EventStreamCheckpoint{
+	cp2 := &apitypes.EventStreamCheckpoint{
 		StreamID: UUIDVersion1(),
 	}
 
@@ -287,7 +287,7 @@ func TestWriteCheckpointFail(t *testing.T) {
 	p.db.Close()
 
 	id1 := UUIDVersion1()
-	err := p.WriteCheckpoint(context.Background(), &fftm.EventStreamCheckpoint{
+	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
 		Listeners: map[fftypes.UUID]*fftypes.JSONAny{
 			*id1: fftypes.JSONAnyPtr(`{!!! bad json`),
 		},

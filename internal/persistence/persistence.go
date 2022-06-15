@@ -21,7 +21,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
 // UUIDVersion1 returns a version 1 UUID - where the alphanumeric sequence is assured to be ascending based on the order of generation
@@ -31,18 +31,18 @@ func UUIDVersion1() *fftypes.UUID {
 }
 
 type Persistence interface {
-	WriteCheckpoint(ctx context.Context, checkpoint *fftm.EventStreamCheckpoint) error
-	GetCheckpoint(ctx context.Context, streamID *fftypes.UUID) (*fftm.EventStreamCheckpoint, error)
+	WriteCheckpoint(ctx context.Context, checkpoint *apitypes.EventStreamCheckpoint) error
+	GetCheckpoint(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStreamCheckpoint, error)
 	DeleteCheckpoint(ctx context.Context, streamID *fftypes.UUID) error
 
-	ListStreams(ctx context.Context, after *fftypes.UUID, limit int) ([]*fftm.EventStream, error)
-	GetStream(ctx context.Context, streamID *fftypes.UUID) (*fftm.EventStream, error)
-	WriteStream(ctx context.Context, spec *fftm.EventStream) error
+	ListStreams(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.EventStream, error)
+	GetStream(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStream, error)
+	WriteStream(ctx context.Context, spec *apitypes.EventStream) error
 	DeleteStream(ctx context.Context, streamID *fftypes.UUID) error
 
-	ListListeners(ctx context.Context, after *fftypes.UUID, limit int) ([]*fftm.Listener, error)
-	ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, streamID *fftypes.UUID) ([]*fftm.Listener, error)
-	GetListener(ctx context.Context, listenerID *fftypes.UUID) (*fftm.Listener, error)
-	WriteListener(ctx context.Context, spec *fftm.Listener) error
+	ListListeners(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.Listener, error)
+	ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, streamID *fftypes.UUID) ([]*apitypes.Listener, error)
+	GetListener(ctx context.Context, listenerID *fftypes.UUID) (*apitypes.Listener, error)
+	WriteListener(ctx context.Context, spec *apitypes.Listener) error
 	DeleteListener(ctx context.Context, listenerID *fftypes.UUID) error
 }

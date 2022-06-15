@@ -31,38 +31,38 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 )
 
-func mergeValidateWhConfig(ctx context.Context, changed bool, base *fftm.WebhookConfig, updates *fftm.WebhookConfig) (*fftm.WebhookConfig, bool, error) {
+func mergeValidateWhConfig(ctx context.Context, changed bool, base *apitypes.WebhookConfig, updates *apitypes.WebhookConfig) (*apitypes.WebhookConfig, bool, error) {
 
 	if base == nil {
-		base = &fftm.WebhookConfig{}
+		base = &apitypes.WebhookConfig{}
 	}
 	if updates == nil {
-		updates = &fftm.WebhookConfig{}
+		updates = &apitypes.WebhookConfig{}
 	}
-	merged := &fftm.WebhookConfig{}
+	merged := &apitypes.WebhookConfig{}
 
 	// URL (no default - must be set)
-	changed = fftm.CheckUpdateString(changed, &merged.URL, base.URL, updates.URL, "")
+	changed = apitypes.CheckUpdateString(changed, &merged.URL, base.URL, updates.URL, "")
 	if *merged.URL == "" {
 		return nil, false, i18n.NewError(ctx, tmmsgs.MsgMissingWebhookURL)
 	}
 
 	// Headers
-	changed = fftm.CheckUpdateStringMap(changed, &merged.Headers, base.Headers, updates.Headers)
+	changed = apitypes.CheckUpdateStringMap(changed, &merged.Headers, base.Headers, updates.Headers)
 
 	// Skip host verify (disable TLS checking)
-	changed = fftm.CheckUpdateBool(changed, &merged.TLSkipHostVerify, base.TLSkipHostVerify, updates.TLSkipHostVerify, false)
+	changed = apitypes.CheckUpdateBool(changed, &merged.TLSkipHostVerify, base.TLSkipHostVerify, updates.TLSkipHostVerify, false)
 
 	// Request timeout
 	if updates.DeprecatedRequestTimeoutSec != nil {
 		dv := fftypes.FFDuration(*updates.DeprecatedRequestTimeoutSec) * fftypes.FFDuration(time.Second)
-		changed = fftm.CheckUpdateDuration(changed, &merged.RequestTimeout, base.RequestTimeout, &dv, esDefaults.webhookRequestTimeout)
+		changed = apitypes.CheckUpdateDuration(changed, &merged.RequestTimeout, base.RequestTimeout, &dv, esDefaults.webhookRequestTimeout)
 	} else {
-		changed = fftm.CheckUpdateDuration(changed, &merged.RequestTimeout, base.RequestTimeout, updates.RequestTimeout, esDefaults.webhookRequestTimeout)
+		changed = apitypes.CheckUpdateDuration(changed, &merged.RequestTimeout, base.RequestTimeout, updates.RequestTimeout, esDefaults.webhookRequestTimeout)
 	}
 
 	return merged, changed, nil
@@ -70,11 +70,11 @@ func mergeValidateWhConfig(ctx context.Context, changed bool, base *fftm.Webhook
 
 type webhookAction struct {
 	allowPrivateIPs bool
-	spec            *fftm.WebhookConfig
+	spec            *apitypes.WebhookConfig
 	client          *resty.Client
 }
 
-func newWebhookAction(bgCtx context.Context, spec *fftm.WebhookConfig) *webhookAction {
+func newWebhookAction(bgCtx context.Context, spec *apitypes.WebhookConfig) *webhookAction {
 	client := ffresty.New(bgCtx, tmconfig.WebhookPrefix)   // majority of settings come from config
 	client.SetTimeout(time.Duration(*spec.RequestTimeout)) // request timeout set per stream
 	if *spec.TLSkipHostVerify {

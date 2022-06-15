@@ -5,6 +5,7 @@
   "go.lintTool": "golangci-lint",
   "cSpell.words": [
     "APIID",
+    "apitypes",
     "ccache",
     "confirmationsmocks",
     "dataexchange",

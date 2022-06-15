@@ -27,8 +27,8 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,7 +36,7 @@ func newTestWebhooks(url string) *webhookAction {
 	tmconfig.Reset()
 	truthy := true
 	oneSec := 1 * time.Second
-	return newWebhookAction(context.Background(), &fftm.WebhookConfig{
+	return newWebhookAction(context.Background(), &apitypes.WebhookConfig{
 		TLSkipHostVerify: &truthy,
 		URL:              &url,
 		RequestTimeout:   (*fftypes.FFDuration)(&oneSec),

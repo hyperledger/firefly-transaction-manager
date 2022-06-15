@@ -21,8 +21,8 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,8 +31,8 @@ func TestWSAttemptBatchBadDistMode(t *testing.T) {
 	mws := &wsmocks.WebSocketChannels{}
 	mockWSChannels(mws)
 
-	dmw := fftm.DistributionMode("wrong")
-	wsa := newWebSocketAction(mws, &fftm.WebSocketConfig{
+	dmw := apitypes.DistributionMode("wrong")
+	wsa := newWebSocketAction(mws, &apitypes.WebSocketConfig{
 		DistributionMode: &dmw,
 	}, "ut_stream")
 
@@ -47,8 +47,8 @@ func TestWSAttemptBatchPurge(t *testing.T) {
 	_, _, rc := mockWSChannels(mws)
 	rc <- nil
 
-	dmw := fftm.DistributionModeBroadcast
-	wsa := newWebSocketAction(mws, &fftm.WebSocketConfig{
+	dmw := apitypes.DistributionModeBroadcast
+	wsa := newWebSocketAction(mws, &apitypes.WebSocketConfig{
 		DistributionMode: &dmw,
 	}, "ut_stream")
 
@@ -68,8 +68,8 @@ func TestWSAttemptBatchExitPushingEvent(t *testing.T) {
 	_, bc, _ := mockWSChannels(mws)
 	bc <- []*ffcapi.EventWithContext{} // block the broadcast channel
 
-	dmw := fftm.DistributionModeBroadcast
-	wsa := newWebSocketAction(mws, &fftm.WebSocketConfig{
+	dmw := apitypes.DistributionModeBroadcast
+	wsa := newWebSocketAction(mws, &apitypes.WebSocketConfig{
 		DistributionMode: &dmw,
 	}, "ut_stream")
 
@@ -85,8 +85,8 @@ func TestWSAttemptBatchExitReceivingReply(t *testing.T) {
 	mws := &wsmocks.WebSocketChannels{}
 	_, _, rc := mockWSChannels(mws)
 
-	dmw := fftm.DistributionModeBroadcast
-	wsa := newWebSocketAction(mws, &fftm.WebSocketConfig{
+	dmw := apitypes.DistributionModeBroadcast
+	wsa := newWebSocketAction(mws, &apitypes.WebSocketConfig{
 		DistributionMode: &dmw,
 	}, "ut_stream")
 

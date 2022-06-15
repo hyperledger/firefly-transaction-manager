@@ -32,13 +32,13 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func testESConf(t *testing.T, j string) (spec *fftm.EventStream) {
+func testESConf(t *testing.T, j string) (spec *apitypes.EventStream) {
 	err := json.Unmarshal([]byte(j), &spec)
 	assert.NoError(t, err)
 	return spec
@@ -191,7 +191,7 @@ func TestConfigWebSocketBroadcast(t *testing.T) {
 		}
 	}`))
 	assert.NoError(t, err)
-	assert.Equal(t, fftm.DistributionModeBroadcast, *es.WebSocket.DistributionMode)
+	assert.Equal(t, apitypes.DistributionModeBroadcast, *es.WebSocket.DistributionMode)
 
 }
 
@@ -230,7 +230,7 @@ func TestInitActionBadAction(t *testing.T) {
 	es := newTestEventStream(t, `{
 		"name": "ut_stream"
 	}`)
-	badType := fftm.EventStreamType("wrong")
+	badType := apitypes.EventStreamType("wrong")
 	es.spec.Type = &badType
 	assert.Panics(t, func() {
 		es.initAction(&startedStreamState{
@@ -246,7 +246,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	}`)
 
 	addr := "0x12345"
-	l := &fftm.Listener{
+	l := &apitypes.Listener{
 		ID:                fftypes.NewUUID(),
 		Name:              "ut_listener",
 		DeprecatedAddress: &addr,
@@ -274,7 +274,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
-	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *fftm.EventStreamCheckpoint) bool {
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].JSONObject().GetString("cp1data") == "stuff"
 	})).Return(nil)
 
@@ -348,7 +348,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 		}
 	}`)
 
-	l := &fftm.Listener{
+	l := &apitypes.Listener{
 		ID:   fftypes.NewUUID(),
 		Name: "ut_listener",
 		Filters: []fftypes.JSONAny{
@@ -378,7 +378,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
-	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *fftm.EventStreamCheckpoint) bool {
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].JSONObject().GetString("cp1data") == "stuff"
 	})).Return(nil)
 
@@ -427,7 +427,7 @@ func TestConnectorRejectListener(t *testing.T) {
 		"name": "ut_stream"
 	}`)
 
-	l := &fftm.Listener{
+	l := &apitypes.Listener{
 		ID:      fftypes.NewUUID(),
 		Name:    "ut_listener",
 		Filters: []fftypes.JSONAny{`badness`},
@@ -449,7 +449,7 @@ func TestUpdateStreamStarted(t *testing.T) {
 		"name": "ut_stream"
 	}`)
 
-	l := &fftm.Listener{
+	l := &apitypes.Listener{
 		ID:      fftypes.NewUUID(),
 		Name:    "ut_listener",
 		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
@@ -508,7 +508,7 @@ func TestAddRemoveListener(t *testing.T) {
 		"name": "ut_stream"
 	}`)
 
-	l := &fftm.Listener{
+	l := &apitypes.Listener{
 		ID:      fftypes.NewUUID(),
 		Name:    "ut_listener",
 		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
@@ -556,7 +556,7 @@ func TestUpdateListenerAndDeleteStarted(t *testing.T) {
 		"name": "ut_stream"
 	}`)
 
-	l1 := &fftm.Listener{
+	l1 := &apitypes.Listener{
 		ID:      fftypes.NewUUID(),
 		Name:    "ut_listener",
 		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
@@ -592,7 +592,7 @@ func TestUpdateListenerAndDeleteStarted(t *testing.T) {
 	err = es.AddOrUpdateListener(es.bgCtx, l1)
 	assert.NoError(t, err)
 
-	l2 := &fftm.Listener{
+	l2 := &apitypes.Listener{
 		ID:      l1.ID,
 		Name:    "ut_listener",
 		Filters: []fftypes.JSONAny{`{"event":"definition2"}`},
@@ -621,7 +621,7 @@ func TestUpdateListenerFail(t *testing.T) {
 		"name": "ut_stream"
 	}`)
 
-	l1 := &fftm.Listener{
+	l1 := &apitypes.Listener{
 		ID:      fftypes.NewUUID(),
 		Name:    "ut_listener",
 		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
@@ -654,7 +654,7 @@ func TestUpdateListenerFail(t *testing.T) {
 	err = es.AddOrUpdateListener(es.bgCtx, l1)
 	assert.NoError(t, err)
 
-	l2 := &fftm.Listener{
+	l2 := &apitypes.Listener{
 		ID:      l1.ID,
 		Name:    "ut_listener",
 		Filters: []fftypes.JSONAny{`{"event":"definition2"}`},
@@ -694,7 +694,7 @@ func TestUpdateStreamRestartFail(t *testing.T) {
 		"name": "ut_stream"
 	}`)
 
-	l := &fftm.Listener{
+	l := &apitypes.Listener{
 		ID:      fftypes.NewUUID(),
 		Name:    "ut_listener",
 		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
@@ -747,7 +747,7 @@ func TestUpdateStreamStopFail(t *testing.T) {
 		"name": "ut_stream"
 	}`)
 
-	l := &fftm.Listener{
+	l := &apitypes.Listener{
 		ID:      fftypes.NewUUID(),
 		Name:    "ut_listener",
 		Filters: []fftypes.JSONAny{`{"event":"definition1"}`},
@@ -818,7 +818,7 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 		}
 	}`)
 
-	l := &fftm.Listener{
+	l := &apitypes.Listener{
 		ID:        fftypes.NewUUID(),
 		Name:      "ut_listener",
 		Filters:   []fftypes.JSONAny{`{"event":"definition1"}`},

@@ -31,18 +31,18 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
 )
 
 type Stream interface {
-	AddOrUpdateListener(ctx context.Context, s *fftm.Listener) error       // Add or update a listener
-	RemoveListener(ctx context.Context, id *fftypes.UUID) error            // Stop and remove a listener
-	UpdateDefinition(ctx context.Context, updates *fftm.EventStream) error // Apply definition updates (if there are changes)
-	Definition() *fftm.EventStream                                         // Retrieve the merged definition to persist
-	Start(ctx context.Context) error                                       // Start delivery
-	Stop(ctx context.Context) error                                        // Stop delivery (does not remove checkpoints)
-	Delete(ctx context.Context) error                                      // Stop delivery, and clean up any checkpoint
+	AddOrUpdateListener(ctx context.Context, s *apitypes.Listener) error       // Add or update a listener
+	RemoveListener(ctx context.Context, id *fftypes.UUID) error                // Stop and remove a listener
+	UpdateDefinition(ctx context.Context, updates *apitypes.EventStream) error // Apply definition updates (if there are changes)
+	Definition() *apitypes.EventStream                                         // Retrieve the merged definition to persist
+	Start(ctx context.Context) error                                           // Start delivery
+	Stop(ctx context.Context) error                                            // Stop delivery (does not remove checkpoints)
+	Delete(ctx context.Context) error                                          // Stop delivery, and clean up any checkpoint
 }
 
 type streamState string
@@ -59,11 +59,11 @@ var esDefaults struct {
 	initialized               bool
 	batchSize                 int64
 	batchTimeout              fftypes.FFDuration
-	errorHandling             fftm.ErrorHandlingType
+	errorHandling             apitypes.ErrorHandlingType
 	retryTimeout              fftypes.FFDuration
 	blockedRetryDelay         fftypes.FFDuration
 	webhookRequestTimeout     fftypes.FFDuration
-	websocketDistributionMode fftm.DistributionMode
+	websocketDistributionMode apitypes.DistributionMode
 	retry                     *retry.Retry
 }
 
@@ -103,7 +103,7 @@ type startedStreamState struct {
 
 type eventStream struct {
 	bgCtx         context.Context
-	spec          *fftm.EventStream
+	spec          *apitypes.EventStream
 	mux           sync.Mutex
 	state         streamState
 	connector     ffcapi.API
@@ -117,7 +117,7 @@ type eventStream struct {
 
 func NewEventStream(
 	bgCtx context.Context,
-	persistedSpec *fftm.EventStream,
+	persistedSpec *apitypes.EventStream,
 	connector ffcapi.API,
 	persistence persistence.Persistence,
 	confirmations confirmations.Manager,
@@ -145,9 +145,9 @@ func NewEventStream(
 func (es *eventStream) initAction(startedState *startedStreamState) {
 	ctx := startedState.ctx
 	switch *es.spec.Type {
-	case fftm.EventStreamTypeWebhook:
+	case apitypes.EventStreamTypeWebhook:
 		startedState.action = newWebhookAction(ctx, es.spec.Webhook).attemptBatch
-	case fftm.EventStreamTypeWebSocket:
+	case apitypes.EventStreamTypeWebSocket:
 		startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
 	default:
 		// mergeValidateEsConfig always be called previous to this
@@ -155,13 +155,13 @@ func (es *eventStream) initAction(startedState *startedStreamState) {
 	}
 }
 
-func mergeValidateEsConfig(ctx context.Context, base *fftm.EventStream, updates *fftm.EventStream) (merged *fftm.EventStream, changed bool, err error) {
+func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, updates *apitypes.EventStream) (merged *apitypes.EventStream, changed bool, err error) {
 
 	// Merged is assured to not have any unset values (default set in all cases), or any deprecated fields
 	if base == nil {
-		base = &fftm.EventStream{}
+		base = &apitypes.EventStream{}
 	}
-	merged = &fftm.EventStream{
+	merged = &apitypes.EventStream{
 		ID:      base.ID,
 		Created: base.Created,
 		Updated: fftypes.Now(),
@@ -173,52 +173,52 @@ func mergeValidateEsConfig(ctx context.Context, base *fftm.EventStream, updates 
 	// Name (no default - must be set)
 	// - Note we do not check for uniqueness of the name at this layer in the code, but we do require unique names.
 	//   That's the responsibility of the calling code that manages the persistence of the configured streams.
-	changed = fftm.CheckUpdateString(changed, &merged.Name, base.Name, updates.Name, "")
+	changed = apitypes.CheckUpdateString(changed, &merged.Name, base.Name, updates.Name, "")
 	if *merged.Name == "" {
 		return nil, false, i18n.NewError(ctx, tmmsgs.MsgMissingName)
 	}
 
 	// Suspended
-	changed = fftm.CheckUpdateBool(changed, &merged.Suspended, base.Suspended, updates.Suspended, false)
+	changed = apitypes.CheckUpdateBool(changed, &merged.Suspended, base.Suspended, updates.Suspended, false)
 
 	// Batch size
-	changed = fftm.CheckUpdateUint64(changed, &merged.BatchSize, base.BatchSize, updates.BatchSize, esDefaults.batchSize)
+	changed = apitypes.CheckUpdateUint64(changed, &merged.BatchSize, base.BatchSize, updates.BatchSize, esDefaults.batchSize)
 
 	// Error handling mode
-	changed = fftm.CheckUpdateEnum(changed, &merged.ErrorHandling, base.ErrorHandling, updates.ErrorHandling, esDefaults.errorHandling)
+	changed = apitypes.CheckUpdateEnum(changed, &merged.ErrorHandling, base.ErrorHandling, updates.ErrorHandling, esDefaults.errorHandling)
 
 	// Batch timeout
 	if updates.DeprecatedBatchTimeoutMS != nil {
 		dv := fftypes.FFDuration(*updates.DeprecatedBatchTimeoutMS) * fftypes.FFDuration(time.Millisecond)
-		changed = fftm.CheckUpdateDuration(changed, &merged.BatchTimeout, base.BatchTimeout, &dv, esDefaults.batchTimeout)
+		changed = apitypes.CheckUpdateDuration(changed, &merged.BatchTimeout, base.BatchTimeout, &dv, esDefaults.batchTimeout)
 	} else {
-		changed = fftm.CheckUpdateDuration(changed, &merged.BatchTimeout, base.BatchTimeout, updates.BatchTimeout, esDefaults.batchTimeout)
+		changed = apitypes.CheckUpdateDuration(changed, &merged.BatchTimeout, base.BatchTimeout, updates.BatchTimeout, esDefaults.batchTimeout)
 	}
 
 	// Retry timeout
 	if updates.DeprecatedRetryTimeoutSec != nil {
 		dv := fftypes.FFDuration(*updates.DeprecatedRetryTimeoutSec) * fftypes.FFDuration(time.Second)
-		changed = fftm.CheckUpdateDuration(changed, &merged.RetryTimeout, base.RetryTimeout, &dv, esDefaults.retryTimeout)
+		changed = apitypes.CheckUpdateDuration(changed, &merged.RetryTimeout, base.RetryTimeout, &dv, esDefaults.retryTimeout)
 	} else {
-		changed = fftm.CheckUpdateDuration(changed, &merged.RetryTimeout, base.RetryTimeout, updates.RetryTimeout, esDefaults.retryTimeout)
+		changed = apitypes.CheckUpdateDuration(changed, &merged.RetryTimeout, base.RetryTimeout, updates.RetryTimeout, esDefaults.retryTimeout)
 	}
 
 	// Blocked retry delay
 	if updates.DeprecatedBlockedRetryDelaySec != nil {
 		dv := fftypes.FFDuration(*updates.DeprecatedBlockedRetryDelaySec) * fftypes.FFDuration(time.Second)
-		changed = fftm.CheckUpdateDuration(changed, &merged.BlockedRetryDelay, base.BlockedRetryDelay, &dv, esDefaults.blockedRetryDelay)
+		changed = apitypes.CheckUpdateDuration(changed, &merged.BlockedRetryDelay, base.BlockedRetryDelay, &dv, esDefaults.blockedRetryDelay)
 	} else {
-		changed = fftm.CheckUpdateDuration(changed, &merged.BlockedRetryDelay, base.BlockedRetryDelay, updates.BlockedRetryDelay, esDefaults.blockedRetryDelay)
+		changed = apitypes.CheckUpdateDuration(changed, &merged.BlockedRetryDelay, base.BlockedRetryDelay, updates.BlockedRetryDelay, esDefaults.blockedRetryDelay)
 	}
 
 	// Type
-	changed = fftm.CheckUpdateEnum(changed, &merged.Type, base.Type, updates.Type, fftm.EventStreamTypeWebSocket)
+	changed = apitypes.CheckUpdateEnum(changed, &merged.Type, base.Type, updates.Type, apitypes.EventStreamTypeWebSocket)
 	switch *merged.Type {
-	case fftm.EventStreamTypeWebSocket:
+	case apitypes.EventStreamTypeWebSocket:
 		if merged.WebSocket, changed, err = mergeValidateWsConfig(ctx, changed, base.WebSocket, updates.WebSocket); err != nil {
 			return nil, false, err
 		}
-	case fftm.EventStreamTypeWebhook:
+	case apitypes.EventStreamTypeWebhook:
 		if merged.Webhook, changed, err = mergeValidateWhConfig(ctx, changed, base.Webhook, updates.Webhook); err != nil {
 			return nil, false, err
 		}
@@ -229,11 +229,11 @@ func mergeValidateEsConfig(ctx context.Context, base *fftm.EventStream, updates 
 	return merged, changed, nil
 }
 
-func (es *eventStream) Definition() *fftm.EventStream {
+func (es *eventStream) Definition() *apitypes.EventStream {
 	return es.spec
 }
 
-func (es *eventStream) UpdateDefinition(ctx context.Context, updates *fftm.EventStream) error {
+func (es *eventStream) UpdateDefinition(ctx context.Context, updates *apitypes.EventStream) error {
 	merged, changed, err := mergeValidateEsConfig(ctx, es.spec, updates)
 	if err != nil {
 		return err
@@ -267,7 +267,7 @@ func safeCompareFilterList(a, b []fftypes.JSONAny) bool {
 	return true
 }
 
-func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *fftm.Listener) error {
+func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.Listener) error {
 
 	// Allow a single "event" object to be specified instead of a filter, with an optional "address".
 	// This is migrated to the new syntax: `"filters":[{"address":"0x1235","event":{...}}]`
@@ -534,7 +534,7 @@ func (es *eventStream) performActionsWithRetry(startedState *startedStreamState,
 		// We're in blocked retry delay
 		log.L(ctx).Errorf("Batch failed short retry after %.2fs secs. ErrorHandling=%s BlockedRetryDelay=%.2fs ",
 			time.Since(startTime).Seconds(), *es.spec.ErrorHandling, time.Duration(*es.spec.BlockedRetryDelay).Seconds())
-		if *es.spec.ErrorHandling == fftm.ErrorHandlingTypeSkip {
+		if *es.spec.ErrorHandling == apitypes.ErrorHandlingTypeSkip {
 			// Swallow the error now we have logged it
 			return nil
 		}
@@ -551,7 +551,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	// We update the checkpoints (under lock) for all listeners with events in this batch.
 	// The last event for any listener in the batch wins.
 	es.mux.Lock()
-	cp := &fftm.EventStreamCheckpoint{
+	cp := &apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
 		Time:      fftypes.Now(),
 		Listeners: make(map[fftypes.UUID]*fftypes.JSONAny),
