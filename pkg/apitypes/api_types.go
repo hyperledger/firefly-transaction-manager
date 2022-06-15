@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/google/uuid"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
@@ -93,6 +94,12 @@ type Listener struct {
 	Filters           []fftypes.JSONAny `ffstruct:"listener" json:"filters"`
 	Options           *fftypes.JSONAny  `ffstruct:"listener" json:"options"`
 	FromBlock         string            `ffstruct:"listener" json:"fromBlock,omitempty"`
+}
+
+// UUIDVersion1 returns a version 1 UUID - where the alphanumeric sequence is assured to be ascending based on the order of generation
+func UUIDVersion1() *fftypes.UUID {
+	u, _ := uuid.NewUUID()
+	return (*fftypes.UUID)(&u)
 }
 
 // CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset

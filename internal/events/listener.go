@@ -27,6 +27,7 @@ type listener struct {
 	filters    []fftypes.JSONAny
 	options    fftypes.JSONAny
 	checkpoint *fftypes.JSONAny
+	signature  string
 }
 
 func (l *listener) stop(startedState *startedStreamState) error {

@@ -20,9 +20,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +49,9 @@ const testManagerName = "unittest"
 func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...string) (string, *manager, func()) {
 	tmconfig.Reset()
 	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	dir, err := ioutil.TempDir("", "ldb_*")
+	assert.NoError(t, err)
+	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
 	ffCoreServer := httptest.NewServer(ffCoreHandler)
 	tmconfig.FFCoreConfig.Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", ffCoreServer.Listener.Addr()))
@@ -78,8 +83,8 @@ func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...strin
 		m,
 		func() {
 			ffCoreServer.Close()
-			m.Stop()
-			_ = m.WaitStop()
+			m.Close()
+			os.RemoveAll(dir)
 		}
 
 }
@@ -118,6 +123,20 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 
 	_, err := NewManager(context.Background(), nil)
 	assert.Regexp(t, "FF00151", err)
+
+}
+
+func TestNewManagerBadPersistenceConfig(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.ManagerName, "test")
+	config.Set(tmconfig.PersistenceType, "wrong")
+
+	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
+
+	_, err := NewManager(context.Background(), nil)
+	assert.Regexp(t, "FF21043", err)
 
 }
 

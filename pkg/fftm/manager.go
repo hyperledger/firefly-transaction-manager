@@ -32,8 +32,11 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-common/pkg/wsclient"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/events"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
+	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines"
@@ -42,8 +45,7 @@ import (
 
 type Manager interface {
 	Start() error
-	Stop()
-	WaitStop() error
+	Close()
 }
 
 type manager struct {
@@ -55,11 +57,14 @@ type manager struct {
 	apiServer     httpserver.HTTPServer
 	ffCoreClient  *resty.Client
 	wsClient      wsclient.WSClient
+	wsChannels    ws.WebSocketChannels
+	persistence   persistence.Persistence
 
 	mux                 sync.Mutex
 	nextNonces          map[string]uint64
 	lockedNonces        map[string]*lockedNonce
 	pendingOpsByID      map[string]*pendingState
+	eventStreams        map[fftypes.UUID]events.Stream
 	changeEventLoopDone chan struct{}
 	firstFullScanDone   chan error
 	policyLoopDone      chan struct{}
@@ -119,6 +124,9 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err = m.initPersistence(ctx); err != nil {
+		return nil, err
+	}
 	return m, nil
 }
 
@@ -135,6 +143,19 @@ func (m *manager) requestFullScan() {
 		log.L(m.ctx).Debugf("Full scan of pending ops requested")
 	default:
 		log.L(m.ctx).Debugf("Full scan of pending ops already queued")
+	}
+}
+
+func (m *manager) initPersistence(ctx context.Context) (err error) {
+	pType := config.GetString(tmconfig.PersistenceType)
+	switch pType {
+	case "leveldb":
+		if m.persistence, err = persistence.NewLevelDBPersistence(ctx); err != nil {
+			return err
+		}
+		return nil
+	default:
+		return i18n.NewError(ctx, tmmsgs.MsgUnknownPersistence, pType)
 	}
 }
 
@@ -266,7 +287,11 @@ func (m *manager) Start() error {
 	m.firstFullScanDone = make(chan error)
 	m.fullScanLoopDone = make(chan struct{})
 	go m.fullScanLoop()
-	return m.waitForFirstScanAndStart()
+	err := m.waitForFirstScanAndStart()
+	if err != nil {
+		return err
+	}
+	return m.restoreStreams()
 }
 
 func (m *manager) waitForFirstScanAndStart() error {
@@ -292,17 +317,14 @@ func (m *manager) waitForFirstScanAndStart() error {
 	return err
 }
 
-func (m *manager) Stop() {
+func (m *manager) Close() {
 	m.cancelCtx()
-}
-
-func (m *manager) WaitStop() (err error) {
 	if m.started {
 		m.started = false
-		err = <-m.apiServerDone
+		<-m.apiServerDone
 		<-m.fullScanLoopDone
 		<-m.policyLoopDone
 		m.waitWSStop()
 	}
-	return err
+	m.persistence.Close(m.ctx)
 }

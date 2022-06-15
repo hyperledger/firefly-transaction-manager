@@ -17,12 +17,19 @@
 package apitypes
 
 import (
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestV1UUID(t *testing.T) {
+	u1 := UUIDVersion1()
+	u2 := UUIDVersion1()
+	assert.Negative(t, strings.Compare(u1.String(), u2.String()))
+}
 
 func TestCheckUpdateString(t *testing.T) {
 	var val1 = "val1"

@@ -22,10 +22,14 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/ghodss/yaml"
 	"github.com/gorilla/mux"
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 )
@@ -33,6 +37,41 @@ import (
 func (m *manager) router() *mux.Router {
 	mux := mux.NewRouter()
 	mux.Path("/").Methods(http.MethodPost).Handler(http.HandlerFunc(m.apiHandler))
+	hf := ffapi.HandlerFactory{
+		DefaultRequestTimeout: config.GetDuration(tmconfig.APIDefaultRequestTimeout),
+		MaxTimeout:            config.GetDuration(tmconfig.APIMaxRequestTimeout),
+	}
+	routes := m.routes()
+	for _, r := range routes {
+		mux.Path(r.Path).Methods(r.Method).Handler(hf.RouteHandler(r))
+	}
+	mux.Path("/api").Methods(http.MethodGet).Handler(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		url := req.URL.String() + "/spec.yaml"
+		handler := hf.APIWrapper(hf.SwaggerUIHandler(url))
+		handler(res, req)
+	}))
+	mux.Path("/api/spec.yaml").Methods(http.MethodGet).Handler(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		u := req.URL
+		u.Path = ""
+		swaggerGen := ffapi.NewSwaggerGen(&ffapi.Options{
+			BaseURL: u.String(),
+		})
+		doc := swaggerGen.Generate(req.Context(), routes)
+		res.Header().Add("Content-Type", "application/x-yaml")
+		b, _ := yaml.Marshal(&doc)
+		_, _ = res.Write(b)
+	}))
+	mux.Path("/api/spec.json").Methods(http.MethodGet).Handler(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		u := req.URL
+		u.Path = ""
+		swaggerGen := ffapi.NewSwaggerGen(&ffapi.Options{
+			BaseURL: u.String(),
+		})
+		doc := swaggerGen.Generate(req.Context(), routes)
+		res.Header().Add("Content-Type", "application/json")
+		b, _ := json.Marshal(&doc)
+		_, _ = res.Write(b)
+	}))
 	return mux
 }
 

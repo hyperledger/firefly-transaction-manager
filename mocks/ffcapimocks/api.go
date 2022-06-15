@@ -137,24 +137,31 @@ func (_m *API) EventListenerRemove(ctx context.Context, req *ffcapi.EventListene
 }
 
 // EventListenerVerifyOptions provides a mock function with given fields: ctx, standardOptions, customOptions
-func (_m *API) EventListenerVerifyOptions(ctx context.Context, standardOptions *ffcapi.ListenerOptions, customOptions *fftypes.JSONAny) (fftypes.JSONAny, error) {
+func (_m *API) EventListenerVerifyOptions(ctx context.Context, standardOptions *ffcapi.ListenerOptions, customOptions *fftypes.JSONAny) (string, fftypes.JSONAny, error) {
 	ret := _m.Called(ctx, standardOptions, customOptions)
 
-	var r0 fftypes.JSONAny
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) fftypes.JSONAny); ok {
+	var r0 string
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) string); ok {
 		r0 = rf(ctx, standardOptions, customOptions)
 	} else {
-		r0 = ret.Get(0).(fftypes.JSONAny)
+		r0 = ret.Get(0).(string)
 	}
 
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) error); ok {
+	var r1 fftypes.JSONAny
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) fftypes.JSONAny); ok {
 		r1 = rf(ctx, standardOptions, customOptions)
 	} else {
-		r1 = ret.Error(1)
+		r1 = ret.Get(1).(fftypes.JSONAny)
 	}
 
-	return r0, r1
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) error); ok {
+		r2 = rf(ctx, standardOptions, customOptions)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
 }
 
 // GasPriceEstimate provides a mock function with given fields: ctx, req

@@ -261,7 +261,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 		return standard.FromBlock == "12345"
 	}), mock.MatchedBy(func(customOptions *fftypes.JSONAny) bool {
 		return customOptions.JSONObject().GetString("option1") == "value1"
-	})).Return(*fftypes.JSONAnyPtr(`{"option1":"value1","option2":"value2"}`), nil)
+	})).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{"option1":"value1","option2":"value2"}`), nil)
 
 	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
@@ -365,7 +365,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 		return standard.FromBlock == "12345"
 	}), mock.MatchedBy(func(customOptions *fftypes.JSONAny) bool {
 		return customOptions.JSONObject().GetString("option1") == "value1"
-	})).Return(*fftypes.JSONAnyPtr(`{"option1":"value1","option2":"value2"}`), nil)
+	})).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{"option1":"value1","option2":"value2"}`), nil)
 
 	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
@@ -435,7 +435,7 @@ func TestConnectorRejectListener(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), fmt.Errorf("pop"))
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("", *fftypes.JSONAnyPtr(`{}`), fmt.Errorf("pop"))
 
 	err := es.AddOrUpdateListener(es.bgCtx, l)
 	assert.Regexp(t, "FF21040.*pop", err)
@@ -457,7 +457,7 @@ func TestUpdateStreamStarted(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
 
 	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
@@ -516,7 +516,7 @@ func TestAddRemoveListener(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
 
 	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
@@ -564,7 +564,7 @@ func TestUpdateListenerAndDeleteStarted(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil).Times(3)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil).Times(3)
 
 	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
@@ -629,7 +629,7 @@ func TestUpdateListenerFail(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil).Times(3)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil).Times(3)
 
 	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
@@ -702,7 +702,7 @@ func TestUpdateStreamRestartFail(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
 
 	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
@@ -755,7 +755,7 @@ func TestUpdateStreamStopFail(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
 
 	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
@@ -828,7 +828,7 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return(*fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
 
 	started := make(chan *ffcapi.EventListenerAddRequest, 1)
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {

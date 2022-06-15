@@ -58,4 +58,5 @@ var (
 	MsgBadListenerOptions            = ffe("FF21040", "Invalid listener options: %s", 400)
 	MsgInvalidHost                   = ffe("FF21041", "Cannot send Webhook POST to host '%s': %s")
 	MsgWebhookErr                    = ffe("FF21042", "Webhook request failed: %s")
+	MsgUnknownPersistence            = ffe("FF21043", "Unknown persistence type '%s'")
 )

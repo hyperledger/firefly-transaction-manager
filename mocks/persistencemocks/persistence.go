@@ -17,6 +17,11 @@ type Persistence struct {
 	mock.Mock
 }
 
+// Close provides a mock function with given fields: ctx
+func (_m *Persistence) Close(ctx context.Context) {
+	_m.Called(ctx)
+}
+
 // DeleteCheckpoint provides a mock function with given fields: ctx, streamID
 func (_m *Persistence) DeleteCheckpoint(ctx context.Context, streamID *fftypes.UUID) error {
 	ret := _m.Called(ctx, streamID)

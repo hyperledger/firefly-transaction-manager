@@ -58,6 +58,8 @@ var (
 	PersistenceLevelDBPath                        = ffc("persistence.leveldb.path")
 	PersistenceLevelDBMaxHandles                  = ffc("persistence.leveldb.maxHandles")
 	PersistenceLevelDBSyncWrites                  = ffc("persistence.leveldb.syncWrites")
+	APIDefaultRequestTimeout                      = ffc("api.defaultRequestTimeout")
+	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
 )
 
 var FFCoreConfig config.Section
@@ -101,6 +103,9 @@ func setDefaults() {
 	viper.SetDefault(string(PersistenceType), "leveldb")
 	viper.SetDefault(string(PersistenceLevelDBMaxHandles), 100)
 	viper.SetDefault(string(PersistenceLevelDBSyncWrites), true)
+
+	viper.SetDefault(string(APIDefaultRequestTimeout), "30s")
+	viper.SetDefault(string(APIMaxRequestTimeout), "10m")
 }
 
 func Reset() {

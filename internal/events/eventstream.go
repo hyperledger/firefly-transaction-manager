@@ -139,6 +139,7 @@ func NewEventStream(
 	if es.spec, _, err = mergeValidateEsConfig(es.bgCtx, nil, persistedSpec); err != nil {
 		return nil, err
 	}
+	log.L(es.bgCtx).Infof("Initialized Event Stream")
 	return es, nil
 }
 
@@ -268,6 +269,7 @@ func safeCompareFilterList(a, b []fftypes.JSONAny) bool {
 }
 
 func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.Listener) error {
+	log.L(ctx).Warnf("Initializing listener %s", spec.ID)
 
 	// Allow a single "event" object to be specified instead of a filter, with an optional "address".
 	// This is migrated to the new syntax: `"filters":[{"address":"0x1235","event":{...}}]`
@@ -283,7 +285,7 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.L
 	}
 
 	// The connector needs to validate the options
-	mergedOptions, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.ListenerOptions{
+	signature, mergedOptions, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.ListenerOptions{
 		FromBlock: spec.FromBlock,
 	}, spec.Options)
 	if err != nil {
@@ -301,12 +303,14 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.L
 		}
 		l.options = mergedOptions
 		l.filters = spec.Filters
+		l.signature = signature
 	} else {
 		es.listeners[*spec.ID] = &listener{
-			es:      es,
-			id:      spec.ID,
-			options: mergedOptions,
-			filters: spec.Filters,
+			es:        es,
+			id:        spec.ID,
+			options:   mergedOptions,
+			filters:   spec.Filters,
+			signature: signature,
 		}
 	}
 	// Take a copy of the current started state, before unlocking
@@ -476,11 +480,18 @@ func (es *eventStream) eventLoop(startedState *startedStreamState) {
 				batch.checkpoints[*update.ListenerID] = update.Checkpoint
 			}
 			for _, event := range update.Events {
-				batch.events = append(batch.events, &ffcapi.EventWithContext{
-					StreamID:   es.spec.ID,
-					ListenerID: update.ListenerID,
-					Event:      *event,
-				})
+				var l *listener
+				if update.ListenerID != nil {
+					l = es.listeners[*update.ListenerID]
+					if l != nil {
+						log.L(es.bgCtx).Debugf("%s (%s) event: %s", l.signature, l.id, event.ProtocolID)
+						batch.events = append(batch.events, &ffcapi.EventWithContext{
+							StreamID:   es.spec.ID,
+							ListenerID: update.ListenerID,
+							Event:      *event,
+						})
+					}
+				}
 			}
 		case <-timeoutContext.Done():
 			if batch == nil {
@@ -559,6 +570,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	for lID, lCP := range batch.checkpoints {
 		if l, ok := es.listeners[lID]; ok {
 			l.checkpoint = lCP
+			log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %s", l.signature, l.id, lCP)
 		}
 	}
 	for lID, l := range es.listeners {

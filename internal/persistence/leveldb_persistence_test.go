@@ -54,6 +54,7 @@ func newTestLevelDBPersistence(t *testing.T) (*leveldbPersistence, func()) {
 	}
 
 	return p, func() {
+		p.Close(context.Background())
 		os.RemoveAll(dir)
 	}
 
@@ -82,17 +83,17 @@ func TestReadWriteStreams(t *testing.T) {
 
 	ctx := context.Background()
 	s1 := &apitypes.EventStream{
-		ID:   UUIDVersion1(), // ensure we get sequentially ascending IDs
+		ID:   apitypes.UUIDVersion1(), // ensure we get sequentially ascending IDs
 		Name: strPtr("stream1"),
 	}
 	p.WriteStream(ctx, s1)
 	s2 := &apitypes.EventStream{
-		ID:   UUIDVersion1(),
+		ID:   apitypes.UUIDVersion1(),
 		Name: strPtr("stream2"),
 	}
 	p.WriteStream(ctx, s2)
 	s3 := &apitypes.EventStream{
-		ID:   UUIDVersion1(),
+		ID:   apitypes.UUIDVersion1(),
 		Name: strPtr("stream3"),
 	}
 	p.WriteStream(ctx, s3)
@@ -147,25 +148,25 @@ func TestReadWriteListeners(t *testing.T) {
 
 	ctx := context.Background()
 
-	sID1 := UUIDVersion1()
-	sID2 := UUIDVersion1()
+	sID1 := apitypes.UUIDVersion1()
+	sID2 := apitypes.UUIDVersion1()
 
 	s1l1 := &apitypes.Listener{
-		ID:       UUIDVersion1(),
+		ID:       apitypes.UUIDVersion1(),
 		StreamID: sID1,
 	}
 	err := p.WriteListener(ctx, s1l1)
 	assert.NoError(t, err)
 
 	s2l1 := &apitypes.Listener{
-		ID:       UUIDVersion1(),
+		ID:       apitypes.UUIDVersion1(),
 		StreamID: sID2,
 	}
 	err = p.WriteListener(ctx, s2l1)
 	assert.NoError(t, err)
 
 	s1l2 := &apitypes.Listener{
-		ID:       UUIDVersion1(),
+		ID:       apitypes.UUIDVersion1(),
 		StreamID: sID1,
 	}
 	err = p.WriteListener(ctx, s1l2)
@@ -213,10 +214,10 @@ func TestReadWriteCheckpoints(t *testing.T) {
 
 	ctx := context.Background()
 	cp1 := &apitypes.EventStreamCheckpoint{
-		StreamID: UUIDVersion1(),
+		StreamID: apitypes.UUIDVersion1(),
 	}
 	cp2 := &apitypes.EventStreamCheckpoint{
-		StreamID: UUIDVersion1(),
+		StreamID: apitypes.UUIDVersion1(),
 	}
 
 	err := p.WriteCheckpoint(ctx, cp1)
@@ -244,7 +245,7 @@ func TestListStreamsBadJSON(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	sID := UUIDVersion1()
+	sID := apitypes.UUIDVersion1()
 	err := p.db.Put(p.streamKey(sID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
@@ -257,14 +258,14 @@ func TestListListenersBadJSON(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	lID := UUIDVersion1()
+	lID := apitypes.UUIDVersion1()
 	err := p.db.Put(p.listenerKey(lID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
 	_, err = p.ListListeners(context.Background(), nil, 0)
 	assert.Error(t, err)
 
-	_, err = p.ListStreamListeners(context.Background(), nil, 0, UUIDVersion1())
+	_, err = p.ListStreamListeners(context.Background(), nil, 0, apitypes.UUIDVersion1())
 	assert.Error(t, err)
 
 }
@@ -275,7 +276,7 @@ func TestDeleteStreamFail(t *testing.T) {
 
 	p.db.Close()
 
-	err := p.DeleteStream(context.Background(), UUIDVersion1())
+	err := p.DeleteStream(context.Background(), apitypes.UUIDVersion1())
 	assert.Error(t, err)
 
 }
@@ -286,7 +287,7 @@ func TestWriteCheckpointFail(t *testing.T) {
 
 	p.db.Close()
 
-	id1 := UUIDVersion1()
+	id1 := apitypes.UUIDVersion1()
 	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
 		Listeners: map[fftypes.UUID]*fftypes.JSONAny{
 			*id1: fftypes.JSONAnyPtr(`{!!! bad json`),
@@ -302,7 +303,7 @@ func TestReadListenerFail(t *testing.T) {
 
 	p.db.Close()
 
-	_, err := p.GetListener(context.Background(), UUIDVersion1())
+	_, err := p.GetListener(context.Background(), apitypes.UUIDVersion1())
 	assert.Error(t, err)
 
 }
@@ -311,7 +312,7 @@ func TestReadCheckpointFail(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	sID := UUIDVersion1()
+	sID := apitypes.UUIDVersion1()
 	err := p.db.Put(p.checkpointKey(sID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 

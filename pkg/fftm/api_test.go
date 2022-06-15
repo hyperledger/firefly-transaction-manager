@@ -146,6 +146,27 @@ func TestSendInvalidRequestNoHeaders(t *testing.T) {
 	assert.Regexp(t, "FF21022", errRes.Error)
 }
 
+func TestSwaggerEndpoints(t *testing.T) {
+
+	url, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+	m.Start()
+
+	res, err := resty.New().R().SetDoNotParseResponse(true).Get(url + "/api/spec.json")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+
+	res, err = resty.New().R().SetDoNotParseResponse(true).Get(url + "/api/spec.yaml")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+
+	res, err = resty.New().R().SetDoNotParseResponse(true).Get(url + "/api")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+}
+
 func TestSendInvalidRequestWrongType(t *testing.T) {
 
 	url, m, cancel := newTestManager(t,

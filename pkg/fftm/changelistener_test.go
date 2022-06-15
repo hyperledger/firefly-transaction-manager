@@ -91,6 +91,6 @@ func TestWSConnectFail(t *testing.T) {
 
 	m.enableChangeListener = true
 	err := m.startWS()
-	assert.Regexp(t, "FF00154", err)
+	assert.Error(t, err)
 
 }

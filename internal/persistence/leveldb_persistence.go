@@ -214,3 +214,10 @@ func (p *leveldbPersistence) WriteListener(ctx context.Context, spec *apitypes.L
 func (p *leveldbPersistence) DeleteListener(ctx context.Context, listenerID *fftypes.UUID) error {
 	return p.deleteKeys(ctx, p.listenerKey(listenerID))
 }
+
+func (p *leveldbPersistence) Close(ctx context.Context) {
+	err := p.db.Close()
+	if err != nil {
+		log.L(ctx).Warnf("Error closing leveldb: %s", err)
+	}
+}
