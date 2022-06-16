@@ -21,5 +21,9 @@ import "github.com/hyperledger/firefly-common/pkg/ffapi"
 func (m *manager) routes() []*ffapi.Route {
 	return []*ffapi.Route{
 		postEventStream(m),
+		patchEventStream(m),
+		postEventStreamSuspend(m),
+		postEventStreamResume(m),
+		deleteEventStream(m),
 	}
 }

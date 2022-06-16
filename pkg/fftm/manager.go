@@ -85,6 +85,7 @@ type manager struct {
 
 func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	var err error
+	events.InitDefaults()
 	m := &manager{
 		connector:        connector,
 		ffCoreClient:     ffresty.New(ctx, tmconfig.FFCoreConfig),
@@ -93,6 +94,7 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 		lockedNonces:     make(map[string]*lockedNonce),
 		apiServerDone:    make(chan error),
 		pendingOpsByID:   make(map[string]*pendingState),
+		eventStreams:     make(map[fftypes.UUID]events.Stream),
 
 		name:                  config.GetString(tmconfig.ManagerName),
 		opTypes:               config.GetStringSlice(tmconfig.OperationsTypes),
@@ -325,6 +327,16 @@ func (m *manager) Close() {
 		<-m.fullScanLoopDone
 		<-m.policyLoopDone
 		m.waitWSStop()
+
+		streams := []events.Stream{}
+		m.mux.Lock()
+		for _, s := range m.eventStreams {
+			streams = append(streams, s)
+		}
+		m.mux.Unlock()
+		for _, s := range streams {
+			_ = s.Stop(m.ctx)
+		}
 	}
 	m.persistence.Close(m.ctx)
 }

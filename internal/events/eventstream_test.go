@@ -247,7 +247,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 
 	addr := "0x12345"
 	l := &apitypes.Listener{
-		ID:                fftypes.NewUUID(),
+		// ID will be allocated in AddOrUpdateListener
 		Name:              "ut_listener",
 		DeprecatedAddress: &addr,
 		DeprecatedEvent:   fftypes.JSONAnyPtr(`{"event":"definition"}`),
@@ -285,6 +285,8 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 
 	err = es.Start(es.bgCtx)
 	assert.NoError(t, err)
+
+	assert.Equal(t, StreamStateStarted, es.State())
 
 	err = es.Start(es.bgCtx) // double start is error
 	assert.Regexp(t, "FF21027", err)
@@ -480,16 +482,16 @@ func TestUpdateStreamStarted(t *testing.T) {
 	defNoChange := testESConf(t, `{
 		"name": "ut_stream"
 	}`)
-	err = es.UpdateDefinition(context.Background(), defNoChange)
+	err = es.UpdateSpec(context.Background(), defNoChange)
 	assert.NoError(t, err)
 
 	defChanged := testESConf(t, `{
 		"name": "ut_stream2"
 	}`)
-	err = es.UpdateDefinition(context.Background(), defChanged)
+	err = es.UpdateSpec(context.Background(), defChanged)
 	assert.NoError(t, err)
 
-	assert.Equal(t, "ut_stream2", *es.Definition().Name)
+	assert.Equal(t, "ut_stream2", *es.Spec().Name)
 
 	<-r.Done
 	r = <-started
@@ -681,10 +683,10 @@ func TestUpdateEventStreamBad(t *testing.T) {
 		"name": "new_name",
 		"type": "wrong"
 	}`)
-	err := es.UpdateDefinition(context.Background(), defNoChange)
+	err := es.UpdateSpec(context.Background(), defNoChange)
 	assert.Regexp(t, "FF21029", err)
 
-	assert.Equal(t, "old_name", *es.Definition().Name)
+	assert.Equal(t, "old_name", *es.Spec().Name)
 
 }
 
@@ -727,7 +729,7 @@ func TestUpdateStreamRestartFail(t *testing.T) {
 	defChanged := testESConf(t, `{
 		"name": "ut_stream2"
 	}`)
-	err = es.UpdateDefinition(context.Background(), defChanged)
+	err = es.UpdateSpec(context.Background(), defChanged)
 	assert.Regexp(t, "FF21032.*pop", err)
 
 	<-r.Done
@@ -780,7 +782,7 @@ func TestUpdateStreamStopFail(t *testing.T) {
 	defChanged := testESConf(t, `{
 		"name": "ut_stream2"
 	}`)
-	err = es.UpdateDefinition(context.Background(), defChanged)
+	err = es.UpdateSpec(context.Background(), defChanged)
 	assert.Regexp(t, "FF21031.*pop", err)
 
 	err = es.Delete(context.Background())

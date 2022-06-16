@@ -24,19 +24,25 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var postEventStream = func(m *manager) *ffapi.Route {
+var postEventStreamSuspend = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:            "postEventStream",
-		Path:            "eventstreams",
-		Method:          http.MethodPost,
-		PathParams:      nil,
+		Name:   "postEventStreamSuspend",
+		Path:   "/eventstreams/{streamId}/suspend",
+		Method: http.MethodPost,
+		PathParams: []*ffapi.PathParam{
+			{Name: "streamId", Description: tmmsgs.APIParamStreamID},
+		},
 		QueryParams:     nil,
-		Description:     tmmsgs.APIEndpointPatchEventStream,
-		JSONInputValue:  func() interface{} { return &apitypes.EventStream{} },
-		JSONOutputValue: func() interface{} { return &apitypes.EventStream{} },
+		Description:     tmmsgs.APIEndpointPostEventStreamSuspend,
+		JSONInputValue:  func() interface{} { return struct{}{} }, // empty input
+		JSONOutputValue: func() interface{} { return struct{}{} }, // empty output
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.newStream(r.Req.Context(), r.Input.(*apitypes.EventStream))
+			truthy := true
+			_, err = m.updateStream(r.Req.Context(), r.PP["streamId"], &apitypes.EventStream{
+				Suspended: &truthy,
+			})
+			return &struct{}{}, err
 		},
 	}
 }

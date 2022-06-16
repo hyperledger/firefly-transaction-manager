@@ -46,6 +46,8 @@ import (
 
 const testManagerName = "unittest"
 
+func strPtr(s string) *string { return &s }
+
 func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...string) (string, *manager, func()) {
 	tmconfig.Reset()
 	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})

@@ -36,22 +36,23 @@ import (
 )
 
 type Stream interface {
-	AddOrUpdateListener(ctx context.Context, s *apitypes.Listener) error       // Add or update a listener
-	RemoveListener(ctx context.Context, id *fftypes.UUID) error                // Stop and remove a listener
-	UpdateDefinition(ctx context.Context, updates *apitypes.EventStream) error // Apply definition updates (if there are changes)
-	Definition() *apitypes.EventStream                                         // Retrieve the merged definition to persist
-	Start(ctx context.Context) error                                           // Start delivery
-	Stop(ctx context.Context) error                                            // Stop delivery (does not remove checkpoints)
-	Delete(ctx context.Context) error                                          // Stop delivery, and clean up any checkpoint
+	AddOrUpdateListener(ctx context.Context, s *apitypes.Listener) error // Add or update a listener
+	RemoveListener(ctx context.Context, id *fftypes.UUID) error          // Stop and remove a listener
+	UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error // Apply definition updates (if there are changes)
+	Spec() *apitypes.EventStream                                         // Retrieve the merged definition to persist
+	State() StreamState                                                  // Get the current state
+	Start(ctx context.Context) error                                     // Start delivery
+	Stop(ctx context.Context) error                                      // Stop delivery (does not remove checkpoints)
+	Delete(ctx context.Context) error                                    // Stop delivery, and clean up any checkpoint
 }
 
-type streamState string
+type StreamState string
 
 const (
-	streamStateStarted  = "started"
-	streamStateStopping = "stopping"
-	streamStateStopped  = "stopped"
-	streamStateDeleted  = "deleted"
+	StreamStateStarted  StreamState = "started"
+	StreamStateStopping StreamState = "stopping"
+	StreamStateStopped  StreamState = "stopped"
+	StreamStateDeleted  StreamState = "deleted"
 )
 
 // esDefaults are the defaults for new event streams, read from the config once in InitDefaults()
@@ -105,7 +106,7 @@ type eventStream struct {
 	bgCtx         context.Context
 	spec          *apitypes.EventStream
 	mux           sync.Mutex
-	state         streamState
+	state         StreamState
 	connector     ffcapi.API
 	persistence   persistence.Persistence
 	confirmations confirmations.Manager
@@ -125,7 +126,7 @@ func NewEventStream(
 ) (ees Stream, err error) {
 	es := &eventStream{
 		bgCtx:         log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String()),
-		state:         streamStateStopped,
+		state:         StreamStateStopped,
 		spec:          persistedSpec,
 		connector:     connector,
 		persistence:   persistence,
@@ -169,7 +170,7 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 	}
 	if merged.Created == nil || merged.ID == nil {
 		merged.Created = merged.Updated
-		merged.ID = fftypes.NewUUID()
+		merged.ID = apitypes.UUIDVersion1()
 	}
 	// Name (no default - must be set)
 	// - Note we do not check for uniqueness of the name at this layer in the code, but we do require unique names.
@@ -230,11 +231,11 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 	return merged, changed, nil
 }
 
-func (es *eventStream) Definition() *apitypes.EventStream {
+func (es *eventStream) Spec() *apitypes.EventStream {
 	return es.spec
 }
 
-func (es *eventStream) UpdateDefinition(ctx context.Context, updates *apitypes.EventStream) error {
+func (es *eventStream) UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error {
 	merged, changed, err := mergeValidateEsConfig(ctx, es.spec, updates)
 	if err != nil {
 		return err
@@ -242,9 +243,10 @@ func (es *eventStream) UpdateDefinition(ctx context.Context, updates *apitypes.E
 
 	es.mux.Lock()
 	es.spec = merged
+	isStarted := es.state == StreamStateStarted
 	es.mux.Unlock()
 
-	if changed {
+	if changed && isStarted {
 		if err := es.Stop(ctx); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgStopFailedUpdatingESConfig, err)
 		}
@@ -268,8 +270,14 @@ func safeCompareFilterList(a, b []fftypes.JSONAny) bool {
 	return true
 }
 
-func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.Listener) error {
+func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.Listener) (err error) {
 	log.L(ctx).Warnf("Initializing listener %s", spec.ID)
+
+	if spec.ID == nil {
+		spec.ID = apitypes.UUIDVersion1()
+		spec.Created = fftypes.Now()
+	}
+	spec.Updated = fftypes.Now()
 
 	// Allow a single "event" object to be specified instead of a filter, with an optional "address".
 	// This is migrated to the new syntax: `"filters":[{"address":"0x1235","event":{...}}]`
@@ -291,6 +299,10 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.L
 	if err != nil {
 		return i18n.NewError(ctx, tmmsgs.MsgBadListenerOptions, err)
 	}
+
+	// We update the spec object in-place for the signature and resolved options
+	spec.Signature = signature
+	spec.Options = &mergedOptions
 
 	// Check if this is a new listener, an update, or a no-op
 	es.mux.Lock()
@@ -353,7 +365,7 @@ func (es *eventStream) String() string {
 }
 
 // checkSetState - caller must have locked the mux when calling this
-func (es *eventStream) checkSetState(ctx context.Context, requiredState streamState, newState ...streamState) error {
+func (es *eventStream) checkSetState(ctx context.Context, requiredState StreamState, newState ...StreamState) error {
 	if es.state != requiredState {
 		return i18n.NewError(ctx, tmmsgs.MsgStreamStateError, es.state)
 	}
@@ -366,7 +378,7 @@ func (es *eventStream) checkSetState(ctx context.Context, requiredState streamSt
 func (es *eventStream) Start(ctx context.Context) error {
 	es.mux.Lock()
 	defer es.mux.Unlock()
-	if err := es.checkSetState(ctx, streamStateStopped, streamStateStarted); err != nil {
+	if err := es.checkSetState(ctx, StreamStateStopped, StreamStateStarted); err != nil {
 		return err
 	}
 	log.L(ctx).Infof("Starting event stream %s", es)
@@ -394,7 +406,7 @@ func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, er
 	es.mux.Lock()
 	startedState := es.currentState
 	defer es.mux.Unlock()
-	if err := es.checkSetState(ctx, streamStateStarted, streamStateStopping); err != nil {
+	if err := es.checkSetState(ctx, StreamStateStarted, StreamStateStopping); err != nil {
 		return nil, err
 	}
 	log.L(ctx).Infof("Stopping event stream %s", es)
@@ -406,11 +418,17 @@ func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, er
 	for _, l := range es.listeners {
 		err := l.stop(startedState)
 		if err != nil {
-			_ = es.checkSetState(ctx, streamStateStopping, streamStateStarted) // restore started state
+			_ = es.checkSetState(ctx, StreamStateStopping, StreamStateStarted) // restore started state
 			return nil, err
 		}
 	}
 	return startedState, nil
+}
+
+func (es *eventStream) State() StreamState {
+	es.mux.Lock()
+	defer es.mux.Unlock()
+	return es.state
 }
 
 func (es *eventStream) Stop(ctx context.Context) error {
@@ -428,12 +446,12 @@ func (es *eventStream) Stop(ctx context.Context) error {
 	es.mux.Lock()
 	es.currentState = nil
 	defer es.mux.Unlock()
-	return es.checkSetState(ctx, streamStateStopping, streamStateStopped)
+	return es.checkSetState(ctx, StreamStateStopping, StreamStateStopped)
 }
 
 func (es *eventStream) Delete(ctx context.Context) error {
 	// Check we are stopped
-	if err := es.checkSetState(ctx, streamStateStopped); err != nil {
+	if err := es.checkSetState(ctx, StreamStateStopped); err != nil {
 		if err := es.Stop(ctx); err != nil {
 			return err
 		}
@@ -447,7 +465,7 @@ func (es *eventStream) Delete(ctx context.Context) error {
 	if err := es.persistence.DeleteCheckpoint(ctx, es.spec.ID); err != nil {
 		return err
 	}
-	return es.checkSetState(ctx, streamStateStopped, streamStateDeleted)
+	return es.checkSetState(ctx, StreamStateStopped, StreamStateDeleted)
 }
 
 func (es *eventStream) eventLoop(startedState *startedStreamState) {

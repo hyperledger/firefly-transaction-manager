@@ -27,5 +27,10 @@ var ffm = func(key, translation string) i18n.MessageKey {
 
 //revive:disable
 var (
-	APIEndpointPatchEventStream = ffm("api.endpoints.post.eventstreams", "Create a new event stream")
+	APIEndpointPostEventStream        = ffm("api.endpoints.post.eventstreams", "Create a new event stream")
+	APIEndpointPatchEventStream       = ffm("api.endpoints.patch.eventstreams", "Update an existing event stream")
+	APIEndpointPostEventStreamSuspend = ffm("api.endpoints.post.eventstream.suspend", "Suspend an event stream")
+	APIEndpointPostEventStreamResume  = ffm("api.endpoints.post.eventstream.resume", "Resume an event stream")
+
+	APIParamStreamID = ffm("api.params.streamId", "Event Stream ID")
 )

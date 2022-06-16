@@ -36,7 +36,6 @@ import (
 
 func (m *manager) router() *mux.Router {
 	mux := mux.NewRouter()
-	mux.Path("/").Methods(http.MethodPost).Handler(http.HandlerFunc(m.apiHandler))
 	hf := ffapi.HandlerFactory{
 		DefaultRequestTimeout: config.GetDuration(tmconfig.APIDefaultRequestTimeout),
 		MaxTimeout:            config.GetDuration(tmconfig.APIMaxRequestTimeout),
@@ -72,6 +71,10 @@ func (m *manager) router() *mux.Router {
 		b, _ := json.Marshal(&doc)
 		_, _ = res.Write(b)
 	}))
+	mux.Path("/").Methods(http.MethodPost).Handler(http.HandlerFunc(m.apiHandler))
+	mux.NotFoundHandler = hf.APIWrapper(func(res http.ResponseWriter, req *http.Request) (status int, err error) {
+		return 404, i18n.NewError(req.Context(), i18n.Msg404NotFound)
+	})
 	return mux
 }
 
