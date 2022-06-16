@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPostEventStreamSuspend(t *testing.T) {
+func TestGetEventStream(t *testing.T) {
 
 	url, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
 	defer done()
@@ -44,14 +44,15 @@ func TestPostEventStreamSuspend(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, res.IsSuccess())
 
-	// Then suspend it
+	// Then get it
+	var ess apitypes.EventStreamWithStatus
 	res, err = resty.New().R().
-		SetBody(&struct{}{}).
-		SetResult(&es).
-		Post(url + "/eventstreams/" + es.ID.String() + "/suspend")
+		SetResult(&ess).
+		Get(url + "/eventstreams/" + es.ID.String())
 	assert.NoError(t, err)
 	assert.True(t, res.IsSuccess())
 
-	assert.Equal(t, apitypes.EventStreamStatusStopped, m.eventStreams[(*es.ID)].Status())
+	assert.Equal(t, es.ID, ess.ID)
+	assert.Equal(t, apitypes.EventStreamStatusStarted, ess.Status)
 
 }

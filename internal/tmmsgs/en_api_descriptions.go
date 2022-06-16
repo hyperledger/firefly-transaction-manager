@@ -31,6 +31,9 @@ var (
 	APIEndpointPatchEventStream       = ffm("api.endpoints.patch.eventstreams", "Update an existing event stream")
 	APIEndpointPostEventStreamSuspend = ffm("api.endpoints.post.eventstream.suspend", "Suspend an event stream")
 	APIEndpointPostEventStreamResume  = ffm("api.endpoints.post.eventstream.resume", "Resume an event stream")
+	APIEndpointGetEventStreams        = ffm("api.endpoints.get.eventstreams", "List event streams")
 
 	APIParamStreamID = ffm("api.params.streamId", "Event Stream ID")
+	APIParamLimit    = ffm("api.params.limit", "Maximum number of entries to return")
+	APIParamAfter    = ffm("api.params.after", "Return entries after this ID - for pagination (non-inclusive)")
 )

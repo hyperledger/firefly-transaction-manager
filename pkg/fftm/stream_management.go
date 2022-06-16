@@ -18,11 +18,13 @@ package fftm
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
@@ -179,14 +181,73 @@ func (m *manager) updateStream(ctx context.Context, idStr string, updates *apity
 		return nil, err
 	}
 	// We might need to start or stop
-	if *spec.Suspended && s.State() != events.StreamStateStopped {
+	if *spec.Suspended && s.Status() != apitypes.EventStreamStatusStopped {
 		if err = s.Stop(ctx); err != nil {
 			return nil, err
 		}
-	} else if !*spec.Suspended && s.State() != events.StreamStateStarted {
+	} else if !*spec.Suspended && s.Status() != apitypes.EventStreamStatusStarted {
 		if err = s.Start(ctx); err != nil {
 			return nil, err
 		}
 	}
 	return spec, nil
+}
+
+func (m *manager) getStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error) {
+	id, err := fftypes.ParseUUID(ctx, idStr)
+	if err != nil {
+		return nil, err
+	}
+	m.mux.Lock()
+	s := m.eventStreams[*id]
+	m.mux.Unlock()
+	if s == nil {
+		return nil, nil
+	}
+	return &apitypes.EventStreamWithStatus{
+		EventStream: *s.Spec(),
+		Status:      s.Status(),
+	}, nil
+}
+
+func (m *manager) parseAfterAndLimit(ctx context.Context, afterStr, limitStr string) (after *fftypes.UUID, limit int, err error) {
+	if limitStr != "" {
+		if limit, err = strconv.Atoi(limitStr); err != nil {
+			return nil, -1, i18n.NewError(ctx, tmmsgs.MsgInvalidLimit, limitStr, err)
+		}
+	}
+	if afterStr != "" {
+		if after, err = fftypes.ParseUUID(ctx, afterStr); err != nil {
+			return nil, -1, err
+		}
+	}
+	return after, limit, nil
+}
+
+func (m *manager) getStreams(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.EventStream, err error) {
+	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
+	if err != nil {
+		return nil, err
+	}
+	return m.persistence.ListStreams(ctx, after, limit)
+}
+
+func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.Listener, err error) {
+	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
+	if err != nil {
+		return nil, err
+	}
+	return m.persistence.ListListeners(ctx, after, limit)
+}
+
+func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
+	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
+	if err != nil {
+		return nil, err
+	}
+	id, err := fftypes.ParseUUID(ctx, idStr)
+	if err != nil {
+		return nil, err
+	}
+	return m.persistence.ListStreamListeners(ctx, after, limit, id)
 }

@@ -286,7 +286,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	err = es.Start(es.bgCtx)
 	assert.NoError(t, err)
 
-	assert.Equal(t, StreamStateStarted, es.State())
+	assert.Equal(t, apitypes.EventStreamStatusStarted, es.Status())
 
 	err = es.Start(es.bgCtx) // double start is error
 	assert.Regexp(t, "FF21027", err)

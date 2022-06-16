@@ -67,6 +67,20 @@ type EventStream struct {
 	WebSocket *WebSocketConfig `ffstruct:"eventstream" json:"websocket,omitempty"`
 }
 
+type EventStreamStatus string
+
+const (
+	EventStreamStatusStarted  EventStreamStatus = "started"
+	EventStreamStatusStopping EventStreamStatus = "stopping"
+	EventStreamStatusStopped  EventStreamStatus = "stopped"
+	EventStreamStatusDeleted  EventStreamStatus = "deleted"
+)
+
+type EventStreamWithStatus struct {
+	EventStream
+	Status EventStreamStatus `ffstruct:"eventstream" json:"status"`
+}
+
 type EventStreamCheckpoint struct {
 	StreamID  *fftypes.UUID                     `json:"streamId"`
 	Time      *fftypes.FFTime                   `json:"time"`

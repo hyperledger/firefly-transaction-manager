@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPostEventStreamSuspend(t *testing.T) {
+func TestGetSubscriptions(t *testing.T) {
 
 	url, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
 	defer done()
@@ -33,25 +33,24 @@ func TestPostEventStreamSuspend(t *testing.T) {
 	err := m.Start()
 	assert.NoError(t, err)
 
-	// Create stream
-	var es apitypes.EventStream
-	res, err := resty.New().R().
-		SetBody(&apitypes.EventStream{
-			Name: strPtr("my event stream"),
-		}).
-		SetResult(&es).
-		Post(url + "/eventstreams")
+	// Create 3 streams
+	var es1, es2, es3 apitypes.EventStream
+	res, err := resty.New().R().SetBody(&apitypes.EventStream{Name: strPtr("stream1")}).SetResult(&es1).Post(url + "/eventstreams")
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	res, err = resty.New().R().SetBody(&apitypes.EventStream{Name: strPtr("stream2")}).SetResult(&es2).Post(url + "/eventstreams")
+	assert.NoError(t, err)
+	res, err = resty.New().R().SetBody(&apitypes.EventStream{Name: strPtr("stream3")}).SetResult(&es3).Post(url + "/eventstreams")
+	assert.NoError(t, err)
 
-	// Then suspend it
+	// Then get it
+	var ess []*apitypes.EventStream
 	res, err = resty.New().R().
-		SetBody(&struct{}{}).
-		SetResult(&es).
-		Post(url + "/eventstreams/" + es.ID.String() + "/suspend")
+		SetResult(&ess).
+		Get(url + "/subscriptions?limit=1&after=" + es1.ID.String())
 	assert.NoError(t, err)
 	assert.True(t, res.IsSuccess())
 
-	assert.Equal(t, apitypes.EventStreamStatusStopped, m.eventStreams[(*es.ID)].Status())
+	assert.Len(t, ess, 1)
+	assert.Equal(t, es2.ID, ess[0].ID)
 
 }

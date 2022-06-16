@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/hyperledger/firefly-transaction-manager/internal/events"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/stretchr/testify/assert"
 )
@@ -55,6 +54,6 @@ func TestPostEventStreamResume(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, res.IsSuccess())
 
-	assert.Equal(t, events.StreamStateStarted, m.eventStreams[(*es.ID)].State())
+	assert.Equal(t, apitypes.EventStreamStatusStarted, m.eventStreams[(*es.ID)].Status())
 
 }

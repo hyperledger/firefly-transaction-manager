@@ -40,20 +40,11 @@ type Stream interface {
 	RemoveListener(ctx context.Context, id *fftypes.UUID) error          // Stop and remove a listener
 	UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error // Apply definition updates (if there are changes)
 	Spec() *apitypes.EventStream                                         // Retrieve the merged definition to persist
-	State() StreamState                                                  // Get the current state
+	Status() apitypes.EventStreamStatus                                  // Get the current status
 	Start(ctx context.Context) error                                     // Start delivery
 	Stop(ctx context.Context) error                                      // Stop delivery (does not remove checkpoints)
 	Delete(ctx context.Context) error                                    // Stop delivery, and clean up any checkpoint
 }
-
-type StreamState string
-
-const (
-	StreamStateStarted  StreamState = "started"
-	StreamStateStopping StreamState = "stopping"
-	StreamStateStopped  StreamState = "stopped"
-	StreamStateDeleted  StreamState = "deleted"
-)
 
 // esDefaults are the defaults for new event streams, read from the config once in InitDefaults()
 var esDefaults struct {
@@ -106,7 +97,7 @@ type eventStream struct {
 	bgCtx         context.Context
 	spec          *apitypes.EventStream
 	mux           sync.Mutex
-	state         StreamState
+	status        apitypes.EventStreamStatus
 	connector     ffcapi.API
 	persistence   persistence.Persistence
 	confirmations confirmations.Manager
@@ -126,7 +117,7 @@ func NewEventStream(
 ) (ees Stream, err error) {
 	es := &eventStream{
 		bgCtx:         log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String()),
-		state:         StreamStateStopped,
+		status:        apitypes.EventStreamStatusStopped,
 		spec:          persistedSpec,
 		connector:     connector,
 		persistence:   persistence,
@@ -243,7 +234,7 @@ func (es *eventStream) UpdateSpec(ctx context.Context, updates *apitypes.EventSt
 
 	es.mux.Lock()
 	es.spec = merged
-	isStarted := es.state == StreamStateStarted
+	isStarted := es.status == apitypes.EventStreamStatusStarted
 	es.mux.Unlock()
 
 	if changed && isStarted {
@@ -325,7 +316,7 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.L
 			signature: signature,
 		}
 	}
-	// Take a copy of the current started state, before unlocking
+	// Take a copy of the current started status, before unlocking
 	startedState := es.currentState
 	es.mux.Unlock()
 	if startedState == nil {
@@ -364,13 +355,13 @@ func (es *eventStream) String() string {
 	return es.spec.ID.String()
 }
 
-// checkSetState - caller must have locked the mux when calling this
-func (es *eventStream) checkSetState(ctx context.Context, requiredState StreamState, newState ...StreamState) error {
-	if es.state != requiredState {
-		return i18n.NewError(ctx, tmmsgs.MsgStreamStateError, es.state)
+// checkSetStatus - caller must have locked the mux when calling this
+func (es *eventStream) checkSetStatus(ctx context.Context, requiredState apitypes.EventStreamStatus, newState ...apitypes.EventStreamStatus) error {
+	if es.status != requiredState {
+		return i18n.NewError(ctx, tmmsgs.MsgStreamStateError, es.status)
 	}
 	if len(newState) == 1 {
-		es.state = newState[0]
+		es.status = newState[0]
 	}
 	return nil
 }
@@ -378,7 +369,7 @@ func (es *eventStream) checkSetState(ctx context.Context, requiredState StreamSt
 func (es *eventStream) Start(ctx context.Context) error {
 	es.mux.Lock()
 	defer es.mux.Unlock()
-	if err := es.checkSetState(ctx, StreamStateStopped, StreamStateStarted); err != nil {
+	if err := es.checkSetStatus(ctx, apitypes.EventStreamStatusStopped, apitypes.EventStreamStatusStarted); err != nil {
 		return err
 	}
 	log.L(ctx).Infof("Starting event stream %s", es)
@@ -406,7 +397,7 @@ func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, er
 	es.mux.Lock()
 	startedState := es.currentState
 	defer es.mux.Unlock()
-	if err := es.checkSetState(ctx, StreamStateStarted, StreamStateStopping); err != nil {
+	if err := es.checkSetStatus(ctx, apitypes.EventStreamStatusStarted, apitypes.EventStreamStatusStopping); err != nil {
 		return nil, err
 	}
 	log.L(ctx).Infof("Stopping event stream %s", es)
@@ -418,17 +409,17 @@ func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, er
 	for _, l := range es.listeners {
 		err := l.stop(startedState)
 		if err != nil {
-			_ = es.checkSetState(ctx, StreamStateStopping, StreamStateStarted) // restore started state
+			_ = es.checkSetStatus(ctx, apitypes.EventStreamStatusStopping, apitypes.EventStreamStatusStarted) // restore started status
 			return nil, err
 		}
 	}
 	return startedState, nil
 }
 
-func (es *eventStream) State() StreamState {
+func (es *eventStream) Status() apitypes.EventStreamStatus {
 	es.mux.Lock()
 	defer es.mux.Unlock()
-	return es.state
+	return es.status
 }
 
 func (es *eventStream) Stop(ctx context.Context) error {
@@ -446,26 +437,26 @@ func (es *eventStream) Stop(ctx context.Context) error {
 	es.mux.Lock()
 	es.currentState = nil
 	defer es.mux.Unlock()
-	return es.checkSetState(ctx, StreamStateStopping, StreamStateStopped)
+	return es.checkSetStatus(ctx, apitypes.EventStreamStatusStopping, apitypes.EventStreamStatusStopped)
 }
 
 func (es *eventStream) Delete(ctx context.Context) error {
 	// Check we are stopped
-	if err := es.checkSetState(ctx, StreamStateStopped); err != nil {
+	if err := es.checkSetStatus(ctx, apitypes.EventStreamStatusStopped); err != nil {
 		if err := es.Stop(ctx); err != nil {
 			return err
 		}
 	}
 	log.L(ctx).Infof("Deleting event stream %s", es)
 
-	// Hold the lock for the whole of delete, rather than transitioning into a deleting state.
+	// Hold the lock for the whole of delete, rather than transitioning into a deleting status.
 	// If we error out, that way the caller can retry.
 	es.mux.Lock()
 	defer es.mux.Unlock()
 	if err := es.persistence.DeleteCheckpoint(ctx, es.spec.ID); err != nil {
 		return err
 	}
-	return es.checkSetState(ctx, StreamStateStopped, StreamStateDeleted)
+	return es.checkSetStatus(ctx, apitypes.EventStreamStatusStopped, apitypes.EventStreamStatusDeleted)
 }
 
 func (es *eventStream) eventLoop(startedState *startedStreamState) {

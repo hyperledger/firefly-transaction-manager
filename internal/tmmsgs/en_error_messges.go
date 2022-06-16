@@ -59,4 +59,5 @@ var (
 	MsgInvalidHost                   = ffe("FF21041", "Cannot send Webhook POST to host '%s': %s")
 	MsgWebhookErr                    = ffe("FF21042", "Webhook request failed: %s")
 	MsgUnknownPersistence            = ffe("FF21043", "Unknown persistence type '%s'")
+	MsgInvalidLimit                  = ffe("FF21044", "Invalid limit string '%s': %s")
 )

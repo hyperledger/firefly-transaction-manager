@@ -21,24 +21,24 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var deleteEventStream = func(m *manager) *ffapi.Route {
+var getEventStream = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:   "deleteEventStream",
+		Name:   "getEventStream",
 		Path:   "/eventstreams/{streamId}",
-		Method: http.MethodDelete,
+		Method: http.MethodGet,
 		PathParams: []*ffapi.PathParam{
 			{Name: "streamId", Description: tmmsgs.APIParamStreamID},
 		},
 		QueryParams:     nil,
 		Description:     tmmsgs.APIEndpointPatchEventStream,
 		JSONInputValue:  nil,
-		JSONOutputValue: nil,
-		JSONOutputCodes: []int{http.StatusNoContent},
+		JSONOutputValue: func() interface{} { return &apitypes.EventStreamWithStatus{} },
+		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			err = m.deleteStream(r.Req.Context(), r.PP["streamId"])
-			return nil, err
+			return m.getStream(r.Req.Context(), r.PP["streamId"])
 		},
 	}
 }
