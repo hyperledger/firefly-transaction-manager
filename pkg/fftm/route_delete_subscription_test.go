@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestGetSubscriptions(t *testing.T) {
+func TestDeleteSubscription(t *testing.T) {
 
 	url, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
 	defer done()
@@ -40,7 +40,7 @@ func TestGetSubscriptions(t *testing.T) {
 	mfc := m.connector.(*ffcapimocks.API)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
-	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
+	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	// Create a stream
 	var es1 apitypes.EventStream
@@ -48,23 +48,14 @@ func TestGetSubscriptions(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Create some listeners
-	var l1, l2 apitypes.Listener
+	var l1 apitypes.Listener
 	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: "listener1", StreamID: es1.ID}).SetResult(&l1).Post(url + "/subscriptions")
-	assert.NoError(t, err)
-	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: "listener2", StreamID: es1.ID}).SetResult(&l2).Post(url + "/subscriptions")
 	assert.NoError(t, err)
 
 	// Then get it
-	var listeners []*apitypes.Listener
-	res, err = resty.New().R().
-		SetResult(&listeners).
-		Get(url + "/subscriptions?limit=1&after=" + l1.ID.String())
+	res, err = resty.New().R().Delete(url + "/subscriptions/" + l1.ID.String())
 	assert.NoError(t, err)
-	assert.Equal(t, 200, res.StatusCode())
-
-	assert.Len(t, listeners, 1)
-	assert.Equal(t, l2.ID, listeners[0].ID)
-	assert.Equal(t, es1.ID, listeners[0].StreamID)
+	assert.Equal(t, 204, res.StatusCode())
 
 	mfc.AssertExpectations(t)
 

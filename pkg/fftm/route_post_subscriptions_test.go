@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestGetSubscriptions(t *testing.T) {
+func TestPostSubscriptions(t *testing.T) {
 
 	url, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
 	defer done()
@@ -46,25 +46,13 @@ func TestGetSubscriptions(t *testing.T) {
 	var es1 apitypes.EventStream
 	res, err := resty.New().R().SetBody(&apitypes.EventStream{Name: strPtr("stream1")}).SetResult(&es1).Post(url + "/eventstreams")
 	assert.NoError(t, err)
-
-	// Create some listeners
-	var l1, l2 apitypes.Listener
-	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: "listener1", StreamID: es1.ID}).SetResult(&l1).Post(url + "/subscriptions")
-	assert.NoError(t, err)
-	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: "listener2", StreamID: es1.ID}).SetResult(&l2).Post(url + "/subscriptions")
-	assert.NoError(t, err)
-
-	// Then get it
-	var listeners []*apitypes.Listener
-	res, err = resty.New().R().
-		SetResult(&listeners).
-		Get(url + "/subscriptions?limit=1&after=" + l1.ID.String())
-	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 
-	assert.Len(t, listeners, 1)
-	assert.Equal(t, l2.ID, listeners[0].ID)
-	assert.Equal(t, es1.ID, listeners[0].StreamID)
+	// Create a listener
+	var l1 apitypes.Listener
+	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: "listener1", StreamID: es1.ID}).SetResult(&l1).Post(url + "/subscriptions")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
 
 	mfc.AssertExpectations(t)
 

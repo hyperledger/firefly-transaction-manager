@@ -24,22 +24,22 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var getEventStreams = func(m *manager) *ffapi.Route {
+var deleteSubscription = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:       "getEventStreams",
-		Path:       "/eventstreams",
-		Method:     http.MethodGet,
-		PathParams: nil,
-		QueryParams: []*ffapi.QueryParam{
-			{Name: "limit", Description: tmmsgs.APIParamLimit},
-			{Name: "after", Description: tmmsgs.APIParamAfter},
+		Name:       "deleteSubscription",
+		Path:       "/subscriptions/{listenerId}",
+		Deprecated: true, // in favor of "/eventstreams/{streamId}/listeners/{listenerId}"
+		Method:     http.MethodDelete,
+		PathParams: []*ffapi.PathParam{
+			{Name: "listenerId", Description: tmmsgs.APIParamListenerID},
 		},
-		Description:     tmmsgs.APIEndpointGetEventStreams,
+		QueryParams:     nil,
+		Description:     tmmsgs.APIEndpointDeleteSubscription,
 		JSONInputValue:  nil,
-		JSONOutputValue: func() interface{} { return []*apitypes.EventStream{} },
-		JSONOutputCodes: []int{http.StatusOK},
+		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
+		JSONOutputCodes: []int{http.StatusNoContent},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getStreams(r.Req.Context(), r.QP["after"], r.QP["limit"])
+			return nil, m.deleteListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"])
 		},
 	}
 }

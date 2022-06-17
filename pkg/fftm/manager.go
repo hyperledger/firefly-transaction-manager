@@ -65,6 +65,7 @@ type manager struct {
 	lockedNonces        map[string]*lockedNonce
 	pendingOpsByID      map[string]*pendingState
 	eventStreams        map[fftypes.UUID]events.Stream
+	streamsByName       map[string]*fftypes.UUID
 	changeEventLoopDone chan struct{}
 	firstFullScanDone   chan error
 	policyLoopDone      chan struct{}
@@ -95,6 +96,7 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 		apiServerDone:    make(chan error),
 		pendingOpsByID:   make(map[string]*pendingState),
 		eventStreams:     make(map[fftypes.UUID]events.Stream),
+		streamsByName:    make(map[string]*fftypes.UUID),
 
 		name:                  config.GetString(tmconfig.ManagerName),
 		opTypes:               config.GetStringSlice(tmconfig.OperationsTypes),

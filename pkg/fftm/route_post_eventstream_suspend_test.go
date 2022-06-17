@@ -42,7 +42,7 @@ func TestPostEventStreamSuspend(t *testing.T) {
 		SetResult(&es).
 		Post(url + "/eventstreams")
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 
 	// Then suspend it
 	res, err = resty.New().R().
@@ -50,7 +50,7 @@ func TestPostEventStreamSuspend(t *testing.T) {
 		SetResult(&es).
 		Post(url + "/eventstreams/" + es.ID.String() + "/suspend")
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 
 	assert.Equal(t, apitypes.EventStreamStatusStopped, m.eventStreams[(*es.ID)].Status())
 

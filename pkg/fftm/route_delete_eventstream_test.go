@@ -42,14 +42,14 @@ func TestDeleteEventStream(t *testing.T) {
 		SetResult(&es).
 		Post(url + "/eventstreams")
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 
 	// Then delete it
 	res, err = resty.New().R().
 		SetResult(&es).
 		Delete(url + "/eventstreams/" + es.ID.String())
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 204, res.StatusCode())
 
 	assert.Nil(t, m.eventStreams[(*es.ID)])
 

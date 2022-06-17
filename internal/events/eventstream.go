@@ -160,8 +160,14 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 		Updated: fftypes.Now(),
 	}
 	if merged.Created == nil || merged.ID == nil {
-		merged.Created = merged.Updated
-		merged.ID = apitypes.UUIDVersion1()
+		merged.Created = updates.Created
+		merged.ID = updates.ID
+		if merged.Created == nil {
+			merged.Created = merged.Updated
+		}
+		if merged.ID == nil {
+			return nil, false, i18n.NewError(ctx, tmmsgs.MsgMissingID)
+		}
 	}
 	// Name (no default - must be set)
 	// - Note we do not check for uniqueness of the name at this layer in the code, but we do require unique names.
@@ -294,27 +300,32 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.L
 	// We update the spec object in-place for the signature and resolved options
 	spec.Signature = signature
 	spec.Options = &mergedOptions
+	if spec.Name == "" {
+		spec.Name = signature
+	}
 
 	// Check if this is a new listener, an update, or a no-op
 	es.mux.Lock()
 	l, exists := es.listeners[*spec.ID]
 	if exists {
 		if mergedOptions == l.options && safeCompareFilterList(spec.Filters, l.filters) {
-			log.L(ctx).Infof("Event listener already configured on stream")
+			log.L(ctx).Infof("Event listener '%s' already configured on stream, with no changes", l.id)
 			es.mux.Unlock()
 			return nil
 		}
+		log.L(ctx).Infof("Listener '%s' configuration updated, it will be restarted", l.id)
 		l.options = mergedOptions
 		l.filters = spec.Filters
 		l.signature = signature
 	} else {
-		es.listeners[*spec.ID] = &listener{
+		l = &listener{
 			es:        es,
 			id:        spec.ID,
 			options:   mergedOptions,
 			filters:   spec.Filters,
 			signature: signature,
 		}
+		es.listeners[*spec.ID] = l
 	}
 	// Take a copy of the current started status, before unlocking
 	startedState := es.currentState

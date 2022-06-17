@@ -42,7 +42,7 @@ func TestGetEventStream(t *testing.T) {
 		SetResult(&es).
 		Post(url + "/eventstreams")
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 
 	// Then get it
 	var ess apitypes.EventStreamWithStatus
@@ -50,7 +50,7 @@ func TestGetEventStream(t *testing.T) {
 		SetResult(&ess).
 		Get(url + "/eventstreams/" + es.ID.String())
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 
 	assert.Equal(t, es.ID, ess.ID)
 	assert.Equal(t, apitypes.EventStreamStatusStarted, ess.Status)

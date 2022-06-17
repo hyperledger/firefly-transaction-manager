@@ -33,7 +33,7 @@ var getEventStream = func(m *manager) *ffapi.Route {
 			{Name: "streamId", Description: tmmsgs.APIParamStreamID},
 		},
 		QueryParams:     nil,
-		Description:     tmmsgs.APIEndpointPatchEventStream,
+		Description:     tmmsgs.APIEndpointGetEventStream,
 		JSONInputValue:  nil,
 		JSONOutputValue: func() interface{} { return &apitypes.EventStreamWithStatus{} },
 		JSONOutputCodes: []int{http.StatusOK},

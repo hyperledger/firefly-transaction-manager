@@ -42,7 +42,7 @@ func TestPatchEventStream(t *testing.T) {
 		SetResult(&es).
 		Post(url + "/eventstreams")
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 
 	// Then update it
 	res, err = resty.New().R().
@@ -52,7 +52,7 @@ func TestPatchEventStream(t *testing.T) {
 		SetResult(&es).
 		Patch(url + "/eventstreams/" + es.ID.String())
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 	assert.NotNil(t, es.ID)
 	assert.NotNil(t, es.Created)
 	assert.NotEqual(t, es.Created, es.Updated)

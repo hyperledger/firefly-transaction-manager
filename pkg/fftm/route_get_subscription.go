@@ -24,22 +24,22 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var getEventStreams = func(m *manager) *ffapi.Route {
+var getSubscription = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:       "getEventStreams",
-		Path:       "/eventstreams",
+		Name:       "getSubscription",
+		Path:       "/subscriptions/{listenerId}",
+		Deprecated: true, // in favor of "/eventstreams/{streamId}/listeners/{listenerId}"
 		Method:     http.MethodGet,
-		PathParams: nil,
-		QueryParams: []*ffapi.QueryParam{
-			{Name: "limit", Description: tmmsgs.APIParamLimit},
-			{Name: "after", Description: tmmsgs.APIParamAfter},
+		PathParams: []*ffapi.PathParam{
+			{Name: "listenerId", Description: tmmsgs.APIParamListenerID},
 		},
-		Description:     tmmsgs.APIEndpointGetEventStreams,
+		QueryParams:     nil,
+		Description:     tmmsgs.APIEndpointGetSubscription,
 		JSONInputValue:  nil,
-		JSONOutputValue: func() interface{} { return []*apitypes.EventStream{} },
+		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getStreams(r.Req.Context(), r.QP["after"], r.QP["limit"])
+			return m.getListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"])
 		},
 	}
 }

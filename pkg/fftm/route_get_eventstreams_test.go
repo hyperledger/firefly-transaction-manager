@@ -48,7 +48,7 @@ func TestGetEventStreams(t *testing.T) {
 		SetResult(&ess).
 		Get(url + "/eventstreams?limit=1&after=" + es1.ID.String())
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 
 	assert.Len(t, ess, 1)
 	assert.Equal(t, es2.ID, ess[0].ID)

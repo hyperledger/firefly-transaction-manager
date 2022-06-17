@@ -41,6 +41,7 @@ import (
 func testESConf(t *testing.T, j string) (spec *apitypes.EventStream) {
 	err := json.Unmarshal([]byte(j), &spec)
 	assert.NoError(t, err)
+	spec.ID = apitypes.UUIDVersion1()
 	return spec
 }
 
@@ -63,6 +64,17 @@ func mockWSChannels(wsc *wsmocks.WebSocketChannels) (chan interface{}, chan inte
 	receiverChannel := make(chan error, 1)
 	wsc.On("GetChannels", "ut_stream").Return((chan<- interface{})(senderChannel), (chan<- interface{})(broadcastChannel), (<-chan error)(receiverChannel))
 	return senderChannel, broadcastChannel, receiverChannel
+}
+
+func TestNewTestEventStreamMissingID(t *testing.T) {
+	tmconfig.Reset()
+	InitDefaults()
+	_, err := NewEventStream(context.Background(), &apitypes.EventStream{},
+		&ffcapimocks.API{},
+		&persistencemocks.Persistence{},
+		&confirmationsmocks.Manager{},
+		&wsmocks.WebSocketChannels{})
+	assert.Regexp(t, "FF21048", err)
 }
 
 func TestNewTestEventStreamBadConfig(t *testing.T) {
@@ -351,8 +363,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 	}`)
 
 	l := &apitypes.Listener{
-		ID:   fftypes.NewUUID(),
-		Name: "ut_listener",
+		ID: fftypes.NewUUID(),
 		Filters: []fftypes.JSONAny{
 			`{"event":"definition1"}`,
 			`{"event":"definition2"}`,
@@ -386,6 +397,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 
 	err := es.AddOrUpdateListener(es.bgCtx, l)
 	assert.NoError(t, err)
+	assert.Equal(t, "EventSig(uint256)", l.Name) // Defaulted
 
 	err = es.Start(es.bgCtx)
 	assert.NoError(t, err)

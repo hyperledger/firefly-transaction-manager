@@ -60,4 +60,8 @@ var (
 	MsgWebhookErr                    = ffe("FF21042", "Webhook request failed: %s")
 	MsgUnknownPersistence            = ffe("FF21043", "Unknown persistence type '%s'")
 	MsgInvalidLimit                  = ffe("FF21044", "Invalid limit string '%s': %s")
+	MsgStreamNotFound                = ffe("FF21045", "Event stream '%v' not found")
+	MsgListenerNotFound              = ffe("FF21046", "Event listener '%v' not found")
+	MsgDuplicateStreamName           = ffe("FF21047", "Duplicate event stream name '%s' used by stream '%s'", 409)
+	MsgMissingID                     = ffe("FF21048", "ID is required", 400)
 )

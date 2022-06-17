@@ -44,7 +44,7 @@ func TestPostEventStreamResume(t *testing.T) {
 		SetResult(&es).
 		Post(url + "/eventstreams")
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 
 	// Then suspend it
 	res, err = resty.New().R().
@@ -52,7 +52,7 @@ func TestPostEventStreamResume(t *testing.T) {
 		SetResult(&es).
 		Post(url + "/eventstreams/" + es.ID.String() + "/resume")
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 
 	assert.Equal(t, apitypes.EventStreamStatusStarted, m.eventStreams[(*es.ID)].Status())
 

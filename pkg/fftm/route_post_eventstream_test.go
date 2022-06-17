@@ -41,7 +41,7 @@ func TestPostNewEventStream(t *testing.T) {
 		SetResult(&es).
 		Post(url + "/eventstreams")
 	assert.NoError(t, err)
-	assert.True(t, res.IsSuccess())
+	assert.Equal(t, 200, res.StatusCode())
 	assert.NotNil(t, es.ID)
 	assert.NotNil(t, es.Created)
 	assert.Equal(t, es.Created, es.Updated)

@@ -32,7 +32,7 @@ var deleteEventStream = func(m *manager) *ffapi.Route {
 			{Name: "streamId", Description: tmmsgs.APIParamStreamID},
 		},
 		QueryParams:     nil,
-		Description:     tmmsgs.APIEndpointPatchEventStream,
+		Description:     tmmsgs.APIEndpointDeleteEventStream,
 		JSONInputValue:  nil,
 		JSONOutputValue: nil,
 		JSONOutputCodes: []int{http.StatusNoContent},
