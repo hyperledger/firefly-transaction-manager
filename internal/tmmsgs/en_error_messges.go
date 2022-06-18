@@ -29,7 +29,7 @@ var ffe = func(key, translation string, statusHint ...int) i18n.ErrorMessageKey 
 var (
 	MsgInvalidOutputType             = ffe("FF21010", "Invalid output type: %s")
 	MsgConnectorError                = ffe("FF21012", "Connector failed request. requestId=%s reason=%s error: %s")
-	MsgConnectorInvalidConentType    = ffe("FF21013", "Connector failed request. requestId=%s invalid response content type: %s")
+	MsgConnectorInvalidContentType   = ffe("FF21013", "Connector failed request. requestId=%s invalid response content type: %s")
 	MsgCacheInitFail                 = ffe("FF21015", "Failed to initialize cache")
 	MsgInvalidConfirmationRequest    = ffe("FF21016", "Invalid confirmation request %+v")
 	MsgCoreError                     = ffe("FF21017", "Error from core status=%d: %s")
@@ -37,7 +37,7 @@ var (
 	MsgPolicyEngineNotRegistered     = ffe("FF21019", "No policy engine registered with name '%s'")
 	MsgNoGasConfigSetForPolicyEngine = ffe("FF21020", "A fixed gas price must be set when not using a gas oracle")
 	MsgErrorQueryingGasOracleAPI     = ffe("FF21021", "Error from gas station API [%d]: %s")
-	MsgErrorInvalidRequest           = ffe("FF21022", "Invalid request", 400)
+	MsgInvalidRequestErr             = ffe("FF21022", "Invalid '%s' request: %s", 400)
 	MsgUnsupportedRequestType        = ffe("FF21023", "Unsupported request type: %s", 400)
 	MsgMissingGOTemplate             = ffe("FF21024", "Missing template for processing response from Gas Oracle REST API")
 	MsgBadGOTemplate                 = ffe("FF21025", "Invalid Go template: %s")
@@ -64,4 +64,5 @@ var (
 	MsgListenerNotFound              = ffe("FF21046", "Event listener '%v' not found")
 	MsgDuplicateStreamName           = ffe("FF21047", "Duplicate event stream name '%s' used by stream '%s'", 409)
 	MsgMissingID                     = ffe("FF21048", "ID is required", 400)
+	MsgPersistenceInitFail           = ffe("FF21049", "Failed to initialize '%s' persistence: %s")
 )

@@ -155,7 +155,7 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 	switch pType {
 	case "leveldb":
 		if m.persistence, err = persistence.NewLevelDBPersistence(ctx); err != nil {
-			return err
+			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
 		return nil
 	default:

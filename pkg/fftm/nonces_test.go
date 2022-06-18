@@ -25,6 +25,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/stretchr/testify/assert"
@@ -62,7 +63,7 @@ func TestNonceCached(t *testing.T) {
 		ln.spent = &policyengine.ManagedTXOutput{
 			ID:    "ns1:" + fftypes.NewUUID().String(),
 			Nonce: fftypes.NewFFBigInt(int64(ln.nonce)),
-			Request: &policyengine.TransactionRequest{
+			Request: &apitypes.TransactionRequest{
 				TransactionInput: ffcapi.TransactionInput{
 					TransactionHeaders: ffcapi.TransactionHeaders{
 						From: "0x12345",
@@ -102,7 +103,7 @@ func TestNonceError(t *testing.T) {
 
 	mFFC.On("NextNonceForSigner", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
-	_, err := m.sendManagedTransaction(context.Background(), &policyengine.TransactionRequest{
+	_, err := m.sendManagedTransaction(context.Background(), &apitypes.TransactionRequest{
 		TransactionInput: ffcapi.TransactionInput{
 			TransactionHeaders: ffcapi.TransactionHeaders{
 				From: "0x12345",

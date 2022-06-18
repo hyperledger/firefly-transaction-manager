@@ -36,6 +36,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines"
@@ -128,11 +129,31 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 
 }
 
+func TestNewManagerBadLevelDBConfig(t *testing.T) {
+
+	tmpFile, err := ioutil.TempFile("", "ut-*")
+	assert.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+
+	tmconfig.Reset()
+	config.Set(tmconfig.ManagerName, "test")
+	config.Set(tmconfig.PersistenceLevelDBPath, tmpFile.Name)
+	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, "0")
+
+	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
+
+	_, err = NewManager(context.Background(), nil)
+	assert.Regexp(t, "FF21049", err)
+
+}
+
 func TestNewManagerBadPersistenceConfig(t *testing.T) {
 
 	tmconfig.Reset()
 	config.Set(tmconfig.ManagerName, "test")
 	config.Set(tmconfig.PersistenceType, "wrong")
+	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, "0")
 
 	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
@@ -229,7 +250,7 @@ func TestChangeEventsWrongName(t *testing.T) {
 			b, err := json.Marshal(newTestOperation(t, &policyengine.ManagedTXOutput{
 				ID:       "ns1:" + ce.ID.String(),
 				FFTMName: "wrong",
-				Request:  &policyengine.TransactionRequest{},
+				Request:  &apitypes.TransactionRequest{},
 			}, core.OpStatusPending))
 			assert.NoError(t, err)
 			w.Header().Set("Content-Type", "application/json")
@@ -261,7 +282,7 @@ func TestChangeEventsWrongID(t *testing.T) {
 			op := newTestOperation(t, &policyengine.ManagedTXOutput{
 				ID:       "ns1:" + ce.ID.String(),
 				FFTMName: testManagerName,
-				Request:  &policyengine.TransactionRequest{},
+				Request:  &apitypes.TransactionRequest{},
 			}, core.OpStatusPending)
 			op.ID = fftypes.NewUUID()
 			b, err := json.Marshal(&op)
@@ -351,7 +372,7 @@ func TestChangeEventsMarkForCleanup(t *testing.T) {
 	op := newTestOperation(t, &policyengine.ManagedTXOutput{
 		ID:       "ns1:" + ce.ID.String(),
 		FFTMName: testManagerName,
-		Request:  &policyengine.TransactionRequest{},
+		Request:  &apitypes.TransactionRequest{},
 	}, core.OpStatusFailed)
 
 	var m *manager
@@ -379,21 +400,21 @@ func TestStartupScanMultiPageOK(t *testing.T) {
 	op1 := newTestOperation(t, &policyengine.ManagedTXOutput{
 		ID:       "ns1:" + fftypes.NewUUID().String(),
 		FFTMName: testManagerName,
-		Request:  &policyengine.TransactionRequest{},
+		Request:  &apitypes.TransactionRequest{},
 	}, core.OpStatusPending)
 	t1 := fftypes.FFTime(time.Now().Add(-10 * time.Minute))
 	op1.Created = &t1
 	op2 := newTestOperation(t, &policyengine.ManagedTXOutput{
 		ID:       "ns1:" + fftypes.NewUUID().String(),
 		FFTMName: testManagerName,
-		Request:  &policyengine.TransactionRequest{},
+		Request:  &apitypes.TransactionRequest{},
 	}, core.OpStatusPending)
 	t2 := fftypes.FFTime(time.Now().Add(-5 * time.Minute))
 	op2.Created = &t2
 	op3 := newTestOperation(t, &policyengine.ManagedTXOutput{
 		ID:       "ns1:" + fftypes.NewUUID().String(),
 		FFTMName: testManagerName,
-		Request:  &policyengine.TransactionRequest{},
+		Request:  &apitypes.TransactionRequest{},
 	}, core.OpStatusPending)
 	t3 := fftypes.FFTime(time.Now().Add(-1 * time.Minute))
 	op3.Created = &t3

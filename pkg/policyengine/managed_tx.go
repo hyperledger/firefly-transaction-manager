@@ -19,6 +19,7 @@ package policyengine
 import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
@@ -41,7 +42,7 @@ type ManagedTXOutput struct {
 	PolicyInfo      *fftypes.JSONAny                   `json:"policyInfo"`
 	FirstSubmit     *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
 	LastSubmit      *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
-	Request         *TransactionRequest                `json:"request,omitempty"`
+	Request         *apitypes.TransactionRequest       `json:"request,omitempty"`
 	Receipt         *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
 	ErrorHistory    []*ManagedTXError                  `json:"errorHistory"`
 	Confirmations   []confirmations.BlockInfo          `json:"confirmations,omitempty"`

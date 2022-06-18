@@ -17,21 +17,15 @@
 package fftm
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
-	"strconv"
 
 	"github.com/ghodss/yaml"
 	"github.com/gorilla/mux"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
-	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
-	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
-	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 )
 
 func (m *manager) router() *mux.Router {
@@ -71,7 +65,6 @@ func (m *manager) router() *mux.Router {
 		b, _ := json.Marshal(&doc)
 		_, _ = res.Write(b)
 	}))
-	mux.Path("/").Methods(http.MethodPost).Handler(http.HandlerFunc(m.apiHandler))
 	mux.NotFoundHandler = hf.APIWrapper(func(res http.ResponseWriter, req *http.Request) (status int, err error) {
 		return 404, i18n.NewError(req.Context(), i18n.Msg404NotFound)
 	})
@@ -80,47 +73,4 @@ func (m *manager) router() *mux.Router {
 
 func (m *manager) runAPIServer() {
 	m.apiServer.ServeHTTP(m.ctx)
-}
-
-func (m *manager) validateRequest(ctx context.Context, tReq *policyengine.TransactionRequest) error {
-	if tReq == nil || tReq.Headers.ID == "" || tReq.Headers.Type == "" {
-		log.L(ctx).Warnf("Invalid request: %+v", tReq)
-		return i18n.NewError(ctx, tmmsgs.MsgErrorInvalidRequest)
-	}
-	return nil
-}
-
-func (m *manager) apiHandler(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	var tReq *policyengine.TransactionRequest
-	statusCode := 200
-	err := json.NewDecoder(r.Body).Decode(&tReq)
-	if err == nil {
-		err = m.validateRequest(ctx, tReq)
-	}
-	var resBody interface{}
-	if err != nil {
-		statusCode = 400
-	} else {
-		ctx = log.WithLogField(ctx, "requestId", tReq.Headers.ID)
-		switch tReq.Headers.Type {
-		case policyengine.RequestTypeSendTransaction:
-			resBody, err = m.sendManagedTransaction(ctx, tReq)
-		default:
-			err = i18n.NewError(ctx, tmmsgs.MsgUnsupportedRequestType, tReq.Headers.Type)
-			statusCode = 400
-		}
-	}
-	if err != nil {
-		log.L(ctx).Errorf("Request failed: %s", err)
-		resBody = &fftypes.RESTError{Error: err.Error()}
-		if statusCode < 400 {
-			statusCode = 500
-		}
-	}
-	w.Header().Set("Content-Type", "application/json")
-	resBytes, _ := json.Marshal(&resBody)
-	w.Header().Set("Content-Length", strconv.FormatInt(int64(len(resBytes)), 10))
-	w.WriteHeader(statusCode)
-	_, _ = w.Write(resBytes)
 }

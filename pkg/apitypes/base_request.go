@@ -14,27 +14,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package apitypes
 
-import (
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-)
+import "encoding/json"
 
-// TransactionRequest is the external interface into sending transactions to the front-side of Transaction Manager
-// Note this is a deliberate match for the EthConnect subset that is supported by FireFly core
-type TransactionRequest struct {
+// BaseRequest is the common headers to all requests, and captures the full input payload for later decoding to a specific type
+type BaseRequest struct {
+	headerDecoder
+	fullPayload []byte
+}
+
+type headerDecoder struct {
 	Headers RequestHeaders `json:"headers"`
-	ffcapi.TransactionInput
 }
 
-type RequestHeaders struct {
-	ID   string      `json:"id"`
-	Type RequestType `json:"type"`
+func (br *BaseRequest) UnmarshalJSON(data []byte) error {
+	br.fullPayload = data
+	return json.Unmarshal(data, &br.headerDecoder)
 }
 
-type RequestType string
-
-const (
-	RequestTypeSendTransaction = "SendTransaction"
-	RequestTypeQuery           = "Query"
-)
+func (br *BaseRequest) UnmarshalTo(o interface{}) error {
+	return json.Unmarshal(br.fullPayload, &o)
+}

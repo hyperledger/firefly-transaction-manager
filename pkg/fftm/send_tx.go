@@ -20,12 +20,13 @@ import (
 	"context"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/hyperledger/firefly/pkg/core"
 )
 
-func (m *manager) sendManagedTransaction(ctx context.Context, request *policyengine.TransactionRequest) (*policyengine.ManagedTXOutput, error) {
+func (m *manager) sendManagedTransaction(ctx context.Context, request *apitypes.TransactionRequest) (*policyengine.ManagedTXOutput, error) {
 
 	// First job is to assign the next nonce to this request.
 	// We block any further sends on this nonce until we've got this one successfully into the node, or

@@ -206,6 +206,15 @@ func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.Eve
 	return spec, nil
 }
 
+func (m *manager) createAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error) {
+	streamID, err := fftypes.ParseUUID(ctx, idStr)
+	if err != nil {
+		return nil, err
+	}
+	def.StreamID = streamID
+	return m.createAndStoreNewListener(ctx, def)
+}
+
 func (m *manager) createAndStoreNewListener(ctx context.Context, def *apitypes.Listener) (*apitypes.Listener, error) {
 	def.ID = nil // set by AddOrUpdateListener
 	def.Created = nil
@@ -380,14 +389,14 @@ func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (
 	return m.persistence.ListListeners(ctx, after, limit)
 }
 
-// func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
-// 	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	id, err := fftypes.ParseUUID(ctx, idStr)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return m.persistence.ListStreamListeners(ctx, after, limit, id)
-// }
+func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
+	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
+	if err != nil {
+		return nil, err
+	}
+	id, err := fftypes.ParseUUID(ctx, idStr)
+	if err != nil {
+		return nil, err
+	}
+	return m.persistence.ListStreamListeners(ctx, after, limit, id)
+}

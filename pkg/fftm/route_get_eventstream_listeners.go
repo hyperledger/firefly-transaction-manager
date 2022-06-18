@@ -24,23 +24,24 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var postSubscriptions = func(m *manager) *ffapi.Route {
+var getEventStreamListeners = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:       "postSubscriptions",
-		Path:       "/subscriptions",
-		Deprecated: true, // in favor of "/eventstreams/{id}/listeners"
-		Method:     http.MethodPost,
-		PathParams: nil,
+		Name:   "getEventStreamListeners",
+		Path:   "/eventstreams/{streamId}/listeners",
+		Method: http.MethodGet,
+		PathParams: []*ffapi.PathParam{
+			{Name: "streamId", Description: tmmsgs.APIParamStreamID},
+		},
 		QueryParams: []*ffapi.QueryParam{
 			{Name: "limit", Description: tmmsgs.APIParamLimit},
 			{Name: "after", Description: tmmsgs.APIParamAfter},
 		},
-		Description:     tmmsgs.APIEndpointPostSubscriptions,
-		JSONInputValue:  func() interface{} { return &apitypes.Listener{} },
-		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
+		Description:     tmmsgs.APIEndpointGetEventStreamListeners,
+		JSONInputValue:  nil,
+		JSONOutputValue: func() interface{} { return []*apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.createAndStoreNewListener(r.Req.Context(), r.Input.(*apitypes.Listener))
+			return m.getStreamListeners(r.Req.Context(), r.QP["after"], r.QP["limit"], r.PP["streamId"])
 		},
 	}
 }

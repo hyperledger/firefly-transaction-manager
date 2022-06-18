@@ -27,6 +27,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/hyperledger/firefly/pkg/core"
@@ -45,7 +46,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
-		Request:         &policyengine.TransactionRequest{},
+		Request:         &apitypes.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,
@@ -92,7 +93,7 @@ func TestPolicyLoopE2EOkReverted(t *testing.T) {
 		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
-		Request:         &policyengine.TransactionRequest{},
+		Request:         &apitypes.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,
@@ -139,7 +140,7 @@ func TestPolicyLoopUpdateFFCoreWithError(t *testing.T) {
 		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
-		Request:         &policyengine.TransactionRequest{},
+		Request:         &apitypes.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,
@@ -171,7 +172,7 @@ func TestPolicyLoopUpdateOpFail(t *testing.T) {
 		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
-		Request:         &policyengine.TransactionRequest{},
+		Request:         &apitypes.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,
@@ -214,7 +215,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 
 	mtx := &policyengine.ManagedTXOutput{
 		ID:      "ns1:" + fftypes.NewUUID().String(),
-		Request: &policyengine.TransactionRequest{},
+		Request: &apitypes.TransactionRequest{},
 	}
 
 	opUpdateCount := 0
@@ -288,7 +289,7 @@ func TestPolicyLoopCycleCleanupRemoved(t *testing.T) {
 
 	mtx := &policyengine.ManagedTXOutput{
 		ID:      "ns1:" + fftypes.NewUUID().String(),
-		Request: &policyengine.TransactionRequest{},
+		Request: &apitypes.TransactionRequest{},
 	}
 
 	_, m, cancel := newTestManager(t,

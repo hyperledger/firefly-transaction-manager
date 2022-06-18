@@ -125,7 +125,7 @@ func TestSendTransactionE2E(t *testing.T) {
 
 }
 
-func TestSendInvalidRequestNoHeaders(t *testing.T) {
+func TestSendInvalidRequestBadTXType(t *testing.T) {
 
 	url, m, cancel := newTestManager(t,
 		func(w http.ResponseWriter, r *http.Request) {},
@@ -134,7 +134,12 @@ func TestSendInvalidRequestNoHeaders(t *testing.T) {
 	m.Start()
 
 	req := strings.NewReader(`{
-		"noHeaders": true
+		"headers": {
+			"type": "SendTransaction"
+		},
+		"from": {
+			"Not": "a string"
+		}
 	}`)
 	var errRes fftypes.RESTError
 	res, err := resty.New().R().
@@ -256,4 +261,21 @@ func TestSendTransactionUpdateFireFlyFail(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 500, res.StatusCode())
 
+}
+
+func TestNotFound(t *testing.T) {
+
+	url, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+	m.Start()
+
+	var errRes fftypes.RESTError
+	res, err := resty.New().R().
+		SetError(&errRes).
+		Post(url + "/not found")
+	assert.NoError(t, err)
+	assert.Equal(t, 404, res.StatusCode())
+	assert.Regexp(t, "FF00167", errRes.Error)
 }

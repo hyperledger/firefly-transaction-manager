@@ -24,23 +24,22 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var postSubscriptions = func(m *manager) *ffapi.Route {
+var patchEventStreamListener = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:       "postSubscriptions",
-		Path:       "/subscriptions",
-		Deprecated: true, // in favor of "/eventstreams/{id}/listeners"
-		Method:     http.MethodPost,
-		PathParams: nil,
-		QueryParams: []*ffapi.QueryParam{
-			{Name: "limit", Description: tmmsgs.APIParamLimit},
-			{Name: "after", Description: tmmsgs.APIParamAfter},
+		Name:   "patchEventStreamListener",
+		Path:   "/eventstreams/{streamId}/listeners/{listenerId}",
+		Method: http.MethodPatch,
+		PathParams: []*ffapi.PathParam{
+			{Name: "streamId", Description: tmmsgs.APIParamStreamID},
+			{Name: "listenerId", Description: tmmsgs.APIParamListenerID},
 		},
-		Description:     tmmsgs.APIEndpointPostSubscriptions,
+		QueryParams:     nil,
+		Description:     tmmsgs.APIEndpointPatchEventStreamListener,
 		JSONInputValue:  func() interface{} { return &apitypes.Listener{} },
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.createAndStoreNewListener(r.Req.Context(), r.Input.(*apitypes.Listener))
+			return m.updateExistingListener(r.Req.Context(), r.PP["streamId"], r.PP["listenerId"], r.Input.(*apitypes.Listener))
 		},
 	}
 }
