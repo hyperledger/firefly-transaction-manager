@@ -631,8 +631,6 @@ github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpO
 github.com/hyperledger/firefly v1.0.1-0.20220505194321-9f59036d0b4e h1:QP+Yykyq7C670zb4Fs7s4lAtYmvIll4rP/y00hdOsg4=
 github.com/hyperledger/firefly v1.0.1-0.20220505194321-9f59036d0b4e/go.mod h1:434LxYn4ntyK/E0dY+2dTc55caBy6BdUMYBM2gLndAI=
 github.com/hyperledger/firefly-common v0.1.2/go.mod h1:ytB+404+Qg00wJKx602Yi/V6Spx9d0g65lZR9y5fzlo=
-github.com/hyperledger/firefly-common v0.1.8 h1:gP4waMEEkbhB+pbsJyp5VrfrT4jQad6/4TXnXTfqXI8=
-github.com/hyperledger/firefly-common v0.1.8/go.mod h1:MYL6Dbj3KqM/79IkS+mCzJ7wRguNbd/PKdVu8aXo5TI=
 github.com/hyperledger/firefly-common v0.1.11-0.20220618173558-a825551beb7a h1:JmwLgtI++IyC8piQEMcT5/efp7Pwl4s5/8KXnXLltpA=
 github.com/hyperledger/firefly-common v0.1.11-0.20220618173558-a825551beb7a/go.mod h1:MYL6Dbj3KqM/79IkS+mCzJ7wRguNbd/PKdVu8aXo5TI=
 github.com/iancoleman/strcase v0.2.0/go.mod h1:iwCmte+B7n89clKwxIoIXy/HfoL7AsD47ZCWhYzw7ho=

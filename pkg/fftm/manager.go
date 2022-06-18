@@ -86,28 +86,7 @@ type manager struct {
 
 func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	var err error
-	events.InitDefaults()
-	m := &manager{
-		connector:        connector,
-		ffCoreClient:     ffresty.New(ctx, tmconfig.FFCoreConfig),
-		fullScanRequests: make(chan bool, 1),
-		nextNonces:       make(map[string]uint64),
-		lockedNonces:     make(map[string]*lockedNonce),
-		apiServerDone:    make(chan error),
-		pendingOpsByID:   make(map[string]*pendingState),
-		eventStreams:     make(map[fftypes.UUID]events.Stream),
-		streamsByName:    make(map[string]*fftypes.UUID),
-
-		name:                  config.GetString(tmconfig.ManagerName),
-		opTypes:               config.GetStringSlice(tmconfig.OperationsTypes),
-		startupScanMaxRetries: config.GetInt(tmconfig.OperationsFullScanStartupMaxRetries),
-		fullScanPageSize:      config.GetInt64(tmconfig.OperationsFullScanPageSize),
-		fullScanMinDelay:      config.GetDuration(tmconfig.OperationsFullScanMinimumDelay),
-		policyLoopInterval:    config.GetDuration(tmconfig.PolicyLoopInterval),
-		errorHistoryCount:     config.GetInt(tmconfig.OperationsErrorHistoryCount),
-		enableChangeListener:  config.GetBool(tmconfig.OperationsChangeListenerEnabled),
-	}
-	m.ctx, m.cancelCtx = context.WithCancel(ctx)
+	m := newManager(ctx, connector)
 	if m.name == "" {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgConfigParamNotSet, tmconfig.ManagerName)
 	}
@@ -132,6 +111,32 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+func newManager(ctx context.Context, connector ffcapi.API) *manager {
+	events.InitDefaults()
+	m := &manager{
+		connector:        connector,
+		ffCoreClient:     ffresty.New(ctx, tmconfig.FFCoreConfig),
+		fullScanRequests: make(chan bool, 1),
+		nextNonces:       make(map[string]uint64),
+		lockedNonces:     make(map[string]*lockedNonce),
+		apiServerDone:    make(chan error),
+		pendingOpsByID:   make(map[string]*pendingState),
+		eventStreams:     make(map[fftypes.UUID]events.Stream),
+		streamsByName:    make(map[string]*fftypes.UUID),
+
+		name:                  config.GetString(tmconfig.ManagerName),
+		opTypes:               config.GetStringSlice(tmconfig.OperationsTypes),
+		startupScanMaxRetries: config.GetInt(tmconfig.OperationsFullScanStartupMaxRetries),
+		fullScanPageSize:      config.GetInt64(tmconfig.OperationsFullScanPageSize),
+		fullScanMinDelay:      config.GetDuration(tmconfig.OperationsFullScanMinimumDelay),
+		policyLoopInterval:    config.GetDuration(tmconfig.PolicyLoopInterval),
+		errorHistoryCount:     config.GetInt(tmconfig.OperationsErrorHistoryCount),
+		enableChangeListener:  config.GetBool(tmconfig.OperationsChangeListenerEnabled),
+	}
+	m.ctx, m.cancelCtx = context.WithCancel(ctx)
+	return m
 }
 
 type pendingState struct {

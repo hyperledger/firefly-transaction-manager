@@ -44,7 +44,16 @@ func (m *manager) restoreStreams() error {
 		}
 		for _, def := range streamDefs {
 			lastInPage = def.ID
-			if _, err := m.addRuntimeStream(def); err != nil {
+			closeoutName, err := m.reserveStreamName(m.ctx, *def.Name, def.ID)
+			var s events.Stream
+			if err == nil {
+				s, err = m.addRuntimeStream(def)
+			}
+			if err == nil && !*def.Suspended {
+				err = s.Start(m.ctx)
+			}
+			closeoutName(err == nil)
+			if err != nil {
 				return err
 			}
 		}
@@ -129,13 +138,13 @@ func (m *manager) deleteStream(ctx context.Context, idStr string) error {
 		delete(m.streamsByName, *s.Spec().Name)
 	}
 	m.mux.Unlock()
+	if err := m.deleteAllStreamListeners(ctx, id); err != nil {
+		return err
+	}
+	if err := m.persistence.DeleteStream(ctx, id); err != nil {
+		return err
+	}
 	if s != nil {
-		if err := m.deleteAllStreamListeners(ctx, id); err != nil {
-			return err
-		}
-		if err := m.persistence.DeleteStream(ctx, id); err != nil {
-			return err
-		}
 		return s.Delete(ctx)
 	}
 	return nil
@@ -193,15 +202,16 @@ func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.Eve
 	spec := s.Spec()
 	err = m.persistence.WriteStream(ctx, spec)
 	if err != nil {
-		err1 := m.deleteStream(ctx, spec.ID.String())
+		m.mux.Lock()
+		delete(m.eventStreams, *def.ID)
+		m.mux.Unlock()
+		err1 := s.Delete(ctx)
 		log.L(ctx).Infof("Cleaned up runtime stream after write failed (err?=%v)", err1)
 		return nil, err
 	}
 	stored = true
 	if !*spec.Suspended {
-		if err = s.Start(ctx); err != nil {
-			return nil, err
-		}
+		return spec, s.Start(ctx)
 	}
 	return spec, nil
 }
@@ -228,11 +238,7 @@ func (m *manager) updateExistingListener(ctx context.Context, streamIDStr, liste
 	}
 	updates.ID = l.ID
 	updates.StreamID = l.StreamID
-	l, err = m.createOrUpdateListener(ctx, updates)
-	if err != nil {
-		return nil, err
-	}
-	return l, err
+	return m.createOrUpdateListener(ctx, updates)
 }
 
 func (m *manager) createOrUpdateListener(ctx context.Context, def *apitypes.Listener) (*apitypes.Listener, error) {
@@ -307,13 +313,9 @@ func (m *manager) updateStream(ctx context.Context, idStr string, updates *apity
 
 	// We might need to start or stop
 	if *spec.Suspended && s.Status() != apitypes.EventStreamStatusStopped {
-		if err = s.Stop(ctx); err != nil {
-			return nil, err
-		}
+		return nil, s.Stop(ctx)
 	} else if !*spec.Suspended && s.Status() != apitypes.EventStreamStatusStarted {
-		if err = s.Start(ctx); err != nil {
-			return nil, err
-		}
+		return nil, s.Start(ctx)
 	}
 	return spec, nil
 }
@@ -327,7 +329,7 @@ func (m *manager) getStream(ctx context.Context, idStr string) (*apitypes.EventS
 	s := m.eventStreams[*id]
 	m.mux.Unlock()
 	if s == nil {
-		return nil, nil
+		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, idStr)
 	}
 	return &apitypes.EventStreamWithStatus{
 		EventStream: *s.Spec(),

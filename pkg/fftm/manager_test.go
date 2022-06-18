@@ -36,6 +36,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
@@ -90,6 +91,15 @@ func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...strin
 			os.RemoveAll(dir)
 		}
 
+}
+
+func newMockPersistenceManager(t *testing.T) (*persistencemocks.Persistence, *ffcapimocks.API, *manager) {
+	tmconfig.Reset()
+	mca := &ffcapimocks.API{}
+	mps := &persistencemocks.Persistence{}
+	m := newManager(context.Background(), mca)
+	m.persistence = mps
+	return mps, mca, m
 }
 
 func newTestOperation(t *testing.T, mtx *policyengine.ManagedTXOutput, status core.OpStatus) *core.Operation {
