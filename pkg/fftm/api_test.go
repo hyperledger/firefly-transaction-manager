@@ -28,6 +28,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -260,6 +261,70 @@ func TestSendTransactionUpdateFireFlyFail(t *testing.T) {
 		Post(url)
 	assert.NoError(t, err)
 	assert.Equal(t, 500, res.StatusCode())
+
+}
+
+func TestQueryOK(t *testing.T) {
+
+	url, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+	m.Start()
+
+	mca := m.connector.(*ffcapimocks.API)
+	mca.On("QueryInvoke", mock.Anything, mock.MatchedBy(func(req *ffcapi.QueryInvokeRequest) bool {
+		return req.Method.String() == `"some method details"`
+	})).Return(&ffcapi.QueryInvokeResponse{
+		Outputs: fftypes.JSONAnyPtr(`"some output data"`),
+	}, ffcapi.ErrorReason(""), nil)
+
+	var queryRes apitypes.QueryResponse
+	res, err := resty.New().R().
+		SetBody(&apitypes.QueryRequest{
+			Headers: apitypes.RequestHeaders{
+				ID:   fftypes.NewUUID().String(),
+				Type: apitypes.RequestTypeQuery,
+			},
+			TransactionInput: ffcapi.TransactionInput{
+				Method: fftypes.JSONAnyPtr(`"some method details"`),
+			},
+		}).
+		SetResult(&queryRes).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+
+	assert.Equal(t, `"some output data"`, queryRes.Outputs.String())
+
+	mca.AssertExpectations(t)
+
+}
+
+func TestQueryBadRequest(t *testing.T) {
+
+	url, m, cancel := newTestManager(t,
+		func(w http.ResponseWriter, r *http.Request) {},
+	)
+	defer cancel()
+	m.Start()
+
+	var errRes fftypes.RESTError
+	res, err := resty.New().R().
+		SetBody(`{
+				"headers": {
+					"id": "`+fftypes.NewUUID().String()+`",
+					"type": "Query"
+				},
+				"params": "not an array"
+			}`,
+		).
+		SetHeader("content-type", "application/json").
+		SetError(&errRes).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 400, res.StatusCode())
+	assert.Regexp(t, "FF21022", errRes.Error)
 
 }
 

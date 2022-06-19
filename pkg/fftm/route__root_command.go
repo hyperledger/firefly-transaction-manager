@@ -25,6 +25,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 var postRootCommand = func(m *manager) *ffapi.Route {
@@ -39,9 +40,13 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return map[string]interface{}{} },
 		JSONInputSchema: func(ctx context.Context, schemaGen ffapi.SchemaGenerator) (*openapi3.SchemaRef, error) {
 			schemas := []*openapi3.SchemaRef{}
-			sendTxSchema, err := schemaGen(&apitypes.TransactionRequest{})
+			txRequest, err := schemaGen(&apitypes.TransactionRequest{})
 			if err == nil {
-				schemas = append(schemas, sendTxSchema)
+				schemas = append(schemas, txRequest)
+			}
+			queryRequest, err := schemaGen(&apitypes.QueryRequest{})
+			if err == nil {
+				schemas = append(schemas, queryRequest)
 			}
 			return &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
@@ -59,6 +64,15 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 				}
 				return m.sendManagedTransaction(r.Req.Context(), &tReq)
+			case apitypes.RequestTypeQuery:
+				var tReq apitypes.QueryRequest
+				if err = baseReq.UnmarshalTo(&tReq); err != nil {
+					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
+				}
+				res, _, err := m.connector.QueryInvoke(r.Req.Context(), &ffcapi.QueryInvokeRequest{
+					TransactionInput: tReq.TransactionInput,
+				})
+				return res, err
 			default:
 				return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgUnsupportedRequestType, baseReq.Headers.Type)
 			}

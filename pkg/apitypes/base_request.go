@@ -36,3 +36,15 @@ func (br *BaseRequest) UnmarshalJSON(data []byte) error {
 func (br *BaseRequest) UnmarshalTo(o interface{}) error {
 	return json.Unmarshal(br.fullPayload, &o)
 }
+
+type RequestHeaders struct {
+	ID   string      `ffstruct:"fftmrequest" json:"id"`
+	Type RequestType `json:"type"`
+}
+
+type RequestType string
+
+const (
+	RequestTypeSendTransaction RequestType = "SendTransaction"
+	RequestTypeQuery           RequestType = "Query"
+)

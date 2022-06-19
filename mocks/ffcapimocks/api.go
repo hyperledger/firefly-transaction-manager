@@ -194,36 +194,6 @@ func (_m *API) GasPriceEstimate(ctx context.Context, req *ffcapi.GasPriceEstimat
 	return r0, r1, r2
 }
 
-// MethodCall provides a mock function with given fields: ctx, req
-func (_m *API) MethodCall(ctx context.Context, req *ffcapi.MethodCallRequest) (*ffcapi.MethodCallResponse, ffcapi.ErrorReason, error) {
-	ret := _m.Called(ctx, req)
-
-	var r0 *ffcapi.MethodCallResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.MethodCallRequest) *ffcapi.MethodCallResponse); ok {
-		r0 = rf(ctx, req)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.MethodCallResponse)
-		}
-	}
-
-	var r1 ffcapi.ErrorReason
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.MethodCallRequest) ffcapi.ErrorReason); ok {
-		r1 = rf(ctx, req)
-	} else {
-		r1 = ret.Get(1).(ffcapi.ErrorReason)
-	}
-
-	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.MethodCallRequest) error); ok {
-		r2 = rf(ctx, req)
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
-}
-
 // NewBlockHashes provides a mock function with given fields:
 func (_m *API) NewBlockHashes() <-chan *ffcapi.BlockHashEvent {
 	ret := _m.Called()
@@ -262,6 +232,36 @@ func (_m *API) NextNonceForSigner(ctx context.Context, req *ffcapi.NextNonceForS
 
 	var r2 error
 	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.NextNonceForSignerRequest) error); ok {
+		r2 = rf(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// QueryInvoke provides a mock function with given fields: ctx, req
+func (_m *API) QueryInvoke(ctx context.Context, req *ffcapi.QueryInvokeRequest) (*ffcapi.QueryInvokeResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx, req)
+
+	var r0 *ffcapi.QueryInvokeResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.QueryInvokeRequest) *ffcapi.QueryInvokeResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.QueryInvokeResponse)
+		}
+	}
+
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.QueryInvokeRequest) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.QueryInvokeRequest) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)

@@ -40,8 +40,8 @@ type API interface {
 	// GasPriceEstimate provides a blockchain specific gas price estimate
 	GasPriceEstimate(ctx context.Context, req *GasPriceEstimateRequest) (*GasPriceEstimateResponse, ErrorReason, error)
 
-	// MethodCall executes a method on a blockchain smart contract, which might execute Smart Contract code, but does not affect the blockchain state.
-	MethodCall(ctx context.Context, req *MethodCallRequest) (*MethodCallResponse, ErrorReason, error)
+	// QueryInvoke executes a method on a blockchain smart contract, which might execute Smart Contract code, but does not affect the blockchain state.
+	QueryInvoke(ctx context.Context, req *QueryInvokeRequest) (*QueryInvokeResponse, ErrorReason, error)
 
 	// TransactionReceipt queries to see if a receipt is available for a given transaction hash
 	TransactionReceipt(ctx context.Context, req *TransactionReceiptRequest) (*TransactionReceiptResponse, ErrorReason, error)

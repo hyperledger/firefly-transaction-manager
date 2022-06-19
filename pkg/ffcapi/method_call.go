@@ -20,17 +20,17 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
-// MethodCallRequest requests execution of a smart contract method in order to either:
+// QueryInvokeRequest requests execution of a smart contract method in order to either:
 // 1) Query state
 // 2) Attempt to extract the revert reason from an on-chain failure to execute a transaction
 //
 // See the list of standard error reasons that should be returned for situations that can be
 // detected by the back-end connector.
-type MethodCallRequest struct {
+type QueryInvokeRequest struct {
 	TransactionInput
 	BlockNumber *fftypes.FFBigInt `json:"blockNumber,omitempty"`
 }
 
-type MethodCallResponse struct {
+type QueryInvokeResponse struct {
 	Outputs *fftypes.JSONAny `json:"outputs"` // The data output from the method call - can be array or object structure
 }

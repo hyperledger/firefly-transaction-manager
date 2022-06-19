@@ -20,8 +20,11 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
-// TransactionRequest is the payload sent to initiate a new transaction
-type TransactionRequest struct {
+// QueryRequest is the request payload to send to perform a synchronous query against the blockchain state
+type QueryRequest struct {
 	Headers RequestHeaders `json:"headers"`
 	ffcapi.TransactionInput
 }
+
+// QueryResponse is the response payload for a query
+type QueryResponse ffcapi.QueryInvokeResponse
