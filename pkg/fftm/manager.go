@@ -84,6 +84,11 @@ type manager struct {
 	enableChangeListener  bool
 }
 
+func InitConfig() {
+	tmconfig.Reset()
+	events.InitDefaults()
+}
+
 func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	var err error
 	m := newManager(ctx, connector)
@@ -114,7 +119,6 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 }
 
 func newManager(ctx context.Context, connector ffcapi.API) *manager {
-	events.InitDefaults()
 	m := &manager{
 		connector:        connector,
 		ffCoreClient:     ffresty.New(ctx, tmconfig.FFCoreConfig),

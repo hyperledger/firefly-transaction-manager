@@ -1004,5 +1004,5 @@ func TestActionRetryBlock(t *testing.T) {
 	assert.Regexp(t, "FF00154", err)
 
 	<-done
-	assert.Greater(t, callCount, 1)
+	assert.Greater(t, callCount, 0)
 }

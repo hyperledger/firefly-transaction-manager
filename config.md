@@ -1,8 +1,8 @@
 ---
 layout: default
-title: Configuration Reference
+title: pages.reference
 parent: Reference
-nav_order: 3
+nav_order: 2
 ---
 
 # Configuration Reference
@@ -22,6 +22,8 @@ nav_order: 3
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |address|Listener address for API|`string`|`127.0.0.1`
+|defaultRequestTimeout|Default server-side request timeout for API calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+|maxRequestTimeout|Maximum server-side request timeout a caller can request with a Request-Timeout header|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10m`
 |port|Listener port for API|`int`|`5008`
 |publicURL|External address callers should access API over|`string`|`<nil>`
 |readTimeout|The maximum time to wait when reading from an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
@@ -52,37 +54,7 @@ nav_order: 3
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|connectionTimeout|The maximum amount of time that a connection is allowed to remain with no data transmitted|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
-|expectContinueTimeout|See [ExpectContinueTimeout in the Go docs](https://pkg.go.dev/net/http#Transport)|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1s`
-|headers|Adds custom headers to HTTP requests|`map[string]string`|`<nil>`
-|idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`475ms`
-|maxIdleConns|The max number of idle connections to hold pooled|`int`|`100`
-|requestTimeout|The maximum amount of time that a request is allowed to remain open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
-|tlsHandshakeTimeout|The maximum amount of time to wait for a successful TLS handshake|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
-|url|The URL of the blockchain connector|`string`|`<nil>`
 |variant|The variant is the overall category of blockchain connector, defining things like how input/output definitions are passed|`string`|`evm`
-
-## connector.auth
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|password|Password|`string`|`<nil>`
-|username|Username|`string`|`<nil>`
-
-## connector.proxy
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|url|Optional HTTP proxy URL to use for the blockchain connector|`string`|`<nil>`
-
-## connector.retry
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|count|The maximum number of times to retry|`int`|`5`
-|enabled|Enables retries|`boolean`|`false`
-|initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
-|maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
 
 ## cors
 
@@ -95,6 +67,26 @@ nav_order: 3
 |maxAge|The maximum age a browser should rely on CORS checks|[`time.Duration`](https://pkg.go.dev/time#Duration)|`600`
 |methods| CORS setting to control the allowed methods|`string`|`[GET POST PUT PATCH DELETE]`
 |origins|CORS setting to control the allowed origins|`string`|`[*]`
+
+## eventstreams.defaults
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|batchSize|Default batch size for newly created event streams|`int`|`50`
+|batchTimeout|Default batch timeout for newly created event streams|[`time.Duration`](https://pkg.go.dev/time#Duration)|`5s`
+|blockedRetryDelay|Default blocked retry delay for newly created event streams|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+|errorHandling|Default error handling for newly created event streams|'skip' or 'block'|`block`
+|retryTimeout|Default retry timeout for newly created event streams|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+|webhookRequestTimeout|Default WebHook request timeout for newly created event streams|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+|websocketDistributionMode|Default WebSocket distribution mode for newly created event streams|'load_balance' or 'broadcast'|`load_balance`
+
+## eventstreams.retry
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|factor|Factor to increase the delay by, between each retry|`boolean`|`<nil>`
+|initialDelay|Initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxDelay|Maximum delay between retries|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
 ## ffcore
 
@@ -200,6 +192,20 @@ nav_order: 3
 |pageSize|The page size to use when performing a full scan of the ForeFly core API on startup, or recovery|`int`|`100`
 |startupMaxRetries|The page size to use when performing a full scan of the ForeFly core API on startup, or recovery|`int`|`10`
 
+## persistence
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|type|The type of persistence to use|Only 'leveldb' currently supported|`leveldb`
+
+## persistence.leveldb
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|maxHandles|The maximum number of cached file handles LevelDB should keep open|`int`|`100`
+|path|The path for the LevelDB persistence directory|`string`|`<nil>`
+|syncWrites|Whether to synchronously perform writes to the storage|`boolean`|`true`
+
 ## policyengine
 
 |Key|Description|Type|Default Value|
@@ -211,23 +217,23 @@ nav_order: 3
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |fixedGasPrice|A fixed gasPrice value/structure to pass to the connector|Raw JSON|`<nil>`
-|warnInterval|The time between warnings when a blockchain transaction has not been allocated a receipt|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15m`
+|warnInterval|The time between warnings when a blockchain transaction has not been allocated a receipt|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
 ## policyengine.simple.gasOracle
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|connectionTimeout|The maximum amount of time that a connection is allowed to remain with no data transmitted|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
-|expectContinueTimeout|See [ExpectContinueTimeout in the Go docs](https://pkg.go.dev/net/http#Transport)|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1s`
+|connectionTimeout|The maximum amount of time that a connection is allowed to remain with no data transmitted|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|expectContinueTimeout|See [ExpectContinueTimeout in the Go docs](https://pkg.go.dev/net/http#Transport)|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |headers|Adds custom headers to HTTP requests|`map[string]string`|`<nil>`
-|idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`475ms`
-|maxIdleConns|The max number of idle connections to hold pooled|`int`|`100`
-|method|The HTTP Method to use when invoking the Gas Oracle REST API|`string`|`GET`
-|mode|The gas oracle mode|connector | restapi | disabled|`disabled`
-|queryInterval|The minimum interval between queries to the Gas Oracle|[`time.Duration`](https://pkg.go.dev/time#Duration)|`5m`
-|requestTimeout|The maximum amount of time that a request is allowed to remain open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+|idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxIdleConns|The max number of idle connections to hold pooled|`int`|`<nil>`
+|method|The HTTP Method to use when invoking the Gas Oracle REST API|`string`|`<nil>`
+|mode|The gas oracle mode|connector | restapi | disabled|`<nil>`
+|queryInterval|The minimum interval between queries to the Gas Oracle|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|requestTimeout|The maximum amount of time that a request is allowed to remain open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |template|REST API Gas Oracle: A go template to execute against the result from the Gas Oracle, to create a JSON block that will be passed as the gas price to the connector|[Go Template](https://pkg.go.dev/text/template) `string`|`<nil>`
-|tlsHandshakeTimeout|The maximum amount of time to wait for a successful TLS handshake|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
+|tlsHandshakeTimeout|The maximum amount of time to wait for a successful TLS handshake|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |url|REST API Gas Oracle: The URL of a Gas Oracle REST API to call|`string`|`<nil>`
 
 ## policyengine.simple.gasOracle.auth
@@ -247,13 +253,48 @@ nav_order: 3
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|count|The maximum number of times to retry|`int`|`5`
-|enabled|Enables retries|`boolean`|`false`
-|initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
-|maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+|count|The maximum number of times to retry|`int`|`<nil>`
+|enabled|Enables retries|`boolean`|`<nil>`
+|initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
 ## policyloop
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |interval|Interval at which to invoke the policy engine to evaluate outstanding transactions|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1s`
+
+## webhooks
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|allowPrivateIPs|Whether to allow WebHook URLs that resolve to Private IP address ranges (vs. internet addresses)|`boolean`|`true`
+|connectionTimeout|The maximum amount of time that a connection is allowed to remain with no data transmitted|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+|expectContinueTimeout|See [ExpectContinueTimeout in the Go docs](https://pkg.go.dev/net/http#Transport)|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1s`
+|headers|Adds custom headers to HTTP requests|`map[string]string`|`<nil>`
+|idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`475ms`
+|maxIdleConns|The max number of idle connections to hold pooled|`int`|`100`
+|requestTimeout|The maximum amount of time that a request is allowed to remain open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+|tlsHandshakeTimeout|The maximum amount of time to wait for a successful TLS handshake|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
+
+## webhooks.auth
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|password|Password|`string`|`<nil>`
+|username|Username|`string`|`<nil>`
+
+## webhooks.proxy
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|url|Optional HTTP proxy to use when invoking WebHooks|`string`|`<nil>`
+
+## webhooks.retry
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|count|The maximum number of times to retry|`int`|`5`
+|enabled|Enables retries|`boolean`|`false`
+|initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
+|maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`

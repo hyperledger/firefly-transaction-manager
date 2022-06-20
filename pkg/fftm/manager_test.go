@@ -51,7 +51,7 @@ const testManagerName = "unittest"
 func strPtr(s string) *string { return &s }
 
 func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...string) (string, *manager, func()) {
-	tmconfig.Reset()
+	InitConfig()
 	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
 	dir, err := ioutil.TempDir("", "ldb_*")
 	assert.NoError(t, err)
@@ -94,7 +94,7 @@ func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...strin
 }
 
 func newMockPersistenceManager(t *testing.T) (*persistencemocks.Persistence, *ffcapimocks.API, *manager) {
-	tmconfig.Reset()
+	InitConfig()
 	mca := &ffcapimocks.API{}
 	mps := &persistencemocks.Persistence{}
 	m := newManager(context.Background(), mca)
