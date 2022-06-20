@@ -20,6 +20,21 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
+const (
+	FromBlockLatest = "latest"
+)
+
+type EventListenerVerifyOptionsRequest struct {
+	FromBlock string
+	Filters   []fftypes.JSONAny
+	Options   *fftypes.JSONAny
+}
+
+type EventListenerVerifyOptionsResponse struct {
+	ResolvedSignature string
+	ResolvedOptions   fftypes.JSONAny
+}
+
 type EventListenerAddRequest struct {
 	ID          *fftypes.UUID          // Unique UUID for the event listener, that should be included in each event
 	Filters     []fftypes.JSONAny      // The blockchain specific list of filters. The top-level array is an OR list. The semantics within each entry is defined by the blockchain

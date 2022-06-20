@@ -35,7 +35,7 @@ func TestRestoreStreamsAndListenersOK(t *testing.T) {
 	defer done()
 
 	mfc := m.connector.(*ffcapimocks.API)
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
 
@@ -116,7 +116,7 @@ func TestRestoreListenersStartFail(t *testing.T) {
 	defer done()
 
 	mfc := m.connector.(*ffcapimocks.API)
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	falsy := false
@@ -141,7 +141,7 @@ func TestDeleteStartedListener(t *testing.T) {
 	defer done()
 
 	mfc := m.connector.(*ffcapimocks.API)
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
@@ -312,7 +312,7 @@ func TestCreateOrUpdateListenerFail(t *testing.T) {
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 
 	mfc := m.connector.(*ffcapimocks.API)
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
@@ -330,7 +330,7 @@ func TestCreateOrUpdateListenerWriteFail(t *testing.T) {
 	mp.On("WriteListener", m.ctx, mock.Anything).Return(fmt.Errorf("pop"))
 
 	mfc := m.connector.(*ffcapimocks.API)
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
@@ -370,7 +370,7 @@ func TestDeleteListenerFail(t *testing.T) {
 	mp.On("WriteListener", m.ctx, mock.Anything).Return(nil)
 
 	mfc := m.connector.(*ffcapimocks.API)
-	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything, mock.Anything).Return("EventSig(uint256)", *fftypes.JSONAnyPtr(`{}`), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 

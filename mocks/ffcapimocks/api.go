@@ -5,9 +5,7 @@ package ffcapimocks
 import (
 	context "context"
 
-	fftypes "github.com/hyperledger/firefly-common/pkg/fftypes"
 	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -136,27 +134,29 @@ func (_m *API) EventListenerRemove(ctx context.Context, req *ffcapi.EventListene
 	return r0, r1, r2
 }
 
-// EventListenerVerifyOptions provides a mock function with given fields: ctx, standardOptions, customOptions
-func (_m *API) EventListenerVerifyOptions(ctx context.Context, standardOptions *ffcapi.ListenerOptions, customOptions *fftypes.JSONAny) (string, fftypes.JSONAny, error) {
-	ret := _m.Called(ctx, standardOptions, customOptions)
+// EventListenerVerifyOptions provides a mock function with given fields: ctx, req
+func (_m *API) EventListenerVerifyOptions(ctx context.Context, req *ffcapi.EventListenerVerifyOptionsRequest) (*ffcapi.EventListenerVerifyOptionsResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx, req)
 
-	var r0 string
-	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) string); ok {
-		r0 = rf(ctx, standardOptions, customOptions)
+	var r0 *ffcapi.EventListenerVerifyOptionsResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.EventListenerVerifyOptionsRequest) *ffcapi.EventListenerVerifyOptionsResponse); ok {
+		r0 = rf(ctx, req)
 	} else {
-		r0 = ret.Get(0).(string)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.EventListenerVerifyOptionsResponse)
+		}
 	}
 
-	var r1 fftypes.JSONAny
-	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) fftypes.JSONAny); ok {
-		r1 = rf(ctx, standardOptions, customOptions)
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.EventListenerVerifyOptionsRequest) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx, req)
 	} else {
-		r1 = ret.Get(1).(fftypes.JSONAny)
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
 	var r2 error
-	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.ListenerOptions, *fftypes.JSONAny) error); ok {
-		r2 = rf(ctx, standardOptions, customOptions)
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.EventListenerVerifyOptionsRequest) error); ok {
+		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
 	}

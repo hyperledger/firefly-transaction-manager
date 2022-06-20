@@ -110,7 +110,7 @@ type Listener struct {
 	Filters           []fftypes.JSONAny `ffstruct:"listener" json:"filters"`
 	Options           *fftypes.JSONAny  `ffstruct:"listener" json:"options"`
 	Signature         string            `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
-	FromBlock         string            `ffstruct:"listener" json:"fromBlock,omitempty"`
+	FromBlock         *string           `ffstruct:"listener" json:"fromBlock,omitempty"`
 }
 
 // UUIDVersion1 returns a version 1 UUID - where the alphanumeric sequence is assured to be ascending based on the order of generation

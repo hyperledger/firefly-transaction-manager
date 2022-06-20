@@ -290,40 +290,46 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.L
 	}
 
 	// The connector needs to validate the options
-	signature, mergedOptions, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.ListenerOptions{
-		FromBlock: spec.FromBlock,
-	}, spec.Options)
+	fromBlock := ffcapi.FromBlockLatest
+	if spec.FromBlock != nil {
+		fromBlock = *spec.FromBlock
+	}
+	res, _, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.EventListenerVerifyOptionsRequest{
+		FromBlock: fromBlock,
+		Filters:   spec.Filters,
+		Options:   spec.Options,
+	})
 	if err != nil {
 		return i18n.NewError(ctx, tmmsgs.MsgBadListenerOptions, err)
 	}
 
 	// We update the spec object in-place for the signature and resolved options
-	spec.Signature = signature
-	spec.Options = &mergedOptions
+	spec.Signature = res.ResolvedSignature
+	spec.Options = &res.ResolvedOptions
 	if spec.Name == "" {
-		spec.Name = signature
+		spec.Name = spec.Signature
 	}
 
 	// Check if this is a new listener, an update, or a no-op
 	es.mux.Lock()
 	l, exists := es.listeners[*spec.ID]
 	if exists {
-		if mergedOptions == l.options && safeCompareFilterList(spec.Filters, l.filters) {
+		if res.ResolvedOptions == l.options && safeCompareFilterList(spec.Filters, l.filters) {
 			log.L(ctx).Infof("Event listener '%s' already configured on stream, with no changes", l.id)
 			es.mux.Unlock()
 			return nil
 		}
 		log.L(ctx).Infof("Listener '%s' configuration updated, it will be restarted", l.id)
-		l.options = mergedOptions
+		l.options = res.ResolvedOptions
+		l.signature = res.ResolvedSignature
 		l.filters = spec.Filters
-		l.signature = signature
 	} else {
 		l = &listener{
 			es:        es,
 			id:        spec.ID,
-			options:   mergedOptions,
+			options:   res.ResolvedOptions,
 			filters:   spec.Filters,
-			signature: signature,
+			signature: res.ResolvedSignature,
 		}
 		es.listeners[*spec.ID] = l
 	}
