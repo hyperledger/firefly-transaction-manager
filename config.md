@@ -50,12 +50,6 @@ nav_order: 2
 |required|Number of confirmations required to consider a transaction/event final|`int`|`20`
 |staleReceiptTimeout|Duration after which to force a receipt check for a pending transaction|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1m`
 
-## connector
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|variant|The variant is the overall category of blockchain connector, defining things like how input/output definitions are passed|`string`|`evm`
-
 ## cors
 
 |Key|Description|Type|Default Value|

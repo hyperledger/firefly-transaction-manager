@@ -42,10 +42,6 @@ var (
 	ConfigConfirmationsRequired                 = ffc("config.confirmations.required", "Number of confirmations required to consider a transaction/event final", i18n.IntType)
 	ConfigConfirmationsStaleReceiptTimeout      = ffc("config.confirmations.staleReceiptTimeout", "Duration after which to force a receipt check for a pending transaction", i18n.TimeDurationType)
 
-	ConfigConnectorURL      = ffc("config.connector.url", "The URL of the blockchain connector", i18n.StringType)
-	ConfigConnectorVariant  = ffc("config.connector.variant", "The variant is the overall category of blockchain connector, defining things like how input/output definitions are passed", i18n.StringType)
-	ConfigConnectorProxyURL = ffc("config.connector.proxy.url", "Optional HTTP proxy URL to use for the blockchain connector", i18n.StringType)
-
 	ConfigFFCoreURL      = ffc("config.ffcore.url", "The URL of the FireFly core admin API server to connect to", i18n.StringType)
 	ConfigFFCoreProxyURL = ffc("config.ffcore.proxy.url", "Optional HTTP proxy URL to use for the FireFly core admin API server", i18n.StringType)
 

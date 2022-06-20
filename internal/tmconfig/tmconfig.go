@@ -29,7 +29,6 @@ var ffc = config.AddRootKey
 
 var (
 	ManagerName                                   = ffc("manager.name")
-	ConnectorVariant                              = ffc("connector.variant")
 	ConfirmationsRequired                         = ffc("confirmations.required")
 	ConfirmationsBlockCacheSize                   = ffc("confirmations.blockCacheSize")
 	ConfirmationsBlockPollingInterval             = ffc("confirmations.blockPollingInterval")
@@ -81,7 +80,6 @@ func setDefaults() {
 		core.OpTypeTokenCreatePool.String(),
 	})
 	viper.SetDefault(string(OperationsFullScanStartupMaxRetries), 10)
-	viper.SetDefault(string(ConnectorVariant), "evm")
 	viper.SetDefault(string(ConfirmationsRequired), 20)
 	viper.SetDefault(string(ConfirmationsBlockCacheSize), 1000)
 	viper.SetDefault(string(ConfirmationsBlockPollingInterval), "3s")
