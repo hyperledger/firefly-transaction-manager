@@ -28,7 +28,7 @@ import (
 func TestRegistry(t *testing.T) {
 
 	tmconfig.Reset()
-	RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	RegisterEngine(&simple.PolicyEngineFactory{})
 
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "12345")
 	p, err := NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBaseConfig, "simple")

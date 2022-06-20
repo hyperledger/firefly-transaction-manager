@@ -52,7 +52,7 @@ func strPtr(s string) *string { return &s }
 
 func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...string) (string, *manager, func()) {
 	InitConfig()
-	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	policyengines.RegisterEngine(&simple.PolicyEngineFactory{})
 	dir, err := ioutil.TempDir("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
@@ -131,7 +131,7 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 	config.Set(tmconfig.ManagerName, "test")
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "::::")
 
-	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	policyengines.RegisterEngine(&simple.PolicyEngineFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background(), nil)
@@ -150,7 +150,7 @@ func TestNewManagerBadLevelDBConfig(t *testing.T) {
 	config.Set(tmconfig.PersistenceLevelDBPath, tmpFile.Name)
 	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, "0")
 
-	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	policyengines.RegisterEngine(&simple.PolicyEngineFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err = NewManager(context.Background(), nil)
@@ -165,7 +165,7 @@ func TestNewManagerBadPersistenceConfig(t *testing.T) {
 	config.Set(tmconfig.PersistenceType, "wrong")
 	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, "0")
 
-	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	policyengines.RegisterEngine(&simple.PolicyEngineFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background(), nil)
@@ -179,7 +179,7 @@ func TestNewManagerFireFlyURLConfig(t *testing.T) {
 	config.Set(tmconfig.ManagerName, "test")
 	tmconfig.FFCoreConfig.Set(ffresty.HTTPConfigURL, ":::!badurl")
 
-	policyengines.RegisterEngine(tmconfig.PolicyEngineBaseConfig, &simple.PolicyEngineFactory{})
+	policyengines.RegisterEngine(&simple.PolicyEngineFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background(), nil)

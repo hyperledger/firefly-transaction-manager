@@ -21,6 +21,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 )
@@ -41,9 +42,9 @@ type Factory interface {
 	NewPolicyEngine(ctx context.Context, conf config.Section) (policyengine.PolicyEngine, error)
 }
 
-func RegisterEngine(baseConfig config.Section, factory Factory) string {
+func RegisterEngine(factory Factory) string {
 	name := factory.Name()
 	policyEngines[name] = factory
-	factory.InitConfig(baseConfig.SubSection(name))
+	factory.InitConfig(tmconfig.PolicyEngineBaseConfig.SubSection(name))
 	return name
 }
