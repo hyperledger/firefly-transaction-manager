@@ -43,7 +43,7 @@ const (
 	defaultWarnInterval           = "15m"
 	defaultGasOracleQueryInterval = "5m"
 	defaultGasOracleMethod        = http.MethodGet
-	defaultGasOracleMode          = GasOracleModeDisabled
+	defaultGasOracleMode          = GasOracleModeConnector
 )
 
 func (f *PolicyEngineFactory) InitConfig(conf config.Section) {
