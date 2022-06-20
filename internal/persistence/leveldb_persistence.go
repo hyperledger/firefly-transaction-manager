@@ -25,8 +25,10 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -40,6 +42,9 @@ type leveldbPersistence struct {
 
 func NewLevelDBPersistence(ctx context.Context) (Persistence, error) {
 	dbPath := config.GetString(tmconfig.PersistenceLevelDBPath)
+	if dbPath == "" {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgLevelDBPathMissing)
+	}
 	db, err := leveldb.OpenFile(dbPath, &opt.Options{
 		OpenFilesCacheCapacity: config.GetInt(tmconfig.PersistenceLevelDBMaxHandles),
 	})

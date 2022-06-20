@@ -62,6 +62,15 @@ func newTestLevelDBPersistence(t *testing.T) (*leveldbPersistence, func()) {
 
 func strPtr(s string) *string { return &s }
 
+func TestLevelDBInitMissingPath(t *testing.T) {
+
+	tmconfig.Reset()
+
+	_, err := NewLevelDBPersistence(context.Background())
+	assert.Regexp(t, "FF21050", err)
+
+}
+
 func TestLevelDBInitFail(t *testing.T) {
 	file, err := ioutil.TempFile("", "ldb_*")
 	assert.NoError(t, err)

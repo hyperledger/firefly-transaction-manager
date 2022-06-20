@@ -65,4 +65,5 @@ var (
 	MsgDuplicateStreamName           = ffe("FF21047", "Duplicate event stream name '%s' used by stream '%s'", 409)
 	MsgMissingID                     = ffe("FF21048", "ID is required", 400)
 	MsgPersistenceInitFail           = ffe("FF21049", "Failed to initialize '%s' persistence: %s")
+	MsgLevelDBPathMissing            = ffe("FF21050", "Path must be supplied for LevelDB persistence")
 )
