@@ -24,11 +24,11 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var patchEventStreamListener = func(m *manager) *ffapi.Route {
+var postEventStreamListenerReset = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:   "patchEventStreamListener",
-		Path:   "/eventstreams/{streamId}/listeners/{listenerId}",
-		Method: http.MethodPatch,
+		Name:   "postEventStreamListenerReset",
+		Path:   "/eventstreams/{streamId}/listeners/{listenerId}/reset",
+		Method: http.MethodPost,
 		PathParams: []*ffapi.PathParam{
 			{Name: "streamId", Description: tmmsgs.APIParamStreamID},
 			{Name: "listenerId", Description: tmmsgs.APIParamListenerID},
@@ -39,7 +39,7 @@ var patchEventStreamListener = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.updateExistingListener(r.Req.Context(), r.PP["streamId"], r.PP["listenerId"], r.Input.(*apitypes.Listener), false)
+			return m.updateExistingListener(r.Req.Context(), r.PP["streamId"], r.PP["listenerId"], r.Input.(*apitypes.Listener), true)
 		},
 	}
 }

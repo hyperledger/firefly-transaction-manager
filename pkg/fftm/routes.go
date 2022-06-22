@@ -33,10 +33,12 @@ func (m *manager) routes() []*ffapi.Route {
 		patchEventStreamListener(m),
 		patchSubscription(m),
 		postEventStream(m),
+		postEventStreamListenerReset(m),
 		postEventStreamListeners(m),
 		postEventStreamResume(m),
 		postEventStreamSuspend(m),
 		postRootCommand(m),
+		postSubscriptionReset(m),
 		postSubscriptions(m),
 	}
 }

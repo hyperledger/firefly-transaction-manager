@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestGetEventStreamListeners(t *testing.T) {
+func TestPostEventStreamListenerReset(t *testing.T) {
 
 	url, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
 	defer done()
@@ -43,32 +43,28 @@ func TestGetEventStreamListeners(t *testing.T) {
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
 
 	// Create a stream
-	var es1, es2 apitypes.EventStream
+	var es1 apitypes.EventStream
 	res, err := resty.New().R().SetBody(&apitypes.EventStream{Name: strPtr("stream1")}).SetResult(&es1).Post(url + "/eventstreams")
-	assert.NoError(t, err)
-	res, err = resty.New().R().SetBody(&apitypes.EventStream{Name: strPtr("stream2")}).SetResult(&es2).Post(url + "/eventstreams")
 	assert.NoError(t, err)
 
 	// Create some listeners
-	var l1, l2, l3 apitypes.Listener
+	var l1 apitypes.Listener
 	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: strPtr("listener1"), StreamID: es1.ID}).SetResult(&l1).Post(url + "/subscriptions")
-	assert.NoError(t, err)
-	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: strPtr("listener2"), StreamID: es2.ID}).SetResult(&l2).Post(url + "/subscriptions")
-	assert.NoError(t, err)
-	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: strPtr("listener3"), StreamID: es1.ID}).SetResult(&l3).Post(url + "/subscriptions")
 	assert.NoError(t, err)
 
 	// Then get it
-	var listeners []*apitypes.Listener
+	var listener apitypes.Listener
 	res, err = resty.New().R().
-		SetResult(&listeners).
-		Get(fmt.Sprintf("%s/eventstreams/%s/listeners?limit=1&after=%s", url, es1.ID, l1.ID))
+		SetBody(&apitypes.Listener{
+			Name: strPtr("listener1a"),
+		}).
+		SetResult(&listener).
+		Post(fmt.Sprintf("%s/eventstreams/%s/listeners/%s/reset", url, es1.ID, l1.ID))
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 
-	assert.Len(t, listeners, 1)
-	assert.Equal(t, l3.ID, listeners[0].ID)
-	assert.Equal(t, es1.ID, listeners[0].StreamID)
+	assert.Equal(t, l1.ID, listener.ID)
+	assert.Equal(t, "listener1a", *listener.Name)
 
 	mfc.AssertExpectations(t)
 

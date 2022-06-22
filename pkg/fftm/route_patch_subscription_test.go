@@ -48,14 +48,14 @@ func TestPatchSubscription(t *testing.T) {
 
 	// Create some listeners
 	var l1 apitypes.Listener
-	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: "listener1", StreamID: es1.ID}).SetResult(&l1).Post(url + "/subscriptions")
+	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: strPtr("listener1"), StreamID: es1.ID}).SetResult(&l1).Post(url + "/subscriptions")
 	assert.NoError(t, err)
 
 	// Then get it
 	var listener apitypes.Listener
 	res, err = resty.New().R().
 		SetBody(&apitypes.Listener{
-			Name: "listener1a",
+			Name: strPtr("listener1a"),
 		}).
 		SetResult(&listener).
 		Patch(url + "/subscriptions/" + l1.ID.String())
@@ -63,7 +63,7 @@ func TestPatchSubscription(t *testing.T) {
 	assert.Equal(t, 200, res.StatusCode())
 
 	assert.Equal(t, l1.ID, listener.ID)
-	assert.Equal(t, "listener1a", listener.Name)
+	assert.Equal(t, "listener1a", *listener.Name)
 
 	mfc.AssertExpectations(t)
 

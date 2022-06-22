@@ -50,7 +50,7 @@ func TestPostEventStreamListeners(t *testing.T) {
 
 	// Create a listener
 	var l1 apitypes.Listener
-	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: "listener1", StreamID: es1.ID}).SetResult(&l1).Post(fmt.Sprintf("%s/eventstreams/%s/listeners", url, es1.ID))
+	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: strPtr("listener1"), StreamID: es1.ID}).SetResult(&l1).Post(fmt.Sprintf("%s/eventstreams/%s/listeners", url, es1.ID))
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 

@@ -103,7 +103,7 @@ type Listener struct {
 	ID                *fftypes.UUID     `ffstruct:"listener" json:"id,omitempty"`
 	Created           *fftypes.FFTime   `ffstruct:"listener" json:"created"`
 	Updated           *fftypes.FFTime   `ffstruct:"listener" json:"updated"`
-	Name              string            `ffstruct:"listener" json:"name"`
+	Name              *string           `ffstruct:"listener" json:"name"`
 	StreamID          *fftypes.UUID     `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
 	DeprecatedAddress *string           `ffstruct:"listener" json:"address,omitempty"`
 	DeprecatedEvent   *fftypes.JSONAny  `ffstruct:"listener" json:"event,omitempty"`

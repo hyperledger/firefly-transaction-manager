@@ -17,13 +17,13 @@ type Stream struct {
 	mock.Mock
 }
 
-// AddOrUpdateListener provides a mock function with given fields: ctx, s
-func (_m *Stream) AddOrUpdateListener(ctx context.Context, s *apitypes.Listener) error {
-	ret := _m.Called(ctx, s)
+// AddOrUpdateListener provides a mock function with given fields: ctx, s, reset
+func (_m *Stream) AddOrUpdateListener(ctx context.Context, s *apitypes.Listener, reset bool) error {
+	ret := _m.Called(ctx, s, reset)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.Listener) error); ok {
-		r0 = rf(ctx, s)
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.Listener, bool) error); ok {
+		r0 = rf(ctx, s, reset)
 	} else {
 		r0 = ret.Error(0)
 	}

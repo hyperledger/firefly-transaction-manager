@@ -48,7 +48,7 @@ func TestGetSubscription(t *testing.T) {
 
 	// Create some listeners
 	var l1 apitypes.Listener
-	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: "listener1", StreamID: es1.ID}).SetResult(&l1).Post(url + "/subscriptions")
+	res, err = resty.New().R().SetBody(&apitypes.Listener{Name: strPtr("listener1"), StreamID: es1.ID}).SetResult(&l1).Post(url + "/subscriptions")
 	assert.NoError(t, err)
 
 	// Then get it

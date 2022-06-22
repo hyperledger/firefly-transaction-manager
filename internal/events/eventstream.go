@@ -36,14 +36,14 @@ import (
 )
 
 type Stream interface {
-	AddOrUpdateListener(ctx context.Context, s *apitypes.Listener) error // Add or update a listener
-	RemoveListener(ctx context.Context, id *fftypes.UUID) error          // Stop and remove a listener
-	UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error // Apply definition updates (if there are changes)
-	Spec() *apitypes.EventStream                                         // Retrieve the merged definition to persist
-	Status() apitypes.EventStreamStatus                                  // Get the current status
-	Start(ctx context.Context) error                                     // Start delivery
-	Stop(ctx context.Context) error                                      // Stop delivery (does not remove checkpoints)
-	Delete(ctx context.Context) error                                    // Stop delivery, and clean up any checkpoint
+	AddOrUpdateListener(ctx context.Context, id *fftypes.UUID, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) // Add or update a listener
+	RemoveListener(ctx context.Context, id *fftypes.UUID) error                                                                    // Stop and remove a listener
+	UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error                                                           // Apply definition updates (if there are changes)
+	Spec() *apitypes.EventStream                                                                                                   // Retrieve the merged definition to persist
+	Status() apitypes.EventStreamStatus                                                                                            // Get the current status
+	Start(ctx context.Context) error                                                                                               // Start delivery
+	Stop(ctx context.Context) error                                                                                                // Stop delivery (does not remove checkpoints)
+	Delete(ctx context.Context) error                                                                                              // Stop delivery, and clean up any checkpoint
 }
 
 // esDefaults are the defaults for new event streams, read from the config once in InitDefaults()
@@ -255,98 +255,150 @@ func (es *eventStream) UpdateSpec(ctx context.Context, updates *apitypes.EventSt
 	return nil
 }
 
-func safeCompareFilterList(a, b []fftypes.JSONAny) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
+func (es *eventStream) mergeListenerOptions(id *fftypes.UUID, updates *apitypes.Listener) *apitypes.Listener {
+
+	es.mux.Lock()
+	l := es.listeners[*id]
+	var base *apitypes.Listener
+	now := fftypes.Now()
+	if l != nil {
+		base = l.spec
+	} else {
+		latest := ffcapi.FromBlockLatest
+		base = &apitypes.Listener{
+			ID:        id,
+			Created:   now,
+			FromBlock: &latest,
+			StreamID:  es.spec.ID,
 		}
 	}
-	return true
+	es.mux.Unlock()
+
+	merged := *base
+
+	if updates.Name != nil {
+		merged.Name = updates.Name
+	}
+
+	if updates.FromBlock != nil {
+		merged.FromBlock = updates.FromBlock
+	}
+
+	if updates.Options != nil {
+		merged.Options = updates.Options
+	} else {
+		merged.Options = base.Options
+	}
+
+	if updates.Filters != nil {
+		merged.Filters = updates.Filters
+	} else {
+		// Allow a single "event" object to be specified instead of a filter, with an optional "address".
+		// This is migrated to the new syntax: `"filters":[{"address":"0x1235","event":{...}}]`
+		// (only expected to work for the eth connector that supports address/event)
+		if updates.DeprecatedEvent != nil {
+			migrationFilter := fftypes.JSONObject{
+				"event": updates.DeprecatedEvent,
+			}
+			if updates.DeprecatedAddress != nil {
+				migrationFilter["address"] = *updates.DeprecatedAddress
+			}
+			merged.Filters = []fftypes.JSONAny{fftypes.JSONAny(migrationFilter.String())}
+		} else {
+			merged.Filters = base.Filters
+		}
+	}
+
+	return &merged
+
 }
 
-func (es *eventStream) AddOrUpdateListener(ctx context.Context, spec *apitypes.Listener) (err error) {
-	log.L(ctx).Warnf("Initializing listener %s", spec.ID)
+func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID, updates *apitypes.Listener, reset bool) (merged *apitypes.Listener, err error) {
+	log.L(ctx).Warnf("Initializing listener %s", id)
 
-	if spec.ID == nil {
-		spec.ID = apitypes.UUIDVersion1()
-		spec.Created = fftypes.Now()
-	}
-	spec.Updated = fftypes.Now()
+	// Merge the supplied options with defaults and any existing config.
+	spec := es.mergeListenerOptions(id, updates)
 
-	// Allow a single "event" object to be specified instead of a filter, with an optional "address".
-	// This is migrated to the new syntax: `"filters":[{"address":"0x1235","event":{...}}]`
-	// (only expected to work for the eth connector that supports address/event)
-	if spec.Filters == nil && spec.DeprecatedEvent != nil {
-		migrationFilter := fftypes.JSONObject{
-			"event": spec.DeprecatedEvent,
-		}
-		if spec.DeprecatedAddress != nil {
-			migrationFilter["address"] = *spec.DeprecatedAddress
-		}
-		spec.Filters = []fftypes.JSONAny{fftypes.JSONAny(migrationFilter.String())}
-	}
-
-	// The connector needs to validate the options
-	fromBlock := ffcapi.FromBlockLatest
-	if spec.FromBlock != nil {
-		fromBlock = *spec.FromBlock
-	}
+	// The connector needs to validate the options, building a set of options that are assured to be non-nil
 	res, _, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.EventListenerVerifyOptionsRequest{
-		FromBlock: fromBlock,
+		FromBlock: *spec.FromBlock,
 		Filters:   spec.Filters,
 		Options:   spec.Options,
 	})
 	if err != nil {
-		return i18n.NewError(ctx, tmmsgs.MsgBadListenerOptions, err)
+		return nil, i18n.NewError(ctx, tmmsgs.MsgBadListenerOptions, err)
 	}
 
 	// We update the spec object in-place for the signature and resolved options
 	spec.Signature = res.ResolvedSignature
 	spec.Options = &res.ResolvedOptions
-	if spec.Name == "" {
-		spec.Name = spec.Signature
+	if spec.Name == nil || *spec.Name == "" {
+		sig := spec.Signature
+		spec.Name = &sig
 	}
 
-	// Check if this is a new listener, an update, or a no-op
-	es.mux.Lock()
-	l, exists := es.listeners[*spec.ID]
-	if exists {
-		if res.ResolvedOptions == l.options && safeCompareFilterList(spec.Filters, l.filters) {
-			log.L(ctx).Infof("Event listener '%s' already configured on stream, with no changes", l.id)
-			es.mux.Unlock()
-			return nil
+	// Do the locked part - which checks if this is a new listener, or just an update to the options.
+	new, l, startedState, err := es.lockedListenerUpdate(ctx, spec, res, reset)
+	if err != nil {
+		return nil, err
+	}
+	if reset {
+		// Only safe to do the reset with the event stream stopped
+		if startedState != nil {
+			if err := es.Stop(ctx); err != nil {
+				return nil, err
+			}
 		}
-		log.L(ctx).Infof("Listener '%s' configuration updated, it will be restarted", l.id)
-		l.options = res.ResolvedOptions
-		l.signature = res.ResolvedSignature
-		l.filters = spec.Filters
-	} else {
+		// Clear out the checkpoint for this listener
+		if err := es.resetListenerCheckpoint(ctx, l); err != nil {
+			return nil, err
+		}
+		// Restart if we were started
+		if startedState != nil {
+			if err := es.Start(ctx); err != nil {
+				return nil, err
+			}
+		}
+	} else if new && startedState != nil {
+		// Start the new listener
+		return spec, l.start(startedState)
+	}
+	return spec, nil
+}
+
+func (es *eventStream) resetListenerCheckpoint(ctx context.Context, l *listener) error {
+	cp, err := es.persistence.GetCheckpoint(ctx, es.spec.ID)
+	if err != nil || cp == nil {
+		return err
+	}
+	delete(cp.Listeners, *l.spec.ID)
+	return es.persistence.WriteCheckpoint(ctx, cp)
+}
+
+func (es *eventStream) lockedListenerUpdate(ctx context.Context, spec *apitypes.Listener, res *ffcapi.EventListenerVerifyOptionsResponse, reset bool) (bool, *listener, *startedStreamState, error) {
+	es.mux.Lock()
+	defer es.mux.Unlock()
+
+	l, exists := es.listeners[*spec.ID]
+	switch {
+	case exists:
+		if res.ResolvedSignature != l.spec.Signature {
+			// We do not allow the filters to be updated, because that would lead to a confusing situation
+			// where the previously emitted events are a subset/mismatch to the filters configured now.
+			return false, nil, nil, i18n.NewError(ctx, tmmsgs.MsgFilterUpdateNotAllowed, l.spec.Signature, res.ResolvedSignature)
+		}
+		l.spec = spec
+	case reset:
+		return false, nil, nil, i18n.NewError(ctx, tmmsgs.MsgResetStreamNotFound, spec.ID, es.spec.ID)
+	default:
 		l = &listener{
-			es:        es,
-			id:        spec.ID,
-			options:   res.ResolvedOptions,
-			filters:   spec.Filters,
-			signature: res.ResolvedSignature,
+			es:   es,
+			spec: spec,
 		}
 		es.listeners[*spec.ID] = l
 	}
 	// Take a copy of the current started status, before unlocking
-	startedState := es.currentState
-	es.mux.Unlock()
-	if startedState == nil {
-		return nil
-	}
-
-	// We need to restart any streams
-	if exists {
-		if err := l.stop(startedState); err != nil {
-			return err
-		}
-	}
-	return l.start(startedState)
+	return !exists, l, es.currentState, nil
 }
 
 func (es *eventStream) RemoveListener(ctx context.Context, id *fftypes.UUID) (err error) {
@@ -403,7 +455,7 @@ func (es *eventStream) Start(ctx context.Context) error {
 	var lastErr error
 	for _, l := range es.listeners {
 		if err := l.start(startedState); err != nil {
-			log.L(ctx).Errorf("Failed to start event listener %s: %s", l.id, err)
+			log.L(ctx).Errorf("Failed to start event listener %s: %s", l.spec.ID, err)
 			lastErr = err
 		}
 	}
@@ -510,7 +562,7 @@ func (es *eventStream) eventLoop(startedState *startedStreamState) {
 				if update.ListenerID != nil {
 					l = es.listeners[*update.ListenerID]
 					if l != nil {
-						log.L(es.bgCtx).Debugf("%s (%s) event: %s", l.signature, l.id, event.ProtocolID)
+						log.L(es.bgCtx).Debugf("%s (%s) event: %s", l.spec.Signature, l.spec.ID, event.ProtocolID)
 						batch.events = append(batch.events, &ffcapi.EventWithContext{
 							StreamID:   es.spec.ID,
 							ListenerID: update.ListenerID,
@@ -596,7 +648,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	for lID, lCP := range batch.checkpoints {
 		if l, ok := es.listeners[lID]; ok {
 			l.checkpoint = lCP
-			log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %s", l.signature, l.id, lCP)
+			log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %s", l.spec.Signature, l.spec.ID, lCP)
 		}
 	}
 	for lID, l := range es.listeners {

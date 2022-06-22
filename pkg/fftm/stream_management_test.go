@@ -45,11 +45,11 @@ func TestRestoreStreamsAndListenersOK(t *testing.T) {
 	err := m.persistence.WriteStream(m.ctx, es1)
 	assert.NoError(t, err)
 
-	e1l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: "listener1", StreamID: es1.ID}
+	e1l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener1"), StreamID: es1.ID}
 	err = m.persistence.WriteListener(m.ctx, e1l1)
 	assert.NoError(t, err)
 
-	e1l2 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: "listener2", StreamID: es1.ID}
+	e1l2 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener2"), StreamID: es1.ID}
 	err = m.persistence.WriteListener(m.ctx, e1l2)
 	assert.NoError(t, err)
 
@@ -57,7 +57,7 @@ func TestRestoreStreamsAndListenersOK(t *testing.T) {
 	err = m.persistence.WriteStream(m.ctx, es2)
 	assert.NoError(t, err)
 
-	e2l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: "listener3", StreamID: es2.ID}
+	e2l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener3"), StreamID: es2.ID}
 	err = m.persistence.WriteListener(m.ctx, e2l1)
 	assert.NoError(t, err)
 
@@ -124,7 +124,7 @@ func TestRestoreListenersStartFail(t *testing.T) {
 	err := m.persistence.WriteStream(m.ctx, es1)
 	assert.NoError(t, err)
 
-	e1l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: "listener1", StreamID: es1.ID}
+	e1l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener1"), StreamID: es1.ID}
 	err = m.persistence.WriteListener(m.ctx, e1l1)
 	assert.NoError(t, err)
 
@@ -150,7 +150,7 @@ func TestDeleteStartedListener(t *testing.T) {
 	err := m.persistence.WriteStream(m.ctx, es1)
 	assert.NoError(t, err)
 
-	e1l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: "listener1", StreamID: es1.ID}
+	e1l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener1"), StreamID: es1.ID}
 	err = m.persistence.WriteListener(m.ctx, e1l1)
 	assert.NoError(t, err)
 
@@ -292,7 +292,7 @@ func TestUpdateExistingListenerNotFound(t *testing.T) {
 
 	mp.On("GetListener", m.ctx, mock.Anything).Return(nil, nil)
 
-	_, err := m.updateExistingListener(m.ctx, apitypes.UUIDVersion1().String(), apitypes.UUIDVersion1().String(), &apitypes.Listener{})
+	_, err := m.updateExistingListener(m.ctx, apitypes.UUIDVersion1().String(), apitypes.UUIDVersion1().String(), &apitypes.Listener{}, false)
 	assert.Regexp(t, "FF21046", err)
 
 	mp.AssertExpectations(t)
@@ -301,7 +301,7 @@ func TestUpdateExistingListenerNotFound(t *testing.T) {
 func TestCreateOrUpdateListenerNotFound(t *testing.T) {
 	_, _, m := newMockPersistenceManager(t)
 
-	_, err := m.createOrUpdateListener(m.ctx, &apitypes.Listener{ID: apitypes.UUIDVersion1(), StreamID: apitypes.UUIDVersion1()})
+	_, err := m.createOrUpdateListener(m.ctx, apitypes.UUIDVersion1(), &apitypes.Listener{StreamID: apitypes.UUIDVersion1()}, false)
 	assert.Regexp(t, "FF21045", err)
 
 }
@@ -317,7 +317,7 @@ func TestCreateOrUpdateListenerFail(t *testing.T) {
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
 
-	_, err = m.createOrUpdateListener(m.ctx, &apitypes.Listener{ID: apitypes.UUIDVersion1(), StreamID: es.ID})
+	_, err = m.createOrUpdateListener(m.ctx, apitypes.UUIDVersion1(), &apitypes.Listener{StreamID: es.ID}, false)
 	assert.Regexp(t, "pop", err)
 
 	mp.AssertExpectations(t)
@@ -336,7 +336,7 @@ func TestCreateOrUpdateListenerWriteFail(t *testing.T) {
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
 
-	_, err = m.createOrUpdateListener(m.ctx, &apitypes.Listener{ID: apitypes.UUIDVersion1(), StreamID: es.ID})
+	_, err = m.createOrUpdateListener(m.ctx, apitypes.UUIDVersion1(), &apitypes.Listener{StreamID: es.ID}, false)
 	assert.Regexp(t, "pop", err)
 
 	mp.AssertExpectations(t)
@@ -376,7 +376,7 @@ func TestDeleteListenerFail(t *testing.T) {
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
 
-	l1, err := m.createOrUpdateListener(m.ctx, &apitypes.Listener{ID: apitypes.UUIDVersion1(), StreamID: es.ID})
+	l1, err := m.createOrUpdateListener(m.ctx, apitypes.UUIDVersion1(), &apitypes.Listener{StreamID: es.ID}, false)
 	assert.NoError(t, err)
 
 	mp.On("GetListener", m.ctx, mock.Anything).Return(l1, nil)

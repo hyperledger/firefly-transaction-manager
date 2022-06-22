@@ -107,7 +107,7 @@ func (m *manager) addRuntimeListener(ctx context.Context, def *apitypes.Listener
 	m.mux.Unlock()
 	if s != nil {
 		// The definition is updated in-place by the event stream code
-		if err := s.AddOrUpdateListener(ctx, def); err != nil {
+		if _, err := s.AddOrUpdateListener(ctx, def.ID, def, false); err != nil {
 			return nil, err
 		}
 	}
@@ -226,32 +226,30 @@ func (m *manager) createAndStoreNewStreamListener(ctx context.Context, idStr str
 }
 
 func (m *manager) createAndStoreNewListener(ctx context.Context, def *apitypes.Listener) (*apitypes.Listener, error) {
-	def.ID = nil // set by AddOrUpdateListener
-	def.Created = nil
-	return m.createOrUpdateListener(ctx, def)
+	return m.createOrUpdateListener(ctx, apitypes.UUIDVersion1(), def, false)
 }
 
-func (m *manager) updateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener) (*apitypes.Listener, error) {
+func (m *manager) updateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
 	l, err := m.getListener(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
 	if err != nil {
 		return nil, err
 	}
-	updates.ID = l.ID
 	updates.StreamID = l.StreamID
-	return m.createOrUpdateListener(ctx, updates)
+	return m.createOrUpdateListener(ctx, l.ID, updates, reset)
 }
 
-func (m *manager) createOrUpdateListener(ctx context.Context, def *apitypes.Listener) (*apitypes.Listener, error) {
+func (m *manager) createOrUpdateListener(ctx context.Context, id *fftypes.UUID, newOrUpdates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
 	var s events.Stream
-	if def.StreamID != nil {
+	if newOrUpdates.StreamID != nil {
 		m.mux.Lock()
-		s = m.eventStreams[*def.StreamID]
+		s = m.eventStreams[*newOrUpdates.StreamID]
 		m.mux.Unlock()
 	}
 	if s == nil {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, def.StreamID)
+		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, newOrUpdates.StreamID)
 	}
-	if err := s.AddOrUpdateListener(ctx, def); err != nil {
+	def, err := s.AddOrUpdateListener(ctx, id, newOrUpdates, reset)
+	if err != nil {
 		return nil, err
 	}
 	if err := m.persistence.WriteListener(ctx, def); err != nil {

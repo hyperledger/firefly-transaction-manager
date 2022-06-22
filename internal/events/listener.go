@@ -18,30 +18,28 @@ package events
 
 import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 type listener struct {
 	es         *eventStream
-	id         *fftypes.UUID
-	filters    []fftypes.JSONAny
-	options    fftypes.JSONAny
+	spec       *apitypes.Listener
 	checkpoint *fftypes.JSONAny
-	signature  string
 }
 
 func (l *listener) stop(startedState *startedStreamState) error {
 	_, _, err := l.es.connector.EventListenerRemove(startedState.ctx, &ffcapi.EventListenerRemoveRequest{
-		ID: l.id,
+		ID: l.spec.ID,
 	})
 	return err
 }
 
 func (l *listener) start(startedState *startedStreamState) error {
 	_, _, err := l.es.connector.EventListenerAdd(startedState.ctx, &ffcapi.EventListenerAddRequest{
-		ID:          l.id,
-		Filters:     l.filters,
-		Options:     l.options,
+		ID:          l.spec.ID,
+		Filters:     l.spec.Filters,
+		Options:     *l.spec.Options,
 		EventStream: startedState.updates,
 		Done:        startedState.ctx.Done(),
 	})
