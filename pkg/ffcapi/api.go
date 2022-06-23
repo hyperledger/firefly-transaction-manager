@@ -18,6 +18,7 @@ package ffcapi
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
@@ -79,6 +80,13 @@ type Event struct {
 	Info       *fftypes.JSONAny `json:"info"`       // additional blockchain specific information
 }
 
+// Events array has a natural sort order of the protocol ID
+type Events []*Event
+
+func (es Events) Len() int           { return len(es) }
+func (es Events) Swap(i, j int)      { es[i], es[j] = es[j], es[i] }
+func (es Events) Less(i, j int) bool { return strings.Compare(es[i].ProtocolID, es[j].ProtocolID) < 0 }
+
 type EventWithContext struct {
 	StreamID   *fftypes.UUID `json:"streamId"`   // the ID of the event stream for this event
 	ListenerID *fftypes.UUID `json:"listenerId"` // the ID of the event listener for this event
@@ -88,7 +96,7 @@ type EventWithContext struct {
 type ListenerUpdate struct {
 	ListenerID *fftypes.UUID    `json:"listenerId"`       // the ID of the event listener for this update - expected to be the same for all events in the events array
 	Checkpoint *fftypes.JSONAny `json:"checkpoint"`       // checkpoint information for the listener. This should be supplied regularly even if there are no events, to minimize recovery time after restart
-	Events     []*Event         `json:"events,omitempty"` // zero or more events. Can be nil for checkpoint-only updates
+	Events     Events           `json:"events,omitempty"` // zero or more events. Can be nil for checkpoint-only updates
 }
 
 // ErrorReason are a set of standard error conditions that a blockchain connector can return
