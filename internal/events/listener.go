@@ -37,9 +37,12 @@ func (l *listener) stop(startedState *startedStreamState) error {
 
 func (l *listener) start(startedState *startedStreamState) error {
 	_, _, err := l.es.connector.EventListenerAdd(startedState.ctx, &ffcapi.EventListenerAddRequest{
+		EventListenerOptions: ffcapi.EventListenerOptions{
+			FromBlock: *l.spec.FromBlock,
+			Filters:   l.spec.Filters,
+			Options:   l.spec.Options,
+		},
 		ID:          l.spec.ID,
-		Filters:     l.spec.Filters,
-		Options:     *l.spec.Options,
 		EventStream: startedState.updates,
 		Done:        startedState.ctx.Done(),
 	})
