@@ -43,6 +43,7 @@ type EventListenerVerifyOptionsResponse struct {
 type EventListenerAddRequest struct {
 	EventListenerOptions
 	ID          *fftypes.UUID          // Unique UUID for the event listener, that should be included in each event
+	Name        string                 // Descriptive name of the listener, provided by the user, or defaulted to the signature. Not guaranteed to be unique. Should be included in the event info
 	Checkpoint  *fftypes.JSONAny       // The last persisted checkpoint for this event stream
 	Done        <-chan struct{}        // Channel that will be closed when the event listener needs to stop - the event listener should stop pushing events
 	EventStream chan<- *ListenerUpdate // The event stream to push events to as they are detected, and checkpoints regularly even if there are no events - remember to select on Done as well when pushing events

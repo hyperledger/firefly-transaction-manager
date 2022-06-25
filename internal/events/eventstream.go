@@ -321,11 +321,7 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 
 	// The connector needs to validate the options, building a set of options that are assured to be non-nil
 	res, _, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.EventListenerVerifyOptionsRequest{
-		EventListenerOptions: ffcapi.EventListenerOptions{
-			FromBlock: *spec.FromBlock,
-			Filters:   spec.Filters,
-			Options:   spec.Options,
-		},
+		EventListenerOptions: listenerSpecToOptions(spec),
 	})
 	if err != nil {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgBadListenerOptions, err)

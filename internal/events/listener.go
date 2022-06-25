@@ -28,6 +28,14 @@ type listener struct {
 	checkpoint *fftypes.JSONAny
 }
 
+func listenerSpecToOptions(spec *apitypes.Listener) ffcapi.EventListenerOptions {
+	return ffcapi.EventListenerOptions{
+		FromBlock: *spec.FromBlock,
+		Filters:   spec.Filters,
+		Options:   spec.Options,
+	}
+}
+
 func (l *listener) stop(startedState *startedStreamState) error {
 	_, _, err := l.es.connector.EventListenerRemove(startedState.ctx, &ffcapi.EventListenerRemoveRequest{
 		ID: l.spec.ID,
@@ -37,14 +45,11 @@ func (l *listener) stop(startedState *startedStreamState) error {
 
 func (l *listener) start(startedState *startedStreamState) error {
 	_, _, err := l.es.connector.EventListenerAdd(startedState.ctx, &ffcapi.EventListenerAddRequest{
-		EventListenerOptions: ffcapi.EventListenerOptions{
-			FromBlock: *l.spec.FromBlock,
-			Filters:   l.spec.Filters,
-			Options:   l.spec.Options,
-		},
-		ID:          l.spec.ID,
-		EventStream: startedState.updates,
-		Done:        startedState.ctx.Done(),
+		EventListenerOptions: listenerSpecToOptions(l.spec),
+		Name:                 *l.spec.Name,
+		ID:                   l.spec.ID,
+		EventStream:          startedState.updates,
+		Done:                 startedState.ctx.Done(),
 	})
 	return err
 }
