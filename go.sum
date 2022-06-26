@@ -615,7 +615,6 @@ github.com/hashicorp/go-uuid v1.0.0/go.mod h1:6SBZvOh/SIDV7/2o3Jml5SYk/TvGqwFJ/b
 github.com/hashicorp/go-uuid v1.0.1/go.mod h1:6SBZvOh/SIDV7/2o3Jml5SYk/TvGqwFJ/bN7x4byOro=
 github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hashicorp/golang-lru v0.5.1/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
-github.com/hashicorp/golang-lru v0.5.4 h1:YDjusn29QI/Das2iO9M0BHnIbxPeyuCHsjMW+lJfyTc=
 github.com/hashicorp/golang-lru v0.5.4/go.mod h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=
 github.com/hashicorp/hcl v1.0.0 h1:0Anlzjpi4vEasTeNFn2mLJgTSwt0+6sfsiTG8qcWGx4=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
@@ -631,8 +630,6 @@ github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpO
 github.com/hyperledger/firefly v1.0.1-0.20220505194321-9f59036d0b4e h1:QP+Yykyq7C670zb4Fs7s4lAtYmvIll4rP/y00hdOsg4=
 github.com/hyperledger/firefly v1.0.1-0.20220505194321-9f59036d0b4e/go.mod h1:434LxYn4ntyK/E0dY+2dTc55caBy6BdUMYBM2gLndAI=
 github.com/hyperledger/firefly-common v0.1.2/go.mod h1:ytB+404+Qg00wJKx602Yi/V6Spx9d0g65lZR9y5fzlo=
-github.com/hyperledger/firefly-common v0.1.11-0.20220618173558-a825551beb7a h1:JmwLgtI++IyC8piQEMcT5/efp7Pwl4s5/8KXnXLltpA=
-github.com/hyperledger/firefly-common v0.1.11-0.20220618173558-a825551beb7a/go.mod h1:MYL6Dbj3KqM/79IkS+mCzJ7wRguNbd/PKdVu8aXo5TI=
 github.com/hyperledger/firefly-common v0.1.13 h1:eNK99U9FV43u1F46MM0mPuXT4Xn++orghpoTIIPsmwo=
 github.com/hyperledger/firefly-common v0.1.13/go.mod h1:2NqPi5Ud9H6rSlZXkLbotxW7z4EAD89p3/8oNOpm9Gs=
 github.com/iancoleman/strcase v0.2.0/go.mod h1:iwCmte+B7n89clKwxIoIXy/HfoL7AsD47ZCWhYzw7ho=

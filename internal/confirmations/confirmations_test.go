@@ -42,17 +42,8 @@ func newTestBlockConfirmationManager(t *testing.T, enabled bool) (*blockConfirma
 func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmationManager, *ffcapimocks.API) {
 	logrus.SetLevel(logrus.DebugLevel)
 	mca := &ffcapimocks.API{}
-	bcm, err := NewBlockConfirmationManager(context.Background(), mca)
-	assert.NoError(t, err)
+	bcm := NewBlockConfirmationManager(context.Background(), mca)
 	return bcm.(*blockConfirmationManager), mca
-}
-
-func TestBCMInitError(t *testing.T) {
-	tmconfig.Reset()
-	config.Set(tmconfig.ConfirmationsBlockCacheSize, -1)
-	mca := &ffcapimocks.API{}
-	_, err := NewBlockConfirmationManager(context.Background(), mca)
-	assert.Regexp(t, "FF21015", err)
 }
 
 func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
@@ -117,23 +108,29 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 			BlockHash:   block1002.BlockHash,
 			ParentHash:  block1002.ParentHash,
 		},
-	}, ffcapi.ErrorReason(""), nil).Once()
+	}, ffcapi.ErrorReason(""), nil)
 
-	// Then we should walk the chain by number to fill in 1002, because our HWM is 1003.
-	// Note this doesn't result in any RPC calls, as we just cached the block and it matches
-
-	// Then we get notified of 1004 to complete the last confirmation
+	// Notify of 1004 after we download 1003
 	block1004 := &BlockInfo{
 		BlockNumber: 1004,
 		BlockHash:   "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
 		ParentHash:  "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 	}
 
-	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
+	// Then we should walk the chain by number to fill in 1003, because our HWM is 1003.
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1003
+	})).Run(func(args mock.Arguments) {
 		blockHashes <- &ffcapi.BlockHashEvent{
 			BlockHashes: []string{block1004.BlockHash},
 		}
-	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
+	}).Return(&ffcapi.BlockInfoByNumberResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1003.BlockNumber)),
+			BlockHash:   block1003.BlockHash,
+			ParentHash:  block1003.ParentHash,
+		},
+	}, ffcapi.ErrorReason(""), nil)
 
 	// Which then gets downloaded, and should complete the confirmation
 	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
@@ -260,6 +257,34 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 
 	// Subsequent calls get nothing
 	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
+
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1002
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1002.BlockNumber)),
+			BlockHash:   block1002.BlockHash,
+			ParentHash:  block1002.ParentHash,
+		},
+	}, ffcapi.ErrorReason(""), nil)
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1003
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1003b.BlockNumber)),
+			BlockHash:   block1003b.BlockHash,
+			ParentHash:  block1003b.ParentHash,
+		},
+	}, ffcapi.ErrorReason(""), nil)
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1004
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1004.BlockNumber)),
+			BlockHash:   block1004.BlockHash,
+			ParentHash:  block1004.ParentHash,
+		},
+	}, ffcapi.ErrorReason(""), nil)
 
 	bcm.Start()
 
@@ -819,71 +844,6 @@ func TestProcessNotificationsSwallowsUnknownType(t *testing.T) {
 	bcm.processNotifications([]*Notification{
 		{NotificationType: NotificationType(999)},
 	})
-}
-
-func TestGetBlockByNumberForceLookupMismatchedBlockType(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-
-	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
-		return r.BlockNumber.Uint64() == 1002
-	})).Return(&ffcapi.BlockInfoByNumberResponse{
-		BlockInfo: ffcapi.BlockInfo{
-			BlockNumber: fftypes.NewFFBigInt(1002),
-			BlockHash:   "0x110282339db2dfe4bfd13d78375f7883048cac6bc12f8393bd080a4e263d5d21",
-			ParentHash:  "0xaf47ddbd9ba81736f808045b7fccc2179bba360573b362c82544f7360db0802e",
-		},
-	}, ffcapi.ErrorReason(""), nil).Once()
-	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
-		return r.BlockNumber.Uint64() == 1002
-	})).Return(&ffcapi.BlockInfoByNumberResponse{
-		BlockInfo: ffcapi.BlockInfo{
-			BlockNumber: fftypes.NewFFBigInt(1002),
-			BlockHash:   "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-			ParentHash:  "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-		},
-	}, ffcapi.ErrorReason(""), nil).Once()
-
-	// Make the first call that caches
-	blockInfo, err := bcm.getBlockByNumber(1002, "0xaf47ddbd9ba81736f808045b7fccc2179bba360573b362c82544f7360db0802e")
-	assert.NoError(t, err)
-	assert.Equal(t, "0xaf47ddbd9ba81736f808045b7fccc2179bba360573b362c82544f7360db0802e", blockInfo.ParentHash)
-
-	// Make second call that is cached as parent matches
-	blockInfo, err = bcm.getBlockByNumber(1002, "0xaf47ddbd9ba81736f808045b7fccc2179bba360573b362c82544f7360db0802e")
-	assert.NoError(t, err)
-	assert.Equal(t, "0xaf47ddbd9ba81736f808045b7fccc2179bba360573b362c82544f7360db0802e", blockInfo.ParentHash)
-
-	// Make third call that does not as parent mismatched
-	blockInfo, err = bcm.getBlockByNumber(1002, "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542")
-	assert.NoError(t, err)
-	assert.Equal(t, "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542", blockInfo.ParentHash)
-
-}
-
-func TestGetBlockByHashCached(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-
-	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
-		return r.BlockHash == "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df"
-	})).Return(&ffcapi.BlockInfoByHashResponse{
-		BlockInfo: ffcapi.BlockInfo{
-			BlockNumber: fftypes.NewFFBigInt(1003),
-			BlockHash:   "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
-			ParentHash:  "0x46210d224888265c269359529618bf2f6adb2697ff52c63c10f16a2391bdd295",
-		},
-	}, ffcapi.ErrorReason(""), nil).Once()
-
-	blockInfo, err := bcm.getBlockByHash("0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df")
-	assert.NoError(t, err)
-	assert.Equal(t, "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df", blockInfo.BlockHash)
-
-	// Get again cached
-	blockInfo, err = bcm.getBlockByHash("0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df")
-	assert.NoError(t, err)
-	assert.Equal(t, "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df", blockInfo.BlockHash)
-
 }
 
 func TestGetBlockNotFound(t *testing.T) {

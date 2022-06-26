@@ -30,7 +30,6 @@ var (
 	MsgInvalidOutputType             = ffe("FF21010", "Invalid output type: %s")
 	MsgConnectorError                = ffe("FF21012", "Connector failed request. requestId=%s reason=%s error: %s")
 	MsgConnectorInvalidContentType   = ffe("FF21013", "Connector failed request. requestId=%s invalid response content type: %s")
-	MsgCacheInitFail                 = ffe("FF21015", "Failed to initialize cache")
 	MsgInvalidConfirmationRequest    = ffe("FF21016", "Invalid confirmation request %+v")
 	MsgCoreError                     = ffe("FF21017", "Error from core status=%d: %s")
 	MsgConfigParamNotSet             = ffe("FF21018", "Configuration parameter '%s' must be set")

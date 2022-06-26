@@ -44,7 +44,6 @@ nav_order: 2
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|blockCacheSize|The maximum number of block headers to keep in the cache|`int`|`1000`
 |blockPollingInterval|How often to poll for new block headers|[`time.Duration`](https://pkg.go.dev/time#Duration)|`3s`
 |notificationQueueLength|Internal queue length for notifying the confirmations manager of new transactions/events|`int`|`50`
 |required|Number of confirmations required to consider a transaction/event final|`int`|`20`

@@ -95,10 +95,7 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	if m.name == "" {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgConfigParamNotSet, tmconfig.ManagerName)
 	}
-	m.confirmations, err = confirmations.NewBlockConfirmationManager(ctx, m.connector)
-	if err != nil {
-		return nil, err
-	}
+	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector)
 	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
 	if err != nil {
 		return nil, err

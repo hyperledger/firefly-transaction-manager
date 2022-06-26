@@ -19,10 +19,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
@@ -95,7 +93,6 @@ type blockConfirmationManager struct {
 	requiredConfirmations int
 	pollingInterval       time.Duration
 	staleReceiptTimeout   time.Duration
-	blockCache            *lru.Cache
 	bcmNotifications      chan *Notification
 	highestBlockSeen      uint64
 	pending               map[string]*pendingItem
@@ -103,8 +100,7 @@ type blockConfirmationManager struct {
 	done                  chan struct{}
 }
 
-func NewBlockConfirmationManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
-	var err error
+func NewBlockConfirmationManager(ctx context.Context, connector ffcapi.API) Manager {
 	bcm := &blockConfirmationManager{
 		connector:             connector,
 		blockListenerStale:    true,
@@ -116,11 +112,7 @@ func NewBlockConfirmationManager(ctx context.Context, connector ffcapi.API) (Man
 		staleReceipts:         make(map[string]bool),
 	}
 	bcm.ctx, bcm.cancelFunc = context.WithCancel(ctx)
-	bcm.blockCache, err = lru.New(config.GetInt(tmconfig.ConfirmationsBlockCacheSize))
-	if err != nil {
-		return nil, i18n.WrapError(bcm.ctx, err, tmmsgs.MsgCacheInitFail)
-	}
-	return bcm, nil
+	return bcm
 }
 
 type pendingType int
@@ -250,17 +242,7 @@ func (bcm *blockConfirmationManager) Notify(n *Notification) error {
 	return nil
 }
 
-func (bcm *blockConfirmationManager) addToCache(blockInfo *BlockInfo) {
-	bcm.blockCache.Add(blockInfo.BlockHash, blockInfo)
-	bcm.blockCache.Add(strconv.FormatUint(blockInfo.BlockNumber, 10), blockInfo)
-}
-
 func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*BlockInfo, error) {
-	cached, ok := bcm.blockCache.Get(blockHash)
-	if ok {
-		return cached.(*BlockInfo), nil
-	}
-
 	res, reason, err := bcm.connector.BlockInfoByHash(bcm.ctx, &ffcapi.BlockInfoByHashRequest{
 		BlockHash: blockHash,
 	})
@@ -273,23 +255,13 @@ func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*BlockInf
 	blockInfo := transformBlockInfo(&res.BlockInfo)
 	log.L(bcm.ctx).Debugf("Downloaded block header by hash: %d / %s parent=%s", blockInfo.BlockNumber, blockInfo.BlockHash, blockInfo.ParentHash)
 
-	bcm.addToCache(blockInfo)
 	return blockInfo, nil
 }
 
 func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expectedParentHash string) (*BlockInfo, error) {
-	cached, ok := bcm.blockCache.Get(strconv.FormatUint(blockNumber, 10))
-	if ok {
-		blockInfo := cached.(*BlockInfo)
-		if blockInfo.ParentHash != expectedParentHash {
-			// Treat a missing block, or a mismatched block, both as a cache miss and query the node
-			log.L(bcm.ctx).Debugf("Block cache miss due to parent hash mismatch: %d / %s parent=%s required=%s ", blockInfo.BlockNumber, blockInfo.BlockHash, blockInfo.ParentHash, expectedParentHash)
-		} else {
-			return blockInfo, nil
-		}
-	}
 	res, reason, err := bcm.connector.BlockInfoByNumber(bcm.ctx, &ffcapi.BlockInfoByNumberRequest{
-		BlockNumber: fftypes.NewFFBigInt(int64(blockNumber)),
+		BlockNumber:        fftypes.NewFFBigInt(int64(blockNumber)),
+		ExpectedParentHash: expectedParentHash,
 	})
 	if err != nil {
 		if reason == ffcapi.ErrorReasonNotFound {
@@ -299,7 +271,6 @@ func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expect
 	}
 	blockInfo := transformBlockInfo(&res.BlockInfo)
 	log.L(bcm.ctx).Debugf("Downloaded block header by number: %d / %s parent=%s", blockInfo.BlockNumber, blockInfo.BlockHash, blockInfo.ParentHash)
-	bcm.addToCache(blockInfo)
 	return blockInfo, nil
 }
 

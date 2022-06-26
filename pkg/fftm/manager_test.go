@@ -188,17 +188,6 @@ func TestNewManagerFireFlyURLConfig(t *testing.T) {
 
 }
 
-func TestNewManagerBadConfirmationsCacheSize(t *testing.T) {
-
-	tmconfig.Reset()
-	config.Set(tmconfig.ManagerName, "test")
-	config.Set(tmconfig.ConfirmationsBlockCacheSize, -1)
-
-	_, err := NewManager(context.Background(), nil)
-	assert.Regexp(t, "FF21015", err)
-
-}
-
 func TestNewManagerBadPolicyEngine(t *testing.T) {
 
 	tmconfig.Reset()
