@@ -43,13 +43,16 @@ func (l *listener) stop(startedState *startedStreamState) error {
 	return err
 }
 
-func (l *listener) start(startedState *startedStreamState) error {
-	_, _, err := l.es.connector.EventListenerAdd(startedState.ctx, &ffcapi.EventListenerAddRequest{
+func (l *listener) buildAddRequest() *ffcapi.EventListenerAddRequest {
+	return &ffcapi.EventListenerAddRequest{
 		EventListenerOptions: listenerSpecToOptions(l.spec),
 		Name:                 *l.spec.Name,
 		ID:                   l.spec.ID,
-		EventStream:          startedState.updates,
-		Done:                 startedState.ctx.Done(),
-	})
+		StreamID:             l.spec.StreamID,
+	}
+}
+
+func (l *listener) start(startedState *startedStreamState) error {
+	_, _, err := l.es.connector.EventListenerAdd(startedState.ctx, l.buildAddRequest())
 	return err
 }

@@ -17,18 +17,27 @@ type Stream struct {
 	mock.Mock
 }
 
-// AddOrUpdateListener provides a mock function with given fields: ctx, s, reset
-func (_m *Stream) AddOrUpdateListener(ctx context.Context, s *apitypes.Listener, reset bool) error {
-	ret := _m.Called(ctx, s, reset)
+// AddOrUpdateListener provides a mock function with given fields: ctx, id, updates, reset
+func (_m *Stream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
+	ret := _m.Called(ctx, id, updates, reset)
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.Listener, bool) error); ok {
-		r0 = rf(ctx, s, reset)
+	var r0 *apitypes.Listener
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, *apitypes.Listener, bool) *apitypes.Listener); ok {
+		r0 = rf(ctx, id, updates, reset)
 	} else {
-		r0 = ret.Error(0)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.Listener)
+		}
 	}
 
-	return r0
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID, *apitypes.Listener, bool) error); ok {
+		r1 = rf(ctx, id, updates, reset)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // Delete provides a mock function with given fields: ctx

@@ -35,8 +35,8 @@ func TestRestoreStreamsAndListenersOK(t *testing.T) {
 	defer done()
 
 	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
-	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
 
 	falsy := false
@@ -87,9 +87,12 @@ func TestRestoreListenersReadFailed(t *testing.T) {
 
 	mp, _, m := newMockPersistenceManager(t)
 
-	mp.On("ListListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreams", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit).Return([]*apitypes.EventStream{
+		{ID: fftypes.NewUUID()},
+	}, nil)
+	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), 0, mock.Anything).Return(nil, fmt.Errorf("pop"))
 
-	err := m.restoreListeners()
+	err := m.restoreStreams()
 	assert.Regexp(t, "pop", err)
 
 	mp.AssertExpectations(t)
@@ -117,7 +120,7 @@ func TestRestoreListenersStartFail(t *testing.T) {
 
 	mfc := m.connector.(*ffcapimocks.API)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
-	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	falsy := false
 	es1 := &apitypes.EventStream{ID: apitypes.UUIDVersion1(), Name: strPtr("stream1"), Suspended: &falsy}
@@ -142,7 +145,7 @@ func TestDeleteStartedListener(t *testing.T) {
 
 	mfc := m.connector.(*ffcapimocks.API)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
-	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	falsy := false
@@ -233,7 +236,9 @@ func TestDeleteStreamNotInitialized(t *testing.T) {
 
 func TestCreateRenameStreamNameReservation(t *testing.T) {
 
-	mp, _, m := newMockPersistenceManager(t)
+	mp, mfc, m := newMockPersistenceManager(t)
+
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(fmt.Errorf("temporary")).Once()
 	mp.On("DeleteCheckpoint", m.ctx, mock.Anything).Return(fmt.Errorf("temporary")).Once()
@@ -307,11 +312,11 @@ func TestCreateOrUpdateListenerNotFound(t *testing.T) {
 }
 
 func TestCreateOrUpdateListenerFail(t *testing.T) {
-	mp, _, m := newMockPersistenceManager(t)
+	mp, mfc, m := newMockPersistenceManager(t)
 
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 
-	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
@@ -324,12 +329,12 @@ func TestCreateOrUpdateListenerFail(t *testing.T) {
 }
 
 func TestCreateOrUpdateListenerWriteFail(t *testing.T) {
-	mp, _, m := newMockPersistenceManager(t)
+	mp, mfc, m := newMockPersistenceManager(t)
 
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 	mp.On("WriteListener", m.ctx, mock.Anything).Return(fmt.Errorf("pop"))
 
-	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
@@ -364,12 +369,12 @@ func TestDeleteListenerStreamNotFound(t *testing.T) {
 }
 
 func TestDeleteListenerFail(t *testing.T) {
-	mp, _, m := newMockPersistenceManager(t)
+	mp, mfc, m := newMockPersistenceManager(t)
 
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 	mp.On("WriteListener", m.ctx, mock.Anything).Return(nil)
 
-	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
@@ -405,8 +410,9 @@ func TestUpdateStreamNotFound(t *testing.T) {
 }
 
 func TestUpdateStreamBadChanges(t *testing.T) {
-	mp, _, m := newMockPersistenceManager(t)
+	mp, mfc, m := newMockPersistenceManager(t)
 
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
@@ -418,8 +424,9 @@ func TestUpdateStreamBadChanges(t *testing.T) {
 }
 
 func TestUpdateStreamWriteFail(t *testing.T) {
-	mp, _, m := newMockPersistenceManager(t)
+	mp, mfc, m := newMockPersistenceManager(t)
 
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil).Once()
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(fmt.Errorf("pop"))
 

@@ -44,36 +44,20 @@ func (m *manager) restoreStreams() error {
 		}
 		for _, def := range streamDefs {
 			lastInPage = def.ID
+			streamListeners, err := m.persistence.ListStreamListeners(m.ctx, nil, 0, def.ID)
+			if err != nil {
+				return err
+			}
 			closeoutName, err := m.reserveStreamName(m.ctx, *def.Name, def.ID)
 			var s events.Stream
 			if err == nil {
-				s, err = m.addRuntimeStream(def)
+				s, err = m.addRuntimeStream(def, streamListeners)
 			}
 			if err == nil && !*def.Suspended {
 				err = s.Start(m.ctx)
 			}
 			closeoutName(err == nil)
 			if err != nil {
-				return err
-			}
-		}
-	}
-	return m.restoreListeners()
-}
-
-func (m *manager) restoreListeners() error {
-	var lastInPage *fftypes.UUID
-	for {
-		listenerDefs, err := m.persistence.ListListeners(m.ctx, lastInPage, startupPaginationLimit)
-		if err != nil {
-			return err
-		}
-		if len(listenerDefs) == 0 {
-			break
-		}
-		for _, def := range listenerDefs {
-			lastInPage = def.ID
-			if _, err := m.addRuntimeListener(m.ctx, def); err != nil {
 				return err
 			}
 		}
@@ -101,21 +85,8 @@ func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftype
 	return nil
 }
 
-func (m *manager) addRuntimeListener(ctx context.Context, def *apitypes.Listener) (*apitypes.Listener, error) {
-	m.mux.Lock()
-	s := m.eventStreams[*def.StreamID]
-	m.mux.Unlock()
-	if s != nil {
-		// The definition is updated in-place by the event stream code
-		if _, err := s.AddOrUpdateListener(ctx, def.ID, def, false); err != nil {
-			return nil, err
-		}
-	}
-	return def, nil
-}
-
-func (m *manager) addRuntimeStream(def *apitypes.EventStream) (events.Stream, error) {
-	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.confirmations, m.wsChannels)
+func (m *manager) addRuntimeStream(def *apitypes.EventStream, listeners []*apitypes.Listener) (events.Stream, error) {
+	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.confirmations, m.wsChannels, listeners)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +166,7 @@ func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.Eve
 	}
 	defer func() { closeoutName(stored) }()
 
-	s, err := m.addRuntimeStream(def)
+	s, err := m.addRuntimeStream(def, nil /* no listeners when a new stream is first created */)
 	if err != nil {
 		return nil, err
 	}

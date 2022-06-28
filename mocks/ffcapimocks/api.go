@@ -164,6 +164,36 @@ func (_m *API) EventListenerVerifyOptions(ctx context.Context, req *ffcapi.Event
 	return r0, r1, r2
 }
 
+// EventStreamStart provides a mock function with given fields: ctx, req
+func (_m *API) EventStreamStart(ctx context.Context, req *ffcapi.EventStreamStartRequest) (*ffcapi.EventStreamStartResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx, req)
+
+	var r0 *ffcapi.EventStreamStartResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.EventStreamStartRequest) *ffcapi.EventStreamStartResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.EventStreamStartResponse)
+		}
+	}
+
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.EventStreamStartRequest) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.EventStreamStartRequest) error); ok {
+		r2 = rf(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // GasPriceEstimate provides a mock function with given fields: ctx, req
 func (_m *API) GasPriceEstimate(ctx context.Context, req *ffcapi.GasPriceEstimateRequest) (*ffcapi.GasPriceEstimateResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)

@@ -114,6 +114,7 @@ func NewEventStream(
 	persistence persistence.Persistence,
 	confirmations confirmations.Manager,
 	wsChannels ws.WebSocketChannels,
+	initialListeners []*apitypes.Listener,
 ) (ees Stream, err error) {
 	es := &eventStream{
 		bgCtx:         log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String()),
@@ -130,6 +131,16 @@ func NewEventStream(
 	// to ensure there are no nil fields on the configuration object.
 	if es.spec, _, err = mergeValidateEsConfig(es.bgCtx, nil, persistedSpec); err != nil {
 		return nil, err
+	}
+	for _, existing := range initialListeners {
+		spec, err := es.verifyListenerOptions(es.bgCtx, existing.ID, existing)
+		if err != nil {
+			return nil, err
+		}
+		es.listeners[*spec.ID] = &listener{
+			es:   es,
+			spec: spec,
+		}
 	}
 	log.L(es.bgCtx).Infof("Initialized Event Stream")
 	return es, nil
@@ -313,11 +324,9 @@ func (es *eventStream) mergeListenerOptions(id *fftypes.UUID, updates *apitypes.
 
 }
 
-func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID, updates *apitypes.Listener, reset bool) (merged *apitypes.Listener, err error) {
-	log.L(ctx).Warnf("Initializing listener %s", id)
-
+func (es *eventStream) verifyListenerOptions(ctx context.Context, id *fftypes.UUID, updatesOrNew *apitypes.Listener) (*apitypes.Listener, error) {
 	// Merge the supplied options with defaults and any existing config.
-	spec := es.mergeListenerOptions(id, updates)
+	spec := es.mergeListenerOptions(id, updatesOrNew)
 
 	// The connector needs to validate the options, building a set of options that are assured to be non-nil
 	res, _, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.EventListenerVerifyOptionsRequest{
@@ -334,9 +343,21 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 		sig := spec.Signature
 		spec.Name = &sig
 	}
+	log.L(ctx).Infof("Listener %s signature: %s", spec.ID, spec.Signature)
+	return spec, nil
+}
+
+func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID, updates *apitypes.Listener, reset bool) (merged *apitypes.Listener, err error) {
+	log.L(ctx).Warnf("Adding/updating listener %s", id)
+
+	// Ask the connector to verify the options, and apply defaults
+	spec, err := es.verifyListenerOptions(ctx, id, updates)
+	if err != nil {
+		return nil, err
+	}
 
 	// Do the locked part - which checks if this is a new listener, or just an update to the options.
-	new, l, startedState, err := es.lockedListenerUpdate(ctx, spec, res, reset)
+	new, l, startedState, err := es.lockedListenerUpdate(ctx, spec, reset)
 	if err != nil {
 		return nil, err
 	}
@@ -373,17 +394,17 @@ func (es *eventStream) resetListenerCheckpoint(ctx context.Context, l *listener)
 	return es.persistence.WriteCheckpoint(ctx, cp)
 }
 
-func (es *eventStream) lockedListenerUpdate(ctx context.Context, spec *apitypes.Listener, res *ffcapi.EventListenerVerifyOptionsResponse, reset bool) (bool, *listener, *startedStreamState, error) {
+func (es *eventStream) lockedListenerUpdate(ctx context.Context, spec *apitypes.Listener, reset bool) (bool, *listener, *startedStreamState, error) {
 	es.mux.Lock()
 	defer es.mux.Unlock()
 
 	l, exists := es.listeners[*spec.ID]
 	switch {
 	case exists:
-		if res.ResolvedSignature != l.spec.Signature {
+		if spec.Signature != l.spec.Signature {
 			// We do not allow the filters to be updated, because that would lead to a confusing situation
 			// where the previously emitted events are a subset/mismatch to the filters configured now.
-			return false, nil, nil, i18n.NewError(ctx, tmmsgs.MsgFilterUpdateNotAllowed, l.spec.Signature, res.ResolvedSignature)
+			return false, nil, nil, i18n.NewError(ctx, tmmsgs.MsgFilterUpdateNotAllowed, l.spec.Signature, spec.Signature)
 		}
 		l.spec = spec
 	case reset:
@@ -450,14 +471,18 @@ func (es *eventStream) Start(ctx context.Context) error {
 	es.currentState = startedState
 	es.initAction(startedState)
 	go es.eventLoop(startedState)
-	var lastErr error
+
+	initialListeners := make([]*ffcapi.EventListenerAddRequest, 0)
 	for _, l := range es.listeners {
-		if err := l.start(startedState); err != nil {
-			log.L(ctx).Errorf("Failed to start event listener %s: %s", l.spec.ID, err)
-			lastErr = err
-		}
+		initialListeners = append(initialListeners, l.buildAddRequest())
 	}
-	return lastErr
+	_, _, err := es.connector.EventStreamStart(startedState.ctx, &ffcapi.EventStreamStartRequest{
+		ID:               es.spec.ID,
+		EventStream:      startedState.updates,
+		StreamContext:    startedState.ctx,
+		InitialListeners: initialListeners,
+	})
+	return err
 }
 
 func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, error) {
