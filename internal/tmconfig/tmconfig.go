@@ -30,7 +30,7 @@ var ffc = config.AddRootKey
 var (
 	ManagerName                                   = ffc("manager.name")
 	ConfirmationsRequired                         = ffc("confirmations.required")
-	ConfirmationsBlockPollingInterval             = ffc("confirmations.blockPollingInterval")
+	ConfirmationsBlockQueueLength                 = ffc("confirmations.blockQueueLength")
 	ConfirmationsStaleReceiptTimeout              = ffc("confirmations.staleReceiptTimeout")
 	ConfirmationsNotificationQueueLength          = ffc("confirmations.notificationQueueLength")
 	OperationsTypes                               = ffc("operations.types")
@@ -80,7 +80,7 @@ func setDefaults() {
 	})
 	viper.SetDefault(string(OperationsFullScanStartupMaxRetries), 10)
 	viper.SetDefault(string(ConfirmationsRequired), 20)
-	viper.SetDefault(string(ConfirmationsBlockPollingInterval), "3s")
+	viper.SetDefault(string(ConfirmationsBlockQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsStaleReceiptTimeout), "1m")
 	viper.SetDefault(string(OperationsErrorHistoryCount), 25)

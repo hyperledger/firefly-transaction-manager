@@ -18,7 +18,7 @@ package ffcapi
 
 import (
 	"context"
-	"strings"
+	"fmt"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
@@ -64,9 +64,6 @@ type API interface {
 
 	// EventListenerRemove ends listening on a set of events previous started
 	EventListenerRemove(ctx context.Context, req *EventListenerRemoveRequest) (*EventListenerRemoveResponse, ErrorReason, error)
-
-	// NewBlockHashes should dynamically push the hashes of all new blocks detected from the blockchain, if confirmations are supported
-	NewBlockHashes() <-chan *BlockHashEvent
 }
 
 type BlockHashEvent struct {
@@ -74,21 +71,45 @@ type BlockHashEvent struct {
 	GapPotential bool     `json:"gapPotential,omitempty"` // when true, the caller cannot be sure if blocks have been missed (use on reconnect of a websocket for example)
 }
 
+// EventID are the set of required fields an FFCAPI compatible connector needs to map to the underlying blockchain constructs, to uniquely identify an event
+type EventID struct {
+	BlockHash        string // String representation of the block, which will change if any transaction info in the block changes
+	BlockNumber      uint64 // A numeric identifier for the block
+	TransactionHash  string // The transaction
+	TransactionIndex uint64 // Index within the block of the transaction that emitted the event
+	LogIndex         uint64 // Index within the transaction of this emitted event log
+}
+
 // Event is a blockchain event that matches one of the started listeners.
 // The implementation is responsible for ensuring all events on a listener are
 // ordered on to this channel in the exact sequence from the blockchain.
 type Event struct {
-	Data       *fftypes.JSONAny `json:"data"`       // the JSON data to deliver for this event (can be array or object structure)
-	ProtocolID string           `json:"protocolId"` // a protocol identifier for the event, that is string sortable per https://hyperledger.github.io/firefly/reference/types/blockchainevent.html#protocol-id
-	Info       *fftypes.JSONAny `json:"info"`       // additional blockchain specific information
+	EventID
+	Data *fftypes.JSONAny `json:"data"` // the JSON data to deliver for this event (can be array or object structure)
+	Info *fftypes.JSONAny `json:"info"` // additional blockchain specific information
+}
+
+// String is unique in all cases for an event, by combining the protocol ID with the block hash
+func (eid *EventID) String() string {
+	return fmt.Sprintf("%s/B=%s", eid.ProtocolID(), eid.BlockHash)
+}
+
+// ProtocolID represents the unique (once finality is reached) sortable position within the blockchain
+func (eid *EventID) ProtocolID() string {
+	return fmt.Sprintf("%.12d/%.6d/%.6d", eid.BlockNumber, eid.TransactionIndex, eid.LogIndex)
 }
 
 // Events array has a natural sort order of the protocol ID
 type Events []*Event
 
-func (es Events) Len() int           { return len(es) }
-func (es Events) Swap(i, j int)      { es[i], es[j] = es[j], es[i] }
-func (es Events) Less(i, j int) bool { return strings.Compare(es[i].ProtocolID, es[j].ProtocolID) < 0 }
+func (es Events) Len() int      { return len(es) }
+func (es Events) Swap(i, j int) { es[i], es[j] = es[j], es[i] }
+func (es Events) Less(i, j int) bool {
+	return es[i].BlockNumber < es[j].BlockNumber ||
+		((es[i].BlockNumber == es[j].BlockNumber) &&
+			((es[i].TransactionIndex < es[j].TransactionIndex) ||
+				((es[i].TransactionIndex == es[j].TransactionIndex) && (es[i].LogIndex < es[j].LogIndex))))
+}
 
 type EventWithContext struct {
 	StreamID   *fftypes.UUID `json:"streamId"`   // the ID of the event stream for this event
@@ -96,10 +117,16 @@ type EventWithContext struct {
 	Event
 }
 
+// A listener update contains a checkpoint, plus zero or one events.
+// - If only a checkpoint, then that will be stored immediately. Use this to notify when there has been a period of inactivity
+//   where no events have arrived - to minimize reprocessing of the chain after a restart.
+//   If there are any events in-flight for this listener in the confirmation manager, then the checkpoint will be ignored.
+// - If an event is included, then this will be passed to the confirmation manager. The checkpoint will only be stored after
+//   the event is confirmed and successfully processed by the listener.
 type ListenerUpdate struct {
-	ListenerID *fftypes.UUID    `json:"listenerId"`       // the ID of the event listener for this update - expected to be the same for all events in the events array
-	Checkpoint *fftypes.JSONAny `json:"checkpoint"`       // checkpoint information for the listener. This should be supplied regularly even if there are no events, to minimize recovery time after restart
-	Events     Events           `json:"events,omitempty"` // zero or more events. Can be nil for checkpoint-only updates
+	ListenerID *fftypes.UUID    `json:"listenerId"`      // the ID of the event listener for this update - expected to be the same for all events in the events array
+	Checkpoint *fftypes.JSONAny `json:"checkpoint"`      // checkpoint information for the listener. This should be supplied regularly even if there are no events, to minimize recovery time after restart
+	Event      *Event           `json:"event,omitempty"` // An event an be nil for checkpoint-only updates
 }
 
 // ErrorReason are a set of standard error conditions that a blockchain connector can return

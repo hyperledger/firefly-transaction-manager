@@ -34,7 +34,6 @@ import (
 func newTestBlockConfirmationManager(t *testing.T, enabled bool) (*blockConfirmationManager, *ffcapimocks.API) {
 	tmconfig.Reset()
 	config.Set(tmconfig.ConfirmationsRequired, 3)
-	config.Set(tmconfig.ConfirmationsBlockPollingInterval, "10ms")
 	config.Set(tmconfig.ConfirmationsNotificationQueueLength, 1)
 	return newTestBlockConfirmationManagerCustomConfig(t)
 }
@@ -51,25 +50,20 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
-		StreamID:         "stream1",
-		TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-		BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-		BlockNumber:      1001,
-		TransactionIndex: 5,
-		LogIndex:         10,
+		EventID: ffcapi.EventID{
+			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+			BlockNumber:      1001,
+			TransactionIndex: 5,
+			LogIndex:         10,
+		},
 		Confirmed: func(confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
 	}
 
 	// First poll for changes gives nothing, but we load up the event at this point for the next round
-	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
-		bcm.Notify(&Notification{
-			NotificationType: NewEventLog,
-			Event:            eventToConfirm,
-		})
-	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
+	blockHashes := bcm.NewBlockHashes()
 
 	// Next time round gives a block that is in the confirmation chain, but one block ahead
 	block1003 := &BlockInfo{
@@ -77,16 +71,19 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 		BlockHash:   "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 		ParentHash:  "0x46210d224888265c269359529618bf2f6adb2697ff52c63c10f16a2391bdd295",
 	}
-	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
-		blockHashes <- &ffcapi.BlockHashEvent{
-			BlockHashes: []string{block1003.BlockHash},
-		}
-	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
+	blockHashes <- &ffcapi.BlockHashEvent{
+		BlockHashes: []string{block1003.BlockHash},
+	}
 
 	// The next filter gives us 1003 - which is two blocks ahead of our notified log
 	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1003.BlockHash
-	})).Return(&ffcapi.BlockInfoByHashResponse{
+	})).Run(func(args mock.Arguments) {
+		bcm.Notify(&Notification{
+			NotificationType: NewEventLog,
+			Event:            eventToConfirm,
+		})
+	}).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1003.BlockNumber)),
 			BlockHash:   block1003.BlockHash,
@@ -143,9 +140,6 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	// Subsequent calls get nothing
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
-
 	bcm.Start()
 
 	dispatched := <-confirmed
@@ -156,7 +150,6 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 	}, dispatched)
 
 	bcm.Stop()
-	<-bcm.done
 
 	mca.AssertExpectations(t)
 }
@@ -166,12 +159,13 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
-		StreamID:         "stream1",
-		TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-		BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-		BlockNumber:      1001,
-		TransactionIndex: 5,
-		LogIndex:         10,
+		EventID: ffcapi.EventID{
+			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+			BlockNumber:      1001,
+			TransactionIndex: 5,
+			LogIndex:         10,
+		},
 		Confirmed: func(confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
@@ -189,15 +183,14 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 		ParentHash:  "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 	}
 
-	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
-		blockHashes <- &ffcapi.BlockHashEvent{
-			BlockHashes: []string{
-				block1002.BlockHash,
-				block1003a.BlockHash,
-			},
-		}
-	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
+	blockHashes := bcm.NewBlockHashes()
+	blockHashes <- &ffcapi.BlockHashEvent{
+		BlockHashes: []string{
+			block1002.BlockHash,
+			block1003a.BlockHash,
+		},
+	}
+
 	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1002.BlockHash
 	})).Return(&ffcapi.BlockInfoByHashResponse{
@@ -209,7 +202,13 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil).Once()
 	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1003a.BlockHash
-	})).Return(&ffcapi.BlockInfoByHashResponse{
+	})).Run(func(args mock.Arguments) {
+		// Notify of event after we've downloaded the 1002/1003a
+		bcm.Notify(&Notification{
+			NotificationType: NewEventLog,
+			Event:            eventToConfirm,
+		})
+	}).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1003a.BlockNumber)),
 			BlockHash:   block1003a.BlockHash,
@@ -228,14 +227,6 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 		BlockHash:   "0x110282339db2dfe4bfd13d78375f7883048cac6bc12f8393bd080a4e263d5d21",
 		ParentHash:  "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
 	}
-	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
-		blockHashes <- &ffcapi.BlockHashEvent{
-			BlockHashes: []string{
-				block1003b.BlockHash,
-				block1004.BlockHash,
-			},
-		}
-	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
 	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1003b.BlockHash
 	})).Return(&ffcapi.BlockInfoByHashResponse{
@@ -255,9 +246,6 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	// Subsequent calls get nothing
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
-
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
 	})).Return(&ffcapi.BlockInfoByNumberResponse{
@@ -268,30 +256,19 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil)
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		// Simulate 1003 disappearing from the chain
 		return r.BlockNumber.Uint64() == 1003
-	})).Return(&ffcapi.BlockInfoByNumberResponse{
-		BlockInfo: ffcapi.BlockInfo{
-			BlockNumber: fftypes.NewFFBigInt(int64(block1003b.BlockNumber)),
-			BlockHash:   block1003b.BlockHash,
-			ParentHash:  block1003b.ParentHash,
-		},
-	}, ffcapi.ErrorReason(""), nil)
-	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
-		return r.BlockNumber.Uint64() == 1004
-	})).Return(&ffcapi.BlockInfoByNumberResponse{
-		BlockInfo: ffcapi.BlockInfo{
-			BlockNumber: fftypes.NewFFBigInt(int64(block1004.BlockNumber)),
-			BlockHash:   block1004.BlockHash,
-			ParentHash:  block1004.ParentHash,
-		},
-	}, ffcapi.ErrorReason(""), nil)
+	})).Run(func(args mock.Arguments) {
+		// Then notify about a new 1003 which matches the event, and a 1004
+		blockHashes <- &ffcapi.BlockHashEvent{
+			BlockHashes: []string{
+				block1003b.BlockHash,
+				block1004.BlockHash,
+			},
+		}
+	}).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
 
 	bcm.Start()
-
-	bcm.Notify(&Notification{
-		NotificationType: NewEventLog,
-		Event:            eventToConfirm,
-	})
 
 	dispatched := <-confirmed
 	assert.Equal(t, []BlockInfo{
@@ -301,7 +278,6 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 	}, dispatched)
 
 	bcm.Stop()
-	<-bcm.done
 
 	mca.AssertExpectations(t)
 
@@ -345,8 +321,7 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	}
 
 	// The next filter gives us 1002a, which will later be removed
-	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
+	blockHashes := bcm.NewBlockHashes()
 
 	// First check while walking the chain does not yield a block
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
@@ -459,9 +434,6 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	// Subsequent calls get nothing
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
-
 	bcm.Start()
 
 	receipt := <-receiptReceived
@@ -475,7 +447,6 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	}, dispatched)
 
 	bcm.Stop()
-	<-bcm.done
 
 	mca.AssertExpectations(t)
 
@@ -486,20 +457,17 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
-		StreamID:         "stream1",
-		TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-		BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-		BlockNumber:      1001,
-		TransactionIndex: 5,
-		LogIndex:         10,
+		EventID: ffcapi.EventID{
+			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+			BlockNumber:      1001,
+			TransactionIndex: 5,
+			LogIndex:         10,
+		},
 		Confirmed: func(confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
 	}
-
-	// We don't notify of any new blocks
-	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 
 	// Then we should walk the chain by number to fill in 1002/1003, because our HWM is 1003
 	block1002 := &BlockInfo{
@@ -560,7 +528,6 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 	}, dispatched)
 
 	bcm.Stop()
-	<-bcm.done
 
 	mca.AssertExpectations(t)
 }
@@ -588,40 +555,22 @@ func TestConfirmationsListenerFailWalkingChain(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 	bcm.done = make(chan struct{})
 
-	n := &Notification{
+	bcm.Notify(&Notification{
 		NotificationType: NewEventLog,
 		Event: &EventInfo{
-			TransactionHash: "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-			BlockHash:       "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-			BlockNumber:     1001,
+			EventID: ffcapi.EventID{
+				TransactionHash: "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+				BlockHash:       "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+				BlockNumber:     1001,
+			},
 		},
-	}
-	bcm.addOrReplaceItem(n.eventPendingItem())
+	})
 
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
 	})).Run(func(args mock.Arguments) {
 		bcm.cancelFunc()
 	}).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
-
-	bcm.confirmationsListener()
-
-	mca.AssertExpectations(t)
-}
-
-func TestConfirmationsListenerStalePollingBlocks(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-	bcm.done = make(chan struct{})
-
-	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	blockHashes <- &ffcapi.BlockHashEvent{
-		GapPotential: true,
-	}
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
-	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
-		bcm.cancelFunc()
-	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 
 	bcm.confirmationsListener()
 
@@ -635,12 +584,13 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
-		StreamID:         "stream1",
-		TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-		BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-		BlockNumber:      1001,
-		TransactionIndex: 5,
-		LogIndex:         10,
+		EventID: ffcapi.EventID{
+			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+			BlockNumber:      1001,
+			TransactionIndex: 5,
+			LogIndex:         10,
+		},
 		Confirmed: func(confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
@@ -650,8 +600,6 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 		Event:            eventToConfirm,
 	})
 
-	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once().Run(func(args mock.Arguments) {
@@ -663,56 +611,19 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 	mca.AssertExpectations(t)
 }
 
-func TestConfirmationsListenerStopStream(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-	bcm.done = make(chan struct{})
-
-	n := &Notification{
-		Event: &EventInfo{
-			StreamID:         "stream1",
-			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-			BlockNumber:      1001,
-			TransactionIndex: 5,
-			LogIndex:         10,
-		},
-	}
-	bcm.addOrReplaceItem(n.eventPendingItem())
-	completed := make(chan struct{})
-	bcm.Notify(&Notification{
-		NotificationType: StopStream,
-		StoppedStream: &StoppedStreamInfo{
-			StreamID:  "stream1",
-			Completed: completed,
-		},
-	})
-
-	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
-	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Maybe()
-
-	bcm.Start()
-
-	<-completed
-	assert.Empty(t, bcm.pending)
-
-	bcm.Stop()
-	mca.AssertExpectations(t)
-}
-
 func TestConfirmationsRemoveEvent(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 	bcm.done = make(chan struct{})
 
 	eventInfo := &EventInfo{
-		StreamID:         "stream1",
-		TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-		BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-		BlockNumber:      1001,
-		TransactionIndex: 5,
-		LogIndex:         10,
+		EventID: ffcapi.EventID{
+			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+			BlockNumber:      1001,
+			TransactionIndex: 5,
+			LogIndex:         10,
+		},
 	}
 	bcm.addOrReplaceItem((&Notification{
 		Event: eventInfo,
@@ -722,8 +633,6 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 		Event:            eventInfo,
 	})
 
-	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
 	})).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Run(func(args mock.Arguments) {
@@ -737,6 +646,43 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 	mca.AssertExpectations(t)
 }
 
+func TestConfirmationsFailWalkChainAfterBlockGap(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm.done = make(chan struct{})
+
+	eventNotification := &Notification{
+		NotificationType: NewEventLog,
+		Event: &EventInfo{
+			EventID: ffcapi.EventID{
+				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+				BlockNumber:      1001,
+				TransactionIndex: 5,
+				LogIndex:         10,
+			},
+		},
+	}
+	bcm.Notify(eventNotification)
+
+	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Run(func(args mock.Arguments) {
+		bcm.NewBlockHashes() <- &ffcapi.BlockHashEvent{
+			GapPotential: true,
+		}
+	}).Once()
+
+	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Run(func(args mock.Arguments) {
+		bcm.cancelFunc()
+	})
+
+	bcm.confirmationsListener()
+	<-bcm.done
+
+	assert.Len(t, bcm.pending, 1)
+	assert.NotNil(t, eventNotification.eventPendingItem().getKey()) // should be the event in there, the TX should be removed
+	mca.AssertExpectations(t)
+}
+
 func TestConfirmationsRemoveTransaction(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
@@ -745,24 +691,40 @@ func TestConfirmationsRemoveTransaction(t *testing.T) {
 	txInfo := &TransactionInfo{
 		TransactionHash: "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 	}
+	eventNotification := &Notification{
+		NotificationType: NewEventLog,
+		Event: &EventInfo{
+			EventID: ffcapi.EventID{
+				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+				BlockNumber:      1001,
+				TransactionIndex: 5,
+				LogIndex:         10,
+			},
+		},
+	}
 	bcm.addOrReplaceItem((&Notification{
 		Transaction: txInfo,
 	}).transactionPendingItem())
-	bcm.Notify(&Notification{
-		NotificationType: RemovedTransaction,
-		Transaction:      txInfo,
-	})
+	go func() {
+		// The notification we want to test
+		bcm.Notify(&Notification{
+			NotificationType: RemovedTransaction,
+			Transaction:      txInfo,
+		})
+		// Another notification that causes BlockInfoByNumber, so we can break the loop
+		bcm.Notify(eventNotification)
+	}()
 
-	blockHashes := make(chan *ffcapi.BlockHashEvent, 1)
-	mca.On("NewBlockHashes").Return((<-chan *ffcapi.BlockHashEvent)(blockHashes)).Once()
-	mca.On("NewBlockHashes").Run(func(args mock.Arguments) {
+	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Run(func(args mock.Arguments) {
 		bcm.cancelFunc()
-	}).Return((<-chan *ffcapi.BlockHashEvent)(blockHashes))
+	})
 
 	bcm.confirmationsListener()
 	<-bcm.done
 
-	assert.Empty(t, bcm.pending)
+	assert.Len(t, bcm.pending, 1)
+	assert.NotNil(t, eventNotification.eventPendingItem().getKey()) // should be the event in there, the TX should be removed
 	mca.AssertExpectations(t)
 }
 
@@ -772,12 +734,13 @@ func TestWalkChainForEventBlockNotInConfirmationChain(t *testing.T) {
 
 	pending := (&Notification{
 		Event: &EventInfo{
-			StreamID:         "stream1",
-			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-			BlockNumber:      1001,
-			TransactionIndex: 5,
-			LogIndex:         10,
+			EventID: ffcapi.EventID{
+				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+				BlockNumber:      1001,
+				TransactionIndex: 5,
+				LogIndex:         10,
+			},
 		},
 	}).eventPendingItem()
 
@@ -803,12 +766,13 @@ func TestWalkChainForEventBlockLookupFail(t *testing.T) {
 
 	pending := (&Notification{
 		Event: &EventInfo{
-			StreamID:         "stream1",
-			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
-			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
-			BlockNumber:      1001,
-			TransactionIndex: 5,
-			LogIndex:         10,
+			EventID: ffcapi.EventID{
+				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+				BlockNumber:      1001,
+				TransactionIndex: 5,
+				LogIndex:         10,
+			},
 		},
 	}).eventPendingItem()
 
@@ -883,11 +847,6 @@ func TestNotificationValidation(t *testing.T) {
 
 	err = bcm.Notify(&Notification{
 		NotificationType: NewEventLog,
-	})
-	assert.Regexp(t, "FF21016", err)
-
-	err = bcm.Notify(&Notification{
-		NotificationType: StopStream,
 	})
 	assert.Regexp(t, "FF21016", err)
 

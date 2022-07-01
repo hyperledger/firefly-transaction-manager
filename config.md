@@ -44,7 +44,7 @@ nav_order: 2
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|blockPollingInterval|How often to poll for new block headers|[`time.Duration`](https://pkg.go.dev/time#Duration)|`3s`
+|blockQueueLength|Internal queue length for notifying the confirmations manager of new blocks|`int`|`50`
 |notificationQueueLength|Internal queue length for notifying the confirmations manager of new transactions/events|`int`|`50`
 |required|Number of confirmations required to consider a transaction/event final|`int`|`20`
 |staleReceiptTimeout|Duration after which to force a receipt check for a pending transaction|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1m`

@@ -86,7 +86,7 @@ func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftype
 }
 
 func (m *manager) addRuntimeStream(def *apitypes.EventStream, listeners []*apitypes.Listener) (events.Stream, error) {
-	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.confirmations, m.wsChannels, listeners)
+	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.wsChannels, listeners)
 	if err != nil {
 		return nil, err
 	}

@@ -90,6 +90,7 @@ type startedStreamState struct {
 	startTime     *fftypes.FFTime
 	action        eventStreamAction
 	eventLoopDone chan struct{}
+	batchLoopDone chan struct{}
 	updates       chan *ffcapi.ListenerUpdate
 }
 
@@ -105,6 +106,7 @@ type eventStream struct {
 	wsChannels    ws.WebSocketChannels
 	retry         *retry.Retry
 	currentState  *startedStreamState
+	batchChannel  chan *ffcapi.ListenerUpdate
 }
 
 func NewEventStream(
@@ -112,28 +114,31 @@ func NewEventStream(
 	persistedSpec *apitypes.EventStream,
 	connector ffcapi.API,
 	persistence persistence.Persistence,
-	confirmations confirmations.Manager,
 	wsChannels ws.WebSocketChannels,
 	initialListeners []*apitypes.Listener,
 ) (ees Stream, err error) {
+	esCtx := log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String())
 	es := &eventStream{
-		bgCtx:         log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String()),
-		status:        apitypes.EventStreamStatusStopped,
-		spec:          persistedSpec,
-		connector:     connector,
-		persistence:   persistence,
-		confirmations: confirmations,
-		listeners:     make(map[fftypes.UUID]*listener),
-		wsChannels:    wsChannels,
-		retry:         esDefaults.retry,
+		bgCtx:       esCtx,
+		status:      apitypes.EventStreamStatusStopped,
+		spec:        persistedSpec,
+		connector:   connector,
+		persistence: persistence,
+		listeners:   make(map[fftypes.UUID]*listener),
+		wsChannels:  wsChannels,
+		retry:       esDefaults.retry,
+	}
+	if config.GetInt(tmconfig.ConfirmationsRequired) > 0 {
+		es.confirmations = confirmations.NewBlockConfirmationManager(esCtx, connector)
 	}
 	// The configuration we have in memory, applies all the defaults to what is passed in
 	// to ensure there are no nil fields on the configuration object.
-	if es.spec, _, err = mergeValidateEsConfig(es.bgCtx, nil, persistedSpec); err != nil {
+	if es.spec, _, err = mergeValidateEsConfig(esCtx, nil, persistedSpec); err != nil {
 		return nil, err
 	}
+	es.batchChannel = make(chan *ffcapi.ListenerUpdate, *es.spec.BatchSize)
 	for _, existing := range initialListeners {
-		spec, err := es.verifyListenerOptions(es.bgCtx, existing.ID, existing)
+		spec, err := es.verifyListenerOptions(esCtx, existing.ID, existing)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +147,7 @@ func NewEventStream(
 			spec: spec,
 		}
 	}
-	log.L(es.bgCtx).Infof("Initialized Event Stream")
+	log.L(esCtx).Infof("Initialized Event Stream")
 	return es, nil
 }
 
@@ -465,12 +470,12 @@ func (es *eventStream) Start(ctx context.Context) error {
 	startedState := &startedStreamState{
 		startTime:     fftypes.Now(),
 		eventLoopDone: make(chan struct{}),
+		batchLoopDone: make(chan struct{}),
 		updates:       make(chan *ffcapi.ListenerUpdate, int(*es.spec.BatchSize)),
 	}
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.currentState = startedState
 	es.initAction(startedState)
-	go es.eventLoop(startedState)
 
 	initialListeners := make([]*ffcapi.EventListenerAddRequest, 0)
 	for _, l := range es.listeners {
@@ -482,6 +487,18 @@ func (es *eventStream) Start(ctx context.Context) error {
 		StreamContext:    startedState.ctx,
 		InitialListeners: initialListeners,
 	})
+	if err != nil {
+		_ = es.checkSetStatus(ctx, apitypes.EventStreamStatusStarted, apitypes.EventStreamStatusStopped)
+		return err
+	}
+
+	// Kick off the loops
+	go es.eventLoop(startedState)
+	go es.batchLoop(startedState)
+
+	// Start the confirmations manager
+	es.confirmations.Start()
+
 	return err
 }
 
@@ -522,8 +539,14 @@ func (es *eventStream) Stop(ctx context.Context) error {
 		return err
 	}
 
+	// Stop the confirmations manager
+	es.confirmations.Stop()
+
 	// Wait for our event loop to stop
 	<-startedState.eventLoopDone
+
+	// Wait for our batch loop to stop
+	<-startedState.batchLoopDone
 
 	// Transition to stopped (takes the lock again)
 	es.mux.Lock()
@@ -554,6 +577,52 @@ func (es *eventStream) Delete(ctx context.Context) error {
 func (es *eventStream) eventLoop(startedState *startedStreamState) {
 	defer close(startedState.eventLoopDone)
 	ctx := startedState.ctx
+
+	for {
+		select {
+		case update := <-startedState.updates:
+			event := update.Event
+			es.mux.Lock()
+			l := es.listeners[*update.ListenerID]
+			es.mux.Unlock()
+			if l != nil {
+				log.L(es.bgCtx).Debugf("%s event detected: %s", update.ListenerID, update.Event)
+				if event == nil || es.confirmations == nil {
+					// Updates that are just a checkpoint update, go straight to the batch loop.
+					// Or if the confirmation manager is disabled.
+					// - Note this will block the eventLoop when the event stream is blocked
+					es.batchChannel <- update
+				} else {
+					// Notify will block, when the confirmation manager is blocked, which per below
+					// will flow back from when the event stream is blocked
+					err := es.confirmations.Notify(&confirmations.Notification{
+						NotificationType: confirmations.NewEventLog,
+						Event: &confirmations.EventInfo{
+							EventID: event.EventID,
+							Confirmed: func(confirmations []confirmations.BlockInfo) {
+								// Push it to the batch when confirmed
+								// - Note this will block the confirmation manager when the event stream is blocked
+								es.batchChannel <- update
+							},
+						},
+					})
+					if err != nil {
+						log.L(es.bgCtx).Warnf("Failed to notify confirmation manager for event '%s': %s", update.Event, err)
+					}
+				}
+			}
+		case <-ctx.Done():
+			log.L(ctx).Debugf("Event loop exiting")
+			return
+		}
+	}
+}
+
+// batchLoop receives confirmed events from the confirmation manager,
+// batches them together, and drives the actions.
+func (es *eventStream) batchLoop(startedState *startedStreamState) {
+	defer close(startedState.batchLoopDone)
+	ctx := startedState.ctx
 	batchTimeout := time.Duration(*es.spec.BatchTimeout)
 	maxSize := int(*es.spec.BatchSize)
 	batchNumber := 0
@@ -568,7 +637,7 @@ func (es *eventStream) eventLoop(startedState *startedStreamState) {
 			timeoutContext = ctx
 		}
 		select {
-		case update := <-startedState.updates:
+		case update := <-es.batchChannel:
 			if batch == nil {
 				batchNumber++
 				batch = &eventStreamBatch{
@@ -580,24 +649,23 @@ func (es *eventStream) eventLoop(startedState *startedStreamState) {
 			if update.Checkpoint != nil {
 				batch.checkpoints[*update.ListenerID] = update.Checkpoint
 			}
-			for _, event := range update.Events {
-				var l *listener
-				if update.ListenerID != nil {
-					l = es.listeners[*update.ListenerID]
-					if l != nil {
-						log.L(es.bgCtx).Debugf("%s (%s) event: %s", l.spec.Signature, l.spec.ID, event.ProtocolID)
-						batch.events = append(batch.events, &ffcapi.EventWithContext{
-							StreamID:   es.spec.ID,
-							ListenerID: update.ListenerID,
-							Event:      *event,
-						})
-					}
+			if update.Event != nil {
+				es.mux.Lock()
+				l := es.listeners[*update.ListenerID]
+				es.mux.Unlock()
+				if l != nil {
+					log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.Signature, update.Event)
+					batch.events = append(batch.events, &ffcapi.EventWithContext{
+						StreamID:   es.spec.ID,
+						ListenerID: update.ListenerID,
+						Event:      *update.Event,
+					})
 				}
 			}
 		case <-timeoutContext.Done():
 			if batch == nil {
 				// The started context exited, we are stopping
-				log.L(ctx).Debugf("Event poller exiting")
+				log.L(ctx).Debugf("Batch loop exiting")
 				return
 			}
 			// Otherwise we timed out
@@ -611,7 +679,7 @@ func (es *eventStream) eventLoop(startedState *startedStreamState) {
 				err = es.writeCheckpoint(startedState, batch)
 			}
 			if err != nil {
-				log.L(ctx).Debugf("Event poller exiting: %s", err)
+				log.L(ctx).Debugf("Batch loop exiting: %s", err)
 				return
 			}
 			batch = nil

@@ -18,7 +18,6 @@ package ffcapi
 
 import (
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"sort"
 	"strings"
@@ -29,16 +28,23 @@ import (
 
 func TestSortEvents(t *testing.T) {
 
-	events := make(Events, 1000)
-	for i := 0; i < 1000; i++ {
-		v, _ := rand.Int(rand.Reader, big.NewInt(100000000))
+	events := make(Events, 10000)
+	for i := 0; i < 10000; i++ {
+		b, _ := rand.Int(rand.Reader, big.NewInt(1000))
+		t, _ := rand.Int(rand.Reader, big.NewInt(10))
+		l, _ := rand.Int(rand.Reader, big.NewInt(10))
 		events[i] = &Event{
-			ProtocolID: fmt.Sprintf("%.9d", v.Int64()),
+			EventID: EventID{
+				BlockNumber:      b.Uint64(),
+				TransactionIndex: t.Uint64(),
+				LogIndex:         l.Uint64(),
+			},
 		}
 	}
 	sort.Sort(events)
 
-	for i := 1; i < 1000; i++ {
-		assert.Negative(t, strings.Compare(events[i-1].ProtocolID, events[i].ProtocolID))
+	for i := 1; i < len(events); i++ {
+		assert.LessOrEqual(t, strings.Compare(events[i-1].ProtocolID(), events[i].ProtocolID()), 0)
+		assert.LessOrEqual(t, strings.Compare(events[i-1].String(), events[i].String()), 0)
 	}
 }

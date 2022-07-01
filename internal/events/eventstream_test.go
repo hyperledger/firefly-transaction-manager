@@ -27,6 +27,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
@@ -60,14 +61,24 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 	ees, err := NewEventStream(context.Background(), testESConf(t, conf),
 		mfc,
 		&persistencemocks.Persistence{},
-		&confirmationsmocks.Manager{},
 		&wsmocks.WebSocketChannels{},
 		listeners,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return ees.(*eventStream), err
+	es = ees.(*eventStream)
+	mcm := &confirmationsmocks.Manager{}
+	es.confirmations = mcm
+	mcm.On("Start").Return(nil).Maybe()
+	mcm.On("Stop").Return(nil).Maybe()
+	mcm.On("Notify", mock.Anything).Run(func(args mock.Arguments) {
+		n := args[0].(*confirmations.Notification)
+		if n.Event != nil {
+			go n.Event.Confirmed([]confirmations.BlockInfo{})
+		}
+	}).Return(nil).Maybe()
+	return es, err
 }
 
 func mockWSChannels(wsc *wsmocks.WebSocketChannels) (chan interface{}, chan interface{}, chan error) {
@@ -84,7 +95,6 @@ func TestNewTestEventStreamMissingID(t *testing.T) {
 	_, err := NewEventStream(context.Background(), &apitypes.EventStream{},
 		&ffcapimocks.API{},
 		&persistencemocks.Persistence{},
-		&confirmationsmocks.Manager{},
 		&wsmocks.WebSocketChannels{},
 		[]*apitypes.Listener{},
 	)
@@ -97,7 +107,6 @@ func TestNewTestEventStreamBadConfig(t *testing.T) {
 	_, err := NewEventStream(context.Background(), testESConf(t, `{}`),
 		&ffcapimocks.API{},
 		&persistencemocks.Persistence{},
-		&confirmationsmocks.Manager{},
 		&wsmocks.WebSocketChannels{},
 		[]*apitypes.Listener{},
 	)
@@ -336,12 +345,14 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	r.EventStream <- &ffcapi.ListenerUpdate{
 		ListenerID: l.ID,
 		Checkpoint: fftypes.JSONAnyPtr(`{"cp1data": "stuff"}`),
-		Events: []*ffcapi.Event{
-			{
-				Data:       fftypes.JSONAnyPtr(`{"k1":"v1"}`),
-				ProtocolID: "000000000042/000013/000001",
-				Info:       fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
+		Event: &ffcapi.Event{
+			EventID: ffcapi.EventID{
+				BlockNumber:      42,
+				TransactionIndex: 13,
+				LogIndex:         1,
 			},
+			Data: fftypes.JSONAnyPtr(`{"k1":"v1"}`),
+			Info: fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
 		},
 	}
 
@@ -441,12 +452,14 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 	r.EventStream <- &ffcapi.ListenerUpdate{
 		ListenerID: l.ID,
 		Checkpoint: fftypes.JSONAnyPtr(`{"cp1data": "stuff"}`),
-		Events: []*ffcapi.Event{
-			{
-				Data:       fftypes.JSONAnyPtr(`{"k1":"v1"}`),
-				ProtocolID: "000000000042/000013/000001",
-				Info:       fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
+		Event: &ffcapi.Event{
+			EventID: ffcapi.EventID{
+				BlockNumber:      42,
+				TransactionIndex: 13,
+				LogIndex:         1,
 			},
+			Data: fftypes.JSONAnyPtr(`{"k1":"v1"}`),
+			Info: fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
 		},
 	}
 
@@ -814,7 +827,7 @@ func TestUpdateStreamRestartFail(t *testing.T) {
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
 		return r.ID.Equals(l.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	err := es.Start(es.bgCtx)
 	assert.NoError(t, err)
@@ -831,12 +844,8 @@ func TestUpdateStreamRestartFail(t *testing.T) {
 	assert.Regexp(t, "FF21032.*pop", err)
 
 	<-r.StreamContext.Done()
-	r = <-started
 
-	err = es.Stop(es.bgCtx)
-	assert.NoError(t, err)
-
-	<-r.StreamContext.Done()
+	assert.Equal(t, apitypes.EventStreamStatusStopped, es.status)
 
 	mfc.AssertExpectations(t)
 }
@@ -999,7 +1008,7 @@ func TestResetListenerRestartFail(t *testing.T) {
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
 		return r.ID.Equals(l.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
+	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(&apitypes.EventStreamCheckpoint{
@@ -1123,12 +1132,14 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 	r.EventStream <- &ffcapi.ListenerUpdate{
 		ListenerID: l.ID,
 		Checkpoint: fftypes.JSONAnyPtr(`{"cp1data": "stuff"}`),
-		Events: []*ffcapi.Event{
-			{
-				Data:       fftypes.JSONAnyPtr(`{"k1":"v1"}`),
-				ProtocolID: "000000000042/000013/000001",
-				Info:       fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
+		Event: &ffcapi.Event{
+			EventID: ffcapi.EventID{
+				BlockNumber:      42,
+				TransactionIndex: 13,
+				LogIndex:         1,
 			},
+			Data: fftypes.JSONAnyPtr(`{"k1":"v1"}`),
+			Info: fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
 		},
 	}
 	batch1 := (<-broadcastChannel).([]*ffcapi.EventWithContext)
@@ -1264,4 +1275,62 @@ func TestActionRetryBlock(t *testing.T) {
 
 	<-done
 	assert.Greater(t, callCount, 0)
+}
+
+func TestEventLoopConfirmationsManagerBypass(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	ss := &startedStreamState{
+		updates:       make(chan *ffcapi.ListenerUpdate, 1),
+		eventLoopDone: make(chan struct{}),
+	}
+	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
+
+	u1 := &ffcapi.ListenerUpdate{
+		ListenerID: fftypes.NewUUID(),
+	}
+	es.confirmations = nil
+	es.listeners[*u1.ListenerID] = &listener{}
+
+	go func() {
+		ss.updates <- u1
+		u2 := <-es.batchChannel
+		assert.Equal(t, u1, u2)
+		ss.cancelCtx()
+	}()
+
+	es.eventLoop(ss)
+}
+
+func TestEventLoopConfirmationsManagerFail(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	ss := &startedStreamState{
+		updates:       make(chan *ffcapi.ListenerUpdate, 1),
+		eventLoopDone: make(chan struct{}),
+	}
+	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
+
+	u1 := &ffcapi.ListenerUpdate{
+		ListenerID: fftypes.NewUUID(),
+		Event:      &ffcapi.Event{},
+	}
+	mcm := &confirmationsmocks.Manager{}
+	mcm.On("Notify", mock.Anything).Return(fmt.Errorf("pop")).Run(func(args mock.Arguments) {
+		ss.cancelCtx()
+	})
+	es.confirmations = mcm
+	es.listeners[*u1.ListenerID] = &listener{}
+
+	go func() {
+		ss.updates <- u1
+	}()
+
+	es.eventLoop(ss)
 }

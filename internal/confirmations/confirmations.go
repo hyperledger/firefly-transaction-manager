@@ -37,6 +37,7 @@ type Manager interface {
 	Notify(n *Notification) error
 	Start()
 	Stop()
+	NewBlockHashes() chan<- *ffcapi.BlockHashEvent
 }
 
 type NotificationType int
@@ -46,25 +47,17 @@ const (
 	RemovedEventLog
 	NewTransaction
 	RemovedTransaction
-	StopStream
 )
 
 type Notification struct {
 	NotificationType NotificationType
 	Event            *EventInfo
 	Transaction      *TransactionInfo
-	StoppedStream    *StoppedStreamInfo
 }
 
 type EventInfo struct {
-	StreamID         string
-	BlockHash        string
-	BlockNumber      uint64
-	TransactionHash  string
-	TransactionIndex uint64
-	LogIndex         uint64
-	Receipt          func(receipt *ffcapi.TransactionReceiptResponse)
-	Confirmed        func(confirmations []BlockInfo)
+	ffcapi.EventID
+	Confirmed func(confirmations []BlockInfo)
 }
 
 type TransactionInfo struct {
@@ -86,12 +79,13 @@ type BlockInfo struct {
 }
 
 type blockConfirmationManager struct {
+	baseContext           context.Context
 	ctx                   context.Context
 	cancelFunc            func()
+	newBlockHashes        chan *ffcapi.BlockHashEvent
 	connector             ffcapi.API
 	blockListenerStale    bool
 	requiredConfirmations int
-	pollingInterval       time.Duration
 	staleReceiptTimeout   time.Duration
 	bcmNotifications      chan *Notification
 	highestBlockSeen      uint64
@@ -100,18 +94,19 @@ type blockConfirmationManager struct {
 	done                  chan struct{}
 }
 
-func NewBlockConfirmationManager(ctx context.Context, connector ffcapi.API) Manager {
+func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API) Manager {
 	bcm := &blockConfirmationManager{
+		baseContext:           baseContext,
 		connector:             connector,
 		blockListenerStale:    true,
 		requiredConfirmations: config.GetInt(tmconfig.ConfirmationsRequired),
-		pollingInterval:       config.GetDuration(tmconfig.ConfirmationsBlockPollingInterval),
 		staleReceiptTimeout:   config.GetDuration(tmconfig.ConfirmationsStaleReceiptTimeout),
 		bcmNotifications:      make(chan *Notification, config.GetInt(tmconfig.ConfirmationsNotificationQueueLength)),
 		pending:               make(map[string]*pendingItem),
 		staleReceipts:         make(map[string]bool),
+		newBlockHashes:        make(chan *ffcapi.BlockHashEvent, config.GetInt(tmconfig.ConfirmationsBlockQueueLength)),
 	}
-	bcm.ctx, bcm.cancelFunc = context.WithCancel(ctx)
+	bcm.ctx, bcm.cancelFunc = context.WithCancel(baseContext)
 	return bcm
 }
 
@@ -132,7 +127,6 @@ type pendingItem struct {
 	receiptCallback   func(receipt *ffcapi.TransactionReceiptResponse)
 	confirmedCallback func(confirmations []BlockInfo)
 	transactionHash   string
-	streamID          string // events only
 	blockHash         string // can be notified of changes to this for receipts
 	blockNumber       uint64 // known at creation time for event logs
 	transactionIndex  uint64 // known at creation time for event logs
@@ -148,7 +142,7 @@ func (pi *pendingItem) getKey() string {
 	case pendingTypeEvent:
 		// For events they are identified by their hash, blockNumber, transactionIndex and logIndex
 		// If any of those change, it's a new new event - and as such we should get informed of it separately by the blockchain connector.
-		return fmt.Sprintf("Event[%s]:th=%s,bh=%s,bn=%d,ti=%d,li=%d", pi.streamID, pi.transactionHash, pi.blockHash, pi.blockNumber, pi.transactionIndex, pi.logIndex)
+		return fmt.Sprintf("Event:th=%s,bh=%s,bn=%d,ti=%d,li=%d", pi.transactionHash, pi.blockHash, pi.blockNumber, pi.transactionIndex, pi.logIndex)
 	case pendingTypeTransaction:
 		// For transactions, it's simply the transaction hash that identifies it. It can go into any block
 		return pendingKeyForTX(pi.transactionHash)
@@ -175,7 +169,6 @@ func (n *Notification) eventPendingItem() *pendingItem {
 		pType:             pendingTypeEvent,
 		blockNumber:       n.Event.BlockNumber,
 		blockHash:         n.Event.BlockHash,
-		streamID:          n.Event.StreamID,
 		transactionHash:   n.Event.TransactionHash,
 		transactionIndex:  n.Event.TransactionIndex,
 		logIndex:          n.Event.LogIndex,
@@ -213,23 +206,28 @@ func (bcm *blockConfirmationManager) Start() {
 }
 
 func (bcm *blockConfirmationManager) Stop() {
-	bcm.cancelFunc()
-	<-bcm.done
+	if bcm.done != nil {
+		bcm.cancelFunc()
+		<-bcm.done
+		bcm.done = nil
+		// Reset context ready for restart
+		bcm.ctx, bcm.cancelFunc = context.WithCancel(bcm.baseContext)
+	}
+}
+
+func (bcm *blockConfirmationManager) NewBlockHashes() chan<- *ffcapi.BlockHashEvent {
+	return bcm.newBlockHashes
 }
 
 // Notify is used to notify the confirmation manager of detection of a new logEntry addition or removal
 func (bcm *blockConfirmationManager) Notify(n *Notification) error {
 	switch n.NotificationType {
 	case NewEventLog, RemovedEventLog:
-		if n.Event == nil || n.Event.StreamID == "" || n.Event.TransactionHash == "" || n.Event.BlockHash == "" {
+		if n.Event == nil || n.Event.TransactionHash == "" || n.Event.BlockHash == "" {
 			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
 		}
 	case NewTransaction, RemovedTransaction:
 		if n.Transaction == nil || n.Transaction.TransactionHash == "" {
-			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
-		}
-	case StopStream:
-		if n.StoppedStream == nil || n.StoppedStream.Completed == nil {
 			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
 		}
 	}
@@ -283,45 +281,24 @@ func transformBlockInfo(res *ffcapi.BlockInfo) *BlockInfo {
 	}
 }
 
-func (bcm *blockConfirmationManager) getNewBlockHashes() []string {
-	var blockHashes []string
+func (bcm *blockConfirmationManager) confirmationsListener() {
+	defer close(bcm.done)
+	notifications := make([]*Notification, 0)
+	blockHashes := make([]string, 0)
 	for {
 		select {
-		case bhe := <-bcm.connector.NewBlockHashes():
+		case bhe := <-bcm.newBlockHashes:
 			if bhe.GapPotential {
 				bcm.blockListenerStale = true
 			}
 			blockHashes = append(blockHashes, bhe.BlockHashes...)
-		default:
-			return blockHashes
+		case <-bcm.ctx.Done():
+			log.L(bcm.ctx).Debugf("Block confirmation listener stopping")
+			return
+		case notification := <-bcm.bcmNotifications:
+			// Defer until after we've got new logs
+			notifications = append(notifications, notification)
 		}
-	}
-}
-
-func (bcm *blockConfirmationManager) confirmationsListener() {
-	defer close(bcm.done)
-	pollTimer := time.NewTimer(0)
-	notifications := make([]*Notification, 0)
-	for {
-		popped := false
-		for !popped {
-			select {
-			case <-pollTimer.C:
-				popped = true
-			case <-bcm.ctx.Done():
-				log.L(bcm.ctx).Debugf("Block confirmation listener stopping")
-				return
-			case notification := <-bcm.bcmNotifications:
-				if notification.NotificationType == StopStream {
-					// Handle stream notifications immediately
-					bcm.streamStopped(notification)
-				} else {
-					// Defer until after we've got new logs
-					notifications = append(notifications, notification)
-				}
-			}
-		}
-		pollTimer = time.NewTimer(bcm.pollingInterval)
 
 		if bcm.blockListenerStale {
 			if err := bcm.walkChain(); err != nil {
@@ -332,7 +309,9 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 		}
 
 		// Process each new block
-		bcm.processBlockHashes(bcm.getNewBlockHashes())
+		bcm.processBlockHashes(blockHashes)
+		// Truncate the block hashes now we've processed them
+		blockHashes = blockHashes[:0]
 
 		// Process any new notifications - we do this at the end, so it can benefit
 		// from knowing the latest highestBlockSeen
@@ -425,16 +404,6 @@ func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem) {
 	}
 	// No need to keep polling - either we now have a receipt, or normal block header monitoring will pick this one up
 	delete(bcm.staleReceipts, pending.getKey())
-}
-
-// streamStopped removes all pending work for a given stream, and notifies once done
-func (bcm *blockConfirmationManager) streamStopped(notification *Notification) {
-	for pendingKey, pending := range bcm.pending {
-		if pending.streamID == notification.StoppedStream.StreamID {
-			delete(bcm.pending, pendingKey)
-		}
-	}
-	close(notification.StoppedStream.Completed)
 }
 
 // addEvent is called by the goroutine on receipt of a new event/transaction notification

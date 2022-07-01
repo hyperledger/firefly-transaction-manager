@@ -81,8 +81,8 @@ func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...strin
 	assert.NoError(t, err)
 	m := mm.(*manager)
 	mcm := &confirmationsmocks.Manager{}
-	m.confirmations = mcm
 	mcm.On("Start").Return().Maybe()
+	m.confirmations = mcm
 
 	return fmt.Sprintf("http://127.0.0.1:%s", managerPort),
 		m,

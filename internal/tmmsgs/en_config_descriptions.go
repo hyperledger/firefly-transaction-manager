@@ -37,7 +37,7 @@ var (
 	ConfigAPIShutdownTimeout       = ffc("config.api.shutdownTimeout", "The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server", i18n.TimeDurationType)
 
 	ConfigConfirmationsBlockCacheSize           = ffc("config.confirmations.blockCacheSize", "The maximum number of block headers to keep in the cache", i18n.IntType)
-	ConfigConfirmationsBlockPollingInterval     = ffc("config.confirmations.blockPollingInterval", "How often to poll for new block headers", i18n.TimeDurationType)
+	ConfigConfirmationsBlockQueueLength         = ffc("config.confirmations.blockQueueLength", "Internal queue length for notifying the confirmations manager of new blocks", i18n.IntType)
 	ConfigConfirmationsNotificationsQueueLength = ffc("config.confirmations.notificationQueueLength", "Internal queue length for notifying the confirmations manager of new transactions/events", i18n.IntType)
 	ConfigConfirmationsRequired                 = ffc("config.confirmations.required", "Number of confirmations required to consider a transaction/event final", i18n.IntType)
 	ConfigConfirmationsStaleReceiptTimeout      = ffc("config.confirmations.staleReceiptTimeout", "Duration after which to force a receipt check for a pending transaction", i18n.TimeDurationType)

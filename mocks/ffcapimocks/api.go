@@ -224,22 +224,6 @@ func (_m *API) GasPriceEstimate(ctx context.Context, req *ffcapi.GasPriceEstimat
 	return r0, r1, r2
 }
 
-// NewBlockHashes provides a mock function with given fields:
-func (_m *API) NewBlockHashes() <-chan *ffcapi.BlockHashEvent {
-	ret := _m.Called()
-
-	var r0 <-chan *ffcapi.BlockHashEvent
-	if rf, ok := ret.Get(0).(func() <-chan *ffcapi.BlockHashEvent); ok {
-		r0 = rf()
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(<-chan *ffcapi.BlockHashEvent)
-		}
-	}
-
-	return r0
-}
-
 // NextNonceForSigner provides a mock function with given fields: ctx, req
 func (_m *API) NextNonceForSigner(ctx context.Context, req *ffcapi.NextNonceForSignerRequest) (*ffcapi.NextNonceForSignerResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
