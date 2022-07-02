@@ -36,14 +36,15 @@ import (
 )
 
 type Stream interface {
-	AddOrUpdateListener(ctx context.Context, id *fftypes.UUID, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) // Add or update a listener
-	RemoveListener(ctx context.Context, id *fftypes.UUID) error                                                                    // Stop and remove a listener
-	UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error                                                           // Apply definition updates (if there are changes)
-	Spec() *apitypes.EventStream                                                                                                   // Retrieve the merged definition to persist
-	Status() apitypes.EventStreamStatus                                                                                            // Get the current status
-	Start(ctx context.Context) error                                                                                               // Start delivery
-	Stop(ctx context.Context) error                                                                                                // Stop delivery (does not remove checkpoints)
-	Delete(ctx context.Context) error                                                                                              // Stop delivery, and clean up any checkpoint
+	AddOrUpdateListener(ctx context.Context, id *fftypes.UUID,
+		updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) // Add or update a listener
+	RemoveListener(ctx context.Context, id *fftypes.UUID) error          // Stop and remove a listener
+	UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error // Apply definition updates (if there are changes)
+	Spec() *apitypes.EventStream                                         // Retrieve the merged definition to persist
+	Status() apitypes.EventStreamStatus                                  // Get the current status
+	Start(ctx context.Context) error                                     // Start delivery
+	Stop(ctx context.Context) error                                      // Stop delivery (does not remove checkpoints)
+	Delete(ctx context.Context) error                                    // Stop delivery, and clean up any checkpoint
 }
 
 // esDefaults are the defaults for new event streams, read from the config once in InitDefaults()
@@ -85,13 +86,15 @@ type eventStreamBatch struct {
 }
 
 type startedStreamState struct {
-	ctx           context.Context
-	cancelCtx     func()
-	startTime     *fftypes.FFTime
-	action        eventStreamAction
-	eventLoopDone chan struct{}
-	batchLoopDone chan struct{}
-	updates       chan *ffcapi.ListenerUpdate
+	ctx               context.Context
+	cancelCtx         func()
+	startTime         *fftypes.FFTime
+	action            eventStreamAction
+	eventLoopDone     chan struct{}
+	batchLoopDone     chan struct{}
+	blockListenerDone chan struct{}
+	updates           chan *ffcapi.ListenerUpdate
+	blocks            chan *ffcapi.BlockHashEvent
 }
 
 type eventStream struct {
@@ -468,10 +471,12 @@ func (es *eventStream) Start(ctx context.Context) error {
 	log.L(ctx).Infof("Starting event stream %s", es)
 
 	startedState := &startedStreamState{
-		startTime:     fftypes.Now(),
-		eventLoopDone: make(chan struct{}),
-		batchLoopDone: make(chan struct{}),
-		updates:       make(chan *ffcapi.ListenerUpdate, int(*es.spec.BatchSize)),
+		startTime:         fftypes.Now(),
+		eventLoopDone:     make(chan struct{}),
+		batchLoopDone:     make(chan struct{}),
+		blockListenerDone: make(chan struct{}),
+		updates:           make(chan *ffcapi.ListenerUpdate, int(*es.spec.BatchSize)),
+		blocks:            make(chan *ffcapi.BlockHashEvent), // we promise to consume immediately
 	}
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.currentState = startedState
@@ -485,6 +490,7 @@ func (es *eventStream) Start(ctx context.Context) error {
 		ID:               es.spec.ID,
 		EventStream:      startedState.updates,
 		StreamContext:    startedState.ctx,
+		BlockListener:    startedState.blocks,
 		InitialListeners: initialListeners,
 	})
 	if err != nil {
@@ -495,6 +501,7 @@ func (es *eventStream) Start(ctx context.Context) error {
 	// Kick off the loops
 	go es.eventLoop(startedState)
 	go es.batchLoop(startedState)
+	go es.blockListener(startedState)
 
 	// Start the confirmations manager
 	es.confirmations.Start()
@@ -547,6 +554,9 @@ func (es *eventStream) Stop(ctx context.Context) error {
 
 	// Wait for our batch loop to stop
 	<-startedState.batchLoopDone
+
+	// Wait for our block listener to stop
+	<-startedState.blockListenerDone
 
 	// Transition to stopped (takes the lock again)
 	es.mux.Lock()
