@@ -38,7 +38,7 @@ func TestBlockListenerDoesNotBlock(t *testing.T) {
 	}
 	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
 
-	blockIt := make(chan *ffcapi.BlockHashEvent)
+	blockIt := make(chan *ffcapi.BlockHashEvent, 1)
 	mcm := &confirmationsmocks.Manager{}
 	mcm.On("NewBlockHashes").Return((chan<- *ffcapi.BlockHashEvent)(blockIt))
 	es.confirmations = mcm
@@ -54,11 +54,16 @@ func TestBlockListenerDoesNotBlock(t *testing.T) {
 		ss.blocks <- &ffcapi.BlockHashEvent{}
 	}
 
-	// Now when re unblock, we're told about the gap
+	// Get the one that was stuck in the pipe
 	bhe := <-blockIt
+	assert.False(t, bhe.GapPotential)
+
+	// We should get the unblocking one too, with GapPotential set
+	bhe = <-blockIt
 	assert.True(t, bhe.GapPotential)
 
 	// Block it again
+	ss.blocks <- &ffcapi.BlockHashEvent{}
 	ss.blocks <- &ffcapi.BlockHashEvent{}
 
 	// And check we can exit
