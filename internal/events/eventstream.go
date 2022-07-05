@@ -93,7 +93,7 @@ type startedStreamState struct {
 	eventLoopDone     chan struct{}
 	batchLoopDone     chan struct{}
 	blockListenerDone chan struct{}
-	updates           chan *ffcapi.ListenerUpdate
+	updates           chan *ffcapi.ListenerEvent
 	blocks            chan *ffcapi.BlockHashEvent
 }
 
@@ -109,7 +109,7 @@ type eventStream struct {
 	wsChannels    ws.WebSocketChannels
 	retry         *retry.Retry
 	currentState  *startedStreamState
-	batchChannel  chan *ffcapi.ListenerUpdate
+	batchChannel  chan *ffcapi.ListenerEvent
 }
 
 func NewEventStream(
@@ -139,7 +139,7 @@ func NewEventStream(
 	if es.spec, _, err = mergeValidateEsConfig(esCtx, nil, persistedSpec); err != nil {
 		return nil, err
 	}
-	es.batchChannel = make(chan *ffcapi.ListenerUpdate, *es.spec.BatchSize)
+	es.batchChannel = make(chan *ffcapi.ListenerEvent, *es.spec.BatchSize)
 	for _, existing := range initialListeners {
 		spec, err := es.verifyListenerOptions(esCtx, existing.ID, existing)
 		if err != nil {
@@ -475,7 +475,7 @@ func (es *eventStream) Start(ctx context.Context) error {
 		eventLoopDone:     make(chan struct{}),
 		batchLoopDone:     make(chan struct{}),
 		blockListenerDone: make(chan struct{}),
-		updates:           make(chan *ffcapi.ListenerUpdate, int(*es.spec.BatchSize)),
+		updates:           make(chan *ffcapi.ListenerEvent, int(*es.spec.BatchSize)),
 		blocks:            make(chan *ffcapi.BlockHashEvent), // we promise to consume immediately
 	}
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
@@ -584,42 +584,68 @@ func (es *eventStream) Delete(ctx context.Context) error {
 	return es.checkSetStatus(ctx, apitypes.EventStreamStatusStopped, apitypes.EventStreamStatusDeleted)
 }
 
+func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.ListenerEvent) {
+	event := fev.Event
+	if event == nil || event.ListenerID == nil || fev.Checkpoint == nil {
+		log.L(ctx).Warnf("Invalid event from connector: %+v", fev)
+		return
+	}
+	es.mux.Lock()
+	l := es.listeners[*fev.Event.ListenerID]
+	es.mux.Unlock()
+	if l != nil {
+		log.L(ctx).Debugf("%s event detected: %s", l.spec.ID, event)
+		if es.confirmations == nil {
+			// Updates that are just a checkpoint update, go straight to the batch loop.
+			// Or if the confirmation manager is disabled.
+			// - Note this will block the eventLoop when the event stream is blocked
+			es.batchChannel <- fev
+		} else {
+			// Notify will block, when the confirmation manager is blocked, which per below
+			// will flow back from when the event stream is blocked
+			err := es.confirmations.Notify(&confirmations.Notification{
+				NotificationType: confirmations.NewEventLog,
+				Event: &confirmations.EventInfo{
+					EventID: event.EventID,
+					Confirmed: func(confirmations []confirmations.BlockInfo) {
+						// Push it to the batch when confirmed
+						// - Note this will block the confirmation manager when the event stream is blocked
+						es.batchChannel <- fev
+					},
+				},
+			})
+			if err != nil {
+				log.L(ctx).Warnf("Failed to notify confirmation manager for event '%s': %s", event, err)
+			}
+		}
+	}
+}
+
+func (es *eventStream) processRemovedEvent(ctx context.Context, fev *ffcapi.ListenerEvent) {
+	if fev.Event != nil && fev.Event.ListenerID != nil && es.confirmations != nil {
+		err := es.confirmations.Notify(&confirmations.Notification{
+			NotificationType: confirmations.RemovedEventLog,
+			Event: &confirmations.EventInfo{
+				EventID: fev.Event.EventID,
+			},
+		})
+		if err != nil {
+			log.L(ctx).Warnf("Failed to notify confirmation manager for removed event '%s': %s", fev.Event, err)
+		}
+	}
+}
+
 func (es *eventStream) eventLoop(startedState *startedStreamState) {
 	defer close(startedState.eventLoopDone)
 	ctx := startedState.ctx
 
 	for {
 		select {
-		case update := <-startedState.updates:
-			event := update.Event
-			es.mux.Lock()
-			l := es.listeners[*update.ListenerID]
-			es.mux.Unlock()
-			if l != nil {
-				log.L(es.bgCtx).Debugf("%s event detected: %s", update.ListenerID, update.Event)
-				if event == nil || es.confirmations == nil {
-					// Updates that are just a checkpoint update, go straight to the batch loop.
-					// Or if the confirmation manager is disabled.
-					// - Note this will block the eventLoop when the event stream is blocked
-					es.batchChannel <- update
-				} else {
-					// Notify will block, when the confirmation manager is blocked, which per below
-					// will flow back from when the event stream is blocked
-					err := es.confirmations.Notify(&confirmations.Notification{
-						NotificationType: confirmations.NewEventLog,
-						Event: &confirmations.EventInfo{
-							EventID: event.EventID,
-							Confirmed: func(confirmations []confirmations.BlockInfo) {
-								// Push it to the batch when confirmed
-								// - Note this will block the confirmation manager when the event stream is blocked
-								es.batchChannel <- update
-							},
-						},
-					})
-					if err != nil {
-						log.L(es.bgCtx).Warnf("Failed to notify confirmation manager for event '%s': %s", update.Event, err)
-					}
-				}
+		case lev := <-startedState.updates:
+			if lev.Removed {
+				es.processRemovedEvent(ctx, lev)
+			} else {
+				es.processNewEvent(ctx, lev)
 			}
 		case <-ctx.Done():
 			log.L(ctx).Debugf("Event loop exiting")
@@ -647,7 +673,7 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 			timeoutContext = ctx
 		}
 		select {
-		case update := <-es.batchChannel:
+		case fev := <-es.batchChannel:
 			if batch == nil {
 				batchNumber++
 				batch = &eventStreamBatch{
@@ -656,19 +682,18 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 				}
 				batch.timeoutContext, batch.timeoutCancel = context.WithTimeout(ctx, batchTimeout)
 			}
-			if update.Checkpoint != nil {
-				batch.checkpoints[*update.ListenerID] = update.Checkpoint
+			if fev.Checkpoint != nil {
+				batch.checkpoints[*fev.Event.ListenerID] = fev.Checkpoint
 			}
-			if update.Event != nil {
+			if fev.Event != nil {
 				es.mux.Lock()
-				l := es.listeners[*update.ListenerID]
+				l := es.listeners[*fev.Event.ListenerID]
 				es.mux.Unlock()
 				if l != nil {
-					log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.Signature, update.Event)
+					log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.Signature, fev.Event)
 					batch.events = append(batch.events, &ffcapi.EventWithContext{
-						StreamID:   es.spec.ID,
-						ListenerID: update.ListenerID,
-						Event:      *update.Event,
+						StreamID: es.spec.ID,
+						Event:    *fev.Event,
 					})
 				}
 			}

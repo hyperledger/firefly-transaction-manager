@@ -48,6 +48,7 @@
     "Kaleido",
     "leveldb",
     "loadbalanced",
+    "logrus",
     "mtxs",
     "NATS",
     "Nowarn",

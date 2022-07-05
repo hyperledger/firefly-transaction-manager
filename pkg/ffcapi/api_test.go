@@ -41,7 +41,7 @@ func TestSortEvents(t *testing.T) {
 				LogIndex:         l.Uint64(),
 			},
 		}
-		listenerUpdates[i] = &ListenerUpdate{
+		listenerUpdates[i] = &ListenerEvent{
 			Event: events[i],
 		}
 	}

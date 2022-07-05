@@ -51,6 +51,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
 		EventID: ffcapi.EventID{
+			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 			BlockNumber:      1001,
@@ -79,10 +80,11 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == block1003.BlockHash
 	})).Run(func(args mock.Arguments) {
-		bcm.Notify(&Notification{
+		err := bcm.Notify(&Notification{
 			NotificationType: NewEventLog,
 			Event:            eventToConfirm,
 		})
+		assert.NoError(t, err)
 	}).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1003.BlockNumber)),
@@ -160,6 +162,7 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
 		EventID: ffcapi.EventID{
+			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 			BlockNumber:      1001,
@@ -204,10 +207,11 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 		return r.BlockHash == block1003a.BlockHash
 	})).Run(func(args mock.Arguments) {
 		// Notify of event after we've downloaded the 1002/1003a
-		bcm.Notify(&Notification{
+		err := bcm.Notify(&Notification{
 			NotificationType: NewEventLog,
 			Event:            eventToConfirm,
 		})
+		assert.NoError(t, err)
 	}).Return(&ffcapi.BlockInfoByHashResponse{
 		BlockInfo: ffcapi.BlockInfo{
 			BlockNumber: fftypes.NewFFBigInt(int64(block1003a.BlockNumber)),
@@ -303,10 +307,11 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		ParentHash:  "0xea681fadcf56ee6254a0d30b255c56636ee9199c73c45f0dd5823759b2ad1ef8",
 	}
 	// We start with a notification for this one
-	bcm.Notify(&Notification{
+	err := bcm.Notify(&Notification{
 		NotificationType: NewTransaction,
 		Transaction:      txToConfirmForkA,
 	})
+	assert.NoError(t, err)
 
 	block1001b := &BlockInfo{
 		BlockNumber:       1001,
@@ -458,6 +463,7 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
 		EventID: ffcapi.EventID{
+			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 			BlockNumber:      1001,
@@ -513,10 +519,11 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	bcm.Notify(&Notification{
+	err := bcm.Notify(&Notification{
 		NotificationType: NewEventLog,
 		Event:            eventToConfirm,
 	})
+	assert.NoError(t, err)
 
 	bcm.Start()
 
@@ -555,16 +562,18 @@ func TestConfirmationsListenerFailWalkingChain(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 	bcm.done = make(chan struct{})
 
-	bcm.Notify(&Notification{
+	err := bcm.Notify(&Notification{
 		NotificationType: NewEventLog,
 		Event: &EventInfo{
 			EventID: ffcapi.EventID{
+				ListenerID:      fftypes.NewUUID(),
 				TransactionHash: "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:       "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 				BlockNumber:     1001,
 			},
 		},
 	})
+	assert.NoError(t, err)
 
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
@@ -585,6 +594,7 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
 		EventID: ffcapi.EventID{
+			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 			BlockNumber:      1001,
@@ -595,10 +605,11 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 			confirmed <- confirmations
 		},
 	}
-	bcm.Notify(&Notification{
+	err := bcm.Notify(&Notification{
 		NotificationType: NewEventLog,
 		Event:            eventToConfirm,
 	})
+	assert.NoError(t, err)
 
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
@@ -611,6 +622,47 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 	mca.AssertExpectations(t)
 }
 
+func TestConfirmationsListenerRemoved(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm.done = make(chan struct{})
+
+	lid := fftypes.NewUUID()
+	n := &Notification{
+		Event: &EventInfo{
+			EventID: ffcapi.EventID{
+				ListenerID:       lid,
+				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+				BlockNumber:      1001,
+				TransactionIndex: 5,
+				LogIndex:         10,
+			},
+		},
+	}
+	bcm.addOrReplaceItem(n.eventPendingItem())
+	completed := make(chan struct{})
+	err := bcm.Notify(&Notification{
+		NotificationType: ListenerRemoved,
+		RemovedListener: &RemovedListenerInfo{
+			ListenerID: lid,
+			Completed:  completed,
+		},
+	})
+	assert.NoError(t, err)
+
+	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Maybe()
+	mca.On("GetBlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Maybe()
+
+	bcm.Start()
+
+	<-completed
+	assert.Empty(t, bcm.pending)
+
+	bcm.Stop()
+	mca.AssertExpectations(t)
+}
+
 func TestConfirmationsRemoveEvent(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
@@ -618,6 +670,7 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 
 	eventInfo := &EventInfo{
 		EventID: ffcapi.EventID{
+			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 			BlockNumber:      1001,
@@ -628,10 +681,11 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 	bcm.addOrReplaceItem((&Notification{
 		Event: eventInfo,
 	}).eventPendingItem())
-	bcm.Notify(&Notification{
+	err := bcm.Notify(&Notification{
 		NotificationType: RemovedEventLog,
 		Event:            eventInfo,
 	})
+	assert.NoError(t, err)
 
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 1002
@@ -655,6 +709,7 @@ func TestConfirmationsFailWalkChainAfterBlockGap(t *testing.T) {
 		NotificationType: NewEventLog,
 		Event: &EventInfo{
 			EventID: ffcapi.EventID{
+				ListenerID:       fftypes.NewUUID(),
 				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 				BlockNumber:      1001,
@@ -663,7 +718,8 @@ func TestConfirmationsFailWalkChainAfterBlockGap(t *testing.T) {
 			},
 		},
 	}
-	bcm.Notify(eventNotification)
+	err := bcm.Notify(eventNotification)
+	assert.NoError(t, err)
 
 	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Run(func(args mock.Arguments) {
 		bcm.NewBlockHashes() <- &ffcapi.BlockHashEvent{
@@ -695,6 +751,7 @@ func TestConfirmationsRemoveTransaction(t *testing.T) {
 		NotificationType: NewEventLog,
 		Event: &EventInfo{
 			EventID: ffcapi.EventID{
+				ListenerID:       fftypes.NewUUID(),
 				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 				BlockNumber:      1001,
@@ -708,12 +765,14 @@ func TestConfirmationsRemoveTransaction(t *testing.T) {
 	}).transactionPendingItem())
 	go func() {
 		// The notification we want to test
-		bcm.Notify(&Notification{
+		err := bcm.Notify(&Notification{
 			NotificationType: RemovedTransaction,
 			Transaction:      txInfo,
 		})
+		assert.NoError(t, err)
 		// Another notification that causes BlockInfoByNumber, so we can break the loop
-		bcm.Notify(eventNotification)
+		err = bcm.Notify(eventNotification)
+		assert.NoError(t, err)
 	}()
 
 	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Run(func(args mock.Arguments) {
@@ -735,6 +794,7 @@ func TestWalkChainForEventBlockNotInConfirmationChain(t *testing.T) {
 	pending := (&Notification{
 		Event: &EventInfo{
 			EventID: ffcapi.EventID{
+				ListenerID:       fftypes.NewUUID(),
 				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 				BlockNumber:      1001,
@@ -767,6 +827,7 @@ func TestWalkChainForEventBlockLookupFail(t *testing.T) {
 	pending := (&Notification{
 		Event: &EventInfo{
 			EventID: ffcapi.EventID{
+				ListenerID:       fftypes.NewUUID(),
 				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
 				BlockNumber:      1001,
@@ -847,6 +908,11 @@ func TestNotificationValidation(t *testing.T) {
 
 	err = bcm.Notify(&Notification{
 		NotificationType: NewEventLog,
+	})
+	assert.Regexp(t, "FF21016", err)
+
+	err = bcm.Notify(&Notification{
+		NotificationType: ListenerRemoved,
 	})
 	assert.Regexp(t, "FF21016", err)
 

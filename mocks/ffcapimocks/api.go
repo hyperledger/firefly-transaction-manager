@@ -104,6 +104,36 @@ func (_m *API) EventListenerAdd(ctx context.Context, req *ffcapi.EventListenerAd
 	return r0, r1, r2
 }
 
+// EventListenerHWM provides a mock function with given fields: ctx, req
+func (_m *API) EventListenerHWM(ctx context.Context, req *ffcapi.EventListenerHWMRequest) (*ffcapi.EventListenerHWMResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx, req)
+
+	var r0 *ffcapi.EventListenerHWMResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.EventListenerHWMRequest) *ffcapi.EventListenerHWMResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.EventListenerHWMResponse)
+		}
+	}
+
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.EventListenerHWMRequest) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.EventListenerHWMRequest) error); ok {
+		r2 = rf(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // EventListenerRemove provides a mock function with given fields: ctx, req
 func (_m *API) EventListenerRemove(ctx context.Context, req *ffcapi.EventListenerRemoveRequest) (*ffcapi.EventListenerRemoveResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)

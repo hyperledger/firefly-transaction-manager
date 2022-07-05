@@ -47,12 +47,14 @@ const (
 	RemovedEventLog
 	NewTransaction
 	RemovedTransaction
+	ListenerRemoved
 )
 
 type Notification struct {
 	NotificationType NotificationType
 	Event            *EventInfo
 	Transaction      *TransactionInfo
+	RemovedListener  *RemovedListenerInfo
 }
 
 type EventInfo struct {
@@ -66,9 +68,9 @@ type TransactionInfo struct {
 	Confirmed       func(confirmations []BlockInfo)
 }
 
-type StoppedStreamInfo struct {
-	StreamID  string
-	Completed chan struct{}
+type RemovedListenerInfo struct {
+	ListenerID *fftypes.UUID
+	Completed  chan struct{}
 }
 
 type BlockInfo struct {
@@ -127,10 +129,11 @@ type pendingItem struct {
 	receiptCallback   func(receipt *ffcapi.TransactionReceiptResponse)
 	confirmedCallback func(confirmations []BlockInfo)
 	transactionHash   string
-	blockHash         string // can be notified of changes to this for receipts
-	blockNumber       uint64 // known at creation time for event logs
-	transactionIndex  uint64 // known at creation time for event logs
-	logIndex          uint64 // events only
+	blockHash         string        // can be notified of changes to this for receipts
+	blockNumber       uint64        // known at creation time for event logs
+	transactionIndex  uint64        // known at creation time for event logs
+	logIndex          uint64        // events only
+	listenerID        *fftypes.UUID // events only
 }
 
 func pendingKeyForTX(txHash string) string {
@@ -142,7 +145,7 @@ func (pi *pendingItem) getKey() string {
 	case pendingTypeEvent:
 		// For events they are identified by their hash, blockNumber, transactionIndex and logIndex
 		// If any of those change, it's a new new event - and as such we should get informed of it separately by the blockchain connector.
-		return fmt.Sprintf("Event:th=%s,bh=%s,bn=%d,ti=%d,li=%d", pi.transactionHash, pi.blockHash, pi.blockNumber, pi.transactionIndex, pi.logIndex)
+		return fmt.Sprintf("Event:l=%s,th=%s,bh=%s,bn=%d,ti=%d,li=%d", pi.listenerID, pi.transactionHash, pi.blockHash, pi.blockNumber, pi.transactionIndex, pi.logIndex)
 	case pendingTypeTransaction:
 		// For transactions, it's simply the transaction hash that identifies it. It can go into any block
 		return pendingKeyForTX(pi.transactionHash)
@@ -167,6 +170,7 @@ func (pi *pendingItem) copyConfirmations() []BlockInfo {
 func (n *Notification) eventPendingItem() *pendingItem {
 	return &pendingItem{
 		pType:             pendingTypeEvent,
+		listenerID:        n.Event.ListenerID,
 		blockNumber:       n.Event.BlockNumber,
 		blockHash:         n.Event.BlockHash,
 		transactionHash:   n.Event.TransactionHash,
@@ -223,11 +227,15 @@ func (bcm *blockConfirmationManager) NewBlockHashes() chan<- *ffcapi.BlockHashEv
 func (bcm *blockConfirmationManager) Notify(n *Notification) error {
 	switch n.NotificationType {
 	case NewEventLog, RemovedEventLog:
-		if n.Event == nil || n.Event.TransactionHash == "" || n.Event.BlockHash == "" {
+		if n.Event == nil || n.Event.ListenerID == nil || n.Event.TransactionHash == "" || n.Event.BlockHash == "" {
 			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
 		}
 	case NewTransaction, RemovedTransaction:
 		if n.Transaction == nil || n.Transaction.TransactionHash == "" {
+			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
+		}
+	case ListenerRemoved:
+		if n.RemovedListener == nil || n.RemovedListener.Completed == nil {
 			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
 		}
 	}
@@ -296,8 +304,13 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 			log.L(bcm.ctx).Debugf("Block confirmation listener stopping")
 			return
 		case notification := <-bcm.bcmNotifications:
-			// Defer until after we've got new logs
-			notifications = append(notifications, notification)
+			if notification.NotificationType == ListenerRemoved {
+				// Handle listener notifications immediately
+				bcm.listenerRemoved(notification)
+			} else {
+				// Defer until after we've got new logs
+				notifications = append(notifications, notification)
+			}
 		}
 
 		if bcm.blockListenerStale {
@@ -404,6 +417,16 @@ func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem) {
 	}
 	// No need to keep polling - either we now have a receipt, or normal block header monitoring will pick this one up
 	delete(bcm.staleReceipts, pending.getKey())
+}
+
+// listenerRemoved removes all pending work for a given listener, and notifies once done
+func (bcm *blockConfirmationManager) listenerRemoved(notification *Notification) {
+	for pendingKey, pending := range bcm.pending {
+		if notification.RemovedListener.ListenerID.Equals(pending.listenerID) {
+			delete(bcm.pending, pendingKey)
+		}
+	}
+	close(notification.RemovedListener.Completed)
 }
 
 // addEvent is called by the goroutine on receipt of a new event/transaction notification
