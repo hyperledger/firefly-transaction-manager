@@ -99,16 +99,25 @@ func (eid *EventID) ProtocolID() string {
 	return fmt.Sprintf("%.12d/%.6d/%.6d", eid.BlockNumber, eid.TransactionIndex, eid.LogIndex)
 }
 
-// Events array has a natural sort order of the protocol ID
+// Events array has a natural sort order of the block/txIndex/logIndex
 type Events []*Event
 
-func (es Events) Len() int      { return len(es) }
-func (es Events) Swap(i, j int) { es[i], es[j] = es[j], es[i] }
-func (es Events) Less(i, j int) bool {
-	return es[i].BlockNumber < es[j].BlockNumber ||
-		((es[i].BlockNumber == es[j].BlockNumber) &&
-			((es[i].TransactionIndex < es[j].TransactionIndex) ||
-				((es[i].TransactionIndex == es[j].TransactionIndex) && (es[i].LogIndex < es[j].LogIndex))))
+func (es Events) Len() int           { return len(es) }
+func (es Events) Swap(i, j int)      { es[i], es[j] = es[j], es[i] }
+func (es Events) Less(i, j int) bool { return evLess(es[i], es[j]) }
+
+// ListenerUpdates array has a natural sort order of the event
+type ListenerUpdates []*ListenerUpdate
+
+func (lu ListenerUpdates) Len() int           { return len(lu) }
+func (lu ListenerUpdates) Swap(i, j int)      { lu[i], lu[j] = lu[j], lu[i] }
+func (lu ListenerUpdates) Less(i, j int) bool { return evLess(lu[i].Event, lu[j].Event) }
+
+func evLess(eI *Event, eJ *Event) bool {
+	return eI.BlockNumber < eJ.BlockNumber ||
+		((eI.BlockNumber == eJ.BlockNumber) &&
+			((eI.TransactionIndex < eJ.TransactionIndex) ||
+				((eI.TransactionIndex == eJ.TransactionIndex) && (eI.LogIndex < eJ.LogIndex))))
 }
 
 type EventWithContext struct {

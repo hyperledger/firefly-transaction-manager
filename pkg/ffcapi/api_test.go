@@ -29,6 +29,7 @@ import (
 func TestSortEvents(t *testing.T) {
 
 	events := make(Events, 10000)
+	listenerUpdates := make(ListenerUpdates, len(events))
 	for i := 0; i < 10000; i++ {
 		b, _ := rand.Int(rand.Reader, big.NewInt(1000))
 		t, _ := rand.Int(rand.Reader, big.NewInt(10))
@@ -40,11 +41,16 @@ func TestSortEvents(t *testing.T) {
 				LogIndex:         l.Uint64(),
 			},
 		}
+		listenerUpdates[i] = &ListenerUpdate{
+			Event: events[i],
+		}
 	}
 	sort.Sort(events)
+	sort.Sort(listenerUpdates)
 
 	for i := 1; i < len(events); i++ {
 		assert.LessOrEqual(t, strings.Compare(events[i-1].ProtocolID(), events[i].ProtocolID()), 0)
 		assert.LessOrEqual(t, strings.Compare(events[i-1].String(), events[i].String()), 0)
+		assert.LessOrEqual(t, strings.Compare(listenerUpdates[i-1].Event.ProtocolID(), listenerUpdates[i].Event.ProtocolID()), 0)
 	}
 }
