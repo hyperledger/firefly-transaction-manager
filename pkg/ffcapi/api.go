@@ -110,12 +110,12 @@ func (es Events) Len() int           { return len(es) }
 func (es Events) Swap(i, j int)      { es[i], es[j] = es[j], es[i] }
 func (es Events) Less(i, j int) bool { return evLess(es[i], es[j]) }
 
-// ListenerUpdates array has a natural sort order of the event
-type ListenerUpdates []*ListenerEvent
+// ListenerEvents array has a natural sort order of the event
+type ListenerEvents []*ListenerEvent
 
-func (lu ListenerUpdates) Len() int           { return len(lu) }
-func (lu ListenerUpdates) Swap(i, j int)      { lu[i], lu[j] = lu[j], lu[i] }
-func (lu ListenerUpdates) Less(i, j int) bool { return evLess(lu[i].Event, lu[j].Event) }
+func (lu ListenerEvents) Len() int           { return len(lu) }
+func (lu ListenerEvents) Swap(i, j int)      { lu[i], lu[j] = lu[j], lu[i] }
+func (lu ListenerEvents) Less(i, j int) bool { return evLess(lu[i].Event, lu[j].Event) }
 
 func evLess(eI *Event, eJ *Event) bool {
 	return eI.BlockNumber < eJ.BlockNumber ||
