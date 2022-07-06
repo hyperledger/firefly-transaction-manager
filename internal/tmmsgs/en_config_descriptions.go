@@ -74,6 +74,7 @@ var (
 	ConfigEventStreamsDefaultsBlockedRetryDelay         = ffc("config.eventstreams.defaults.blockedRetryDelay", "Default blocked retry delay for newly created event streams", i18n.TimeDurationType)
 	ConfigEventStreamsDefaultsWebhookRequestTimeout     = ffc("config.eventstreams.defaults.webhookRequestTimeout", "Default WebHook request timeout for newly created event streams", i18n.TimeDurationType)
 	ConfigEventStreamsDefaultsWebsocketDistributionMode = ffc("config.eventstreams.defaults.websocketDistributionMode", "Default WebSocket distribution mode for newly created event streams", "'load_balance' or 'broadcast'")
+	ConfigEventStreamsCheckpointInterval                = ffc("config.eventstreams.checkpointInterval", "Regular interval to write checkpoints for an event stream listener that is not actively detecting/delivering events", i18n.TimeDurationType)
 	ConfigEventStreamsRetryInitDelay                    = ffc("config.eventstreams.retry.initialDelay", "Initial retry delay", i18n.TimeDurationType)
 	ConfigEventStreamsRetryMaxDelay                     = ffc("config.eventstreams.retry.maxDelay", "Maximum delay between retries", i18n.TimeDurationType)
 	ConfigEventStreamsRetryFactor                       = ffc("config.eventstreams.retry.factor", "Factor to increase the delay by, between each retry", i18n.FloatType)

@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
@@ -38,6 +39,7 @@ type Manager interface {
 	Start()
 	Stop()
 	NewBlockHashes() chan<- *ffcapi.BlockHashEvent
+	CheckInFlight(listenerID *fftypes.UUID) bool
 }
 
 type NotificationType int
@@ -92,6 +94,7 @@ type blockConfirmationManager struct {
 	bcmNotifications      chan *Notification
 	highestBlockSeen      uint64
 	pending               map[string]*pendingItem
+	pendingMux            sync.Mutex
 	staleReceipts         map[string]bool
 	done                  chan struct{}
 }
@@ -246,6 +249,17 @@ func (bcm *blockConfirmationManager) Notify(n *Notification) error {
 		return nil
 	}
 	return nil
+}
+
+func (bcm *blockConfirmationManager) CheckInFlight(listenerID *fftypes.UUID) bool {
+	bcm.pendingMux.Lock()
+	defer bcm.pendingMux.Unlock()
+	for _, p := range bcm.pending {
+		if listenerID.Equals(p.listenerID) {
+			return true
+		}
+	}
+	return false
 }
 
 func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*BlockInfo, error) {
@@ -421,6 +435,8 @@ func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem) {
 
 // listenerRemoved removes all pending work for a given listener, and notifies once done
 func (bcm *blockConfirmationManager) listenerRemoved(notification *Notification) {
+	bcm.pendingMux.Lock()
+	defer bcm.pendingMux.Unlock()
 	for pendingKey, pending := range bcm.pending {
 		if notification.RemovedListener.ListenerID.Equals(pending.listenerID) {
 			delete(bcm.pending, pendingKey)
@@ -431,6 +447,8 @@ func (bcm *blockConfirmationManager) listenerRemoved(notification *Notification)
 
 // addEvent is called by the goroutine on receipt of a new event/transaction notification
 func (bcm *blockConfirmationManager) addOrReplaceItem(pending *pendingItem) {
+	bcm.pendingMux.Lock()
+	defer bcm.pendingMux.Unlock()
 	pending.added = time.Now()
 	pending.confirmations = make([]*BlockInfo, 0, bcm.requiredConfirmations)
 	pendingKey := pending.getKey()
@@ -440,6 +458,8 @@ func (bcm *blockConfirmationManager) addOrReplaceItem(pending *pendingItem) {
 
 // removeEvent is called by the goroutine on receipt of a remove event notification
 func (bcm *blockConfirmationManager) removeItem(pending *pendingItem) {
+	bcm.pendingMux.Lock()
+	defer bcm.pendingMux.Unlock()
 	pendingKey := pending.getKey()
 	log.L(bcm.ctx).Infof("Removing stale item %s", pendingKey)
 	delete(bcm.pending, pendingKey)
@@ -473,6 +493,7 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 
 	// For any transactions in the block that are known to us, we need to mark them
 	// stale to go query the receipt
+	bcm.pendingMux.Lock()
 	for _, txHash := range block.TransactionHashes {
 		txKey := pendingKeyForTX(txHash)
 		if pending, ok := bcm.pending[txKey]; ok {
@@ -482,6 +503,7 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 			}
 		}
 	}
+	bcm.pendingMux.Unlock()
 
 	// Go through all the events, adding in the confirmations, and popping any out
 	// that have reached their threshold. Then drop the log before logging/processing them.
@@ -507,7 +529,9 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 				expectedBlockNumber++
 			}
 			if len(pending.confirmations) >= bcm.requiredConfirmations {
+				bcm.pendingMux.Lock()
 				delete(bcm.pending, pendingKey)
+				bcm.pendingMux.Unlock()
 				confirmed = append(confirmed, pending)
 			}
 
@@ -535,10 +559,12 @@ func (bcm *blockConfirmationManager) dispatchConfirmed(item *pendingItem) {
 func (bcm *blockConfirmationManager) walkChain() error {
 
 	// Grab a copy of all the pending in order
+	bcm.pendingMux.Lock()
 	pendingItems := make(pendingItems, 0, len(bcm.pending))
 	for _, pending := range bcm.pending {
 		pendingItems = append(pendingItems, pending)
 	}
+	bcm.pendingMux.Unlock()
 	sort.Sort(pendingItems)
 
 	// Go through them in order - using the cache for efficiency

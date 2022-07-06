@@ -1428,3 +1428,123 @@ func TestEventLoopIgnoreBadEvent(t *testing.T) {
 
 	es.processNewEvent(context.Background(), &ffcapi.ListenerEvent{})
 }
+
+func TestHWMCheckpointAfterInactivity(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	ss := &startedStreamState{
+		updates:       make(chan *ffcapi.ListenerEvent, 1),
+		batchLoopDone: make(chan struct{}),
+	}
+	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
+
+	li := &listener{
+		spec: &apitypes.Listener{ID: fftypes.NewUUID()},
+	}
+
+	mcm := &confirmationsmocks.Manager{}
+	mcm.On("CheckInFlight", li.spec.ID).Return(false)
+	es.confirmations = mcm
+	es.listeners[*li.spec.ID] = li
+
+	mfc := es.connector.(*ffcapimocks.API)
+	mfc.On("EventListenerHWM", mock.Anything, mock.MatchedBy(func(req *ffcapi.EventListenerHWMRequest) bool {
+		return req.ID.Equals(li.spec.ID)
+	})).Run(func(args mock.Arguments) {
+		ss.cancelCtx()
+	}).Return(&ffcapi.EventListenerHWMResponse{Checkpoint: *fftypes.JSONAnyPtr(`{"cp1data":"stuff"}`)}, ffcapi.ErrorReason(""), nil)
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID].JSONObject().GetString("cp1data") == "stuff"
+	})).Return(nil)
+
+	es.checkpointInterval = 1 * time.Microsecond
+
+	es.batchLoop(ss)
+
+	mfc.AssertExpectations(t)
+	msp.AssertExpectations(t)
+	mcm.AssertExpectations(t)
+}
+
+func TestHWMCheckpointInFlightSkip(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	ss := &startedStreamState{
+		updates:       make(chan *ffcapi.ListenerEvent, 1),
+		batchLoopDone: make(chan struct{}),
+	}
+	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
+
+	li := &listener{
+		spec: &apitypes.Listener{ID: fftypes.NewUUID()},
+	}
+
+	mcm := &confirmationsmocks.Manager{}
+	mcm.On("CheckInFlight", li.spec.ID).Run(func(args mock.Arguments) {
+		ss.cancelCtx()
+	}).Return(true)
+	es.confirmations = mcm
+	es.listeners[*li.spec.ID] = li
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID] == nil
+	})).Return(nil)
+
+	es.checkpointInterval = 1 * time.Microsecond
+
+	es.batchLoop(ss)
+
+	msp.AssertExpectations(t)
+	mcm.AssertExpectations(t)
+}
+
+func TestHWMCheckpointFail(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	ss := &startedStreamState{
+		updates:       make(chan *ffcapi.ListenerEvent, 1),
+		batchLoopDone: make(chan struct{}),
+	}
+	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
+
+	li := &listener{
+		spec: &apitypes.Listener{ID: fftypes.NewUUID()},
+	}
+
+	mcm := &confirmationsmocks.Manager{}
+	mcm.On("CheckInFlight", li.spec.ID).Return(false)
+	es.confirmations = mcm
+	es.listeners[*li.spec.ID] = li
+
+	mfc := es.connector.(*ffcapimocks.API)
+	mfc.On("EventListenerHWM", mock.Anything, mock.MatchedBy(func(req *ffcapi.EventListenerHWMRequest) bool {
+		return req.ID.Equals(li.spec.ID)
+	})).Run(func(args mock.Arguments) {
+		ss.cancelCtx()
+	}).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID] == nil
+	})).Return(nil)
+
+	es.checkpointInterval = 1 * time.Microsecond
+
+	es.batchLoop(ss)
+
+	mfc.AssertExpectations(t)
+	msp.AssertExpectations(t)
+	mcm.AssertExpectations(t)
+}

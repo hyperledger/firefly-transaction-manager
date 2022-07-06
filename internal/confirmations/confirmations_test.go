@@ -697,6 +697,7 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 	<-bcm.done
 
 	assert.Empty(t, bcm.pending)
+	assert.False(t, bcm.CheckInFlight(eventInfo.ListenerID))
 	mca.AssertExpectations(t)
 }
 
@@ -735,6 +736,7 @@ func TestConfirmationsFailWalkChainAfterBlockGap(t *testing.T) {
 	<-bcm.done
 
 	assert.Len(t, bcm.pending, 1)
+	assert.True(t, bcm.CheckInFlight(eventNotification.Event.ListenerID))
 	assert.NotNil(t, eventNotification.eventPendingItem().getKey()) // should be the event in there, the TX should be removed
 	mca.AssertExpectations(t)
 }

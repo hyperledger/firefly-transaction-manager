@@ -48,6 +48,7 @@ var (
 	EventStreamsDefaultsBlockedRetryDelay         = ffc("eventstreams.defaults.blockedRetryDelay")
 	EventStreamsDefaultsWebhookRequestTimeout     = ffc("eventstreams.defaults.webhookRequestTimeout")
 	EventStreamsDefaultsWebsocketDistributionMode = ffc("eventstreams.defaults.websocketDistributionMode")
+	EventStreamsCheckpointInterval                = ffc("eventstreams.checkpointInterval")
 	EventStreamsRetryInitDelay                    = ffc("eventstreams.retry.initialDelay")
 	EventStreamsRetryMaxDelay                     = ffc("eventstreams.retry.maxDelay")
 	EventStreamsRetryFactor                       = ffc("eventstreams.retry.factor")
@@ -94,6 +95,7 @@ func setDefaults() {
 	viper.SetDefault(string(EventStreamsDefaultsBlockedRetryDelay), "30s")
 	viper.SetDefault(string(EventStreamsDefaultsWebhookRequestTimeout), "30s")
 	viper.SetDefault(string(EventStreamsDefaultsWebsocketDistributionMode), "load_balance")
+	viper.SetDefault(string(EventStreamsCheckpointInterval), "1m")
 	viper.SetDefault(string(WebhooksAllowPrivateIPs), true)
 
 	viper.SetDefault(string(PersistenceType), "leveldb")

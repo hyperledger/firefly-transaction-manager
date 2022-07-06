@@ -61,6 +61,12 @@ nav_order: 2
 |methods| CORS setting to control the allowed methods|`string`|`[GET POST PUT PATCH DELETE]`
 |origins|CORS setting to control the allowed origins|`string`|`[*]`
 
+## eventstreams
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|checkpointInterval|Regular interval to write checkpoints for an event stream listener that is not actively detecting/delivering events|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1m`
+
 ## eventstreams.defaults
 
 |Key|Description|Type|Default Value|

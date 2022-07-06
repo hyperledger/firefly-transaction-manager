@@ -23,9 +23,10 @@ import (
 )
 
 type listener struct {
-	es         *eventStream
-	spec       *apitypes.Listener
-	checkpoint *fftypes.JSONAny
+	es             *eventStream
+	spec           *apitypes.Listener
+	lastCheckpoint *fftypes.FFTime
+	checkpoint     *fftypes.JSONAny
 }
 
 func listenerSpecToOptions(spec *apitypes.Listener) ffcapi.EventListenerOptions {

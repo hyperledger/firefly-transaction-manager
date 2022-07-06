@@ -78,11 +78,10 @@ func InitDefaults() {
 type eventStreamAction func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error
 
 type eventStreamBatch struct {
-	number         int
-	events         []*ffcapi.EventWithContext
-	checkpoints    map[fftypes.UUID]*fftypes.JSONAny
-	timeoutContext context.Context
-	timeoutCancel  func()
+	number      int
+	events      []*ffcapi.EventWithContext
+	checkpoints map[fftypes.UUID]*fftypes.JSONAny
+	timeout     *time.Timer
 }
 
 type startedStreamState struct {
@@ -98,18 +97,19 @@ type startedStreamState struct {
 }
 
 type eventStream struct {
-	bgCtx         context.Context
-	spec          *apitypes.EventStream
-	mux           sync.Mutex
-	status        apitypes.EventStreamStatus
-	connector     ffcapi.API
-	persistence   persistence.Persistence
-	confirmations confirmations.Manager
-	listeners     map[fftypes.UUID]*listener
-	wsChannels    ws.WebSocketChannels
-	retry         *retry.Retry
-	currentState  *startedStreamState
-	batchChannel  chan *ffcapi.ListenerEvent
+	bgCtx              context.Context
+	spec               *apitypes.EventStream
+	mux                sync.Mutex
+	status             apitypes.EventStreamStatus
+	connector          ffcapi.API
+	persistence        persistence.Persistence
+	confirmations      confirmations.Manager
+	listeners          map[fftypes.UUID]*listener
+	wsChannels         ws.WebSocketChannels
+	retry              *retry.Retry
+	currentState       *startedStreamState
+	checkpointInterval time.Duration
+	batchChannel       chan *ffcapi.ListenerEvent
 }
 
 func NewEventStream(
@@ -122,14 +122,15 @@ func NewEventStream(
 ) (ees Stream, err error) {
 	esCtx := log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String())
 	es := &eventStream{
-		bgCtx:       esCtx,
-		status:      apitypes.EventStreamStatusStopped,
-		spec:        persistedSpec,
-		connector:   connector,
-		persistence: persistence,
-		listeners:   make(map[fftypes.UUID]*listener),
-		wsChannels:  wsChannels,
-		retry:       esDefaults.retry,
+		bgCtx:              esCtx,
+		status:             apitypes.EventStreamStatusStopped,
+		spec:               persistedSpec,
+		connector:          connector,
+		persistence:        persistence,
+		listeners:          make(map[fftypes.UUID]*listener),
+		wsChannels:         wsChannels,
+		retry:              esDefaults.retry,
+		checkpointInterval: config.GetDuration(tmconfig.EventStreamsCheckpointInterval),
 	}
 	if config.GetInt(tmconfig.ConfirmationsRequired) > 0 {
 		es.confirmations = confirmations.NewBlockConfirmationManager(esCtx, connector)
@@ -659,28 +660,30 @@ func (es *eventStream) eventLoop(startedState *startedStreamState) {
 func (es *eventStream) batchLoop(startedState *startedStreamState) {
 	defer close(startedState.batchLoopDone)
 	ctx := startedState.ctx
-	batchTimeout := time.Duration(*es.spec.BatchTimeout)
 	maxSize := int(*es.spec.BatchSize)
 	batchNumber := 0
 
 	var batch *eventStreamBatch
+	var checkpointTimer = time.NewTimer(es.checkpointInterval)
 	for {
-		var timeoutContext context.Context
-		var timedOut bool
+		var timeoutChannel <-chan time.Time
 		if batch != nil {
-			timeoutContext = batch.timeoutContext
+			// Once a batch has started, the batch timeout always takes precedence (even if it slows down the checkpoint slightly)
+			timeoutChannel = batch.timeout.C
 		} else {
-			timeoutContext = ctx
+			// If we don't have a batch in-flight, then the (longer) checkpoint timer is used
+			timeoutChannel = checkpointTimer.C
 		}
+		timedOut := false
 		select {
 		case fev := <-es.batchChannel:
 			if batch == nil {
 				batchNumber++
 				batch = &eventStreamBatch{
 					number:      batchNumber,
+					timeout:     time.NewTimer(time.Duration(*es.spec.BatchTimeout)),
 					checkpoints: make(map[fftypes.UUID]*fftypes.JSONAny),
 				}
-				batch.timeoutContext, batch.timeoutCancel = context.WithTimeout(ctx, batchTimeout)
 			}
 			if fev.Checkpoint != nil {
 				batch.checkpoints[*fev.Event.ListenerID] = fev.Checkpoint
@@ -697,20 +700,28 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 					})
 				}
 			}
-		case <-timeoutContext.Done():
-			if batch == nil {
-				// The started context exited, we are stopping
-				log.L(ctx).Debugf("Batch loop exiting")
-				return
-			}
-			// Otherwise we timed out
+		case <-timeoutChannel:
 			timedOut = true
+			if batch == nil {
+				checkpointTimer = time.NewTimer(es.checkpointInterval)
+			}
+		case <-ctx.Done():
+			// The started context exited, we are stopping
+			if checkpointTimer != nil {
+				checkpointTimer.Stop()
+			}
+			log.L(ctx).Debugf("Batch loop exiting")
+			return
 		}
 
-		if batch != nil && (timedOut || len(batch.events) >= maxSize) {
-			batch.timeoutCancel()
-			err := es.performActionsWithRetry(startedState, batch)
+		if timedOut || len(batch.events) >= maxSize {
+			var err error
+			if batch != nil {
+				batch.timeout.Stop()
+				err = es.performActionsWithRetry(startedState, batch)
+			}
 			if err == nil {
+				checkpointTimer = time.NewTimer(es.checkpointInterval) // Reset the checkpoint timeout
 				err = es.writeCheckpoint(startedState, batch)
 			}
 			if err != nil {
@@ -762,6 +773,40 @@ func (es *eventStream) performActionsWithRetry(startedState *startedStreamState,
 	}
 }
 
+func (es *eventStream) checkUpdateHWMCheckpoint(ctx context.Context, l *listener) *fftypes.JSONAny {
+
+	checkpoint := l.checkpoint
+
+	inFlight := false
+	if es.confirmations != nil {
+		inFlight = es.confirmations.CheckInFlight(l.spec.ID)
+	}
+
+	// If there's in-flight messages in the confirmation manager, we wait for these to be confirmed or purged before
+	// writing a checkpoint.
+	if inFlight {
+		log.L(ctx).Infof("Stale checkpoint for listener '%s' will not be updated as events are in-flight", l.spec.ID)
+	} else {
+		res, _, err := es.connector.EventListenerHWM(ctx, &ffcapi.EventListenerHWMRequest{
+			ID: l.spec.ID,
+		})
+		if err != nil {
+			log.L(ctx).Errorf("Failed to obtain high watermark checkpoint for listener '%s': %s", l.spec.ID, err)
+			return checkpoint
+		}
+		es.mux.Lock()
+		if l.checkpoint == checkpoint /* double check it hasn't changed */ {
+			checkpoint = &res.Checkpoint
+			l.checkpoint = checkpoint
+			l.lastCheckpoint = fftypes.Now()
+		}
+		es.mux.Unlock()
+	}
+
+	return checkpoint
+
+}
+
 func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *eventStreamBatch) (err error) {
 	// We update the checkpoints (under lock) for all listeners with events in this batch.
 	// The last event for any listener in the batch wins.
@@ -771,16 +816,28 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 		Time:      fftypes.Now(),
 		Listeners: make(map[fftypes.UUID]*fftypes.JSONAny),
 	}
-	for lID, lCP := range batch.checkpoints {
-		if l, ok := es.listeners[lID]; ok {
-			l.checkpoint = lCP
-			log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %s", l.spec.Signature, l.spec.ID, lCP)
+	if batch != nil {
+		for lID, lCP := range batch.checkpoints {
+			if l, ok := es.listeners[lID]; ok {
+				l.checkpoint = lCP
+				l.lastCheckpoint = fftypes.Now()
+				log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %s", l.spec.Signature, l.spec.ID, lCP)
+			}
 		}
 	}
+	staleCheckpoints := make([]*listener, 0)
 	for lID, l := range es.listeners {
 		cp.Listeners[lID] = l.checkpoint
+		if l.checkpoint == nil || l.lastCheckpoint == nil || time.Since(*l.lastCheckpoint.Time()) > es.checkpointInterval {
+			staleCheckpoints = append(staleCheckpoints, l)
+		}
 	}
 	es.mux.Unlock()
+
+	// Ask the connector for any updated high watermark checkpoints - checking we don't have any in-flight confirmations
+	for _, l := range staleCheckpoints {
+		cp.Listeners[*l.spec.ID] = es.checkUpdateHWMCheckpoint(startedState.ctx, l)
+	}
 
 	// We only return if the context is cancelled, or the checkpoint succeeds
 	return es.retry.Do(startedState.ctx, "checkpoint", func(attempt int) (retry bool, err error) {
