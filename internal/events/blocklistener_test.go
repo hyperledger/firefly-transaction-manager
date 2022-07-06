@@ -66,7 +66,13 @@ func TestBlockListenerDoesNotBlock(t *testing.T) {
 	ss.blocks <- &ffcapi.BlockHashEvent{}
 	ss.blocks <- &ffcapi.BlockHashEvent{}
 
-	// And check we can exit
+	// Unblock it again
+	bhe = <-blockIt
+
+	// Block it again
+	ss.blocks <- &ffcapi.BlockHashEvent{}
+
+	// And check we can exit while blocked
 	ss.cancelCtx()
 	wg.Wait()
 

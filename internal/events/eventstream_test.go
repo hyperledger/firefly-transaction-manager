@@ -1452,7 +1452,7 @@ func TestHWMCheckpointAfterInactivity(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 	mfc.On("EventListenerHWM", mock.Anything, mock.MatchedBy(func(req *ffcapi.EventListenerHWMRequest) bool {
-		return req.ID.Equals(li.spec.ID)
+		return req.StreamID.Equals(es.spec.ID) && req.ListenerID.Equals(li.spec.ID)
 	})).Run(func(args mock.Arguments) {
 		ss.cancelCtx()
 	}).Return(&ffcapi.EventListenerHWMResponse{Checkpoint: *fftypes.JSONAnyPtr(`{"cp1data":"stuff"}`)}, ffcapi.ErrorReason(""), nil)
@@ -1530,7 +1530,7 @@ func TestHWMCheckpointFail(t *testing.T) {
 
 	mfc := es.connector.(*ffcapimocks.API)
 	mfc.On("EventListenerHWM", mock.Anything, mock.MatchedBy(func(req *ffcapi.EventListenerHWMRequest) bool {
-		return req.ID.Equals(li.spec.ID)
+		return req.StreamID.Equals(es.spec.ID) && req.ListenerID.Equals(li.spec.ID)
 	})).Run(func(args mock.Arguments) {
 		ss.cancelCtx()
 	}).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))

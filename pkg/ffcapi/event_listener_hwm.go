@@ -21,7 +21,8 @@ import (
 )
 
 type EventListenerHWMRequest struct {
-	ID *fftypes.UUID `json:"uuid"`
+	StreamID   *fftypes.UUID `json:"streamId"`
+	ListenerID *fftypes.UUID `json:"listenerId"`
 }
 
 type EventListenerHWMResponse struct {

@@ -788,7 +788,8 @@ func (es *eventStream) checkUpdateHWMCheckpoint(ctx context.Context, l *listener
 		log.L(ctx).Infof("Stale checkpoint for listener '%s' will not be updated as events are in-flight", l.spec.ID)
 	} else {
 		res, _, err := es.connector.EventListenerHWM(ctx, &ffcapi.EventListenerHWMRequest{
-			ID: l.spec.ID,
+			StreamID:   es.spec.ID,
+			ListenerID: l.spec.ID,
 		})
 		if err != nil {
 			log.L(ctx).Errorf("Failed to obtain high watermark checkpoint for listener '%s': %s", l.spec.ID, err)
