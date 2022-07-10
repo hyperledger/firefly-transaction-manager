@@ -21,7 +21,8 @@ import (
 )
 
 type EventListenerRemoveRequest struct {
-	ID *fftypes.UUID `json:"uuid"`
+	StreamID   *fftypes.UUID `json:"streamId"`
+	ListenerID *fftypes.UUID `json:"listenerId"`
 }
 
 type EventListenerRemoveResponse struct {

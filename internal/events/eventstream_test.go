@@ -319,7 +319,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l.ID)
+		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
@@ -420,7 +420,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
-		return r.ID.Equals(l.ID)
+		return r.ListenerID.Equals(l.ID)
 	})).Run(func(args mock.Arguments) {
 		r := args[1].(*ffcapi.EventListenerAddRequest)
 		assert.JSONEq(t, `{"event":"definition1"}`, r.Filters[0].String())
@@ -432,7 +432,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 	}).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l.ID)
+		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
@@ -562,7 +562,7 @@ func TestUpdateStreamStarted(t *testing.T) {
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l.ID)
+		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
@@ -623,7 +623,7 @@ func TestAddRemoveListener(t *testing.T) {
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l.ID)
+		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
@@ -673,11 +673,11 @@ func TestUpdateListenerAndDeleteStarted(t *testing.T) {
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
 	mfc.On("EventListenerAdd", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerAddRequest) bool {
-		return r.ID.Equals(l1.ID)
+		return r.ListenerID.Equals(l1.ID)
 	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l1.ID)
+		return r.ListenerID.Equals(l1.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
 
 	msp := es.persistence.(*persistencemocks.Persistence)
@@ -745,7 +745,7 @@ func TestUpdateListenerFail(t *testing.T) {
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l1.ID)
+		return r.ListenerID.Equals(l1.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l1.ID, l1, false)
@@ -826,7 +826,7 @@ func TestUpdateStreamRestartFail(t *testing.T) {
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil).Once()
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l.ID)
+		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	err := es.Start(es.bgCtx)
@@ -879,7 +879,7 @@ func TestUpdateAttemptChangeSignature(t *testing.T) {
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l.ID)
+		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
@@ -953,7 +953,7 @@ func TestUpdateStreamStopFail(t *testing.T) {
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Twice()
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l.ID)
+		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
@@ -1007,7 +1007,7 @@ func TestResetListenerRestartFail(t *testing.T) {
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ID.Equals(l.ID)
+		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)

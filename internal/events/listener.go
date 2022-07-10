@@ -39,7 +39,8 @@ func listenerSpecToOptions(spec *apitypes.Listener) ffcapi.EventListenerOptions 
 
 func (l *listener) stop(startedState *startedStreamState) error {
 	_, _, err := l.es.connector.EventListenerRemove(startedState.ctx, &ffcapi.EventListenerRemoveRequest{
-		ID: l.spec.ID,
+		StreamID:   l.spec.StreamID,
+		ListenerID: l.spec.ID,
 	})
 	return err
 }
@@ -48,7 +49,7 @@ func (l *listener) buildAddRequest() *ffcapi.EventListenerAddRequest {
 	return &ffcapi.EventListenerAddRequest{
 		EventListenerOptions: listenerSpecToOptions(l.spec),
 		Name:                 *l.spec.Name,
-		ID:                   l.spec.ID,
+		ListenerID:           l.spec.ID,
 		StreamID:             l.spec.StreamID,
 	}
 }

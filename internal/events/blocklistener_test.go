@@ -65,6 +65,7 @@ func TestBlockListenerDoesNotBlock(t *testing.T) {
 	// Block it again
 	ss.blocks <- &ffcapi.BlockHashEvent{}
 	ss.blocks <- &ffcapi.BlockHashEvent{}
+	ss.blocks <- &ffcapi.BlockHashEvent{}
 
 	// Unblock it again
 	bhe = <-blockIt
