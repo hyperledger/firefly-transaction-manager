@@ -67,6 +67,9 @@ type API interface {
 
 	// EventListenerHWM queries the current high water mark checkpoint for a listener. Called at regular intervals when there are no events in flight for a listener, to ensure checkpoint are written regularly even when there is no activity
 	EventListenerHWM(ctx context.Context, req *EventListenerHWMRequest) (*EventListenerHWMResponse, ErrorReason, error)
+
+	// EventStreamNewCheckpointStruct used during checkpoint restore, to get the specific into which to restore the JSON bytes
+	EventStreamNewCheckpointStruct() EventListenerCheckpoint
 }
 
 type BlockHashEvent struct {

@@ -17,7 +17,11 @@
 package events
 
 import (
+	"context"
+	"encoding/json"
+
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
@@ -45,16 +49,29 @@ func (l *listener) stop(startedState *startedStreamState) error {
 	return err
 }
 
-func (l *listener) buildAddRequest() *ffcapi.EventListenerAddRequest {
-	return &ffcapi.EventListenerAddRequest{
+func (l *listener) buildAddRequest(ctx context.Context, cp *apitypes.EventStreamCheckpoint) *ffcapi.EventListenerAddRequest {
+	req := &ffcapi.EventListenerAddRequest{
 		EventListenerOptions: listenerSpecToOptions(l.spec),
 		Name:                 *l.spec.Name,
 		ListenerID:           l.spec.ID,
 		StreamID:             l.spec.StreamID,
 	}
+	if cp != nil {
+		jsonCP := cp.Listeners[*l.spec.ID]
+		if jsonCP != nil {
+			listenerCheckpoint := l.es.connector.EventStreamNewCheckpointStruct()
+			err := json.Unmarshal(jsonCP, &listenerCheckpoint)
+			if err != nil {
+				log.L(ctx).Errorf("Failed to restore checkpoint for listener '%s': %s", l.spec.ID, err)
+			} else {
+				req.Checkpoint = listenerCheckpoint
+			}
+		}
+	}
+	return req
 }
 
-func (l *listener) start(startedState *startedStreamState) error {
-	_, _, err := l.es.connector.EventListenerAdd(startedState.ctx, l.buildAddRequest())
+func (l *listener) start(startedState *startedStreamState, cp *apitypes.EventStreamCheckpoint) error {
+	_, _, err := l.es.connector.EventListenerAdd(startedState.ctx, l.buildAddRequest(startedState.ctx, cp))
 	return err
 }

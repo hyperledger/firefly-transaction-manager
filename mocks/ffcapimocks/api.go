@@ -194,6 +194,22 @@ func (_m *API) EventListenerVerifyOptions(ctx context.Context, req *ffcapi.Event
 	return r0, r1, r2
 }
 
+// EventStreamNewCheckpointStruct provides a mock function with given fields:
+func (_m *API) EventStreamNewCheckpointStruct() ffcapi.EventListenerCheckpoint {
+	ret := _m.Called()
+
+	var r0 ffcapi.EventListenerCheckpoint
+	if rf, ok := ret.Get(0).(func() ffcapi.EventListenerCheckpoint); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(ffcapi.EventListenerCheckpoint)
+		}
+	}
+
+	return r0
+}
+
 // EventStreamStart provides a mock function with given fields: ctx, req
 func (_m *API) EventStreamStart(ctx context.Context, req *ffcapi.EventStreamStartRequest) (*ffcapi.EventStreamStartResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)

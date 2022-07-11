@@ -18,6 +18,7 @@ package events
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -388,8 +389,8 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 			}
 		}
 	} else if new && startedState != nil {
-		// Start the new listener
-		return spec, l.start(startedState)
+		// Start the new listener - no checkpoint needed here
+		return spec, l.start(startedState, nil)
 	}
 	return spec, nil
 }
@@ -483,11 +484,16 @@ func (es *eventStream) Start(ctx context.Context) error {
 	es.currentState = startedState
 	es.initAction(startedState)
 
+	cp, err := es.persistence.GetCheckpoint(ctx, es.spec.ID)
+	if err != nil {
+		return err
+	}
+
 	initialListeners := make([]*ffcapi.EventListenerAddRequest, 0)
 	for _, l := range es.listeners {
-		initialListeners = append(initialListeners, l.buildAddRequest())
+		initialListeners = append(initialListeners, l.buildAddRequest(ctx, cp))
 	}
-	_, _, err := es.connector.EventStreamStart(startedState.ctx, &ffcapi.EventStreamStartRequest{
+	_, _, err = es.connector.EventStreamStart(startedState.ctx, &ffcapi.EventStreamStartRequest{
 		ID:               es.spec.ID,
 		EventStream:      startedState.updates,
 		StreamContext:    startedState.ctx,
@@ -828,7 +834,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	cp := &apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
 		Time:      fftypes.Now(),
-		Listeners: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
+		Listeners: make(map[fftypes.UUID]json.RawMessage),
 	}
 	if batch != nil {
 		for lID, lCP := range batch.checkpoints {
@@ -841,7 +847,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	}
 	staleCheckpoints := make([]*listener, 0)
 	for lID, l := range es.listeners {
-		cp.Listeners[lID] = l.checkpoint
+		cp.Listeners[lID], _ = json.Marshal(l.checkpoint)
 		if l.checkpoint == nil || l.lastCheckpoint == nil || time.Since(*l.lastCheckpoint.Time()) > es.checkpointInterval {
 			staleCheckpoints = append(staleCheckpoints, l)
 		}
@@ -850,7 +856,8 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 
 	// Ask the connector for any updated high watermark checkpoints - checking we don't have any in-flight confirmations
 	for _, l := range staleCheckpoints {
-		cp.Listeners[*l.spec.ID] = es.checkUpdateHWMCheckpoint(startedState.ctx, l)
+		cpb, _ := json.Marshal(es.checkUpdateHWMCheckpoint(startedState.ctx, l))
+		cp.Listeners[*l.spec.ID] = cpb
 	}
 
 	// We only return if the context is cancelled, or the checkpoint succeeds

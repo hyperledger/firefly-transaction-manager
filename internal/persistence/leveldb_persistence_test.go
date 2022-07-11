@@ -18,6 +18,7 @@ package persistence
 
 import (
 	"context"
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -305,8 +306,8 @@ func TestWriteCheckpointFail(t *testing.T) {
 
 	id1 := apitypes.UUIDVersion1()
 	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
-		Listeners: map[fftypes.UUID]ffcapi.EventListenerCheckpoint{
-			*id1: &badJSONCheckpointType{false: true},
+		Listeners: map[fftypes.UUID]json.RawMessage{
+			*id1: json.RawMessage([]byte(`{"bad": "json"!`)),
 		},
 	})
 	assert.Error(t, err)

@@ -243,6 +243,7 @@ func TestCreateRenameStreamNameReservation(t *testing.T) {
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(fmt.Errorf("temporary")).Once()
 	mp.On("DeleteCheckpoint", m.ctx, mock.Anything).Return(fmt.Errorf("temporary")).Once()
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
+	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
 	// Reject missing name
 	_, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{})
@@ -315,6 +316,7 @@ func TestCreateOrUpdateListenerFail(t *testing.T) {
 	mp, mfc, m := newMockPersistenceManager(t)
 
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
+	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
@@ -333,6 +335,7 @@ func TestCreateOrUpdateListenerWriteFail(t *testing.T) {
 
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 	mp.On("WriteListener", m.ctx, mock.Anything).Return(fmt.Errorf("pop"))
+	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
@@ -373,6 +376,7 @@ func TestDeleteListenerFail(t *testing.T) {
 
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 	mp.On("WriteListener", m.ctx, mock.Anything).Return(nil)
+	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
@@ -414,6 +418,7 @@ func TestUpdateStreamBadChanges(t *testing.T) {
 
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
+	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
 
@@ -429,6 +434,7 @@ func TestUpdateStreamWriteFail(t *testing.T) {
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil).Once()
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(fmt.Errorf("pop"))
+	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
 

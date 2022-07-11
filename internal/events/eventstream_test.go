@@ -17,6 +17,7 @@
 package events
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -43,7 +44,7 @@ import (
 func strPtr(s string) *string { return &s }
 
 type utCheckpointType struct {
-	SomeSequenceNumber int64 `json:"block"`
+	SomeSequenceNumber int64 `json:"someSequenceNumber"`
 }
 
 func (cp *utCheckpointType) LessThan(b ffcapi.EventListenerCheckpoint) bool {
@@ -73,6 +74,7 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 		&wsmocks.WebSocketChannels{},
 		listeners,
 	)
+	mfc.On("EventStreamNewCheckpointStruct").Return(&utCheckpointType{}).Maybe()
 	if err != nil {
 		return nil, err
 	}
@@ -325,6 +327,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 			"option1":"value1",
 			"option2":"value2"
 		}`, r.InitialListeners[0].Options.String())
+		assert.Equal(t, int64(12000), r.InitialListeners[0].Checkpoint.(*utCheckpointType).SomeSequenceNumber)
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
@@ -332,8 +335,15 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(&apitypes.EventStreamCheckpoint{
+		StreamID: es.spec.ID,
+		Time:     fftypes.Now(),
+		Listeners: map[fftypes.UUID]json.RawMessage{
+			*l.ID: []byte(`{"someSequenceNumber":12000}`),
+		},
+	}, nil) // existing checkpoint
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
-		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].(*utCheckpointType).SomeSequenceNumber == 12345
+		return cp.StreamID.Equals(es.spec.ID) && string(cp.Listeners[*l.ID]) == `{"someSequenceNumber":12345}`
 	})).Return(nil)
 
 	senderChannel, _, receiverChannel := mockWSChannels(es.wsChannels.(*wsmocks.WebSocketChannels))
@@ -375,6 +385,62 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	assert.NoError(t, err)
 
 	<-r.StreamContext.Done()
+
+	mfc.AssertExpectations(t)
+}
+
+func TestStartEventStreamCheckpointReadFail(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("pop"))
+
+	err := es.Start(es.bgCtx)
+	assert.Regexp(t, "pop", err)
+}
+
+func TestStartEventStreamCheckpointInvalid(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	l := &apitypes.Listener{
+		ID:        apitypes.UUIDVersion1(),
+		Name:      strPtr("ut_listener"),
+		Options:   fftypes.JSONAnyPtr(`{"option1":"value1"}`),
+		FromBlock: strPtr("12345"),
+	}
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(&apitypes.EventStreamCheckpoint{
+		StreamID: es.spec.ID,
+		Time:     fftypes.Now(),
+		Listeners: map[fftypes.UUID]json.RawMessage{
+			*l.ID: []byte(`{"bad": JSON!`),
+		},
+	}, nil)
+
+	mfc := es.connector.(*ffcapimocks.API)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{
+		ResolvedSignature: "EventSig(uint256)",
+		ResolvedOptions:   *fftypes.JSONAnyPtr(`{"option1":"value1","option2":"value2"}`),
+	}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStart", mock.Anything, mock.MatchedBy(func(req *ffcapi.EventStreamStartRequest) bool {
+		return req.InitialListeners[0].Checkpoint == nil
+	})).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+
+	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
 
 	mfc.AssertExpectations(t)
 }
@@ -445,8 +511,9 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
-		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].(*utCheckpointType).SomeSequenceNumber == 12345
+		return cp.StreamID.Equals(es.spec.ID) && bytes.Equal(cp.Listeners[*l.ID], json.RawMessage(`{"someSequenceNumber":12345}`))
 	})).Return(nil)
 
 	err := es.Start(es.bgCtx)
@@ -574,6 +641,9 @@ func TestUpdateStreamStarted(t *testing.T) {
 		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
 
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
+
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
 	assert.NoError(t, err)
 
@@ -634,6 +704,9 @@ func TestAddRemoveListener(t *testing.T) {
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
 		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
 	assert.NoError(t, err)
@@ -757,6 +830,9 @@ func TestUpdateListenerFail(t *testing.T) {
 		return r.ListenerID.Equals(l1.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
+
 	_, err := es.AddOrUpdateListener(es.bgCtx, l1.ID, l1, false)
 	assert.NoError(t, err)
 
@@ -838,6 +914,9 @@ func TestUpdateStreamRestartFail(t *testing.T) {
 		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
 
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
+
 	err := es.Start(es.bgCtx)
 	assert.NoError(t, err)
 
@@ -890,6 +969,9 @@ func TestUpdateAttemptChangeSignature(t *testing.T) {
 	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
 		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
 	assert.NoError(t, err)
@@ -965,6 +1047,9 @@ func TestUpdateStreamStopFail(t *testing.T) {
 		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
+
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
 	assert.NoError(t, err)
 
@@ -1022,7 +1107,7 @@ func TestResetListenerRestartFail(t *testing.T) {
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(&apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
-		Listeners: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
+		Listeners: make(map[fftypes.UUID]json.RawMessage),
 	}, nil)
 	msp.On("WriteCheckpoint", mock.Anything, mock.Anything).Return(nil)
 	msp.On("DeleteCheckpoint", mock.Anything, es.spec.ID).Return(nil)
@@ -1060,7 +1145,7 @@ func TestResetListenerWriteCheckpointFail(t *testing.T) {
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(&apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
-		Listeners: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
+		Listeners: make(map[fftypes.UUID]json.RawMessage),
 	}, nil)
 	msp.On("WriteCheckpoint", mock.Anything, mock.Anything).Return(fmt.Errorf("pop"))
 
@@ -1127,6 +1212,7 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 			first = false
 		}
 	})
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	_, broadcastChannel, _ := mockWSChannels(es.wsChannels.(*wsmocks.WebSocketChannels))
 
@@ -1174,6 +1260,9 @@ func TestActionRetryOk(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
+
 	err := es.Start(es.bgCtx)
 	assert.NoError(t, err)
 
@@ -1219,6 +1308,9 @@ func TestActionRetrySkip(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
+
 	err := es.Start(es.bgCtx)
 	assert.NoError(t, err)
 
@@ -1254,6 +1346,9 @@ func TestActionRetryBlock(t *testing.T) {
 	mfc.On("EventStreamStart", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStartRequest) bool {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	err := es.Start(es.bgCtx)
 	assert.NoError(t, err)
@@ -1464,7 +1559,7 @@ func TestSkipEventsBehindCheckpoint(t *testing.T) {
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
-		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID].(*utCheckpointType).SomeSequenceNumber == 2001
+		return cp.StreamID.Equals(es.spec.ID) && bytes.Equal(cp.Listeners[*li.spec.ID], json.RawMessage(`{"someSequenceNumber":2001}`))
 	})).Return(nil).Run(func(args mock.Arguments) {
 		ss.cancelCtx()
 	})
@@ -1524,7 +1619,7 @@ func TestHWMCheckpointAfterInactivity(t *testing.T) {
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
-		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID].(*utCheckpointType).SomeSequenceNumber == 12345
+		return cp.StreamID.Equals(es.spec.ID) && bytes.Equal(cp.Listeners[*li.spec.ID], json.RawMessage(`{"someSequenceNumber":12345}`))
 	})).Return(nil)
 
 	es.checkpointInterval = 1 * time.Microsecond
@@ -1561,7 +1656,7 @@ func TestHWMCheckpointInFlightSkip(t *testing.T) {
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
-		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID] == nil
+		return cp.StreamID.Equals(es.spec.ID) && string(cp.Listeners[*li.spec.ID]) == `null`
 	})).Return(nil)
 
 	es.checkpointInterval = 1 * time.Microsecond
@@ -1602,7 +1697,7 @@ func TestHWMCheckpointFail(t *testing.T) {
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
-		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID] == nil
+		return cp.StreamID.Equals(es.spec.ID) && string(cp.Listeners[*li.spec.ID]) == `null`
 	})).Return(nil)
 
 	es.checkpointInterval = 1 * time.Microsecond
