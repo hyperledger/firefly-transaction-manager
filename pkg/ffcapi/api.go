@@ -93,6 +93,12 @@ type Event struct {
 	Info *fftypes.JSONAny `json:"info"` // additional blockchain specific information
 }
 
+// EventListenerCheckpoint is the interface that a checkpoint must implement, basically to make it sortable.
+// The checkpoint must also be JSON serializable
+type EventListenerCheckpoint interface {
+	LessThan(b EventListenerCheckpoint) bool
+}
+
 // String is unique in all cases for an event, by combining the protocol ID with the listener ID and block hash
 func (eid *EventID) String() string {
 	return fmt.Sprintf("%s/B=%s/L=%s", eid.ProtocolID(), eid.BlockHash, eid.ListenerID)
@@ -132,9 +138,9 @@ type EventWithContext struct {
 // ListenerEvent is an event+checkpoint for a particular listener, and is the object delivered over the event stream channel when
 // a new event is detected for delivery to the confirmation manager.
 type ListenerEvent struct {
-	Checkpoint *fftypes.JSONAny `json:"checkpoint"`        // the checkpoint information associated with the event, must be non-nil if the event is not removed
-	Event      *Event           `json:"event"`             // the event - for removed events, can only have the EventID fields set (to generate the protocol ID)
-	Removed    bool             `json:"removed,omitempty"` // when true, this is an explicit cancellation of a previous event
+	Checkpoint EventListenerCheckpoint `json:"checkpoint"`        // the checkpoint information associated with the event, must be non-nil if the event is not removed
+	Event      *Event                  `json:"event"`             // the event - for removed events, can only have the EventID fields set (to generate the protocol ID)
+	Removed    bool                    `json:"removed,omitempty"` // when true, this is an explicit cancellation of a previous event
 }
 
 // ErrorReason are a set of standard error conditions that a blockchain connector can return

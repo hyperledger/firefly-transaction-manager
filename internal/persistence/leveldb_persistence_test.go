@@ -26,6 +26,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
@@ -61,6 +62,12 @@ func newTestLevelDBPersistence(t *testing.T) (*leveldbPersistence, func()) {
 }
 
 func strPtr(s string) *string { return &s }
+
+type badJSONCheckpointType map[bool]bool
+
+func (cp *badJSONCheckpointType) LessThan(b ffcapi.EventListenerCheckpoint) bool {
+	return false
+}
 
 func TestLevelDBInitMissingPath(t *testing.T) {
 
@@ -298,8 +305,8 @@ func TestWriteCheckpointFail(t *testing.T) {
 
 	id1 := apitypes.UUIDVersion1()
 	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
-		Listeners: map[fftypes.UUID]*fftypes.JSONAny{
-			*id1: fftypes.JSONAnyPtr(`{!!! bad json`),
+		Listeners: map[fftypes.UUID]ffcapi.EventListenerCheckpoint{
+			*id1: &badJSONCheckpointType{false: true},
 		},
 	})
 	assert.Error(t, err)

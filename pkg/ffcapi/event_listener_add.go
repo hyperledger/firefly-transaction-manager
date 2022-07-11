@@ -42,10 +42,10 @@ type EventListenerVerifyOptionsResponse struct {
 
 type EventListenerAddRequest struct {
 	EventListenerOptions
-	ListenerID *fftypes.UUID    // Unique UUID for the event listener, that should be included in each event
-	StreamID   *fftypes.UUID    // The event stream (previously started) to which events should be delivered
-	Name       string           // Descriptive name of the listener, provided by the user, or defaulted to the signature. Not guaranteed to be unique. Should be included in the event info
-	Checkpoint *fftypes.JSONAny // The last persisted checkpoint for this event stream
+	ListenerID *fftypes.UUID           // Unique UUID for the event listener, that should be included in each event
+	StreamID   *fftypes.UUID           // The event stream (previously started) to which events should be delivered
+	Name       string                  // Descriptive name of the listener, provided by the user, or defaulted to the signature. Not guaranteed to be unique. Should be included in the event info
+	Checkpoint EventListenerCheckpoint // The last persisted checkpoint for this event stream
 }
 
 type EventListenerAddResponse struct {

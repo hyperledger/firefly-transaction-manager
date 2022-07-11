@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -40,6 +41,14 @@ import (
 )
 
 func strPtr(s string) *string { return &s }
+
+type utCheckpointType struct {
+	SomeSequenceNumber int64 `json:"block"`
+}
+
+func (cp *utCheckpointType) LessThan(b ffcapi.EventListenerCheckpoint) bool {
+	return cp.SomeSequenceNumber < b.(*utCheckpointType).SomeSequenceNumber
+}
 
 func testESConf(t *testing.T, j string) (spec *apitypes.EventStream) {
 	err := json.Unmarshal([]byte(j), &spec)
@@ -324,7 +333,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
-		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].JSONObject().GetString("cp1data") == "stuff"
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].(*utCheckpointType).SomeSequenceNumber == 12345
 	})).Return(nil)
 
 	senderChannel, _, receiverChannel := mockWSChannels(es.wsChannels.(*wsmocks.WebSocketChannels))
@@ -343,7 +352,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	r := <-started
 
 	r.EventStream <- &ffcapi.ListenerEvent{
-		Checkpoint: fftypes.JSONAnyPtr(`{"cp1data": "stuff"}`),
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
 			EventID: ffcapi.EventID{
 				ListenerID:       l.ID,
@@ -437,7 +446,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
-		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].JSONObject().GetString("cp1data") == "stuff"
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID].(*utCheckpointType).SomeSequenceNumber == 12345
 	})).Return(nil)
 
 	err := es.Start(es.bgCtx)
@@ -450,7 +459,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 	r := <-started
 
 	r.EventStream <- &ffcapi.ListenerEvent{
-		Checkpoint: fftypes.JSONAnyPtr(`{"cp1data": "stuff"}`),
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
 			EventID: ffcapi.EventID{
 				ListenerID:       l.ID,
@@ -1013,7 +1022,7 @@ func TestResetListenerRestartFail(t *testing.T) {
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(&apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
-		Listeners: make(map[fftypes.UUID]*fftypes.JSONAny),
+		Listeners: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
 	}, nil)
 	msp.On("WriteCheckpoint", mock.Anything, mock.Anything).Return(nil)
 	msp.On("DeleteCheckpoint", mock.Anything, es.spec.ID).Return(nil)
@@ -1051,7 +1060,7 @@ func TestResetListenerWriteCheckpointFail(t *testing.T) {
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(&apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
-		Listeners: make(map[fftypes.UUID]*fftypes.JSONAny),
+		Listeners: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
 	}, nil)
 	msp.On("WriteCheckpoint", mock.Anything, mock.Anything).Return(fmt.Errorf("pop"))
 
@@ -1130,7 +1139,7 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 	r := <-started
 
 	r.EventStream <- &ffcapi.ListenerEvent{
-		Checkpoint: fftypes.JSONAnyPtr(`{"cp1data": "stuff"}`),
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
 			EventID: ffcapi.EventID{
 				ListenerID:       l.ID,
@@ -1362,7 +1371,7 @@ func TestEventLoopConfirmationsManagerBypass(t *testing.T) {
 	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
 
 	u1 := &ffcapi.ListenerEvent{
-		Checkpoint: fftypes.JSONAnyPtr("{}"),
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
 			EventID: ffcapi.EventID{
 				ListenerID: fftypes.NewUUID(),
@@ -1397,7 +1406,7 @@ func TestEventLoopConfirmationsManagerFail(t *testing.T) {
 	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
 
 	u1 := &ffcapi.ListenerEvent{
-		Checkpoint: fftypes.JSONAnyPtr("{}"),
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
 			EventID: ffcapi.EventID{
 				ListenerID: fftypes.NewUUID(),
@@ -1429,6 +1438,60 @@ func TestEventLoopIgnoreBadEvent(t *testing.T) {
 	es.processNewEvent(context.Background(), &ffcapi.ListenerEvent{})
 }
 
+func TestSkipEventsBehindCheckpoint(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream"
+	}`)
+
+	ss := &startedStreamState{
+		updates:       make(chan *ffcapi.ListenerEvent, 1),
+		batchLoopDone: make(chan struct{}),
+		action: func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+			assert.Len(t, events, 1)
+			assert.Equal(t, events[0].BlockNumber, uint64(2001))
+			return nil
+		},
+	}
+	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
+
+	listenerID := fftypes.NewUUID()
+	li := &listener{
+		spec:       &apitypes.Listener{ID: listenerID},
+		checkpoint: &utCheckpointType{SomeSequenceNumber: 2000},
+	}
+	es.listeners[*li.spec.ID] = li
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID].(*utCheckpointType).SomeSequenceNumber == 2001
+	})).Return(nil).Run(func(args mock.Arguments) {
+		ss.cancelCtx()
+	})
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		es.batchLoop(ss)
+		wg.Done()
+	}()
+	es.batchChannel <- &ffcapi.ListenerEvent{
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 1999}, // before checkpoint - redelivery
+		Event:      &ffcapi.Event{EventID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 1999}},
+	}
+	es.batchChannel <- &ffcapi.ListenerEvent{
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2000}, // on checkpoint - redelivery
+		Event:      &ffcapi.Event{EventID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 2000}},
+	}
+	es.batchChannel <- &ffcapi.ListenerEvent{
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2001}, // this is a new event
+		Event:      &ffcapi.Event{EventID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 2001}},
+	}
+	wg.Wait()
+
+	msp.AssertExpectations(t)
+}
+
 func TestHWMCheckpointAfterInactivity(t *testing.T) {
 
 	es := newTestEventStream(t, `{
@@ -1455,11 +1518,13 @@ func TestHWMCheckpointAfterInactivity(t *testing.T) {
 		return req.StreamID.Equals(es.spec.ID) && req.ListenerID.Equals(li.spec.ID)
 	})).Run(func(args mock.Arguments) {
 		ss.cancelCtx()
-	}).Return(&ffcapi.EventListenerHWMResponse{Checkpoint: *fftypes.JSONAnyPtr(`{"cp1data":"stuff"}`)}, ffcapi.ErrorReason(""), nil)
+	}).Return(&ffcapi.EventListenerHWMResponse{
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
+	}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
-		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID].JSONObject().GetString("cp1data") == "stuff"
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*li.spec.ID].(*utCheckpointType).SomeSequenceNumber == 12345
 	})).Return(nil)
 
 	es.checkpointInterval = 1 * time.Microsecond

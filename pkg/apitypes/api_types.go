@@ -22,6 +22,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 type DistributionMode = fftypes.FFEnum
@@ -82,9 +83,9 @@ type EventStreamWithStatus struct {
 }
 
 type EventStreamCheckpoint struct {
-	StreamID  *fftypes.UUID                     `json:"streamId"`
-	Time      *fftypes.FFTime                   `json:"time"`
-	Listeners map[fftypes.UUID]*fftypes.JSONAny `json:"listeners"`
+	StreamID  *fftypes.UUID                                   `json:"streamId"`
+	Time      *fftypes.FFTime                                 `json:"time"`
+	Listeners map[fftypes.UUID]ffcapi.EventListenerCheckpoint `json:"listeners"`
 }
 
 type WebhookConfig struct {

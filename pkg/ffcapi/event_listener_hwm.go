@@ -26,5 +26,5 @@ type EventListenerHWMRequest struct {
 }
 
 type EventListenerHWMResponse struct {
-	Checkpoint fftypes.JSONAny `json:"checkpoint"`
+	Checkpoint EventListenerCheckpoint `json:"checkpoint"`
 }

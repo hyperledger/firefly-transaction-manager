@@ -80,7 +80,7 @@ type eventStreamAction func(ctx context.Context, batchNumber, attempt int, event
 type eventStreamBatch struct {
 	number      int
 	events      []*ffcapi.EventWithContext
-	checkpoints map[fftypes.UUID]*fftypes.JSONAny
+	checkpoints map[fftypes.UUID]ffcapi.EventListenerCheckpoint
 	timeout     *time.Timer
 }
 
@@ -677,22 +677,35 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 		timedOut := false
 		select {
 		case fev := <-es.batchChannel:
-			if batch == nil {
-				batchNumber++
-				batch = &eventStreamBatch{
-					number:      batchNumber,
-					timeout:     time.NewTimer(time.Duration(*es.spec.BatchTimeout)),
-					checkpoints: make(map[fftypes.UUID]*fftypes.JSONAny),
-				}
-			}
-			if fev.Checkpoint != nil {
-				batch.checkpoints[*fev.Event.ListenerID] = fev.Checkpoint
-			}
 			if fev.Event != nil {
 				es.mux.Lock()
 				l := es.listeners[*fev.Event.ListenerID]
 				es.mux.Unlock()
 				if l != nil {
+					currentCheckpoint := l.checkpoint
+					if currentCheckpoint != nil && !currentCheckpoint.LessThan(fev.Checkpoint) {
+						// This event is behind the current checkpoint - this is a re-detection.
+						// We're perfectly happy to accept re-detections from the connector, as it can be
+						// very efficient to batch operations between listeners that cause re-detections.
+						// However, we need to protect the application from receiving the re-detections.
+						// This loop is the right place for this check, as we are responsible for writing the checkpoints and
+						// delivering to the application. So we are the one source of truth.
+						log.L(es.bgCtx).Debugf("%s '%s' event re-detected behind checkpoint: %s", l.spec.ID, l.spec.Signature, fev.Event)
+						continue
+					}
+
+					if batch == nil {
+						batchNumber++
+						batch = &eventStreamBatch{
+							number:      batchNumber,
+							timeout:     time.NewTimer(time.Duration(*es.spec.BatchTimeout)),
+							checkpoints: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
+						}
+					}
+					if fev.Checkpoint != nil {
+						batch.checkpoints[*fev.Event.ListenerID] = fev.Checkpoint
+					}
+
 					log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.Signature, fev.Event)
 					batch.events = append(batch.events, &ffcapi.EventWithContext{
 						StreamID: es.spec.ID,
@@ -773,7 +786,7 @@ func (es *eventStream) performActionsWithRetry(startedState *startedStreamState,
 	}
 }
 
-func (es *eventStream) checkUpdateHWMCheckpoint(ctx context.Context, l *listener) *fftypes.JSONAny {
+func (es *eventStream) checkUpdateHWMCheckpoint(ctx context.Context, l *listener) ffcapi.EventListenerCheckpoint {
 
 	checkpoint := l.checkpoint
 
@@ -797,7 +810,7 @@ func (es *eventStream) checkUpdateHWMCheckpoint(ctx context.Context, l *listener
 		}
 		es.mux.Lock()
 		if l.checkpoint == checkpoint /* double check it hasn't changed */ {
-			checkpoint = &res.Checkpoint
+			checkpoint = res.Checkpoint
 			l.checkpoint = checkpoint
 			l.lastCheckpoint = fftypes.Now()
 		}
@@ -815,7 +828,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	cp := &apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
 		Time:      fftypes.Now(),
-		Listeners: make(map[fftypes.UUID]*fftypes.JSONAny),
+		Listeners: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
 	}
 	if batch != nil {
 		for lID, lCP := range batch.checkpoints {
