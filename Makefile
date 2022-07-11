@@ -47,5 +47,5 @@ clean:
 deps:
 		$(VGO) get ./internal/... ./pkg/...
 		$(VGO) get -t ./internal/... ./pkg/...
-docs:
+reference:
 		$(VGO) test ./pkg/fftm -timeout=10s -tags docs
