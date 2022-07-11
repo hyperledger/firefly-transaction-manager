@@ -35,6 +35,7 @@ func TestPostEventStreamSuspend(t *testing.T) {
 
 	mfc := m.connector.(*ffcapimocks.API)
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStopped", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
 
 	err := m.Start()
 	assert.NoError(t, err)

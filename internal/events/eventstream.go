@@ -518,8 +518,12 @@ func (es *eventStream) Start(ctx context.Context) error {
 
 func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, error) {
 	es.mux.Lock()
-	startedState := es.currentState
 	defer es.mux.Unlock()
+	startedState := es.currentState
+	if es.status == apitypes.EventStreamStatusStopping {
+		// Already stopping, just return
+		return startedState, nil
+	}
 	if err := es.checkSetStatus(ctx, apitypes.EventStreamStatusStarted, apitypes.EventStreamStatusStopping); err != nil {
 		return nil, err
 	}
@@ -528,14 +532,6 @@ func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, er
 	// Cancel the context, stop stop the event loop, and shut down the action (WebSockets in particular)
 	startedState.cancelCtx()
 
-	// Stop all the listeners - we hold the lock during this
-	for _, l := range es.listeners {
-		err := l.stop(startedState)
-		if err != nil {
-			_ = es.checkSetStatus(ctx, apitypes.EventStreamStatusStopping, apitypes.EventStreamStatusStarted) // restore started status
-			return nil, err
-		}
-	}
 	return startedState, nil
 }
 
@@ -550,6 +546,15 @@ func (es *eventStream) Stop(ctx context.Context) error {
 	// Request the stop - this phase is locked, and gives us a safe copy of the listeners array to use outside the lock
 	startedState, err := es.requestStop(ctx)
 	if err != nil || startedState == nil {
+		return err
+	}
+
+	// Inform the connector explicitly of the stream stop (it should be shutting down all it's listeners anyway
+	// due to the cancelled context)
+	if _, _, err = es.connector.EventStreamStopped(ctx, &ffcapi.EventStreamStoppedRequest{
+		ID: es.spec.ID,
+	}); err != nil {
+		log.L(ctx).Errorf("Connector returned error when notified of stopped stream: %s", err)
 		return err
 	}
 

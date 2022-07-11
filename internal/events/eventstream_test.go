@@ -330,9 +330,9 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 		assert.Equal(t, int64(12000), r.InitialListeners[0].Checkpoint.(*utCheckpointType).SomeSequenceNumber)
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ListenerID.Equals(l.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(&apitypes.EventStreamCheckpoint{
@@ -432,7 +432,9 @@ func TestStartEventStreamCheckpointInvalid(t *testing.T) {
 	mfc.On("EventStreamStart", mock.Anything, mock.MatchedBy(func(req *ffcapi.EventStreamStartRequest) bool {
 		return req.InitialListeners[0].Checkpoint == nil
 	})).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
-	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
 
@@ -506,9 +508,9 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 			}`, r.Options.String())
 	}).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ListenerID.Equals(l.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
@@ -637,9 +639,9 @@ func TestUpdateStreamStarted(t *testing.T) {
 		started <- r
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ListenerID.Equals(l.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
@@ -705,6 +707,10 @@ func TestAddRemoveListener(t *testing.T) {
 		return r.ListenerID.Equals(l.ID)
 	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
+
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
@@ -758,9 +764,9 @@ func TestUpdateListenerAndDeleteStarted(t *testing.T) {
 		return r.ListenerID.Equals(l1.ID)
 	})).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ListenerID.Equals(l1.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Twice()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(nil, nil)
@@ -825,10 +831,12 @@ func TestUpdateListenerFail(t *testing.T) {
 		started <- r
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
-	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ListenerID.Equals(l1.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
@@ -910,9 +918,9 @@ func TestUpdateStreamRestartFail(t *testing.T) {
 
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil).Once()
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ListenerID.Equals(l.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
@@ -966,9 +974,9 @@ func TestUpdateAttemptChangeSignature(t *testing.T) {
 		started <- args[1].(*ffcapi.EventStreamStartRequest)
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ListenerID.Equals(l.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
@@ -1021,8 +1029,8 @@ func TestAttemptResetNonExistentListener(t *testing.T) {
 func TestUpdateStreamStopFail(t *testing.T) {
 
 	es := newTestEventStream(t, `{
-		"name": "ut_stream"
-	}`)
+               "name": "ut_stream"
+       }`)
 
 	l := &apitypes.Listener{
 		ID:      fftypes.NewUUID(),
@@ -1041,11 +1049,12 @@ func TestUpdateStreamStopFail(t *testing.T) {
 		started <- args[1].(*ffcapi.EventStreamStartRequest)
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Twice()
-
-	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ListenerID.Equals(l.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Once()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Twice()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
@@ -1059,8 +1068,8 @@ func TestUpdateStreamStopFail(t *testing.T) {
 	r := <-started
 
 	defChanged := testESConf(t, `{
-		"name": "ut_stream2"
-	}`)
+               "name": "ut_stream2"
+       }`)
 	err = es.UpdateSpec(context.Background(), defChanged)
 	assert.Regexp(t, "FF21031.*pop", err)
 
@@ -1100,9 +1109,9 @@ func TestResetListenerRestartFail(t *testing.T) {
 
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil).Once()
 
-	mfc.On("EventListenerRemove", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventListenerRemoveRequest) bool {
-		return r.ListenerID.Equals(l.ID)
-	})).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(&apitypes.EventStreamCheckpoint{
@@ -1196,7 +1205,9 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 	})).Run(func(args mock.Arguments) {
 		started <- args[1].(*ffcapi.EventStreamStartRequest)
 	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
-	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	first := true
 	done := make(chan struct{})
@@ -1259,6 +1270,9 @@ func TestActionRetryOk(t *testing.T) {
 	mfc.On("EventStreamStart", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStartRequest) bool {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
@@ -1307,6 +1321,9 @@ func TestActionRetrySkip(t *testing.T) {
 	mfc.On("EventStreamStart", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStartRequest) bool {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
@@ -1346,6 +1363,9 @@ func TestActionRetryBlock(t *testing.T) {
 	mfc.On("EventStreamStart", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStartRequest) bool {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
@@ -1379,6 +1399,34 @@ func TestActionRetryBlock(t *testing.T) {
 
 	<-done
 	assert.Greater(t, callCount, 0)
+}
+
+func TestDeleteFail(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream",
+		"errorHandling": "block",
+		"blockedRetryDelay": "0s",
+		"retryTimeout": "0s"
+	}`)
+
+	mfc := es.connector.(*ffcapimocks.API)
+	mfc.On("EventStreamStart", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStartRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil).Once()
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
+
+	err := es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	err = es.Delete(es.bgCtx)
+	assert.Regexp(t, "pop", err)
+
 }
 
 func TestEventLoopProcessRemovedEvent(t *testing.T) {

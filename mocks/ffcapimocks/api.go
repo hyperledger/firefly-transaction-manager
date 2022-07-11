@@ -240,6 +240,36 @@ func (_m *API) EventStreamStart(ctx context.Context, req *ffcapi.EventStreamStar
 	return r0, r1, r2
 }
 
+// EventStreamStopped provides a mock function with given fields: ctx, req
+func (_m *API) EventStreamStopped(ctx context.Context, req *ffcapi.EventStreamStoppedRequest) (*ffcapi.EventStreamStoppedResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx, req)
+
+	var r0 *ffcapi.EventStreamStoppedResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.EventStreamStoppedRequest) *ffcapi.EventStreamStoppedResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.EventStreamStoppedResponse)
+		}
+	}
+
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.EventStreamStoppedRequest) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.EventStreamStoppedRequest) error); ok {
+		r2 = rf(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // GasPriceEstimate provides a mock function with given fields: ctx, req
 func (_m *API) GasPriceEstimate(ctx context.Context, req *ffcapi.GasPriceEstimateRequest) (*ffcapi.GasPriceEstimateResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)

@@ -56,6 +56,9 @@ type API interface {
 	// EventStreamStart starts an event stream with an initial set of listeners (which might be empty), a channel to deliver events, and a context that will close to stop the stream
 	EventStreamStart(ctx context.Context, req *EventStreamStartRequest) (*EventStreamStartResponse, ErrorReason, error)
 
+	// EventStreamStopped informs a connector that an event stream has been requested to stop, and the context has been cancelled. So the state associated with it can be removed (and a future start of the same ID can be performed)
+	EventStreamStopped(ctx context.Context, req *EventStreamStoppedRequest) (*EventStreamStoppedResponse, ErrorReason, error)
+
 	// EventListenerVerifyOptions validates the configuration options for a listener, applying any defaults needed by the connector, and returning the update options for FFTM to persist
 	EventListenerVerifyOptions(ctx context.Context, req *EventListenerVerifyOptionsRequest) (*EventListenerVerifyOptionsResponse, ErrorReason, error)
 
