@@ -49,7 +49,7 @@ func NewLevelDBPersistence(ctx context.Context) (Persistence, error) {
 		OpenFilesCacheCapacity: config.GetInt(tmconfig.PersistenceLevelDBMaxHandles),
 	})
 	if err != nil {
-		return nil, err
+		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceInitFailed, dbPath)
 	}
 	return &leveldbPersistence{
 		db:         db,
@@ -69,10 +69,10 @@ func (p *leveldbPersistence) listenerKey(listenerID *fftypes.UUID) []byte {
 	return []byte(fmt.Sprintf("listeners/%s", listenerID))
 }
 
-func (p *leveldbPersistence) writeJSON(ctx context.Context, key []byte, target interface{}) error {
-	b, err := json.Marshal(target)
+func (p *leveldbPersistence) writeJSON(ctx context.Context, key []byte, value interface{}) error {
+	b, err := json.Marshal(value)
 	if err != nil {
-		return err
+		return i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceMarshalFailed)
 	}
 	log.L(ctx).Debugf("Wrote %s", key)
 	return p.db.Put(key, b, &opt.WriteOptions{Sync: p.syncWrites})
@@ -84,11 +84,11 @@ func (p *leveldbPersistence) readJSON(ctx context.Context, key []byte, target in
 		if err == leveldb.ErrNotFound {
 			return nil
 		}
-		return err
+		return i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceReadFailed)
 	}
 	err = json.Unmarshal(b, target)
 	if err != nil {
-		return err
+		return i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceUnmarshalFailed)
 	}
 	log.L(ctx).Debugf("Read %s", key)
 	return nil
@@ -119,7 +119,7 @@ itLoop:
 		v := val()
 		err := json.Unmarshal(it.Value(), v)
 		if err != nil {
-			return err
+			return i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceUnmarshalFailed)
 		}
 		for _, f := range filters {
 			if !f(v) {
@@ -140,7 +140,7 @@ func (p *leveldbPersistence) deleteKeys(ctx context.Context, keys ...[]byte) err
 	for _, key := range keys {
 		err := p.db.Delete(key, &opt.WriteOptions{Sync: p.syncWrites})
 		if err != nil {
-			return err
+			return i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceDeleteFailed)
 		}
 		log.L(ctx).Debugf("Deleted %s", key)
 	}

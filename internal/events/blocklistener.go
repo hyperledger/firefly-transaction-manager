@@ -50,18 +50,18 @@ func (es *eventStream) blockListener(startedState *startedStreamState) {
 			}
 		} else {
 			select {
-			case blockUpdate := <-startedState.blocks:
-				log.L(startedState.ctx).Debugf("Received block event: %v", blockUpdate.BlockHashes)
+			case update := <-startedState.blocks:
+				log.L(startedState.ctx).Debugf("Received block event: %v", update.BlockHashes)
 				// Nothing to do unless we have confirmations turned on
 				if es.confirmations != nil {
 					select {
-					case es.confirmations.NewBlockHashes() <- blockUpdate:
+					case es.confirmations.NewBlockHashes() <- update:
 						// all good, we passed it on
 					default:
 						// we can't deliver it immediately, we switch to blocked mode
 						log.L(startedState.ctx).Infof("Event stream block-listener became blocked")
 						// Take a copy of the block update, so we can modify (to mark a gap) without affecting other streams
-						var bu = *blockUpdate
+						var bu = *update
 						blockedUpdate = &bu
 					}
 				}
