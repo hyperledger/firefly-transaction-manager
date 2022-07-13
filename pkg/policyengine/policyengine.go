@@ -19,10 +19,9 @@ package policyengine
 import (
 	"context"
 
-	"github.com/hyperledger/firefly-common/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *fftm.ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
+	Execute(ctx context.Context, cAPI ffcapi.API, mtx *ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error)
 }
