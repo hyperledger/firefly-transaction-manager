@@ -29,7 +29,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/hyperledger/firefly/pkg/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -42,7 +41,7 @@ const (
 
 func TestPolicyLoopE2EOk(t *testing.T) {
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
@@ -89,7 +88,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 func TestPolicyLoopE2EOkReverted(t *testing.T) {
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
@@ -136,7 +135,7 @@ func TestPolicyLoopE2EOkReverted(t *testing.T) {
 
 func TestPolicyLoopUpdateFFCoreWithError(t *testing.T) {
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
@@ -168,7 +167,7 @@ func TestPolicyLoopUpdateFFCoreWithError(t *testing.T) {
 
 func TestPolicyLoopUpdateOpFail(t *testing.T) {
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		ID:              "ns1:" + fftypes.NewUUID().String(),
 		FirstSubmit:     fftypes.Now(),
 		TransactionHash: sampleTXHash,
@@ -176,7 +175,7 @@ func TestPolicyLoopUpdateOpFail(t *testing.T) {
 	}
 
 	_, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {
+		func(w http.ResponseWriter, _ *http.Request) {
 			errRes := fftypes.RESTError{Error: "pop"}
 			b, err := json.Marshal(&errRes)
 			assert.NoError(t, err)
@@ -213,7 +212,7 @@ func TestPolicyLoopUpdateOpFail(t *testing.T) {
 
 func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		ID:      "ns1:" + fftypes.NewUUID().String(),
 		Request: &apitypes.TransactionRequest{},
 	}
@@ -287,7 +286,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 
 func TestPolicyLoopCycleCleanupRemoved(t *testing.T) {
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		ID:      "ns1:" + fftypes.NewUUID().String(),
 		Request: &apitypes.TransactionRequest{},
 	}
@@ -319,7 +318,7 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 	mc.On("Notify", mock.Anything).Return(fmt.Errorf("pop"))
 
 	m.trackSubmittedTransaction(&pendingState{
-		mtx: &policyengine.ManagedTXOutput{
+		mtx: &apitypes.ManagedTX{
 			TransactionHash: sampleSendTX,
 		},
 	})

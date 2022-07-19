@@ -36,6 +36,20 @@ func (_m *Persistence) DeleteCheckpoint(ctx context.Context, streamID *fftypes.U
 	return r0
 }
 
+// DeleteInflightTransaction provides a mock function with given fields: ctx, inflightID
+func (_m *Persistence) DeleteInflightTransaction(ctx context.Context, inflightID *fftypes.UUID) error {
+	ret := _m.Called(ctx, inflightID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID) error); ok {
+		r0 = rf(ctx, inflightID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // DeleteListener provides a mock function with given fields: ctx, listenerID
 func (_m *Persistence) DeleteListener(ctx context.Context, listenerID *fftypes.UUID) error {
 	ret := _m.Called(ctx, listenerID)
@@ -43,6 +57,34 @@ func (_m *Persistence) DeleteListener(ctx context.Context, listenerID *fftypes.U
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID) error); ok {
 		r0 = rf(ctx, listenerID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DeleteManagedTransaction provides a mock function with given fields: ctx, txID
+func (_m *Persistence) DeleteManagedTransaction(ctx context.Context, txID string) error {
+	ret := _m.Called(ctx, txID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// DeleteNonceAllocation provides a mock function with given fields: ctx, signer, nonce
+func (_m *Persistence) DeleteNonceAllocation(ctx context.Context, signer string, nonce int64) error {
+	ret := _m.Called(ctx, signer, nonce)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) error); ok {
+		r0 = rf(ctx, signer, nonce)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -87,6 +129,29 @@ func (_m *Persistence) GetCheckpoint(ctx context.Context, streamID *fftypes.UUID
 	return r0, r1
 }
 
+// GetInflightTransaction provides a mock function with given fields: ctx, inflightID
+func (_m *Persistence) GetInflightTransaction(ctx context.Context, inflightID *fftypes.UUID) (*apitypes.InflightTX, error) {
+	ret := _m.Called(ctx, inflightID)
+
+	var r0 *apitypes.InflightTX
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID) *apitypes.InflightTX); ok {
+		r0 = rf(ctx, inflightID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.InflightTX)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID) error); ok {
+		r1 = rf(ctx, inflightID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetListener provides a mock function with given fields: ctx, listenerID
 func (_m *Persistence) GetListener(ctx context.Context, listenerID *fftypes.UUID) (*apitypes.Listener, error) {
 	ret := _m.Called(ctx, listenerID)
@@ -103,6 +168,52 @@ func (_m *Persistence) GetListener(ctx context.Context, listenerID *fftypes.UUID
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID) error); ok {
 		r1 = rf(ctx, listenerID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetManagedTransaction provides a mock function with given fields: ctx, txID
+func (_m *Persistence) GetManagedTransaction(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 *apitypes.ManagedTX
+	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.ManagedTX); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.ManagedTX)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetNonceAllocation provides a mock function with given fields: ctx, signer, nonce
+func (_m *Persistence) GetNonceAllocation(ctx context.Context, signer string, nonce int64) (*apitypes.NonceAllocation, error) {
+	ret := _m.Called(ctx, signer, nonce)
+
+	var r0 *apitypes.NonceAllocation
+	if rf, ok := ret.Get(0).(func(context.Context, string, int64) *apitypes.NonceAllocation); ok {
+		r0 = rf(ctx, signer, nonce)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.NonceAllocation)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, int64) error); ok {
+		r1 = rf(ctx, signer, nonce)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -133,6 +244,29 @@ func (_m *Persistence) GetStream(ctx context.Context, streamID *fftypes.UUID) (*
 	return r0, r1
 }
 
+// ListInflightTransactions provides a mock function with given fields: ctx, after, limit
+func (_m *Persistence) ListInflightTransactions(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.InflightTX, error) {
+	ret := _m.Called(ctx, after, limit)
+
+	var r0 []*apitypes.InflightTX
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, int) []*apitypes.InflightTX); ok {
+		r0 = rf(ctx, after, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.InflightTX)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID, int) error); ok {
+		r1 = rf(ctx, after, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // ListListeners provides a mock function with given fields: ctx, after, limit
 func (_m *Persistence) ListListeners(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.Listener, error) {
 	ret := _m.Called(ctx, after, limit)
@@ -149,6 +283,52 @@ func (_m *Persistence) ListListeners(ctx context.Context, after *fftypes.UUID, l
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID, int) error); ok {
 		r1 = rf(ctx, after, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListManagedTransactions provides a mock function with given fields: ctx, after, limit
+func (_m *Persistence) ListManagedTransactions(ctx context.Context, after string, limit int) ([]*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, after, limit)
+
+	var r0 []*apitypes.ManagedTX
+	if rf, ok := ret.Get(0).(func(context.Context, string, int) []*apitypes.ManagedTX); ok {
+		r0 = rf(ctx, after, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.ManagedTX)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, int) error); ok {
+		r1 = rf(ctx, after, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListNonceAllocations provides a mock function with given fields: ctx, signer, after, limit
+func (_m *Persistence) ListNonceAllocations(ctx context.Context, signer string, after *int64, limit int) ([]*apitypes.NonceAllocation, error) {
+	ret := _m.Called(ctx, signer, after, limit)
+
+	var r0 []*apitypes.NonceAllocation
+	if rf, ok := ret.Get(0).(func(context.Context, string, *int64, int) []*apitypes.NonceAllocation); ok {
+		r0 = rf(ctx, signer, after, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.NonceAllocation)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, *int64, int) error); ok {
+		r1 = rf(ctx, signer, after, limit)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -216,6 +396,20 @@ func (_m *Persistence) WriteCheckpoint(ctx context.Context, checkpoint *apitypes
 	return r0
 }
 
+// WriteInflightTransaction provides a mock function with given fields: ctx, inflight
+func (_m *Persistence) WriteInflightTransaction(ctx context.Context, inflight *apitypes.InflightTX) error {
+	ret := _m.Called(ctx, inflight)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.InflightTX) error); ok {
+		r0 = rf(ctx, inflight)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // WriteListener provides a mock function with given fields: ctx, spec
 func (_m *Persistence) WriteListener(ctx context.Context, spec *apitypes.Listener) error {
 	ret := _m.Called(ctx, spec)
@@ -223,6 +417,34 @@ func (_m *Persistence) WriteListener(ctx context.Context, spec *apitypes.Listene
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.Listener) error); ok {
 		r0 = rf(ctx, spec)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// WriteManagedTransaction provides a mock function with given fields: ctx, tx
+func (_m *Persistence) WriteManagedTransaction(ctx context.Context, tx *apitypes.ManagedTX) error {
+	ret := _m.Called(ctx, tx)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX) error); ok {
+		r0 = rf(ctx, tx)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// WriteNonceAllocation provides a mock function with given fields: ctx, alloc
+func (_m *Persistence) WriteNonceAllocation(ctx context.Context, alloc *apitypes.NonceAllocation) error {
+	ret := _m.Called(ctx, alloc)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.NonceAllocation) error); ok {
+		r0 = rf(ctx, alloc)
 	} else {
 		r0 = ret.Error(0)
 	}

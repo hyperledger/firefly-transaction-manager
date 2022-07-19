@@ -164,12 +164,6 @@ nav_order: 2
 |message|Configures the JSON key containing the log message|`string`|`message`
 |timestamp|Configures the JSON key containing the timestamp of the log|`string`|`@timestamp`
 
-## manager
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|name|The name of this Transaction Manager, used in operation metadata to track which operations are to be updated|`string`|`<nil>`
-
 ## operations
 
 |Key|Description|Type|Default Value|

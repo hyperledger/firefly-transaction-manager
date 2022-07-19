@@ -28,7 +28,6 @@ import (
 var ffc = config.AddRootKey
 
 var (
-	ManagerName                                   = ffc("manager.name")
 	ConfirmationsRequired                         = ffc("confirmations.required")
 	ConfirmationsBlockQueueLength                 = ffc("confirmations.blockQueueLength")
 	ConfirmationsStaleReceiptTimeout              = ffc("confirmations.staleReceiptTimeout")

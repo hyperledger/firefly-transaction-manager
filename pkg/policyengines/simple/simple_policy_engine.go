@@ -30,6 +30,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 )
@@ -93,7 +94,7 @@ type simplePolicyInfo struct {
 }
 
 // withPolicyInfo is a convenience helper to run some logic that accesses/updates our policy section
-func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *policyengine.ManagedTXOutput, fn func(info *simplePolicyInfo) (updated bool, reason ffcapi.ErrorReason, err error)) (updated bool, reason ffcapi.ErrorReason, err error) {
+func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *apitypes.ManagedTX, fn func(info *simplePolicyInfo) (updated bool, reason ffcapi.ErrorReason, err error)) (updated bool, reason ffcapi.ErrorReason, err error) {
 	var info simplePolicyInfo
 	infoBytes := []byte(mtx.PolicyInfo.String())
 	if len(infoBytes) > 0 {
@@ -110,7 +111,7 @@ func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *policyengi
 	return updated, reason, err
 }
 
-func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *policyengine.ManagedTXOutput) (updated bool, reason ffcapi.ErrorReason, err error) {
+func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (updated bool, reason ffcapi.ErrorReason, err error) {
 	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
 

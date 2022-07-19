@@ -22,11 +22,10 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/hyperledger/firefly/pkg/core"
 )
 
-func (m *manager) sendManagedTransaction(ctx context.Context, request *apitypes.TransactionRequest) (*policyengine.ManagedTXOutput, error) {
+func (m *manager) sendManagedTransaction(ctx context.Context, request *apitypes.TransactionRequest) (*apitypes.ManagedTX, error) {
 
 	// First job is to assign the next nonce to this request.
 	// We block any further sends on this nonce until we've got this one successfully into the node, or
@@ -52,8 +51,7 @@ func (m *manager) sendManagedTransaction(ctx context.Context, request *apitypes.
 	// From this point on, we will guide this transaction through to submission.
 	// We return an "ack" at this point, and dispatch the work of getting the transaction submitted
 	// to the background worker.
-	mtx := &policyengine.ManagedTXOutput{
-		FFTMName:        m.name,
+	mtx := &apitypes.ManagedTX{
 		ID:              request.Headers.ID, // on input the request ID must be the namespaced operation ID
 		Nonce:           fftypes.NewFFBigInt(int64(lockedNonce.nonce)),
 		Gas:             prepared.Gas,
