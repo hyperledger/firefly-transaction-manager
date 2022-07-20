@@ -58,6 +58,7 @@ var esDefaults struct {
 	blockedRetryDelay         fftypes.FFDuration
 	webhookRequestTimeout     fftypes.FFDuration
 	websocketDistributionMode apitypes.DistributionMode
+	topic                     string
 	retry                     *retry.Retry
 }
 
@@ -132,7 +133,9 @@ func NewEventStream(
 		wsChannels:         wsChannels,
 		retry:              esDefaults.retry,
 		checkpointInterval: config.GetDuration(tmconfig.EventStreamsCheckpointInterval),
-		confirmations:      confirmations.NewBlockConfirmationManager(esCtx, connector),
+	}
+	if config.GetInt(tmconfig.ConfirmationsRequired) > 0 {
+		es.confirmations = confirmations.NewBlockConfirmationManager(esCtx, connector)
 	}
 	// The configuration we have in memory, applies all the defaults to what is passed in
 	// to ensure there are no nil fields on the configuration object.
@@ -509,7 +512,9 @@ func (es *eventStream) Start(ctx context.Context) error {
 	go es.blockListener(startedState)
 
 	// Start the confirmations manager
-	es.confirmations.Start()
+	if es.confirmations != nil {
+		es.confirmations.Start()
+	}
 
 	return err
 }

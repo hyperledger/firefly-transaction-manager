@@ -56,13 +56,12 @@ func (m *manager) restoreStreams() error {
 					s, err = m.addRuntimeStream(def, streamListeners)
 				}
 				if err == nil && !*def.Suspended {
-
 					err = s.Start(m.ctx)
 				}
-				closeoutName(err == nil)
 				if err != nil {
 					return err
 				}
+				closeoutName(err == nil)
 			}
 		}
 	}

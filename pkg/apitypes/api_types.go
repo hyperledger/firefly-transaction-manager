@@ -97,6 +97,7 @@ type WebhookConfig struct {
 
 type WebSocketConfig struct {
 	DistributionMode *DistributionMode `ffstruct:"wsconfig" json:"distributionMode,omitempty"`
+	Topic            *string           `ffstruct:"wsconfig" json:"topic,omitempty"`
 }
 
 type Listener struct {

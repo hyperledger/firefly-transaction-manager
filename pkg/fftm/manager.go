@@ -309,11 +309,8 @@ func (m *manager) Start() error {
 	m.fullScanLoopDone = make(chan struct{})
 	go m.fullScanLoop()
 	go m.runAPIServer()
-	err := m.waitForFirstScanAndStart()
-	if err != nil {
-		return err
-	}
-	return m.restoreStreams()
+	go m.restoreStreams()
+	return m.waitForFirstScanAndStart()
 }
 
 func (m *manager) waitForFirstScanAndStart() error {
