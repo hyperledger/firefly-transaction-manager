@@ -64,6 +64,20 @@ func (_m *Persistence) DeleteStream(ctx context.Context, streamID *fftypes.UUID)
 	return r0
 }
 
+// DeleteTransaction provides a mock function with given fields: ctx, txID
+func (_m *Persistence) DeleteTransaction(ctx context.Context, txID string) error {
+	ret := _m.Called(ctx, txID)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // GetCheckpoint provides a mock function with given fields: ctx, streamID
 func (_m *Persistence) GetCheckpoint(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStreamCheckpoint, error) {
 	ret := _m.Called(ctx, streamID)
@@ -126,6 +140,52 @@ func (_m *Persistence) GetStream(ctx context.Context, streamID *fftypes.UUID) (*
 	var r1 error
 	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID) error); ok {
 		r1 = rf(ctx, streamID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetTransactionByID provides a mock function with given fields: ctx, txID
+func (_m *Persistence) GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 *apitypes.ManagedTX
+	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.ManagedTX); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.ManagedTX)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetTransactionByNonce provides a mock function with given fields: ctx, signer, nonce
+func (_m *Persistence) GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, signer, nonce)
+
+	var r0 *apitypes.ManagedTX
+	if rf, ok := ret.Get(0).(func(context.Context, string, *fftypes.FFBigInt) *apitypes.ManagedTX); ok {
+		r0 = rf(ctx, signer, nonce)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.ManagedTX)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, *fftypes.FFBigInt) error); ok {
+		r1 = rf(ctx, signer, nonce)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -202,6 +262,75 @@ func (_m *Persistence) ListStreams(ctx context.Context, after *fftypes.UUID, lim
 	return r0, r1
 }
 
+// ListTransactionsByCreateTime provides a mock function with given fields: ctx, after, limit
+func (_m *Persistence) ListTransactionsByCreateTime(ctx context.Context, after *fftypes.FFTime, limit int) ([]*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, after, limit)
+
+	var r0 []*apitypes.ManagedTX
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.FFTime, int) []*apitypes.ManagedTX); ok {
+		r0 = rf(ctx, after, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.ManagedTX)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.FFTime, int) error); ok {
+		r1 = rf(ctx, after, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListTransactionsByNonce provides a mock function with given fields: ctx, signer, after, limit
+func (_m *Persistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int) ([]*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, signer, after, limit)
+
+	var r0 []*apitypes.ManagedTX
+	if rf, ok := ret.Get(0).(func(context.Context, string, *fftypes.FFBigInt, int) []*apitypes.ManagedTX); ok {
+		r0 = rf(ctx, signer, after, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.ManagedTX)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, *fftypes.FFBigInt, int) error); ok {
+		r1 = rf(ctx, signer, after, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// ListTransactionsPending provides a mock function with given fields: ctx, after, limit
+func (_m *Persistence) ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, after, limit)
+
+	var r0 []*apitypes.ManagedTX
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, int) []*apitypes.ManagedTX); ok {
+		r0 = rf(ctx, after, limit)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.ManagedTX)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID, int) error); ok {
+		r1 = rf(ctx, after, limit)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // WriteCheckpoint provides a mock function with given fields: ctx, checkpoint
 func (_m *Persistence) WriteCheckpoint(ctx context.Context, checkpoint *apitypes.EventStreamCheckpoint) error {
 	ret := _m.Called(ctx, checkpoint)
@@ -237,6 +366,20 @@ func (_m *Persistence) WriteStream(ctx context.Context, spec *apitypes.EventStre
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.EventStream) error); ok {
 		r0 = rf(ctx, spec)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// WriteTransaction provides a mock function with given fields: ctx, tx, possiblyNew
+func (_m *Persistence) WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, possiblyNew bool) error {
+	ret := _m.Called(ctx, tx, possiblyNew)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX, bool) error); ok {
+		r0 = rf(ctx, tx, possiblyNew)
 	} else {
 		r0 = ret.Error(0)
 	}

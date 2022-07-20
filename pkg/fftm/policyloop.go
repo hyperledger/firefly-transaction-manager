@@ -22,8 +22,8 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/hyperledger/firefly/pkg/core"
 )
 
@@ -62,14 +62,14 @@ func (m *manager) policyLoopCycle() {
 
 }
 
-func (m *manager) addError(mtx *policyengine.ManagedTXOutput, reason ffcapi.ErrorReason, err error) {
+func (m *manager) addError(mtx *apitypes.ManagedTX, reason ffcapi.ErrorReason, err error) {
 	newLen := len(mtx.ErrorHistory) + 1
 	if newLen > m.errorHistoryCount {
 		newLen = m.errorHistoryCount
 	}
 	oldHistory := mtx.ErrorHistory
-	mtx.ErrorHistory = make([]*policyengine.ManagedTXError, newLen)
-	mtx.ErrorHistory[0] = &policyengine.ManagedTXError{
+	mtx.ErrorHistory = make([]*apitypes.ManagedTXError, newLen)
+	mtx.ErrorHistory[0] = &apitypes.ManagedTXError{
 		Time:   fftypes.Now(),
 		Mapped: reason,
 		Error:  err.Error(),
@@ -177,7 +177,7 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 	}
 }
 
-func (m *manager) clearConfirmationTracking(mtx *policyengine.ManagedTXOutput) {
+func (m *manager) clearConfirmationTracking(mtx *apitypes.ManagedTX) {
 	// The only error condition on confirmations manager is if we are exiting, which it logs
 	_ = m.confirmations.Notify(&confirmations.Notification{
 		NotificationType: confirmations.RemovedTransaction,

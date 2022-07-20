@@ -53,11 +53,11 @@ func TestGetEventStreams(t *testing.T) {
 	var ess []*apitypes.EventStream
 	res, err = resty.New().R().
 		SetResult(&ess).
-		Get(url + "/eventstreams?limit=1&after=" + es1.ID.String())
+		Get(url + "/eventstreams?limit=1&after=" + es2.ID.String())
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 
 	assert.Len(t, ess, 1)
-	assert.Equal(t, es2.ID, ess[0].ID)
+	assert.Equal(t, es1.ID, ess[0].ID)
 
 }

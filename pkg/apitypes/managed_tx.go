@@ -14,13 +14,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengine
+package apitypes
 
 import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+)
+
+// TxStatus is the current status of a transaction
+type TxStatus string
+
+const (
+	// TxStatusPending indicates the operation has been submitted, but is not yet confirmed as successful or failed
+	TxStatusPending TxStatus = "Pending"
+	// TxStatusSucceeded the infrastructure runtime has returned success for the operation
+	TxStatusSucceeded TxStatus = "Succeeded"
+	// TxStatusFailed happens when an error is reported by the infrastructure runtime
+	TxStatusFailed TxStatus = "Failed"
 )
 
 type ManagedTXError struct {
@@ -29,20 +40,36 @@ type ManagedTXError struct {
 	Mapped ffcapi.ErrorReason `json:"mapped,omitempty"`
 }
 
-// ManagedTXOutput is the structure stored into the operation in FireFly, that the policy
-// engine can use to apply policy, and apply updates to
-type ManagedTXOutput struct {
-	FFTMName        string                             `json:"fftmName"`
+// ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
+//
+// Indexing:
+//   Multiple index collection are stored for the managed transactions, to allow them to be managed including:
+//
+//   - Nonce allocation: this is a critical index, and why cleanup is so important (mentioned below).
+//     We use this index to determine the next nonce to assign to a given signing key.
+//   - Created time: a timestamp ordered index for the transactions for convenient ordering.
+//     the key includes the ID of the TX for uniqueness.
+//   - Pending sequence: An entry in this index only exists while the transaction is pending, and is
+//     ordered by a UUIDv1 sequence allocated to each entry.
+//
+// Index cleanup after partial write:
+//   - All indexes are stored before the TX itself.
+//   - When listing back entries, the persistence layer will automatically clean up indexes if the underlying
+//     TX they refer to is not available. For this reason the index records are written first.
+type ManagedTX struct {
 	ID              string                             `json:"id"`
+	Status          TxStatus                           `json:"status"`
+	SequenceID      *fftypes.UUID                      `json:"sequenceId"`
 	Nonce           *fftypes.FFBigInt                  `json:"nonce"`
 	Gas             *fftypes.FFBigInt                  `json:"gas"`
 	TransactionHash string                             `json:"transactionHash,omitempty"`
 	TransactionData string                             `json:"transactionData,omitempty"`
 	GasPrice        *fftypes.JSONAny                   `json:"gasPrice"`
 	PolicyInfo      *fftypes.JSONAny                   `json:"policyInfo"`
+	Created         *fftypes.FFTime                    `json:"created"`
 	FirstSubmit     *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
 	LastSubmit      *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
-	Request         *apitypes.TransactionRequest       `json:"request,omitempty"`
+	Request         *TransactionRequest                `json:"request,omitempty"`
 	Receipt         *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
 	ErrorHistory    []*ManagedTXError                  `json:"errorHistory"`
 	Confirmations   []confirmations.BlockInfo          `json:"confirmations,omitempty"`

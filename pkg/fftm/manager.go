@@ -37,6 +37,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines"
@@ -74,7 +75,6 @@ type manager struct {
 	started             bool
 	apiServerDone       chan error
 
-	name                  string
 	opTypes               []string
 	startupScanMaxRetries int
 	fullScanPageSize      int64
@@ -92,9 +92,6 @@ func InitConfig() {
 func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	var err error
 	m := newManager(ctx, connector)
-	if m.name == "" {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgConfigParamNotSet, tmconfig.ManagerName)
-	}
 	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector)
 	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
 	if err != nil {
@@ -127,7 +124,6 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 		eventStreams:     make(map[fftypes.UUID]events.Stream),
 		streamsByName:    make(map[string]*fftypes.UUID),
 
-		name:                  config.GetString(tmconfig.ManagerName),
 		opTypes:               config.GetStringSlice(tmconfig.OperationsTypes),
 		startupScanMaxRetries: config.GetInt(tmconfig.OperationsFullScanStartupMaxRetries),
 		fullScanPageSize:      config.GetInt64(tmconfig.OperationsFullScanPageSize),
@@ -141,7 +137,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 }
 
 type pendingState struct {
-	mtx                     *policyengine.ManagedTXOutput
+	mtx                     *apitypes.ManagedTX
 	confirmed               bool
 	removed                 bool
 	trackingTransactionHash string
@@ -244,14 +240,10 @@ func (m *manager) fullScan() error {
 
 func (m *manager) trackIfManaged(op *core.Operation) {
 	outputJSON := []byte(op.Output.String())
-	var mtx policyengine.ManagedTXOutput
+	var mtx apitypes.ManagedTX
 	err := json.Unmarshal(outputJSON, &mtx)
 	if err != nil {
 		log.L(m.ctx).Warnf("Failed to parse output from operation %s", err)
-		return
-	}
-	if mtx.FFTMName != m.name {
-		log.L(m.ctx).Debugf("Operation %s is not managed by us (fftm=%s)", op.ID, mtx.FFTMName)
 		return
 	}
 	if fmt.Sprintf("%s:%s", op.Namespace, op.ID) != mtx.ID {
@@ -265,7 +257,7 @@ func (m *manager) trackIfManaged(op *core.Operation) {
 	m.trackManaged(&mtx)
 }
 
-func (m *manager) trackManaged(mtx *policyengine.ManagedTXOutput) {
+func (m *manager) trackManaged(mtx *apitypes.ManagedTX) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 	_, existing := m.pendingOpsByID[mtx.ID]

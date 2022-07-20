@@ -59,12 +59,12 @@ func TestGetSubscriptions(t *testing.T) {
 	var listeners []*apitypes.Listener
 	res, err = resty.New().R().
 		SetResult(&listeners).
-		Get(url + "/subscriptions?limit=1&after=" + l1.ID.String())
+		Get(url + "/subscriptions?limit=1&after=" + l2.ID.String())
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 
 	assert.Len(t, listeners, 1)
-	assert.Equal(t, l2.ID, listeners[0].ID)
+	assert.Equal(t, l1.ID, listeners[0].ID)
 	assert.Equal(t, es1.ID, listeners[0].StreamID)
 
 	mfc.AssertExpectations(t)
