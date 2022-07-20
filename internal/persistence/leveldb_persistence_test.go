@@ -265,173 +265,79 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	defer done()
 
 	ctx := context.Background()
-	t1 := &apitypes.ManagedTX{
-		ID:    fmt.Sprintf("ns1/%s", apitypes.UUIDVersion1()), // ensure we get sequentially ascending IDs (not true in actual TXNs)
-		Nonce: fftypes.NewFFBigInt(10001),
+	textTX := func(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
+		tx := &apitypes.ManagedTX{
+			ID:         fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+			SequenceID: apitypes.UUIDVersion1(),
+			Nonce:      fftypes.NewFFBigInt(nonce),
+			Created:    fftypes.Now(),
+			Request: &apitypes.TransactionRequest{
+				TransactionInput: ffcapi.TransactionInput{
+					TransactionHeaders: ffcapi.TransactionHeaders{
+						From: signer,
+					},
+				},
+			},
+			Status: status,
+		}
+		err := p.WriteTransaction(ctx, tx, true)
+		assert.NoError(t, err)
+		return tx
 	}
-	p.WriteManagedTransaction(ctx, t1)
-	t2 := &apitypes.ManagedTX{
-		ID:    fmt.Sprintf("ns1/%s", apitypes.UUIDVersion1()),
-		Nonce: fftypes.NewFFBigInt(10002),
-	}
-	p.WriteManagedTransaction(ctx, t2)
-	t3 := &apitypes.ManagedTX{
-		ID:    fmt.Sprintf("ns1/%s", apitypes.UUIDVersion1()),
-		Nonce: fftypes.NewFFBigInt(10003),
-	}
-	p.WriteManagedTransaction(ctx, t3)
 
-	txns, err := p.ListManagedTransactions(ctx, "", 0)
+	s1t1 := textTX("0xaaaaa", 10001, apitypes.TxStatusSucceeded)
+	s2t1 := textTX("0xbbbbb", 10001, apitypes.TxStatusFailed)
+	s1t2 := textTX("0xaaaaa", 10002, apitypes.TxStatusPending)
+	s1t3 := textTX("0xaaaaa", 10003, apitypes.TxStatusPending)
+
+	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0)
 	assert.NoError(t, err)
-	assert.Len(t, txns, 3)
+	assert.Len(t, txns, 4)
 
-	assert.Equal(t, t3.ID, txns[0].ID)
-	assert.Equal(t, t2.ID, txns[1].ID)
-	assert.Equal(t, t1.ID, txns[2].ID)
+	assert.Equal(t, s1t3.ID, txns[0].ID)
+	assert.Equal(t, s1t2.ID, txns[1].ID)
+	assert.Equal(t, s2t1.ID, txns[2].ID)
+	assert.Equal(t, s1t1.ID, txns[3].ID)
 
-	// Test delete
+	// Only list pending
 
-	err = p.DeleteManagedTransaction(ctx, t2.ID)
-	assert.NoError(t, err)
-	txns, err = p.ListManagedTransactions(ctx, "", 2)
+	txns, err = p.ListTransactionsPending(ctx, nil, 0)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
-	assert.Equal(t, t3.ID, txns[0].ID)
-	assert.Equal(t, t1.ID, txns[1].ID)
 
-	// Test get direct
+	assert.Equal(t, s1t3.ID, txns[0].ID)
+	assert.Equal(t, s1t2.ID, txns[1].ID)
 
-	v, err := p.GetManagedTransaction(ctx, t3.ID)
-	assert.NoError(t, err)
-	assert.Equal(t, t3.ID, v.ID)
-	assert.Equal(t, t3.Nonce, v.Nonce)
+	// List with time range
 
-	v, err = p.GetManagedTransaction(ctx, t2.ID)
-	assert.NoError(t, err)
-	assert.Nil(t, v)
-}
-
-func TestReadWriteNonceAllocations(t *testing.T) {
-
-	p, done := newTestLevelDBPersistence(t)
-	defer done()
-
-	ctx := context.Background()
-	s1n1 := &apitypes.NonceAllocation{
-		Signer: "0xaaaaaaa",
-		Nonce:  1001,
-		TX:     "tx1",
-	}
-	p.WriteNonceAllocation(ctx, s1n1)
-	s2n1 := &apitypes.NonceAllocation{
-		Signer: "0xbbbbbbb",
-		Nonce:  1001,
-		TX:     "tx2",
-	}
-	p.WriteNonceAllocation(ctx, s2n1)
-	s1n2 := &apitypes.NonceAllocation{
-		Signer: "0xaaaaaaa",
-		Nonce:  1002,
-		TX:     "tx3",
-	}
-	p.WriteNonceAllocation(ctx, s1n2)
-	s1n3 := &apitypes.NonceAllocation{
-		Signer: "0xaaaaaaa",
-		Nonce:  1003,
-		TX:     "tx4",
-	}
-	p.WriteNonceAllocation(ctx, s1n3)
-
-	nonces, err := p.ListNonceAllocations(ctx, "0xaaaaaaa", nil, 0)
-	assert.NoError(t, err)
-	assert.Len(t, nonces, 3)
-	assert.Equal(t, s1n3.TX, nonces[0].TX)
-	assert.Equal(t, s1n2.TX, nonces[1].TX)
-	assert.Equal(t, s1n1.TX, nonces[2].TX)
-
-	nonces, err = p.ListNonceAllocations(ctx, "0xbbbbbbb", nil, 0)
-	assert.NoError(t, err)
-	assert.Len(t, nonces, 1)
-	assert.Equal(t, s2n1.TX, nonces[0].TX)
-
-	// Test pagination
-
-	after := int64(1003)
-	nonces, err = p.ListNonceAllocations(ctx, "0xaaaaaaa", &after, 1)
-	assert.NoError(t, err)
-	assert.Len(t, nonces, 1)
-	assert.Equal(t, s1n2.TX, nonces[0].TX)
-
-	// Test delete
-
-	err = p.DeleteNonceAllocation(ctx, "0xaaaaaaa", s1n2.Nonce)
-	assert.NoError(t, err)
-	nonces, err = p.ListNonceAllocations(ctx, "0xaaaaaaa", nil, 0)
-	assert.NoError(t, err)
-	assert.Len(t, nonces, 2)
-	assert.Equal(t, s1n3.TX, nonces[0].TX)
-	assert.Equal(t, s1n1.TX, nonces[1].TX)
-
-	// Test get direct
-
-	v, err := p.GetNonceAllocation(ctx, "0xaaaaaaa", s1n3.Nonce)
-	assert.NoError(t, err)
-	assert.Equal(t, s1n3.Nonce, v.Nonce)
-	assert.Equal(t, s1n3.TX, v.TX)
-
-	v, err = p.GetNonceAllocation(ctx, "0xaaaaaaa", s1n2.Nonce)
-	assert.NoError(t, err)
-	assert.Nil(t, v)
-}
-
-func TestReadWriteInflightTransactions(t *testing.T) {
-
-	p, done := newTestLevelDBPersistence(t)
-	defer done()
-
-	ctx := context.Background()
-	t1 := &apitypes.InflightTX{
-		ID: apitypes.UUIDVersion1(), // ensure we get sequentially ascending IDs
-		TX: "tx1",
-	}
-	p.WriteInflightTransaction(ctx, t1)
-	t2 := &apitypes.InflightTX{
-		ID: apitypes.UUIDVersion1(), // ensure we get sequentially ascending IDs
-		TX: "tx2",
-	}
-	p.WriteInflightTransaction(ctx, t2)
-	t3 := &apitypes.InflightTX{
-		ID: apitypes.UUIDVersion1(), // ensure we get sequentially ascending IDs
-		TX: "tx3",
-	}
-	p.WriteInflightTransaction(ctx, t3)
-
-	txns, err := p.ListInflightTransactions(ctx, nil, 0)
-	assert.NoError(t, err)
-	assert.Len(t, txns, 3)
-
-	assert.Equal(t, t3.ID, txns[0].ID)
-	assert.Equal(t, t2.ID, txns[1].ID)
-	assert.Equal(t, t1.ID, txns[2].ID)
-
-	// Test delete
-
-	err = p.DeleteInflightTransaction(ctx, t2.ID)
-	assert.NoError(t, err)
-	txns, err = p.ListInflightTransactions(ctx, nil, 2)
+	txns, err = p.ListTransactionsByCreateTime(ctx, s1t2.Created, 0)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
-	assert.Equal(t, t3.ID, txns[0].ID)
-	assert.Equal(t, t1.ID, txns[1].ID)
+	assert.Equal(t, s2t1.ID, txns[0].ID)
+	assert.Equal(t, s1t1.ID, txns[1].ID)
+
+	// Test delete, and querying by nonce to limit TX returned
+
+	err = p.DeleteTransaction(ctx, s1t2.ID)
+	assert.NoError(t, err)
+	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t3.Nonce, 0)
+	assert.NoError(t, err)
+	assert.Len(t, txns, 1)
+	assert.Equal(t, s1t1.ID, txns[0].ID)
 
 	// Test get direct
 
-	v, err := p.GetInflightTransaction(ctx, t3.ID)
+	v, err := p.GetTransactionByID(ctx, s1t3.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, t3.ID, v.ID)
-	assert.Equal(t, t3.TX, v.TX)
+	assert.Equal(t, s1t3.ID, v.ID)
+	assert.Equal(t, s1t3.Nonce, v.Nonce)
 
-	v, err = p.GetInflightTransaction(ctx, t2.ID)
+	v, err = p.GetTransactionByNonce(ctx, "0xbbbbb", s2t1.Nonce)
+	assert.NoError(t, err)
+	assert.Equal(t, s2t1.ID, v.ID)
+	assert.Equal(t, s2t1.Nonce, v.Nonce)
+
+	v, err = p.GetTransactionByID(ctx, s1t2.ID)
 	assert.NoError(t, err)
 	assert.Nil(t, v)
 }
@@ -476,7 +382,7 @@ func TestDeleteStreamFail(t *testing.T) {
 
 }
 
-func TestWriteCheckpointFail(t *testing.T) {
+func TestWriteCheckpointFailMarshal(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
@@ -486,6 +392,22 @@ func TestWriteCheckpointFail(t *testing.T) {
 	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
 		Listeners: map[fftypes.UUID]json.RawMessage{
 			*id1: json.RawMessage([]byte(`{"bad": "json"!`)),
+		},
+	})
+	assert.Error(t, err)
+
+}
+
+func TestWriteCheckpointFail(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	p.db.Close()
+
+	id1 := apitypes.UUIDVersion1()
+	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
+		Listeners: map[fftypes.UUID]json.RawMessage{
+			*id1: json.RawMessage([]byte(`{}`)),
 		},
 	})
 	assert.Error(t, err)
@@ -520,12 +442,40 @@ func TestListManagedTransactionFail(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	sID := apitypes.UUIDVersion1()
-	err := p.db.Put(prefixedKey(transactionsPrefix, sID), []byte("{! not json"), &opt.WriteOptions{})
+	tx := &apitypes.ManagedTX{
+		ID:         fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
+		Created:    fftypes.Now(),
+		SequenceID: apitypes.UUIDVersion1(),
+	}
+	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
+	assert.NoError(t, err)
+	err = p.db.Put(txDataKey(tx.ID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListManagedTransactions(context.Background(), "", 0)
+	_, err = p.ListTransactionsByCreateTime(context.Background(), nil, 0)
 	assert.Error(t, err)
+
+}
+
+func TestListManagedTransactionCleanupOrphans(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	tx := &apitypes.ManagedTX{
+		ID:         fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
+		Created:    fftypes.Now(),
+		SequenceID: apitypes.UUIDVersion1(),
+	}
+	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
+	assert.NoError(t, err)
+
+	txns, err := p.ListTransactionsByCreateTime(context.Background(), nil, 0)
+	assert.NoError(t, err)
+	assert.Empty(t, txns)
+
+	cleanedUpIndex, err := p.getKeyValue(context.Background(), txCreatedIndexKey(tx))
+	assert.NoError(t, err)
+	assert.Nil(t, cleanedUpIndex)
 
 }
 
@@ -533,10 +483,13 @@ func TestListNonceAllocationsFail(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	err := p.db.Put(signerNonceKey("0xaaa", 12345), []byte("{! not json"), &opt.WriteOptions{})
+	txID := fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1())
+	err := p.writeKeyValue(context.Background(), txNonceAllocationKey("0xaaa", fftypes.NewFFBigInt(12345)), txDataKey(txID))
+	assert.NoError(t, err)
+	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListNonceAllocations(context.Background(), "0xaaa", nil, 0)
+	_, err = p.ListTransactionsByNonce(context.Background(), "0xaaa", nil, 0)
 	assert.Error(t, err)
 
 }
@@ -545,11 +498,115 @@ func TestListInflightTransactionFail(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	sID := apitypes.UUIDVersion1()
-	err := p.db.Put(prefixedKey(inflightPrefix, sID), []byte("{! not json"), &opt.WriteOptions{})
+	txID := fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1())
+	err := p.writeKeyValue(context.Background(), txPendingIndexKey(apitypes.UUIDVersion1()), txDataKey(txID))
+	assert.NoError(t, err)
+	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListInflightTransactions(context.Background(), nil, 0)
+	_, err = p.ListTransactionsPending(context.Background(), nil, 0)
 	assert.Error(t, err)
+
+}
+
+func TestIndexLookupCallbackErr(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+	p.Close(context.Background())
+
+	_, err := p.indexLookupCallback(context.Background(), ([]byte("any key")))
+	assert.NotNil(t, err)
+
+}
+
+func TestIndexLookupCallbackNotFound(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	b, err := p.indexLookupCallback(context.Background(), ([]byte("any key")))
+	assert.Nil(t, err)
+	assert.Nil(t, b)
+
+}
+
+func TestGetTransactionByNonceFail(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+	p.Close(context.Background())
+
+	_, err := p.GetTransactionByNonce(context.Background(), "0xaaa", fftypes.NewFFBigInt(12345))
+	assert.Regexp(t, "FF21055", err)
+
+}
+
+func TestIterateReverseJSONFailIdxResolve(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	err := p.writeKeyValue(context.Background(), []byte(`test_0/key`), []byte(`test/value`))
+	assert.NoError(t, err)
+	_, err = p.listJSON(context.Background(),
+		"test_0/",
+		"test_1",
+		"",
+		0,
+		func() interface{} { return make(map[string]interface{}) },
+		func(i interface{}) {},
+		func(ctx context.Context, k []byte) ([]byte, error) {
+			return nil, fmt.Errorf("pop")
+		},
+	)
+	assert.Regexp(t, "pop", err)
+
+}
+
+func TestIterateReverseJSONSkipIdxResolve(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	err := p.writeKeyValue(context.Background(), []byte(`test_0/key`), []byte(`test/value`))
+	assert.NoError(t, err)
+	orphans, err := p.listJSON(context.Background(),
+		"test_0/",
+		"test_1",
+		"",
+		0,
+		func() interface{} { return make(map[string]interface{}) },
+		func(_ interface{}) {
+			assert.Fail(t, "Should not be called")
+		},
+		func(ctx context.Context, k []byte) ([]byte, error) {
+			return nil, nil
+		},
+	)
+	assert.NoError(t, err)
+	assert.Len(t, orphans, 1)
+
+}
+
+func TestCleanupOrphanedTXIdxKeysSwallowError(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+	p.Close(context.Background())
+
+	p.cleanupOrphanedTXIdxKeys(context.Background(), [][]byte{[]byte("test")})
+
+}
+
+func TestWriteTransactionIncomplete(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	err := p.WriteTransaction(context.Background(), &apitypes.ManagedTX{}, true)
+	assert.Regexp(t, "FF21059", err)
+
+}
+
+func TestDeleteTransactionMissing(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	err := p.DeleteTransaction(context.Background(), "missing")
+	assert.NoError(t, err)
 
 }

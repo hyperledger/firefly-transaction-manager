@@ -40,48 +40,33 @@ type ManagedTXError struct {
 	Mapped ffcapi.ErrorReason `json:"mapped,omitempty"`
 }
 
-// NonceAllocation is a mapping from an address + nonce, to a managed transaction.
-// These are stored such that we can easily find the next nonce to assign to a managed transaction
-//
-// ** Stored first **
-//   Because there's a non-zero chance we crash after writing this, and before writing the ManagedTX
-//   record. The nonce-allocation code must read the most recently written nonce allocation for the
-//   signer and check the TX object has been written. If not, it will re-allocate (cleaning up the
-//   in-flight record if it exists)
-//
-type NonceAllocation struct {
-	Signer string `json:"signer"`
-	Nonce  int64  `json:"nonce"`
-	TX     string `json:"tx"`
-}
-
-// InflightTX is a UUIDv1 (so ordered) entry, that refers to an in-flight transaction that needs to be tracked.
-// These are deleted when the transaction is complete.
-//
-// ** Stored second **
-//   This means we might have a nonce+inflight record, but not have written the managed TX.
-//   The code that reads the in-flight TX list looks for this scenario, and clean up the orphaned in-flight record
-//   (if it gets to it before)
-type InflightTX struct {
-	ID      *fftypes.UUID   `json:"id"`
-	TX      string          `json:"tx"`
-	Created *fftypes.FFTime `json:"created"`
-}
-
 // ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
 //
-// ** Stored last **
-//   This is persisted (along with the two objects above) before we reply to the API call to initiate a transaction,
-//   and is updated as the transaction progresses onto the chain.
+// Indexing:
+//   Multiple index collection are stored for the managed transactions, to allow them to be managed including:
+//
+//   - Nonce allocation: this is a critical index, and why cleanup is so important (mentioned below).
+//     We use this index to determine the next nonce to assign to a given signing key.
+//   - Created time: a timestamp ordered index for the transactions for convenient ordering.
+//     the key includes the ID of the TX for uniqueness.
+//   - Pending sequence: An entry in this index only exists while the transaction is pending, and is
+//     ordered by a UUIDv1 sequence allocated to each entry.
+//
+// Index cleanup after partial write:
+//   - All indexes are stored before the TX itself.
+//   - When listing back entries, the persistence layer will automatically clean up indexes if the underlying
+//     TX they refer to is not available. For this reason the index records are written first.
 type ManagedTX struct {
 	ID              string                             `json:"id"`
 	Status          TxStatus                           `json:"status"`
-	Nonce           *fftypes.FFBigInt                  `json:"nonce"` // persisted separately
+	SequenceID      *fftypes.UUID                      `json:"sequenceId"`
+	Nonce           *fftypes.FFBigInt                  `json:"nonce"`
 	Gas             *fftypes.FFBigInt                  `json:"gas"`
 	TransactionHash string                             `json:"transactionHash,omitempty"`
 	TransactionData string                             `json:"transactionData,omitempty"`
 	GasPrice        *fftypes.JSONAny                   `json:"gasPrice"`
 	PolicyInfo      *fftypes.JSONAny                   `json:"policyInfo"`
+	Created         *fftypes.FFTime                    `json:"created"`
 	FirstSubmit     *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
 	LastSubmit      *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
 	Request         *TransactionRequest                `json:"request,omitempty"`

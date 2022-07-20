@@ -39,20 +39,13 @@ type Persistence interface {
 	WriteListener(ctx context.Context, spec *apitypes.Listener) error
 	DeleteListener(ctx context.Context, listenerID *fftypes.UUID) error
 
-	ListManagedTransactions(ctx context.Context, after string, limit int) ([]*apitypes.ManagedTX, error) // note there is no order to these, so list isn't very useful
-	GetManagedTransaction(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
-	WriteManagedTransaction(ctx context.Context, tx *apitypes.ManagedTX) error
-	DeleteManagedTransaction(ctx context.Context, txID string) error
-
-	ListNonceAllocations(ctx context.Context, signer string, after *int64, limit int) ([]*apitypes.NonceAllocation, error) // reverse nonce order
-	GetNonceAllocation(ctx context.Context, signer string, nonce int64) (*apitypes.NonceAllocation, error)
-	WriteNonceAllocation(ctx context.Context, alloc *apitypes.NonceAllocation) error
-	DeleteNonceAllocation(ctx context.Context, signer string, nonce int64) error
-
-	ListInflightTransactions(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.InflightTX, error) // reverse UUIDv1 order
-	GetInflightTransaction(ctx context.Context, inflightID *fftypes.UUID) (*apitypes.InflightTX, error)
-	WriteInflightTransaction(ctx context.Context, inflight *apitypes.InflightTX) error
-	DeleteInflightTransaction(ctx context.Context, inflightID *fftypes.UUID) error
+	ListTransactionsByCreateTime(ctx context.Context, after *fftypes.FFTime, limit int) ([]*apitypes.ManagedTX, error)             // reverse create time order
+	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
+	ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.ManagedTX, error)                    // reverse UUIDv1 order, only those in pending state
+	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
+	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
+	WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, possiblyNew bool) error
+	DeleteTransaction(ctx context.Context, txID string) error
 
 	Close(ctx context.Context)
 }
