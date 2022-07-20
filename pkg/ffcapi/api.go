@@ -184,7 +184,7 @@ type TransactionInput struct {
 }
 
 type TransactionHeaders struct {
-	From  string            `json:"from"`
+	From  string            `json:"from,omitempty"`
 	To    string            `json:"to,omitempty"`
 	Nonce *fftypes.FFBigInt `json:"nonce,omitempty"`
 	Gas   *fftypes.FFBigInt `json:"gas,omitempty"`

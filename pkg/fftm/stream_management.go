@@ -48,17 +48,21 @@ func (m *manager) restoreStreams() error {
 			if err != nil {
 				return err
 			}
-			closeoutName, err := m.reserveStreamName(m.ctx, *def.Name, def.ID)
-			var s events.Stream
-			if err == nil {
-				s, err = m.addRuntimeStream(def, streamListeners)
-			}
-			if err == nil && !*def.Suspended {
-				err = s.Start(m.ctx)
-			}
-			closeoutName(err == nil)
-			if err != nil {
-				return err
+			// check to see if it's already started
+			if m.eventStreams[*def.ID] == nil {
+				closeoutName, err := m.reserveStreamName(m.ctx, *def.Name, def.ID)
+				var s events.Stream
+				if err == nil {
+					s, err = m.addRuntimeStream(def, streamListeners)
+				}
+				if err == nil && !*def.Suspended {
+
+					err = s.Start(m.ctx)
+				}
+				closeoutName(err == nil)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -86,7 +90,7 @@ func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftype
 }
 
 func (m *manager) addRuntimeStream(def *apitypes.EventStream, listeners []*apitypes.Listener) (events.Stream, error) {
-	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.wsChannels, listeners)
+	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.wsServer, listeners)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +126,6 @@ func (m *manager) deleteStream(ctx context.Context, idStr string) error {
 }
 
 func (m *manager) reserveStreamName(ctx context.Context, name string, id *fftypes.UUID) (func(bool), error) {
-
 	m.mux.Lock()
 	defer m.mux.Unlock()
 

@@ -72,4 +72,6 @@ var (
 	MsgPersistenceReadFailed         = ffe("FF21055", "Failed to read key '%s' from persistence")
 	MsgPersistenceDeleteFailed       = ffe("FF21056", "Failed to delete key '%s' from persistence")
 	MsgPersistenceInitFailed         = ffe("FF21057", "Failed to initialize persistence at path '%s'")
+	MsgNamespacesEmpty               = ffe("FF21058", "ffcore.namespaces must contain a list of namespaces")
+	MsgNotStarted                    = ffe("FF21059", "Connector has not fully started yet", 503)
 )

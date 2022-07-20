@@ -57,7 +57,7 @@ type manager struct {
 	apiServer     httpserver.HTTPServer
 	ffCoreClient  *resty.Client
 	wsClient      wsclient.WSClient
-	wsChannels    ws.WebSocketChannels
+	wsServer      ws.WebSocketServer
 	persistence   persistence.Persistence
 
 	mux                 sync.Mutex
@@ -82,6 +82,7 @@ type manager struct {
 	policyLoopInterval    time.Duration
 	errorHistoryCount     int
 	enableChangeListener  bool
+	namespaces            []string
 }
 
 func InitConfig() {
@@ -105,12 +106,18 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	m.wsServer = ws.NewWebSocketServer(ctx)
 	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
 	if err != nil {
 		return nil, err
 	}
 	if err = m.initPersistence(ctx); err != nil {
 		return nil, err
+	}
+	if namespaces := config.GetStringSlice(tmconfig.FFCoreNamespaces); len(namespaces) > 0 {
+		m.namespaces = namespaces
+	} else {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgNamespacesEmpty)
 	}
 	return m, nil
 }
@@ -223,23 +230,27 @@ func (m *manager) fullScan() error {
 	var page int64
 	var read, added int
 	var lastOp *core.Operation
-	for {
-		ops, err := m.readOperationPage(lastOp)
-		if err != nil {
-			return err
+	for _, ns := range m.namespaces {
+		page = 0
+		for {
+			ops, err := m.readOperationPage(ns, lastOp)
+			if err != nil {
+				return err
+			}
+			if len(ops) == 0 {
+				log.L(m.ctx).Debugf("Finished reading all operations for namespace '%s' - %d read, %d added", ns, read, added)
+				break
+			}
+			lastOp = ops[len(ops)-1]
+			read += len(ops)
+			for _, op := range ops {
+				added++
+				m.trackIfManaged(op)
+			}
+			page++
 		}
-		if len(ops) == 0 {
-			log.L(m.ctx).Debugf("Finished reading all operations - %d read, %d added", read, added)
-			return nil
-		}
-		lastOp = ops[len(ops)-1]
-		read += len(ops)
-		for _, op := range ops {
-			added++
-			m.trackIfManaged(op)
-		}
-		page++
 	}
+	return nil
 }
 
 func (m *manager) trackIfManaged(op *core.Operation) {
@@ -297,6 +308,7 @@ func (m *manager) Start() error {
 	m.firstFullScanDone = make(chan error)
 	m.fullScanLoopDone = make(chan struct{})
 	go m.fullScanLoop()
+	go m.runAPIServer()
 	err := m.waitForFirstScanAndStart()
 	if err != nil {
 		return err
@@ -318,7 +330,6 @@ func (m *manager) waitForFirstScanAndStart() error {
 	log.L(m.ctx).Infof("Scan complete. Completing startup")
 	m.policyLoopDone = make(chan struct{})
 	go m.receiptPollingLoop()
-	go m.runAPIServer()
 	go m.confirmations.Start()
 	err := m.startWS()
 	if err == nil {

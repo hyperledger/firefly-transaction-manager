@@ -514,7 +514,7 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 
 			// The block might appear at any point in the confirmation list
 			expectedParentHash := pending.blockHash
-			expectedBlockNumber := pending.blockNumber + 1
+			expectedBlockNumber := pending.blockNumber
 			for i := 0; i < (len(pending.confirmations) + 1); i++ {
 				log.L(bcm.ctx).Tracef("Comparing block number=%d parent=%s to %d / %s for %s", blockNumber, block.ParentHash, expectedBlockNumber, expectedParentHash, pendingKey)
 				if block.ParentHash == expectedParentHash && blockNumber == expectedBlockNumber {

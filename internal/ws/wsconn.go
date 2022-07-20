@@ -133,7 +133,8 @@ func (c *webSocketConnection) listenTopic(t *webSocketTopic) {
 }
 
 func (c *webSocketConnection) listenReplies() {
-	c.server.ListenForReplies(c)
+	// At this point, transaction manager does not send replies on the websocket
+	// Instead, operations are updated in Core via the SPI
 }
 
 func (c *webSocketConnection) listen() {
