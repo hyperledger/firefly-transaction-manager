@@ -26,18 +26,18 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly/pkg/core"
 )
 
 // opUpdate allows us to avoid JSONObject serialization to a map before we upload our managedTXOutput
 type opUpdate struct {
-	Status core.OpStatus                 `json:"status"`
-	Output *policyengine.ManagedTXOutput `json:"output"`
-	Error  string                        `json:"error"`
+	Status core.OpStatus       `json:"status"`
+	Output *apitypes.ManagedTX `json:"output"`
+	Error  string              `json:"error"`
 }
 
-func (m *manager) writeManagedTX(ctx context.Context, mtx *policyengine.ManagedTXOutput, status core.OpStatus, errString string) error {
+func (m *manager) writeManagedTX(ctx context.Context, mtx *apitypes.ManagedTX, status core.OpStatus, errString string) error {
 	log.L(ctx).Debugf("Updating operation %s status=%s", mtx.ID, status)
 	var errorInfo fftypes.RESTError
 	var op core.Operation

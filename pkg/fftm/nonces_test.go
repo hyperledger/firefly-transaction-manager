@@ -27,7 +27,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -60,7 +59,7 @@ func TestNonceCached(t *testing.T) {
 		close(locked1)
 
 		time.Sleep(1 * time.Millisecond)
-		ln.spent = &policyengine.ManagedTXOutput{
+		ln.spent = &apitypes.ManagedTX{
 			ID:    "ns1:" + fftypes.NewUUID().String(),
 			Nonce: fftypes.NewFFBigInt(int64(ln.nonce)),
 			Request: &apitypes.TransactionRequest{

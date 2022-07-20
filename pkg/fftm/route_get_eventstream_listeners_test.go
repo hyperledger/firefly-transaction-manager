@@ -64,12 +64,12 @@ func TestGetEventStreamListeners(t *testing.T) {
 	var listeners []*apitypes.Listener
 	res, err = resty.New().R().
 		SetResult(&listeners).
-		Get(fmt.Sprintf("%s/eventstreams/%s/listeners?limit=1&after=%s", url, es1.ID, l1.ID))
+		Get(fmt.Sprintf("%s/eventstreams/%s/listeners?limit=1&after=%s", url, es1.ID, l2.ID))
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 
 	assert.Len(t, listeners, 1)
-	assert.Equal(t, l3.ID, listeners[0].ID)
+	assert.Equal(t, l1.ID, listeners[0].ID)
 	assert.Equal(t, es1.ID, listeners[0].StreamID)
 
 	mfc.AssertExpectations(t)

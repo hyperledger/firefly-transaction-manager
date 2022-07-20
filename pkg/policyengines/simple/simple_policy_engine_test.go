@@ -31,7 +31,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -62,7 +61,7 @@ func TestFixedGasPriceOK(t *testing.T) {
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -130,7 +129,7 @@ func TestGasOracleSendOK(t *testing.T) {
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -177,7 +176,7 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -224,7 +223,7 @@ func TestConnectorGasOracleFail(t *testing.T) {
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -265,7 +264,7 @@ func TestGasOracleSendFail(t *testing.T) {
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -325,7 +324,7 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -355,7 +354,7 @@ func TestGasOracleNonJSON(t *testing.T) {
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -388,7 +387,7 @@ func TestTXSendFail(t *testing.T) {
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -414,7 +413,7 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 	assert.NoError(t, err)
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		TransactionData: "SOME_RAW_TX_BYTES",
 		FirstSubmit:     &submitTime,
 		PolicyInfo:      fftypes.JSONAnyPtr("!not json!"),
@@ -446,7 +445,7 @@ func TestWarnStaleAdditionalWarning(t *testing.T) {
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
 	lastWarning := fftypes.FFTime(time.Now().Add(-50 * time.Hour))
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -480,7 +479,7 @@ func TestWarnStaleNoWarning(t *testing.T) {
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
 	lastWarning := fftypes.Now()
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{
@@ -512,7 +511,7 @@ func TestNoOpWithReceipt(t *testing.T) {
 	assert.NoError(t, err)
 
 	submitTime := fftypes.Now()
-	mtx := &policyengine.ManagedTXOutput{
+	mtx := &apitypes.ManagedTX{
 		Request: &apitypes.TransactionRequest{
 			TransactionInput: ffcapi.TransactionInput{
 				TransactionHeaders: ffcapi.TransactionHeaders{

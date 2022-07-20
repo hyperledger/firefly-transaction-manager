@@ -38,7 +38,7 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 		Description:     tmmsgs.APIEndpointPostSubscriptions,
 		JSONInputValue:  func() interface{} { return &apitypes.BaseRequest{} },
 		JSONOutputValue: func() interface{} { return map[string]interface{}{} },
-		JSONInputSchema: func(ctx context.Context, schemaGen ffapi.SchemaGenerator) (*openapi3.SchemaRef, error) {
+		JSONInputSchema: func(_ context.Context, schemaGen ffapi.SchemaGenerator) (*openapi3.SchemaRef, error) {
 			schemas := []*openapi3.SchemaRef{}
 			txRequest, err := schemaGen(&apitypes.TransactionRequest{})
 			if err == nil {

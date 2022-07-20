@@ -20,8 +20,8 @@ import (
 	"context"
 
 	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 )
 
 type lockedNonce struct {
@@ -30,7 +30,7 @@ type lockedNonce struct {
 	signer   string
 	unlocked chan struct{}
 	nonce    uint64
-	spent    *policyengine.ManagedTXOutput
+	spent    *apitypes.ManagedTX
 }
 
 // complete must be called for any lockedNonce returned from a successful assignAndLockNonce call
