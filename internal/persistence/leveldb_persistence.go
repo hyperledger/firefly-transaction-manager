@@ -385,8 +385,10 @@ func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.
 	idKey := txDataKey(tx.ID)
 	if possiblyNew {
 		// We write the index records first - because if we crash, we need to be able to know if the
-		// index records are valid or not. When reading, if there is an index key that does not have a
-		// corresponding
+		// index records are valid or not. When reading under the read lock, if there is an index key
+		// that does not have a corresponding managed TX available, we will clean up the
+		// orphaned index (after swapping the read lock for the write lock)
+		// See listTransactionsByIndex() for the other half of this logic.
 		err = p.writeKeyValue(ctx, txCreatedIndexKey(tx), idKey)
 		if err == nil && tx.Status == apitypes.TxStatusPending {
 			err = p.writeKeyValue(ctx, txPendingIndexKey(tx.SequenceID), idKey)
