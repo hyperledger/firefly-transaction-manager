@@ -76,4 +76,6 @@ var (
 	MsgPersistenceTXIncomplete       = ffe("FF21059", "Transaction is missing indexed fields")
 	MsgNotStarted                    = ffe("FF21060", "Connector has not fully started yet", 503)
 	MsgNamespacesEmpty               = ffe("FF21061", "ffcore.namespaces must contain a list of namespaces")
+	MsgPaginationErrTxNotFound       = ffe("FF21062", "The ID specified in the 'after' option (for pagination) must match an existing transaction: '%s'", 404)
+	MsgTXConflictSignerPending       = ffe("FF21063", "Only one of 'signer' and 'pending' can be supplied when querying transactions", 400)
 )

@@ -39,7 +39,7 @@ type Persistence interface {
 	WriteListener(ctx context.Context, spec *apitypes.Listener) error
 	DeleteListener(ctx context.Context, listenerID *fftypes.UUID) error
 
-	ListTransactionsByCreateTime(ctx context.Context, after *fftypes.FFTime, limit int) ([]*apitypes.ManagedTX, error)             // reverse create time order
+	ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int) ([]*apitypes.ManagedTX, error)         // reverse create time order
 	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
 	ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.ManagedTX, error)                    // reverse UUIDv1 order, only those in pending state
 	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)

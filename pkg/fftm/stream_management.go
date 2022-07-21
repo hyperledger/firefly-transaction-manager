@@ -308,11 +308,18 @@ func (m *manager) getStream(ctx context.Context, idStr string) (*apitypes.EventS
 	}, nil
 }
 
-func (m *manager) parseAfterAndLimit(ctx context.Context, afterStr, limitStr string) (after *fftypes.UUID, limit int, err error) {
+func (m *manager) parseLimit(ctx context.Context, limitStr string) (limit int, err error) {
 	if limitStr != "" {
 		if limit, err = strconv.Atoi(limitStr); err != nil {
-			return nil, -1, i18n.NewError(ctx, tmmsgs.MsgInvalidLimit, limitStr, err)
+			return -1, i18n.NewError(ctx, tmmsgs.MsgInvalidLimit, limitStr, err)
 		}
+	}
+	return limit, nil
+}
+
+func (m *manager) parseAfterAndLimit(ctx context.Context, afterStr, limitStr string) (after *fftypes.UUID, limit int, err error) {
+	if limit, err = m.parseLimit(ctx, limitStr); err != nil {
+		return nil, -1, i18n.NewError(ctx, tmmsgs.MsgInvalidLimit, limitStr, err)
 	}
 	if afterStr != "" {
 		if after, err = fftypes.ParseUUID(ctx, afterStr); err != nil {

@@ -299,9 +299,11 @@ func (m *manager) Start() error {
 	m.fullScanRequests <- true
 	m.firstFullScanDone = make(chan error)
 	m.fullScanLoopDone = make(chan struct{})
+	if err := m.restoreStreams(); err != nil {
+		return err
+	}
 	go m.fullScanLoop()
 	go m.runAPIServer()
-	go m.restoreStreams()
 	return m.waitForFirstScanAndStart()
 }
 
