@@ -54,6 +54,7 @@ func newTestManager(t *testing.T, ffCoreHandler http.HandlerFunc, wsURL ...strin
 	policyengines.RegisterEngine(&simple.PolicyEngineFactory{})
 	dir, err := ioutil.TempDir("", "ldb_*")
 	assert.NoError(t, err)
+	config.Set(tmconfig.FFCoreNamespaces, []string{"ns1"})
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").SubSection(simple.GasOracleConfig).Set(simple.GasOracleMode, simple.GasOracleModeDisabled)
 

@@ -6,6 +6,7 @@
   "cSpell.words": [
     "APIID",
     "apitypes",
+    "badurl",
     "ccache",
     "confirmationsmocks",
     "dataexchange",
@@ -39,6 +40,7 @@
     "fftmrequest",
     "fftypes",
     "finalizers",
+    "getkin",
     "GJSON",
     "goleveldb",
     "httpserver",

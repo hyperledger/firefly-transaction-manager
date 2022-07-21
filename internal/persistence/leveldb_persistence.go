@@ -333,10 +333,10 @@ func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collec
 	return transactions, nil
 }
 
-func (p *leveldbPersistence) ListTransactionsByCreateTime(ctx context.Context, after *fftypes.FFTime, limit int) ([]*apitypes.ManagedTX, error) {
+func (p *leveldbPersistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int) ([]*apitypes.ManagedTX, error) {
 	afterStr := ""
 	if after != nil {
-		afterStr = fmt.Sprintf("%.19d", after.UnixNano())
+		afterStr = fmt.Sprintf("%.19d/%s", after.Created.UnixNano(), after.SequenceID)
 	}
 	return p.listTransactionsByIndex(ctx, txCreatedIndexPrefix, txCreatedIndexEnd, afterStr, limit)
 }

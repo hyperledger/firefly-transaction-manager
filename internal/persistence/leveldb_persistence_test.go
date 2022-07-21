@@ -310,7 +310,7 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 
 	// List with time range
 
-	txns, err = p.ListTransactionsByCreateTime(ctx, s1t2.Created, 0)
+	txns, err = p.ListTransactionsByCreateTime(ctx, s1t2, 0)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
 	assert.Equal(t, s2t1.ID, txns[0].ID)

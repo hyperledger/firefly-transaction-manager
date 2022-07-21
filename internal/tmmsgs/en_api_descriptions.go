@@ -50,4 +50,6 @@ var (
 	APIParamListenerID = ffm("api.params.listenerId", "Listener ID")
 	APIParamLimit      = ffm("api.params.limit", "Maximum number of entries to return")
 	APIParamAfter      = ffm("api.params.after", "Return entries after this ID - for pagination (non-inclusive)")
+	APIParamTXSigner   = ffm("api.params.txSigner", "Return only transactions for a specific signing address, in reverse nonce order")
+	APIParamTXPending  = ffm("api.params.txPending", "Return only pending transactions, in reverse submission sequence (a 'sequenceId' is assigned to each transaction to determine its sequence")
 )

@@ -263,11 +263,11 @@ func (_m *Persistence) ListStreams(ctx context.Context, after *fftypes.UUID, lim
 }
 
 // ListTransactionsByCreateTime provides a mock function with given fields: ctx, after, limit
-func (_m *Persistence) ListTransactionsByCreateTime(ctx context.Context, after *fftypes.FFTime, limit int) ([]*apitypes.ManagedTX, error) {
+func (_m *Persistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int) ([]*apitypes.ManagedTX, error) {
 	ret := _m.Called(ctx, after, limit)
 
 	var r0 []*apitypes.ManagedTX
-	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.FFTime, int) []*apitypes.ManagedTX); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX, int) []*apitypes.ManagedTX); ok {
 		r0 = rf(ctx, after, limit)
 	} else {
 		if ret.Get(0) != nil {
@@ -276,7 +276,7 @@ func (_m *Persistence) ListTransactionsByCreateTime(ctx context.Context, after *
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.FFTime, int) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *apitypes.ManagedTX, int) error); ok {
 		r1 = rf(ctx, after, limit)
 	} else {
 		r1 = ret.Error(1)
