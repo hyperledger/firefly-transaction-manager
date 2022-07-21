@@ -65,6 +65,9 @@ func (m *manager) router() *mux.Router {
 		b, _ := json.Marshal(&doc)
 		_, _ = res.Write(b)
 	}))
+
+	mux.HandleFunc("/ws", m.wsServer.Handler)
+
 	mux.NotFoundHandler = hf.APIWrapper(func(res http.ResponseWriter, req *http.Request) (status int, err error) {
 		return 404, i18n.NewError(req.Context(), i18n.Msg404NotFound)
 	})

@@ -48,6 +48,9 @@ func mergeValidateWsConfig(ctx context.Context, changed bool, base *apitypes.Web
 		return nil, false, i18n.NewError(ctx, tmmsgs.MsgInvalidDistributionMode, *merged.DistributionMode)
 	}
 
+	// Topic
+	changed = apitypes.CheckUpdateString(changed, &merged.Topic, base.Topic, updates.Topic, esDefaults.topic)
+
 	return merged, changed, nil
 }
 

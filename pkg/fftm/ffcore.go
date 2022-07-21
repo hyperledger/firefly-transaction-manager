@@ -89,7 +89,7 @@ func (m *manager) queryAndAddPending(nsOpID string) {
 	}
 }
 
-func (m *manager) readOperationPage(lastOp *core.Operation) ([]*core.Operation, error) {
+func (m *manager) readOperationPage(ns string, lastOp *core.Operation) ([]*core.Operation, error) {
 	var errorInfo fftypes.RESTError
 	var ops []*core.Operation
 	query := url.Values{
@@ -110,7 +110,7 @@ func (m *manager) readOperationPage(lastOp *core.Operation) ([]*core.Operation, 
 		SetQueryParamsFromValues(query).
 		SetResult(&ops).
 		SetError(&errorInfo).
-		Get("/spi/v1/operations")
+		Get(fmt.Sprintf("/spi/v1/namespaces/%s/operations", ns))
 	if err != nil {
 		return nil, i18n.WrapError(m.ctx, err, tmmsgs.MsgCoreError, -1, err)
 	}

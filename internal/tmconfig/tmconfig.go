@@ -58,6 +58,7 @@ var (
 	PersistenceLevelDBSyncWrites                  = ffc("persistence.leveldb.syncWrites")
 	APIDefaultRequestTimeout                      = ffc("api.defaultRequestTimeout")
 	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
+	FFCoreNamespaces                              = ffc("ffcore.namespaces")
 )
 
 var FFCoreConfig config.Section
@@ -103,6 +104,8 @@ func setDefaults() {
 
 	viper.SetDefault(string(APIDefaultRequestTimeout), "30s")
 	viper.SetDefault(string(APIMaxRequestTimeout), "10m")
+
+	viper.SetDefault(string(FFCoreNamespaces), []string{})
 }
 
 func Reset() {

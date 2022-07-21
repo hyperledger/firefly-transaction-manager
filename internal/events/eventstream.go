@@ -58,6 +58,7 @@ var esDefaults struct {
 	blockedRetryDelay         fftypes.FFDuration
 	webhookRequestTimeout     fftypes.FFDuration
 	websocketDistributionMode apitypes.DistributionMode
+	topic                     string
 	retry                     *retry.Retry
 }
 
@@ -511,7 +512,9 @@ func (es *eventStream) Start(ctx context.Context) error {
 	go es.blockListener(startedState)
 
 	// Start the confirmations manager
-	es.confirmations.Start()
+	if es.confirmations != nil {
+		es.confirmations.Start()
+	}
 
 	return err
 }

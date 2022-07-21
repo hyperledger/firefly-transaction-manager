@@ -72,7 +72,7 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 				res, _, err := m.connector.QueryInvoke(r.Req.Context(), &ffcapi.QueryInvokeRequest{
 					TransactionInput: tReq.TransactionInput,
 				})
-				return res, err
+				return res.Outputs, err
 			default:
 				return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgUnsupportedRequestType, baseReq.Headers.Type)
 			}
