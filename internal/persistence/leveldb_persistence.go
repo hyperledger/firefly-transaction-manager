@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
@@ -57,6 +58,13 @@ func NewLevelDBPersistence(ctx context.Context) (Persistence, error) {
 		syncWrites: config.GetBool(tmconfig.PersistenceLevelDBSyncWrites),
 	}, nil
 }
+
+type SortDirection int
+
+const (
+	SortDirectionAscending SortDirection = iota
+	SortDirectionDescending
+)
 
 const checkpointsPrefix = "checkpoints_0/"
 const eventstreamsPrefix = "eventstreams_0/"
@@ -148,6 +156,7 @@ func (p *leveldbPersistence) readJSON(ctx context.Context, key []byte, target in
 }
 
 func (p *leveldbPersistence) listJSON(ctx context.Context, collectionPrefix, collectionEnd, after string, limit int,
+	dir SortDirection,
 	val func() interface{}, // return a pointer to a pointer variable, of the type to unmarshal
 	add func(interface{}), // passes back the val() for adding to the list, if the filters match
 	indexResolver func(ctx context.Context, k []byte) ([]byte, error), // if non-nil then the initial lookup will be passed to this, to lookup the target bytes. Nil skips item
@@ -157,22 +166,44 @@ func (p *leveldbPersistence) listJSON(ctx context.Context, collectionPrefix, col
 		Start: []byte(collectionPrefix),
 		Limit: []byte(collectionEnd),
 	}
-	if after != "" {
-		collectionRange.Limit = []byte(collectionPrefix + after)
+	var it iterator.Iterator
+	switch dir {
+	case SortDirectionAscending:
+		afterKey := collectionPrefix + after
+		if after != "" {
+			collectionRange.Start = []byte(afterKey)
+		}
+		it = p.db.NewIterator(collectionRange, &opt.ReadOptions{DontFillCache: true})
+		if after != "" && it.Next() {
+			if !strings.HasPrefix(string(it.Key()), afterKey) {
+				it.Prev() // skip back, as the first key was already after the "after" key
+			}
+		}
+	default:
+		if after != "" {
+			collectionRange.Limit = []byte(collectionPrefix + after) // exclusive for limit, so no need to fiddle here
+		}
+		it = p.db.NewIterator(collectionRange, &opt.ReadOptions{DontFillCache: true})
 	}
-	it := p.db.NewIterator(collectionRange, &opt.ReadOptions{DontFillCache: true})
 	defer it.Release()
-	return p.iterateReverseJSON(ctx, it, limit, val, add, indexResolver, filters...)
+	return p.iterateJSON(ctx, it, limit, dir, val, add, indexResolver, filters...)
 }
 
-func (p *leveldbPersistence) iterateReverseJSON(ctx context.Context, it iterator.Iterator, limit int,
-	val func() interface{}, add func(interface{}), indexResolver func(ctx context.Context, k []byte) ([]byte, error), filters ...func(interface{}) bool,
+func (p *leveldbPersistence) iterateJSON(ctx context.Context, it iterator.Iterator, limit int,
+	dir SortDirection, val func() interface{}, add func(interface{}), indexResolver func(ctx context.Context, k []byte) ([]byte, error), filters ...func(interface{}) bool,
 ) (orphanedIdxKeys [][]byte, err error) {
 	count := 0
-	next := it.Last // First iteration of the loop goes to the end
+	next := it.Next // forwards we enter this function before the first key
+	if dir == SortDirectionDescending {
+		next = it.Last // reverse we enter this function
+	}
 itLoop:
 	for next() {
-		next = it.Prev // Future iterations call prev (note reverse sort order moving backwards through the selection)
+		if dir == SortDirectionDescending {
+			next = it.Prev
+		} else {
+			next = it.Next
+		}
 		v := val()
 		b := it.Value()
 		if indexResolver != nil {
@@ -184,7 +215,7 @@ itLoop:
 			if b == nil {
 				log.L(ctx).Warnf("Skipping orphaned index key '%s' pointing to '%s'", it.Key(), valKey)
 				orphanedIdxKeys = append(orphanedIdxKeys, it.Key())
-				continue
+				continue itLoop
 			}
 		}
 		err := json.Unmarshal(b, v)
@@ -230,9 +261,9 @@ func (p *leveldbPersistence) DeleteCheckpoint(ctx context.Context, streamID *fft
 	return p.deleteKeys(ctx, prefixedKey(checkpointsPrefix, streamID))
 }
 
-func (p *leveldbPersistence) ListStreams(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.EventStream, error) {
+func (p *leveldbPersistence) ListStreams(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.EventStream, error) {
 	streams := make([]*apitypes.EventStream, 0)
-	if _, err := p.listJSON(ctx, eventstreamsPrefix, eventstreamsEnd, after.String(), limit,
+	if _, err := p.listJSON(ctx, eventstreamsPrefix, eventstreamsEnd, after.String(), limit, dir,
 		func() interface{} { var v *apitypes.EventStream; return &v },
 		func(v interface{}) { streams = append(streams, *(v.(**apitypes.EventStream))) },
 		nil,
@@ -255,9 +286,9 @@ func (p *leveldbPersistence) DeleteStream(ctx context.Context, streamID *fftypes
 	return p.deleteKeys(ctx, prefixedKey(eventstreamsPrefix, streamID))
 }
 
-func (p *leveldbPersistence) ListListeners(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.Listener, error) {
+func (p *leveldbPersistence) ListListeners(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.Listener, error) {
 	listeners := make([]*apitypes.Listener, 0)
-	if _, err := p.listJSON(ctx, listenersPrefix, listenersEnd, after.String(), limit,
+	if _, err := p.listJSON(ctx, listenersPrefix, listenersEnd, after.String(), limit, dir,
 		func() interface{} { var v *apitypes.Listener; return &v },
 		func(v interface{}) { listeners = append(listeners, *(v.(**apitypes.Listener))) },
 		nil,
@@ -267,9 +298,9 @@ func (p *leveldbPersistence) ListListeners(ctx context.Context, after *fftypes.U
 	return listeners, nil
 }
 
-func (p *leveldbPersistence) ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, streamID *fftypes.UUID) ([]*apitypes.Listener, error) {
+func (p *leveldbPersistence) ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error) {
 	listeners := make([]*apitypes.Listener, 0)
-	if _, err := p.listJSON(ctx, listenersPrefix, listenersEnd, after.String(), limit,
+	if _, err := p.listJSON(ctx, listenersPrefix, listenersEnd, after.String(), limit, dir,
 		func() interface{} { var v *apitypes.Listener; return &v },
 		func(v interface{}) { listeners = append(listeners, *(v.(**apitypes.Listener))) },
 		nil,
@@ -313,11 +344,11 @@ func (p *leveldbPersistence) cleanupOrphanedTXIdxKeys(ctx context.Context, orpha
 	}
 }
 
-func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collectionPrefix, collectionEnd, afterStr string, limit int) ([]*apitypes.ManagedTX, error) {
+func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collectionPrefix, collectionEnd, afterStr string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) {
 
 	p.txMux.RLock()
 	transactions := make([]*apitypes.ManagedTX, 0)
-	orphanedIdxKeys, err := p.listJSON(ctx, collectionPrefix, collectionEnd, afterStr, limit,
+	orphanedIdxKeys, err := p.listJSON(ctx, collectionPrefix, collectionEnd, afterStr, limit, dir,
 		func() interface{} { var v *apitypes.ManagedTX; return &v },
 		func(v interface{}) { transactions = append(transactions, *(v.(**apitypes.ManagedTX))) },
 		p.indexLookupCallback,
@@ -333,24 +364,24 @@ func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collec
 	return transactions, nil
 }
 
-func (p *leveldbPersistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int) ([]*apitypes.ManagedTX, error) {
+func (p *leveldbPersistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) {
 	afterStr := ""
 	if after != nil {
 		afterStr = fmt.Sprintf("%.19d/%s", after.Created.UnixNano(), after.SequenceID)
 	}
-	return p.listTransactionsByIndex(ctx, txCreatedIndexPrefix, txCreatedIndexEnd, afterStr, limit)
+	return p.listTransactionsByIndex(ctx, txCreatedIndexPrefix, txCreatedIndexEnd, afterStr, limit, dir)
 }
 
-func (p *leveldbPersistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int) ([]*apitypes.ManagedTX, error) {
+func (p *leveldbPersistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) {
 	afterStr := ""
 	if after != nil {
 		afterStr = fmt.Sprintf("%.24d", after.Int())
 	}
-	return p.listTransactionsByIndex(ctx, signerNoncePrefix(signer), signerNonceEnd(signer), afterStr, limit)
+	return p.listTransactionsByIndex(ctx, signerNoncePrefix(signer), signerNonceEnd(signer), afterStr, limit, dir)
 }
 
-func (p *leveldbPersistence) ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.ManagedTX, error) {
-	return p.listTransactionsByIndex(ctx, txPendingIndexPrefix, txPendingIndexEnd, after.String(), limit)
+func (p *leveldbPersistence) ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) {
+	return p.listTransactionsByIndex(ctx, txPendingIndexPrefix, txPendingIndexEnd, after.String(), limit, dir)
 }
 
 func (p *leveldbPersistence) GetTransactionByID(ctx context.Context, txID string) (tx *apitypes.ManagedTX, err error) {
@@ -379,7 +410,8 @@ func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.
 		tx.Request.From == "" ||
 		tx.Nonce == nil ||
 		tx.SequenceID == nil ||
-		tx.Created == nil {
+		tx.Created == nil ||
+		tx.Status == "" {
 		return i18n.NewError(ctx, tmmsgs.MsgPersistenceTXIncomplete)
 	}
 	idKey := txDataKey(tx.ID)
@@ -399,7 +431,7 @@ func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.
 	}
 	// If we are creating/updating a record that is not pending, we need to ensure there is no pending index associated with it
 	if err == nil && tx.Status != apitypes.TxStatusPending {
-		err = p.deleteKeys(ctx)
+		err = p.deleteKeys(ctx, txPendingIndexKey(tx.SequenceID))
 	}
 	if err == nil {
 		err = p.writeJSON(ctx, idKey, tx)

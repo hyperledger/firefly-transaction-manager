@@ -42,15 +42,9 @@ var (
 	ConfigConfirmationsRequired                 = ffc("config.confirmations.required", "Number of confirmations required to consider a transaction/event final", i18n.IntType)
 	ConfigConfirmationsStaleReceiptTimeout      = ffc("config.confirmations.staleReceiptTimeout", "Duration after which to force a receipt check for a pending transaction", i18n.TimeDurationType)
 
-	ConfigFFCoreURL      = ffc("config.ffcore.url", "The URL of the FireFly core admin API server to connect to", i18n.StringType)
-	ConfigFFCoreProxyURL = ffc("config.ffcore.proxy.url", "Optional HTTP proxy URL to use for the FireFly core admin API server", i18n.StringType)
-
-	ConfigOperationsTypes                     = ffc("config.operations.types", "The operation types to query in FireFly core, that might have been submitted via this Transaction Manager", "string[]")
-	ConfigOperationsFullScanMinimumDelay      = ffc("config.operations.fullScan.minimumDelay", "The minimum delay between full scans of the FireFly core API, when reconnecting, or recovering from missed events / errors", i18n.TimeDurationType)
-	ConfigOperationsFullScanPageSize          = ffc("config.operations.fullScan.pageSize", "The page size to use when performing a full scan of the ForeFly core API on startup, or recovery", i18n.IntType)
-	ConfigOperationsFullScanStartupMaxRetries = ffc("config.operations.fullScan.startupMaxRetries", "The page size to use when performing a full scan of the ForeFly core API on startup, or recovery", i18n.IntType)
-	ConfigOperationsErrorHistoryCount         = ffc("config.operations.errorHistoryCount", "The number of historical errors to retain in the operation", i18n.IntType)
-	ConfigOperationsChangeListenerEnabled     = ffc("config.operations.changeListener.enabled", "Whether to enable the change event listener to detect updates made to operations outside of the FFTM", i18n.BooleanType)
+	ConfigTransactionsErrorHistoryCount = ffc("config.transactions.errorHistoryCount", "The number of historical errors to retain in the operation", i18n.IntType)
+	ConfigTransactionsMaxInflight       = ffc("config.transactions.maxInFlight", "The maximum number of transactions to have in-flight with the policy engine / blockchain transaction pool", i18n.IntType)
+	ConfigTransactionsNonceStateTimeout = ffc("config.transactions.nonceStateTimeout", "How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address", i18n.TimeDurationType)
 
 	ConfigPolicyEngineName = ffc("config.policyengine.name", "The name of the policy engine to use", i18n.StringType)
 

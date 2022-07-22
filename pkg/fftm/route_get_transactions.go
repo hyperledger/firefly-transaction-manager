@@ -36,13 +36,14 @@ var getTransactions = func(m *manager) *ffapi.Route {
 			{Name: "after", Description: tmmsgs.APIParamAfter},
 			{Name: "signer", Description: tmmsgs.APIParamTXSigner},
 			{Name: "pending", Description: tmmsgs.APIParamTXPending, IsBool: true},
+			{Name: "direction", Description: tmmsgs.APIParamSortDirection},
 		},
 		Description:     tmmsgs.APIEndpointGetSubscriptions,
 		JSONInputValue:  nil,
 		JSONOutputValue: func() interface{} { return []*apitypes.ManagedTX{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getTransactions(r.Req.Context(), r.QP["after"], r.QP["limit"], r.QP["signer"], strings.EqualFold(r.QP["pending"], "true"))
+			return m.getTransactions(r.Req.Context(), r.QP["after"], r.QP["limit"], r.QP["signer"], strings.EqualFold(r.QP["pending"], "true"), r.QP["direction"])
 		},
 	}
 }

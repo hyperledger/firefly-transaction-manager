@@ -19,7 +19,6 @@ package fftm
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/go-resty/resty/v2"
@@ -51,7 +50,7 @@ func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status api
 
 func TestGetTransactions(t *testing.T) {
 
-	url, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
+	url, m, done := newTestManager(t)
 	defer done()
 
 	err := m.Start()

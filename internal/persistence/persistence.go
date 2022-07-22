@@ -28,20 +28,20 @@ type Persistence interface {
 	GetCheckpoint(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStreamCheckpoint, error)
 	DeleteCheckpoint(ctx context.Context, streamID *fftypes.UUID) error
 
-	ListStreams(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.EventStream, error) // reverse UUIDv1 order
+	ListStreams(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.EventStream, error) // reverse UUIDv1 order
 	GetStream(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStream, error)
 	WriteStream(ctx context.Context, spec *apitypes.EventStream) error
 	DeleteStream(ctx context.Context, streamID *fftypes.UUID) error
 
-	ListListeners(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.Listener, error) // reverse UUIDv1 order
-	ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, streamID *fftypes.UUID) ([]*apitypes.Listener, error)
+	ListListeners(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.Listener, error) // reverse UUIDv1 order
+	ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error)
 	GetListener(ctx context.Context, listenerID *fftypes.UUID) (*apitypes.Listener, error)
 	WriteListener(ctx context.Context, spec *apitypes.Listener) error
 	DeleteListener(ctx context.Context, listenerID *fftypes.UUID) error
 
-	ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int) ([]*apitypes.ManagedTX, error)         // reverse create time order
-	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
-	ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int) ([]*apitypes.ManagedTX, error)                    // reverse UUIDv1 order, only those in pending state
+	ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)         // reverse create time order
+	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
+	ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                    // reverse UUIDv1 order, only those in pending state
 	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
 	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
 	WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, possiblyNew bool) error

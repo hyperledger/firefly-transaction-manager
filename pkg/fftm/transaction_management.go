@@ -18,17 +18,28 @@ package fftm
 
 import (
 	"context"
+	"strings"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signer string, pending bool) (transactions []*apitypes.ManagedTX, err error) {
+func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signer string, pending bool, dirString string) (transactions []*apitypes.ManagedTX, err error) {
 	limit, err := m.parseLimit(ctx, limitStr)
 	if err != nil {
 		return nil, err
+	}
+	var dir persistence.SortDirection
+	switch strings.ToLower(dirString) {
+	case "", "desc", "descending":
+		dir = persistence.SortDirectionDescending // descending is default
+	case "asc", "ascending":
+		dir = persistence.SortDirectionAscending
+	default:
+		return nil, i18n.NewError(ctx, tmmsgs.MsgInvalidSortDirection, dirString)
 	}
 	var afterTx *apitypes.ManagedTX
 	if afterStr != "" {
@@ -49,15 +60,15 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 		if afterTx != nil {
 			afterNonce = afterTx.Nonce
 		}
-		return m.persistence.ListTransactionsByNonce(ctx, signer, afterNonce, limit)
+		return m.persistence.ListTransactionsByNonce(ctx, signer, afterNonce, limit, dir)
 	case pending:
 		var afterSequence *fftypes.UUID
 		if afterTx != nil {
 			afterSequence = afterTx.SequenceID
 		}
-		return m.persistence.ListTransactionsPending(ctx, afterSequence, limit)
+		return m.persistence.ListTransactionsPending(ctx, afterSequence, limit, dir)
 	default:
-		return m.persistence.ListTransactionsByCreateTime(ctx, afterTx, limit)
+		return m.persistence.ListTransactionsByCreateTime(ctx, afterTx, limit, dir)
 	}
 
 }

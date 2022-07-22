@@ -19,7 +19,6 @@ package fftm
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
@@ -31,12 +30,28 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestNonceCached(t *testing.T) {
+func TestNonceStaleStateContention(t *testing.T) {
 
-	_, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	_, m, cancel := newTestManager(t)
 	defer cancel()
+
+	// Write a stale record to persistence
+	oldTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
+	err := m.persistence.WriteTransaction(m.ctx, &apitypes.ManagedTX{
+		ID:         "stale1",
+		Status:     apitypes.TxStatusSucceeded,
+		SequenceID: apitypes.UUIDVersion1(),
+		Nonce:      fftypes.NewFFBigInt(1000), // old nonce
+		Created:    &oldTime,                  // old record
+		Request: &apitypes.TransactionRequest{
+			TransactionInput: ffcapi.TransactionInput{
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x12345",
+				},
+			},
+		},
+	}, true)
+	assert.NoError(t, err)
 
 	mFFC := m.connector.(*ffcapimocks.API)
 
@@ -60,8 +75,11 @@ func TestNonceCached(t *testing.T) {
 
 		time.Sleep(1 * time.Millisecond)
 		ln.spent = &apitypes.ManagedTX{
-			ID:    "ns1:" + fftypes.NewUUID().String(),
-			Nonce: fftypes.NewFFBigInt(int64(ln.nonce)),
+			ID:         "ns1:" + fftypes.NewUUID().String(),
+			Nonce:      fftypes.NewFFBigInt(int64(ln.nonce)),
+			Status:     apitypes.TxStatusPending,
+			SequenceID: apitypes.UUIDVersion1(),
+			Created:    &oldTime, // old record
 			Request: &apitypes.TransactionRequest{
 				TransactionInput: ffcapi.TransactionInput{
 					TransactionHeaders: ffcapi.TransactionHeaders{
@@ -70,6 +88,8 @@ func TestNonceCached(t *testing.T) {
 				},
 			},
 		}
+		err = m.persistence.WriteTransaction(m.ctx, ln.spent, true)
+		assert.NoError(t, err)
 		ln.complete(context.Background())
 	}()
 
@@ -93,9 +113,7 @@ func TestNonceCached(t *testing.T) {
 
 func TestNonceError(t *testing.T) {
 
-	_, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	_, m, cancel := newTestManager(t)
 	defer cancel()
 
 	mFFC := m.connector.(*ffcapimocks.API)

@@ -83,54 +83,9 @@ nav_order: 2
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|factor|Factor to increase the delay by, between each retry|`boolean`|`<nil>`
-|initialDelay|Initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
-|maxDelay|Maximum delay between retries|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
-
-## ffcore
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|connectionTimeout|The maximum amount of time that a connection is allowed to remain with no data transmitted|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
-|expectContinueTimeout|See [ExpectContinueTimeout in the Go docs](https://pkg.go.dev/net/http#Transport)|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1s`
-|headers|Adds custom headers to HTTP requests|`map[string]string`|`<nil>`
-|idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`475ms`
-|maxIdleConns|The max number of idle connections to hold pooled|`int`|`100`
-|requestTimeout|The maximum amount of time that a request is allowed to remain open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
-|tlsHandshakeTimeout|The maximum amount of time to wait for a successful TLS handshake|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
-|url|The URL of the FireFly core admin API server to connect to|`string`|`<nil>`
-
-## ffcore.auth
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|password|Password|`string`|`<nil>`
-|username|Username|`string`|`<nil>`
-
-## ffcore.proxy
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|url|Optional HTTP proxy URL to use for the FireFly core admin API server|`string`|`<nil>`
-
-## ffcore.retry
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|count|The maximum number of times to retry|`int`|`5`
-|enabled|Enables retries|`boolean`|`false`
-|initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
-|maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
-
-## ffcore.ws
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|heartbeatInterval|The amount of time to wait between heartbeat signals on the WebSocket connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
-|initialConnectAttempts|The number of attempts FireFly will make to connect to the WebSocket when starting up, before failing|`int`|`5`
-|path|The WebSocket sever URL to which FireFly should connect|WebSocket URL `string`|`/admin/ws`
-|readBufferSize|The size in bytes of the read buffer for the WebSocket connection|[`BytesSize`](https://pkg.go.dev/github.com/docker/go-units#BytesSize)|`16Kb`
-|writeBufferSize|The size in bytes of the write buffer for the WebSocket connection|[`BytesSize`](https://pkg.go.dev/github.com/docker/go-units#BytesSize)|`16Kb`
+|factor|Factor to increase the delay by, between each retry|`boolean`|`2`
+|initialDelay|Initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
+|maxDelay|Maximum delay between retries|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
 
 ## log
 
@@ -163,27 +118,6 @@ nav_order: 2
 |level|Configures the JSON key containing the log level|`string`|`level`
 |message|Configures the JSON key containing the log message|`string`|`message`
 |timestamp|Configures the JSON key containing the timestamp of the log|`string`|`@timestamp`
-
-## operations
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|errorHistoryCount|The number of historical errors to retain in the operation|`int`|`25`
-|types|The operation types to query in FireFly core, that might have been submitted via this Transaction Manager|string[]|`[blockchain_invoke blockchain_pin_batch token_create_pool]`
-
-## operations.changeListener
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|enabled|Whether to enable the change event listener to detect updates made to operations outside of the FFTM|`boolean`|`<nil>`
-
-## operations.fullScan
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|minimumDelay|The minimum delay between full scans of the FireFly core API, when reconnecting, or recovering from missed events / errors|[`time.Duration`](https://pkg.go.dev/time#Duration)|`5s`
-|pageSize|The page size to use when performing a full scan of the ForeFly core API on startup, or recovery|`int`|`100`
-|startupMaxRetries|The page size to use when performing a full scan of the ForeFly core API on startup, or recovery|`int`|`10`
 
 ## persistence
 
@@ -256,6 +190,22 @@ nav_order: 2
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |interval|Interval at which to invoke the policy engine to evaluate outstanding transactions|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1s`
+
+## policyloop.retry
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|factor|The retry backoff factor|`boolean`|`2`
+|initialDelay|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
+|maxDelay|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+
+## transactions
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|errorHistoryCount|The number of historical errors to retain in the operation|`int`|`25`
+|maxInFlight|The maximum number of transactions to have in-flight with the policy engine / blockchain transaction pool|`int`|`100`
+|nonceStateTimeout|How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1h`
 
 ## webhooks
 

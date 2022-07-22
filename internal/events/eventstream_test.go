@@ -150,7 +150,8 @@ func TestConfigNewDefaultsUpdate(t *testing.T) {
 		"suspended":false,
 		"type":"websocket",
 		"websocket": {
-			"distributionMode":"load_balance"
+			"distributionMode":"load_balance",
+			"topic":""
 		}
 	}`, string(b))
 
