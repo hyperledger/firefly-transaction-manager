@@ -22,7 +22,6 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly/pkg/core"
 )
 
 func (m *manager) sendManagedTransaction(ctx context.Context, request *apitypes.TransactionRequest) (*apitypes.ManagedTX, error) {
@@ -53,14 +52,18 @@ func (m *manager) sendManagedTransaction(ctx context.Context, request *apitypes.
 	// to the background worker.
 	mtx := &apitypes.ManagedTX{
 		ID:              request.Headers.ID, // on input the request ID must be the namespaced operation ID
+		SequenceID:      apitypes.UUIDVersion1(),
+		Created:         fftypes.Now(),
 		Nonce:           fftypes.NewFFBigInt(int64(lockedNonce.nonce)),
 		Gas:             prepared.Gas,
 		TransactionData: prepared.TransactionData,
 		Request:         request,
+		Status:          apitypes.TxStatusPending,
 	}
-	if err := m.writeManagedTX(m.ctx, mtx, core.OpStatusPending, ""); err != nil {
+	if err := m.persistence.WriteTransaction(m.ctx, mtx, true); err != nil {
 		return nil, err
 	}
+	m.markInflightStale()
 
 	// Ok - we've spent it. The rest of the processing will be triggered off of lockedNonce
 	// completion adding this transaction to the pool (and/or the change event that comes in from

@@ -18,10 +18,10 @@ package fftm
 
 import (
 	"fmt"
-	"net/http"
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -31,7 +31,7 @@ import (
 
 func TestRestoreStreamsAndListenersOK(t *testing.T) {
 
-	_, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
+	_, m, done := newTestManager(t)
 	defer done()
 
 	mfc := m.connector.(*ffcapimocks.API)
@@ -76,7 +76,7 @@ func TestRestoreStreamsReadFailed(t *testing.T) {
 
 	mp, _, m := newMockPersistenceManager(t)
 
-	mp.On("ListStreams", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreams", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
 
 	err := m.restoreStreams()
 	assert.Regexp(t, "pop", err)
@@ -88,10 +88,10 @@ func TestRestoreListenersReadFailed(t *testing.T) {
 
 	mp, _, m := newMockPersistenceManager(t)
 
-	mp.On("ListStreams", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit).Return([]*apitypes.EventStream{
+	mp.On("ListStreams", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{
 		{ID: fftypes.NewUUID()},
 	}, nil)
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), 0, mock.Anything).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), 0, persistence.SortDirectionAscending, mock.Anything).Return(nil, fmt.Errorf("pop"))
 
 	err := m.restoreStreams()
 	assert.Regexp(t, "pop", err)
@@ -101,7 +101,7 @@ func TestRestoreListenersReadFailed(t *testing.T) {
 
 func TestRestoreStreamsValidateFail(t *testing.T) {
 
-	_, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
+	_, m, done := newTestManager(t)
 	defer done()
 
 	falsy := false
@@ -116,7 +116,7 @@ func TestRestoreStreamsValidateFail(t *testing.T) {
 
 func TestRestoreListenersStartFail(t *testing.T) {
 
-	_, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
+	_, m, done := newTestManager(t)
 	defer done()
 
 	mfc := m.connector.(*ffcapimocks.API)
@@ -141,7 +141,7 @@ func TestRestoreListenersStartFail(t *testing.T) {
 
 func TestDeleteStartedListener(t *testing.T) {
 
-	_, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
+	_, m, done := newTestManager(t)
 	defer done()
 
 	mfc := m.connector.(*ffcapimocks.API)
@@ -174,7 +174,7 @@ func TestDeleteStartedListenerFail(t *testing.T) {
 
 	esID := apitypes.UUIDVersion1()
 	lID := apitypes.UUIDVersion1()
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, esID).Return([]*apitypes.Listener{
+	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{
 		{ID: lID, StreamID: esID},
 	}, nil)
 	mp.On("DeleteListener", m.ctx, lID).Return(fmt.Errorf("pop"))
@@ -199,7 +199,7 @@ func TestDeleteStreamListenerPersistenceFail(t *testing.T) {
 	mp, _, m := newMockPersistenceManager(t)
 
 	esID := apitypes.UUIDVersion1()
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, esID).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return(nil, fmt.Errorf("pop"))
 
 	err := m.deleteStream(m.ctx, esID.String())
 	assert.Regexp(t, "pop", err)
@@ -212,7 +212,7 @@ func TestDeleteStreamPersistenceFail(t *testing.T) {
 	mp, _, m := newMockPersistenceManager(t)
 
 	esID := apitypes.UUIDVersion1()
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, esID).Return([]*apitypes.Listener{}, nil)
+	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(fmt.Errorf("pop"))
 
 	err := m.deleteStream(m.ctx, esID.String())
@@ -226,7 +226,7 @@ func TestDeleteStreamNotInitialized(t *testing.T) {
 	mp, _, m := newMockPersistenceManager(t)
 
 	esID := apitypes.UUIDVersion1()
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, esID).Return([]*apitypes.Listener{}, nil)
+	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(nil)
 
 	err := m.deleteStream(m.ctx, esID.String())

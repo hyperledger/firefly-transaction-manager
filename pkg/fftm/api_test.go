@@ -17,9 +17,7 @@
 package fftm
 
 import (
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 	"testing"
 
@@ -67,9 +65,7 @@ func TestSendTransactionE2E(t *testing.T) {
 
 	txSent := make(chan struct{})
 
-	url, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	url, m, cancel := newTestManager(t)
 	defer cancel()
 
 	mFFC := m.connector.(*ffcapimocks.API)
@@ -128,9 +124,7 @@ func TestSendTransactionE2E(t *testing.T) {
 
 func TestSendInvalidRequestBadTXType(t *testing.T) {
 
-	url, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	url, m, cancel := newTestManager(t)
 	defer cancel()
 	m.Start()
 
@@ -154,9 +148,7 @@ func TestSendInvalidRequestBadTXType(t *testing.T) {
 
 func TestSwaggerEndpoints(t *testing.T) {
 
-	url, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	url, m, cancel := newTestManager(t)
 	defer cancel()
 	m.Start()
 
@@ -175,9 +167,7 @@ func TestSwaggerEndpoints(t *testing.T) {
 
 func TestSendInvalidRequestWrongType(t *testing.T) {
 
-	url, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	url, m, cancel := newTestManager(t)
 	defer cancel()
 	m.Start()
 
@@ -199,9 +189,7 @@ func TestSendInvalidRequestWrongType(t *testing.T) {
 
 func TestSendTransactionPrepareFail(t *testing.T) {
 
-	url, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	url, m, cancel := newTestManager(t)
 	defer cancel()
 
 	mFFC := m.connector.(*ffcapimocks.API)
@@ -225,50 +213,9 @@ func TestSendTransactionPrepareFail(t *testing.T) {
 
 }
 
-func TestSendTransactionUpdateFireFlyFail(t *testing.T) {
-
-	url, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == http.MethodPatch {
-				errRes := fftypes.RESTError{Error: "pop"}
-				b, err := json.Marshal(&errRes)
-				assert.NoError(t, err)
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(500)
-				w.Write(b)
-			} else {
-				w.WriteHeader(200)
-			}
-		},
-	)
-	defer cancel()
-
-	mFFC := m.connector.(*ffcapimocks.API)
-
-	mFFC.On("NextNonceForSigner", mock.Anything, mock.MatchedBy(func(nonceReq *ffcapi.NextNonceForSignerRequest) bool {
-		return "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8" == nonceReq.Signer
-	})).Return(&ffcapi.NextNonceForSignerResponse{
-		Nonce: fftypes.NewFFBigInt(12345),
-	}, ffcapi.ErrorReason(""), nil)
-
-	mFFC.On("TransactionPrepare", mock.Anything, mock.Anything).Return(&ffcapi.TransactionPrepareResponse{}, ffcapi.ErrorReason(""), nil)
-
-	m.Start()
-
-	req := strings.NewReader(sampleSendTX)
-	res, err := resty.New().R().
-		SetBody(req).
-		Post(url)
-	assert.NoError(t, err)
-	assert.Equal(t, 500, res.StatusCode())
-
-}
-
 func TestQueryOK(t *testing.T) {
 
-	url, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	url, m, cancel := newTestManager(t)
 	defer cancel()
 	m.Start()
 
@@ -279,7 +226,7 @@ func TestQueryOK(t *testing.T) {
 		Outputs: fftypes.JSONAnyPtr(`"some output data"`),
 	}, ffcapi.ErrorReason(""), nil)
 
-	var queryRes apitypes.QueryResponse
+	var queryRes string
 	res, err := resty.New().R().
 		SetBody(&apitypes.QueryRequest{
 			Headers: apitypes.RequestHeaders{
@@ -295,7 +242,7 @@ func TestQueryOK(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 
-	assert.Equal(t, `"some output data"`, queryRes.Outputs.String())
+	assert.Equal(t, `some output data`, queryRes)
 
 	mca.AssertExpectations(t)
 
@@ -303,9 +250,7 @@ func TestQueryOK(t *testing.T) {
 
 func TestQueryBadRequest(t *testing.T) {
 
-	url, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	url, m, cancel := newTestManager(t)
 	defer cancel()
 	m.Start()
 
@@ -330,9 +275,7 @@ func TestQueryBadRequest(t *testing.T) {
 
 func TestNotFound(t *testing.T) {
 
-	url, m, cancel := newTestManager(t,
-		func(w http.ResponseWriter, r *http.Request) {},
-	)
+	url, m, cancel := newTestManager(t)
 	defer cancel()
 	m.Start()
 

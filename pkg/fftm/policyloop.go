@@ -22,19 +22,21 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly/pkg/core"
 )
 
-func (m *manager) receiptPollingLoop() {
+func (m *manager) policyLoop() {
 	defer close(m.policyLoopDone)
 
 	for {
 		timer := time.NewTimer(m.policyLoopInterval)
 		select {
+		case <-m.inflightStale:
+			m.policyLoopCycle(true)
 		case <-timer.C:
-			m.policyLoopCycle()
+			m.policyLoopCycle(false)
 		case <-m.ctx.Done():
 			log.L(m.ctx).Infof("Receipt poller exiting")
 			return
@@ -42,18 +44,60 @@ func (m *manager) receiptPollingLoop() {
 	}
 }
 
-func (m *manager) policyLoopCycle() {
-
-	// Grab the lock to build a list of things to check
-	m.mux.Lock()
-	allPending := make([]*pendingState, 0, len(m.pendingOpsByID))
-	for _, pending := range m.pendingOpsByID {
-		allPending = append(allPending, pending)
+func (m *manager) markInflightStale() {
+	select {
+	case m.inflightStale <- true:
+	default:
 	}
-	m.mux.Unlock()
+}
 
-	// Go through trying to query all of them
-	for _, pending := range allPending {
+func (m *manager) updateInflightSet() bool {
+
+	oldInflight := m.inflight
+	m.inflight = make([]*pendingState, 0, len(oldInflight))
+
+	// Run through removing those that are removed
+	for _, p := range oldInflight {
+		if !p.remove {
+			m.inflight = append(m.inflight, p)
+		}
+	}
+
+	// If we are not at maximum, then query if there are more candidates now
+	spaces := m.maxInFlight - len(m.inflight)
+	if spaces > 0 {
+		var after *fftypes.UUID
+		if len(m.inflight) > 0 {
+			after = m.inflight[len(m.inflight)-1].mtx.SequenceID
+		}
+		var additional []*apitypes.ManagedTX
+		// We retry the get from persistence indefinitely (until the context cancels)
+		err := m.retry.Do(m.ctx, "get pending transactions", func(attempt int) (retry bool, err error) {
+			additional, err = m.persistence.ListTransactionsPending(m.ctx, after, spaces, persistence.SortDirectionAscending)
+			return true, err
+		})
+		if err != nil {
+			log.L(m.ctx).Infof("Policy loop context cancelled while retrying")
+			return false
+		}
+		for _, mtx := range additional {
+			m.inflight = append(m.inflight, &pendingState{mtx: mtx})
+		}
+	}
+	return true
+
+}
+
+func (m *manager) policyLoopCycle(inflightStale bool) {
+
+	if inflightStale {
+		if !m.updateInflightSet() {
+			return
+		}
+	}
+
+	// Go through executing the policy engine against them
+	for _, pending := range m.inflight {
 		err := m.execPolicy(pending)
 		if err != nil {
 			log.L(m.ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
@@ -79,26 +123,21 @@ func (m *manager) addError(mtx *apitypes.ManagedTX, reason ffcapi.ErrorReason, e
 	}
 }
 
-// checkReceiptCycle runs against each pending item, on each cycle, and is the one place responsible
-// for state updates - to avoid those happening in parallel.
 func (m *manager) execPolicy(pending *pendingState) (err error) {
 
-	updated := true
+	var updated bool
 	completed := false
-	newStatus := core.OpStatusPending
 	mtx := pending.mtx
 	switch {
 	case pending.confirmed:
 		updated = true
 		completed = true
 		if mtx.Receipt.Success {
-			newStatus = core.OpStatusSucceeded
+			mtx.Status = apitypes.TxStatusSucceeded
 		} else {
-			newStatus = core.OpStatusFailed
+			mtx.Status = apitypes.TxStatusFailed
 		}
-	case pending.removed:
-		// Remove from our state
-		m.removeIfTracked(mtx.ID)
+
 	default:
 		// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 		// such as submitting for the first time, or raising the gas etc.
@@ -114,19 +153,14 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 	}
 
 	if updated || err != nil {
-		errorString := ""
+		err := m.persistence.WriteTransaction(m.ctx, mtx, false)
 		if err != nil {
-			// In the case of errors, we keep the record updated with the latest error - but leave it in Pending
-			errorString = err.Error()
-		}
-		err := m.writeManagedTX(m.ctx, mtx, newStatus, errorString)
-		if err != nil {
-			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, newStatus, err)
+			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, mtx.Status, err)
 			return err
 		}
 		if completed {
-			// We can remove it now
-			m.removeIfTracked(mtx.ID)
+			pending.remove = true
+			m.markInflightStale()
 		}
 	}
 
@@ -174,28 +208,5 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 		log.L(m.ctx).Infof("Error detected notifying confirmation manager: %s", err)
 	} else {
 		pending.trackingTransactionHash = pending.mtx.TransactionHash
-	}
-}
-
-func (m *manager) clearConfirmationTracking(mtx *apitypes.ManagedTX) {
-	// The only error condition on confirmations manager is if we are exiting, which it logs
-	_ = m.confirmations.Notify(&confirmations.Notification{
-		NotificationType: confirmations.RemovedTransaction,
-		Transaction: &confirmations.TransactionInfo{
-			TransactionHash: mtx.TransactionHash,
-		},
-	})
-}
-
-func (m *manager) removeIfTracked(nsOpID string) {
-	m.mux.Lock()
-	pending, existing := m.pendingOpsByID[nsOpID]
-	if existing {
-		delete(m.pendingOpsByID, nsOpID)
-	}
-	m.mux.Unlock()
-	// Outside the lock tap the confirmation manager on the shoulder so it can clean up too
-	if existing {
-		m.clearConfirmationTracking(pending.mtx)
 	}
 }

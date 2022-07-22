@@ -18,8 +18,10 @@ package fftm
 
 import (
 	"context"
+	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
@@ -37,10 +39,8 @@ type lockedNonce struct {
 func (ln *lockedNonce) complete(ctx context.Context) {
 	if ln.spent != nil {
 		log.L(ctx).Debugf("Next nonce %d for signer %s spent", ln.nonce, ln.signer)
-		ln.m.trackManaged(ln.spent)
 	} else {
 		log.L(ctx).Debugf("Returning next nonce %d for signer %s unspent", ln.nonce, ln.signer)
-		// Do not
 	}
 	ln.m.mux.Lock()
 	delete(ln.m.lockedNonces, ln.signer)
@@ -63,16 +63,6 @@ func (m *manager) assignAndLockNonce(ctx context.Context, nsOpID, signer string)
 				unlocked: make(chan struct{}),
 			}
 			m.lockedNonces[signer] = locked
-			// We might know the highest nonce straight away
-			nextNonce, nonceCached := m.nextNonces[signer]
-			if nonceCached {
-				locked.nonce = nextNonce
-				log.L(ctx).Debugf("Locking next nonce %d from cache for signer %s", locked.nonce, signer)
-				// We can return the nonce to use without any query
-				m.mux.Unlock()
-				return locked, nil
-			}
-			// Otherwise, defer a lookup to outside of the mutex
 			doLookup = true
 		}
 		m.mux.Unlock()
@@ -84,20 +74,54 @@ func (m *manager) assignAndLockNonce(ctx context.Context, nsOpID, signer string)
 		} else if doLookup {
 			// We have to ensure we either successfully return a nonce,
 			// or otherwise we unlock when we send the error
-			nextNonceRes, _, err := m.connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
-				Signer: signer,
-			})
+			nextNonce, err := m.calcNextNonce(ctx, signer)
 			if err != nil {
 				locked.complete(ctx)
 				return nil, err
 			}
-			nextNonce := nextNonceRes.Nonce.Uint64()
-			m.mux.Lock()
-			m.nextNonces[signer] = nextNonce
 			locked.nonce = nextNonce
-			m.mux.Unlock()
 			return locked, nil
 		}
 	}
+
+}
+
+func (m *manager) calcNextNonce(ctx context.Context, signer string) (uint64, error) {
+
+	// First we check our DB to find the last nonce we used for this address.
+	// Note we are within the nonce-lock in assignAndLockNonce for this signer, so we can be sure we're the
+	// only routine attempting this right now.
+	var lastTxn *apitypes.ManagedTX
+	txns, err := m.persistence.ListTransactionsByNonce(ctx, signer, nil, 1, persistence.SortDirectionDescending)
+	if err != nil {
+		return 0, err
+	}
+	if len(txns) > 0 {
+		lastTxn = txns[0]
+		if time.Since(*lastTxn.Created.Time()) < m.nonceStateTimeout {
+			nextNonce := lastTxn.Nonce.Uint64() + 1
+			log.L(ctx).Debugf("Allocating next nonce '%s' / '%d' after TX '%s' (status=%s)", signer, nextNonce, lastTxn.ID, lastTxn.Status)
+			return nextNonce, nil
+		}
+	}
+
+	// If we don't have a fresh answer in our state store, then ask the node.
+	nextNonceRes, _, err := m.connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
+		Signer: signer,
+	})
+	if err != nil {
+		return 0, err
+	}
+	nextNonce := nextNonceRes.Nonce.Uint64()
+
+	// If we had a stale answer in our state store, make sure this isn't re-used.
+	// This is important in case we have transactions that have expired from the TX pool of nodes, but we still have them
+	// in our state store. So basically whichever is further forwards of our state store and the node answer wins.
+	if lastTxn != nil && nextNonce <= lastTxn.Nonce.Uint64() {
+		log.L(ctx).Debugf("Node TX pool next nonce '%s' / '%d' is not ahead of '%d' in TX '%s' (status=%s)", signer, nextNonce, lastTxn.Nonce.Uint64(), lastTxn.ID, lastTxn.Status)
+		nextNonce = lastTxn.Nonce.Uint64() + 1
+	}
+
+	return nextNonce, nil
 
 }

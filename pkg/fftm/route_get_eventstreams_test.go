@@ -17,7 +17,6 @@
 package fftm
 
 import (
-	"net/http"
 	"testing"
 
 	"github.com/go-resty/resty/v2"
@@ -30,7 +29,7 @@ import (
 
 func TestGetEventStreams(t *testing.T) {
 
-	url, m, done := newTestManager(t, func(w http.ResponseWriter, r *http.Request) {})
+	url, m, done := newTestManager(t)
 	defer done()
 
 	mfc := m.connector.(*ffcapimocks.API)
