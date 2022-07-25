@@ -28,5 +28,5 @@ const configDir = "../../test/data/config"
 func TestInitConfigOK(t *testing.T) {
 	Reset()
 
-	assert.Equal(t, 100, config.GetInt(OperationsFullScanPageSize))
+	assert.Equal(t, 50, config.GetInt(EventStreamsDefaultsBatchSize))
 }

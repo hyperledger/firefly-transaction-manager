@@ -20,8 +20,6 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffresty"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
-	"github.com/hyperledger/firefly-common/pkg/wsclient"
-	"github.com/hyperledger/firefly/pkg/core"
 	"github.com/spf13/viper"
 )
 
@@ -32,13 +30,13 @@ var (
 	ConfirmationsBlockQueueLength                 = ffc("confirmations.blockQueueLength")
 	ConfirmationsStaleReceiptTimeout              = ffc("confirmations.staleReceiptTimeout")
 	ConfirmationsNotificationQueueLength          = ffc("confirmations.notificationQueueLength")
-	OperationsTypes                               = ffc("operations.types")
-	OperationsFullScanStartupMaxRetries           = ffc("operations.fullScan.startupMaxRetries")
-	OperationsFullScanPageSize                    = ffc("operations.fullScan.pageSize")
-	OperationsFullScanMinimumDelay                = ffc("operations.fullScan.minimumDelay")
-	OperationsErrorHistoryCount                   = ffc("operations.errorHistoryCount")
-	OperationsChangeListenerEnabled               = ffc("operations.changeListener.enabled")
+	TransactionsErrorHistoryCount                 = ffc("transactions.errorHistoryCount")
+	TransactionsMaxInFlight                       = ffc("transactions.maxInFlight")
+	TransactionsNonceStateTimeout                 = ffc("transactions.nonceStateTimeout")
 	PolicyLoopInterval                            = ffc("policyloop.interval")
+	PolicyLoopRetryInitDelay                      = ffc("policyloop.retry.initialDelay")
+	PolicyLoopRetryMaxDelay                       = ffc("policyloop.retry.maxDelay")
+	PolicyLoopRetryFactor                         = ffc("policyloop.retry.factor")
 	PolicyEngineName                              = ffc("policyengine.name")
 	EventStreamsDefaultsBatchSize                 = ffc("eventstreams.defaults.batchSize")
 	EventStreamsDefaultsBatchTimeout              = ffc("eventstreams.defaults.batchTimeout")
@@ -58,10 +56,7 @@ var (
 	PersistenceLevelDBSyncWrites                  = ffc("persistence.leveldb.syncWrites")
 	APIDefaultRequestTimeout                      = ffc("api.defaultRequestTimeout")
 	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
-	FFCoreNamespaces                              = ffc("ffcore.namespaces")
 )
-
-var FFCoreConfig config.Section
 
 var APIConfig config.Section
 
@@ -72,19 +67,13 @@ var PolicyEngineBaseConfig config.Section
 var WebhookPrefix config.Section
 
 func setDefaults() {
-	viper.SetDefault(string(OperationsFullScanPageSize), 100)
-	viper.SetDefault(string(OperationsFullScanMinimumDelay), "5s")
-	viper.SetDefault(string(OperationsTypes), []string{
-		core.OpTypeBlockchainInvoke.String(),
-		core.OpTypeBlockchainPinBatch.String(),
-		core.OpTypeTokenCreatePool.String(),
-	})
-	viper.SetDefault(string(OperationsFullScanStartupMaxRetries), 10)
+	viper.SetDefault(string(TransactionsMaxInFlight), 100)
+	viper.SetDefault(string(TransactionsErrorHistoryCount), 25)
+	viper.SetDefault(string(TransactionsNonceStateTimeout), "1h")
 	viper.SetDefault(string(ConfirmationsRequired), 20)
 	viper.SetDefault(string(ConfirmationsBlockQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsStaleReceiptTimeout), "1m")
-	viper.SetDefault(string(OperationsErrorHistoryCount), 25)
 	viper.SetDefault(string(PolicyLoopInterval), "1s")
 	viper.SetDefault(string(PolicyEngineName), "simple")
 
@@ -105,15 +94,16 @@ func setDefaults() {
 	viper.SetDefault(string(APIDefaultRequestTimeout), "30s")
 	viper.SetDefault(string(APIMaxRequestTimeout), "10m")
 
-	viper.SetDefault(string(FFCoreNamespaces), []string{})
+	viper.SetDefault(string(PolicyLoopRetryInitDelay), "250ms")
+	viper.SetDefault(string(PolicyLoopRetryMaxDelay), "30s")
+	viper.SetDefault(string(PolicyLoopRetryFactor), 2.0)
+	viper.SetDefault(string(EventStreamsRetryInitDelay), "250ms")
+	viper.SetDefault(string(EventStreamsRetryMaxDelay), "30s")
+	viper.SetDefault(string(EventStreamsRetryFactor), 2.0)
 }
 
 func Reset() {
 	config.RootConfigReset(setDefaults)
-
-	FFCoreConfig = config.RootSection("ffcore")
-	wsclient.InitConfig(FFCoreConfig)
-	FFCoreConfig.SetDefault(wsclient.WSConfigKeyPath, "/admin/ws")
 
 	APIConfig = config.RootSection("api")
 	httpserver.InitHTTPConfig(APIConfig, 5008)

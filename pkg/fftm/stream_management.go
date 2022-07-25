@@ -24,6 +24,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
@@ -35,7 +36,7 @@ const (
 func (m *manager) restoreStreams() error {
 	var lastInPage *fftypes.UUID
 	for {
-		streamDefs, err := m.persistence.ListStreams(m.ctx, lastInPage, startupPaginationLimit)
+		streamDefs, err := m.persistence.ListStreams(m.ctx, lastInPage, startupPaginationLimit, persistence.SortDirectionAscending)
 		if err != nil {
 			return err
 		}
@@ -44,7 +45,7 @@ func (m *manager) restoreStreams() error {
 		}
 		for _, def := range streamDefs {
 			lastInPage = def.ID
-			streamListeners, err := m.persistence.ListStreamListeners(m.ctx, nil, 0, def.ID)
+			streamListeners, err := m.persistence.ListStreamListeners(m.ctx, nil, 0, persistence.SortDirectionAscending, def.ID)
 			if err != nil {
 				return err
 			}
@@ -71,7 +72,7 @@ func (m *manager) restoreStreams() error {
 func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftypes.UUID) error {
 	var lastInPage *fftypes.UUID
 	for {
-		listenerDefs, err := m.persistence.ListStreamListeners(ctx, lastInPage, startupPaginationLimit, streamID)
+		listenerDefs, err := m.persistence.ListStreamListeners(ctx, lastInPage, startupPaginationLimit, persistence.SortDirectionAscending, streamID)
 		if err != nil {
 			return err
 		}
@@ -334,7 +335,7 @@ func (m *manager) getStreams(ctx context.Context, afterStr, limitStr string) (st
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListStreams(ctx, after, limit)
+	return m.persistence.ListStreams(ctx, after, limit, persistence.SortDirectionDescending)
 }
 
 func (m *manager) getListener(ctx context.Context, streamIDStr, listenerIDStr string) (spec *apitypes.Listener, err error) {
@@ -366,7 +367,7 @@ func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListListeners(ctx, after, limit)
+	return m.persistence.ListListeners(ctx, after, limit, persistence.SortDirectionDescending)
 }
 
 func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
@@ -378,5 +379,5 @@ func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, id
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListStreamListeners(ctx, after, limit, id)
+	return m.persistence.ListStreamListeners(ctx, after, limit, persistence.SortDirectionDescending, id)
 }

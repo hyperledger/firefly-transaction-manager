@@ -126,7 +126,7 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 		}
 		sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
 		sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
-		log.L(ctx).Infof("Sending transaction: %+v", sendTX)
+		log.L(ctx).Debugf("Sending transaction: %+v", sendTX)
 		res, reason, err := cAPI.TransactionSend(ctx, sendTX)
 		if err != nil {
 			// A more sophisticated policy engine would consider the reason here, and potentially adjust the transaction for future attempts
