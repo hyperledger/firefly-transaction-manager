@@ -423,10 +423,16 @@ func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem) {
 		if pending.receiptCallback != nil {
 			pending.receiptCallback(res)
 		}
-		// Need to walk the chain for this new receipt
-		if err = bcm.walkChainForItem(pending); err != nil {
-			log.L(bcm.ctx).Debugf("Failed to walk chain for transaction %s: %s", pending.transactionHash, err)
-			return
+
+		if bcm.requiredConfirmations == 0 {
+			delete(bcm.pending, pending.getKey())
+			bcm.dispatchConfirmed(pending)
+		} else {
+			// Need to walk the chain for this new receipt
+			if err = bcm.walkChainForItem(pending); err != nil {
+				log.L(bcm.ctx).Debugf("Failed to walk chain for transaction %s: %s", pending.transactionHash, err)
+				return
+			}
 		}
 	}
 	// No need to keep polling - either we now have a receipt, or normal block header monitoring will pick this one up
