@@ -19,6 +19,7 @@ package events
 import (
 	"context"
 
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
@@ -96,9 +97,11 @@ func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt
 		}
 	}
 
-	// Sent the batch of events
+	preparedEvents := prepareEventsForSending(events)
+
+	// Send the batch of events
 	select {
-	case channel <- events:
+	case channel <- preparedEvents:
 		break
 	case <-ctx.Done():
 		err = i18n.NewError(ctx, tmmsgs.MsgWebSocketInterruptedSend)
@@ -123,4 +126,15 @@ func (w *webSocketAction) waitForAck(ctx context.Context, receiver <-chan error)
 		err = i18n.NewError(ctx, tmmsgs.MsgWebSocketInterruptedReceive)
 	}
 	return err
+}
+
+// Unwrap the event info and add data for sending to websocket clients
+func prepareEventsForSending(events []*ffcapi.EventWithContext) []*fftypes.JSONObject {
+	a := make([]*fftypes.JSONObject, len(events))
+	for i, event := range events {
+		o := event.Info.JSONObject()
+		o["data"] = event.Data
+		a[i] = &o
+	}
+	return a
 }

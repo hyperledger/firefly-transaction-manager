@@ -190,6 +190,10 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 					// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 					m.mux.Lock()
 					pending.mtx.Receipt = receipt
+					// TODO: This may not be the right spot to do this,
+					// but since it's part of the manager, it has a pointer
+					// to the wsServer to be able to send a reply
+					m.wsServer.SendReply(wsTransactionReceipt(pending))
 					m.mux.Unlock()
 				},
 				Confirmed: func(confirmations []confirmations.BlockInfo) {
@@ -208,5 +212,38 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 		log.L(m.ctx).Infof("Error detected notifying confirmation manager: %s", err)
 	} else {
 		pending.trackingTransactionHash = pending.mtx.TransactionHash
+	}
+}
+
+type WsTransactionReceipt struct {
+	Headers         *WsTransactionReceiptHeaders `json:"headers"`
+	TransactionHash string                       `json:"transactionHash"`
+	ErrorMessage    string                       `json:"errorMessage"`
+}
+
+type WsTransactionReceiptHeaders struct {
+	RequestID string `json:"requestId"`
+	ReplyType string `json:"type"`
+}
+
+const (
+	ReplyTypeTransactionSuccess = "TransactionSuccess"
+	ReplyTypeTransactionFailure = "TransactionFailure"
+)
+
+// This function is used to transform the pendingState into the format
+// that FireFly Core is expecting, preserving backward compatibility
+// with the original Ethconnect implementation
+func wsTransactionReceipt(pending *pendingState) *WsTransactionReceipt {
+	// TODO: Set this status correctly. Always report success for now, for initial testing
+	replyType := ReplyTypeTransactionSuccess
+
+	return &WsTransactionReceipt{
+		Headers: &WsTransactionReceiptHeaders{
+			RequestID: pending.mtx.ID,
+			ReplyType: replyType,
+		},
+		TransactionHash: pending.mtx.TransactionHash,
+		ErrorMessage:    "",
 	}
 }
