@@ -35,7 +35,7 @@ func TestSortEvents(t *testing.T) {
 		t, _ := rand.Int(rand.Reader, big.NewInt(10))
 		l, _ := rand.Int(rand.Reader, big.NewInt(10))
 		events[i] = &Event{
-			EventID: EventID{
+			ID: EventID{
 				BlockNumber:      b.Uint64(),
 				TransactionIndex: t.Uint64(),
 				LogIndex:         l.Uint64(),
@@ -49,8 +49,8 @@ func TestSortEvents(t *testing.T) {
 	sort.Sort(listenerUpdates)
 
 	for i := 1; i < len(events); i++ {
-		assert.LessOrEqual(t, strings.Compare(events[i-1].ProtocolID(), events[i].ProtocolID()), 0)
+		assert.LessOrEqual(t, strings.Compare(events[i-1].ID.ProtocolID(), events[i].ID.ProtocolID()), 0)
 		assert.LessOrEqual(t, strings.Compare(events[i-1].String(), events[i].String()), 0)
-		assert.LessOrEqual(t, strings.Compare(listenerUpdates[i-1].Event.ProtocolID(), listenerUpdates[i].Event.ProtocolID()), 0)
+		assert.LessOrEqual(t, strings.Compare(listenerUpdates[i-1].Event.ID.ProtocolID(), listenerUpdates[i].Event.ID.ProtocolID()), 0)
 	}
 }

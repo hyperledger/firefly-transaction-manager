@@ -24,6 +24,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
@@ -111,13 +112,43 @@ func TestNonceStaleStateContention(t *testing.T) {
 
 }
 
-func TestNonceError(t *testing.T) {
+func TestNonceListError(t *testing.T) {
 
 	_, m, cancel := newTestManager(t)
 	defer cancel()
 
-	mFFC := m.connector.(*ffcapimocks.API)
+	mp := &persistencemocks.Persistence{}
+	m.persistence = mp
+	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(nil, fmt.Errorf("pop"))
+	mp.On("Close", mock.Anything).Return(nil)
 
+	_, err := m.sendManagedTransaction(context.Background(), &apitypes.TransactionRequest{
+		TransactionInput: ffcapi.TransactionInput{
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From: "0x12345",
+			},
+		},
+	})
+	assert.Regexp(t, "pop", err)
+
+}
+
+func TestNonceListStaleThenQueryFail(t *testing.T) {
+
+	_, m, cancel := newTestManager(t)
+	defer cancel()
+
+	mp := &persistencemocks.Persistence{}
+	m.persistence = mp
+	old := fftypes.FFTime(time.Now().Add(-10000 * time.Hour))
+	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return([]*apitypes.ManagedTX{
+			{ID: "id12345", Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000), Created: &old},
+		}, nil)
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
+
+	mFFC := m.connector.(*ffcapimocks.API)
 	mFFC.On("NextNonceForSigner", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	_, err := m.sendManagedTransaction(context.Background(), &apitypes.TransactionRequest{
@@ -129,10 +160,27 @@ func TestNonceError(t *testing.T) {
 	})
 	assert.Regexp(t, "pop", err)
 
-	m.mux.Lock()
-	locked, isLocked := m.lockedNonces["0x12345"]
-	assert.Nil(t, locked)
-	assert.False(t, isLocked)
-	m.mux.Unlock()
+	mp.AssertExpectations(t)
+	mFFC.AssertExpectations(t)
+
+}
+
+func TestNonceListNotStale(t *testing.T) {
+
+	_, m, cancel := newTestManager(t)
+	defer cancel()
+	m.nonceStateTimeout = 1 * time.Hour
+
+	mp := &persistencemocks.Persistence{}
+	m.persistence = mp
+	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return([]*apitypes.ManagedTX{
+			{ID: "id12345", Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000), Created: fftypes.Now()},
+		}, nil)
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
+
+	n, err := m.calcNextNonce(context.Background(), "0x12345")
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1001), n)
 
 }

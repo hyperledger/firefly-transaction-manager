@@ -82,21 +82,27 @@ type BlockHashEvent struct {
 
 // EventID are the set of required fields an FFCAPI compatible connector needs to map to the underlying blockchain constructs, to uniquely identify an event
 type EventID struct {
-	ListenerID       *fftypes.UUID `json:"listenerId"`       // The listener for the event
-	BlockHash        string        `json:"blockHash"`        // String representation of the block, which will change if any transaction info in the block changes
-	BlockNumber      uint64        `json:"blockNumber"`      // A numeric identifier for the block
-	TransactionHash  string        `json:"transactionHash"`  // The transaction
-	TransactionIndex uint64        `json:"transactionIndex"` // Index within the block of the transaction that emitted the event
-	LogIndex         uint64        `json:"logIndex"`         // Index within the transaction of this emitted event log
+	ListenerID       *fftypes.UUID   `json:"listenerId"`          // The listener for the event
+	BlockHash        string          `json:"blockHash"`           // String representation of the block, which will change if any transaction info in the block changes
+	BlockNumber      uint64          `json:"blockNumber"`         // A numeric identifier for the block
+	TransactionHash  string          `json:"transactionHash"`     // The transaction
+	TransactionIndex uint64          `json:"transactionIndex"`    // Index within the block of the transaction that emitted the event
+	LogIndex         uint64          `json:"logIndex"`            // Index within the transaction of this emitted event log
+	Timestamp        *fftypes.FFTime `json:"timestamp,omitempty"` // The on-chain timestamp
 }
 
-// Event is a blockchain event that matches one of the started listeners.
+// Event is a blockchain event that matches one of the started listeners,
+// and is the structure passed from the connector to FFTM
 // The implementation is responsible for ensuring all events on a listener are
 // ordered on to this channel in the exact sequence from the blockchain.
 type Event struct {
-	EventID
-	Data *fftypes.JSONAny `json:"data"` // the JSON data to deliver for this event (can be array or object structure)
-	Info *fftypes.JSONAny `json:"info"` // additional blockchain specific information
+	ID   EventID            // standard fields provided by the connector
+	Info fftypes.JSONObject // extra custom fields from the connector
+	Data *fftypes.JSONAny   // data
+}
+
+func (e *Event) String() string {
+	return e.ID.String()
 }
 
 // EventListenerCheckpoint is the interface that a checkpoint must implement, basically to make it sortable.
@@ -130,15 +136,10 @@ func (lu ListenerEvents) Swap(i, j int)      { lu[i], lu[j] = lu[j], lu[i] }
 func (lu ListenerEvents) Less(i, j int) bool { return evLess(lu[i].Event, lu[j].Event) }
 
 func evLess(eI *Event, eJ *Event) bool {
-	return eI.BlockNumber < eJ.BlockNumber ||
-		((eI.BlockNumber == eJ.BlockNumber) &&
-			((eI.TransactionIndex < eJ.TransactionIndex) ||
-				((eI.TransactionIndex == eJ.TransactionIndex) && (eI.LogIndex < eJ.LogIndex))))
-}
-
-type EventWithContext struct {
-	StreamID *fftypes.UUID `json:"streamId"` // the ID of the event stream for this event
-	Event
+	return eI.ID.BlockNumber < eJ.ID.BlockNumber ||
+		((eI.ID.BlockNumber == eJ.ID.BlockNumber) &&
+			((eI.ID.TransactionIndex < eJ.ID.TransactionIndex) ||
+				((eI.ID.TransactionIndex == eJ.ID.TransactionIndex) && (eI.ID.LogIndex < eJ.ID.LogIndex))))
 }
 
 // ListenerEvent is an event+checkpoint for a particular listener, and is the object delivered over the event stream channel when

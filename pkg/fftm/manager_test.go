@@ -29,6 +29,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
@@ -39,6 +40,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines/simple"
 	"github.com/hyperledger/firefly/pkg/core"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 const testManagerName = "unittest"
@@ -171,4 +173,17 @@ func TestAddErrorMessageMax(t *testing.T) {
 	assert.Equal(t, "pop", mtx.ErrorHistory[0].Error)
 	assert.Equal(t, "crackle", mtx.ErrorHistory[1].Error)
 
+}
+
+func TestStartRestoreFail(t *testing.T) {
+	_, m, cancel := newTestManager(t)
+	cancel()
+
+	mp := &persistencemocks.Persistence{}
+	m.persistence = mp
+	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).
+		Return(nil, fmt.Errorf("pop"))
+
+	err := m.Start()
+	assert.Regexp(t, "pop", err)
 }

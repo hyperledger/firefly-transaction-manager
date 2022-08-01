@@ -22,7 +22,6 @@ import (
 
 	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,7 +35,7 @@ func TestWSAttemptBatchBadDistMode(t *testing.T) {
 		DistributionMode: &dmw,
 	}, "ut_stream")
 
-	err := wsa.attemptBatch(context.Background(), 0, 0, []*ffcapi.EventWithContext{})
+	err := wsa.attemptBatch(context.Background(), 0, 0, []*apitypes.EventWithContext{})
 	assert.Regexp(t, "FF21034", err)
 
 }
@@ -52,7 +51,7 @@ func TestWSAttemptBatchPurge(t *testing.T) {
 		DistributionMode: &dmw,
 	}, "ut_stream")
 
-	err := wsa.attemptBatch(context.Background(), 0, 0, []*ffcapi.EventWithContext{})
+	err := wsa.attemptBatch(context.Background(), 0, 0, []*apitypes.EventWithContext{})
 	assert.NoError(t, err)
 
 	select {
@@ -66,7 +65,7 @@ func TestWSAttemptBatchExitPushingEvent(t *testing.T) {
 
 	mws := &wsmocks.WebSocketChannels{}
 	_, bc, _ := mockWSChannels(mws)
-	bc <- []*ffcapi.EventWithContext{} // block the broadcast channel
+	bc <- []*apitypes.EventWithContext{} // block the broadcast channel
 
 	dmw := apitypes.DistributionModeBroadcast
 	wsa := newWebSocketAction(mws, &apitypes.WebSocketConfig{
@@ -75,7 +74,7 @@ func TestWSAttemptBatchExitPushingEvent(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := wsa.attemptBatch(ctx, 0, 0, []*ffcapi.EventWithContext{})
+	err := wsa.attemptBatch(ctx, 0, 0, []*apitypes.EventWithContext{})
 	assert.Regexp(t, "FF21038", err)
 
 }

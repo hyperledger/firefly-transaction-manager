@@ -50,7 +50,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
-		EventID: ffcapi.EventID{
+		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -161,7 +161,7 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
-		EventID: ffcapi.EventID{
+		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -462,7 +462,7 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
-		EventID: ffcapi.EventID{
+		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -565,7 +565,7 @@ func TestConfirmationsListenerFailWalkingChain(t *testing.T) {
 	err := bcm.Notify(&Notification{
 		NotificationType: NewEventLog,
 		Event: &EventInfo{
-			EventID: ffcapi.EventID{
+			ID: &ffcapi.EventID{
 				ListenerID:      fftypes.NewUUID(),
 				TransactionHash: "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:       "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -593,7 +593,7 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 
 	confirmed := make(chan []BlockInfo, 1)
 	eventToConfirm := &EventInfo{
-		EventID: ffcapi.EventID{
+		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -630,7 +630,7 @@ func TestConfirmationsListenerRemoved(t *testing.T) {
 	lid := fftypes.NewUUID()
 	n := &Notification{
 		Event: &EventInfo{
-			EventID: ffcapi.EventID{
+			ID: &ffcapi.EventID{
 				ListenerID:       lid,
 				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -669,7 +669,7 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 	bcm.done = make(chan struct{})
 
 	eventInfo := &EventInfo{
-		EventID: ffcapi.EventID{
+		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
 			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -697,7 +697,7 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 	<-bcm.done
 
 	assert.Empty(t, bcm.pending)
-	assert.False(t, bcm.CheckInFlight(eventInfo.ListenerID))
+	assert.False(t, bcm.CheckInFlight(eventInfo.ID.ListenerID))
 	mca.AssertExpectations(t)
 }
 
@@ -709,7 +709,7 @@ func TestConfirmationsFailWalkChainAfterBlockGap(t *testing.T) {
 	eventNotification := &Notification{
 		NotificationType: NewEventLog,
 		Event: &EventInfo{
-			EventID: ffcapi.EventID{
+			ID: &ffcapi.EventID{
 				ListenerID:       fftypes.NewUUID(),
 				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -736,7 +736,7 @@ func TestConfirmationsFailWalkChainAfterBlockGap(t *testing.T) {
 	<-bcm.done
 
 	assert.Len(t, bcm.pending, 1)
-	assert.True(t, bcm.CheckInFlight(eventNotification.Event.ListenerID))
+	assert.True(t, bcm.CheckInFlight(eventNotification.Event.ID.ListenerID))
 	assert.NotNil(t, eventNotification.eventPendingItem().getKey()) // should be the event in there, the TX should be removed
 	mca.AssertExpectations(t)
 }
@@ -752,7 +752,7 @@ func TestConfirmationsRemoveTransaction(t *testing.T) {
 	eventNotification := &Notification{
 		NotificationType: NewEventLog,
 		Event: &EventInfo{
-			EventID: ffcapi.EventID{
+			ID: &ffcapi.EventID{
 				ListenerID:       fftypes.NewUUID(),
 				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -795,7 +795,7 @@ func TestWalkChainForEventBlockNotInConfirmationChain(t *testing.T) {
 
 	pending := (&Notification{
 		Event: &EventInfo{
-			EventID: ffcapi.EventID{
+			ID: &ffcapi.EventID{
 				ListenerID:       fftypes.NewUUID(),
 				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
@@ -828,7 +828,7 @@ func TestWalkChainForEventBlockLookupFail(t *testing.T) {
 
 	pending := (&Notification{
 		Event: &EventInfo{
-			EventID: ffcapi.EventID{
+			ID: &ffcapi.EventID{
 				ListenerID:       fftypes.NewUUID(),
 				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
 				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",

@@ -19,9 +19,11 @@ package apitypes
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 
 	"github.com/google/uuid"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 type DistributionMode = fftypes.FFEnum
@@ -211,4 +213,51 @@ func CheckUpdateStringMap(changed bool, merged *map[string]string, old map[strin
 	jsonOld, _ := json.Marshal(old)
 	jsonNew, _ := json.Marshal(new)
 	return !bytes.Equal(jsonOld, jsonNew)
+}
+
+type EventContext struct {
+	StreamID        *fftypes.UUID `json:"streamId"`     // the ID of the event stream for this event
+	DeprecatedSubID *fftypes.UUID `json:"subId"`        // ID of the listener - deprecated "subscription" naming
+	ListenerName    string        `json:"listenerName"` // name of the listener
+	Signature       string        `json:"signature"`    // event signature string
+}
+
+// EventWithContext is what is delivered
+// There is custom serialization to flatten the whole structure, so all the custom `info` fields from the
+// connector are alongside the required context fields.
+// The `data` is kep separate
+type EventWithContext struct {
+	StandardContext EventContext
+	ffcapi.Event
+}
+
+func (e *EventWithContext) MarshalJSON() ([]byte, error) {
+	base := e.Info
+	if base == nil {
+		base = fftypes.JSONObject{}
+	}
+	addJSONFieldsToMap(reflect.ValueOf(&e.ID), base)
+	addJSONFieldsToMap(reflect.ValueOf(&e.StandardContext), base)
+	base["data"] = e.Data
+	return json.Marshal(base)
+}
+
+func (e *EventWithContext) UnmarshalJSON(b []byte) error {
+	// Note on unmarshal the info will have all the id+context fields
+	e.Info = make(fftypes.JSONObject)
+	err := json.Unmarshal(b, &e.Info)
+	if err == nil {
+		// ... but not the data
+		data := e.Info["data"]
+		delete(e.Info, "data")
+		if data != nil {
+			b, _ := json.Marshal(&data)
+			e.Data = fftypes.JSONAnyPtrBytes(b)
+		}
+		err = json.Unmarshal(b, &e.ID)
+		if err == nil {
+			err = json.Unmarshal(b, &e.StandardContext)
+		}
+	}
+	return err
 }

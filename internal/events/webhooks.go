@@ -32,7 +32,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 func mergeValidateWhConfig(ctx context.Context, changed bool, base *apitypes.WebhookConfig, updates *apitypes.WebhookConfig) (*apitypes.WebhookConfig, bool, error) {
@@ -91,7 +90,7 @@ func newWebhookAction(bgCtx context.Context, spec *apitypes.WebhookConfig) *webh
 }
 
 // attemptWebhookAction performs a single attempt of a webhook action
-func (w *webhookAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+func (w *webhookAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
 	// We perform DNS resolution before each attempt, to exclude private IP address ranges from the target
 	u, _ := url.Parse(*w.spec.URL)
 	addr, err := net.ResolveIPAddr("ip4", u.Hostname())

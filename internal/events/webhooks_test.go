@@ -28,7 +28,6 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,7 +46,7 @@ func TestWebhooksBadHost(t *testing.T) {
 	tmconfig.Reset()
 	ws := newTestWebhooks("http://www.sample.invalid/guaranteed-to-fail")
 
-	err := ws.attemptBatch(context.Background(), 0, 0, []*ffcapi.EventWithContext{})
+	err := ws.attemptBatch(context.Background(), 0, 0, []*apitypes.EventWithContext{})
 	assert.Regexp(t, "FF21041", err)
 }
 
@@ -57,7 +56,7 @@ func TestWebhooksPrivateBlocked(t *testing.T) {
 	falsy := false
 	ws.allowPrivateIPs = falsy
 
-	err := ws.attemptBatch(context.Background(), 0, 0, []*ffcapi.EventWithContext{})
+	err := ws.attemptBatch(context.Background(), 0, 0, []*apitypes.EventWithContext{})
 	assert.Regexp(t, "FF21033", err)
 }
 
@@ -67,7 +66,7 @@ func TestWebhooksCustomHeaders403(t *testing.T) {
 		assert.Equal(t, "/test/path", r.URL.Path)
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "test-value", r.Header.Get("test-header"))
-		var events []*ffcapi.EventWithContext
+		var events []*apitypes.EventWithContext
 		err := json.NewDecoder(r.Body).Decode(&events)
 		assert.NoError(t, err)
 		w.WriteHeader(403)
@@ -82,7 +81,7 @@ func TestWebhooksCustomHeaders403(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		err := ws.attemptBatch(context.Background(), 0, 0, []*ffcapi.EventWithContext{})
+		err := ws.attemptBatch(context.Background(), 0, 0, []*apitypes.EventWithContext{})
 		assert.Regexp(t, "FF21035.*403", err)
 		close(done)
 	}()
@@ -99,7 +98,7 @@ func TestWebhooksCustomHeadersConnectFail(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		err := ws.attemptBatch(context.Background(), 0, 0, []*ffcapi.EventWithContext{})
+		err := ws.attemptBatch(context.Background(), 0, 0, []*apitypes.EventWithContext{})
 		assert.Regexp(t, "FF21042", err)
 		close(done)
 	}()
