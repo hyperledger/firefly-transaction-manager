@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/jsonmap"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
@@ -232,24 +233,24 @@ type EventWithContext struct {
 }
 
 func (e *EventWithContext) MarshalJSON() ([]byte, error) {
-	base := e.Info
-	if base == nil {
-		base = fftypes.JSONObject{}
+	m := make(map[string]interface{})
+	if e.Info != nil {
+		jsonmap.AddJSONFieldsToMap(reflect.ValueOf(e.Info), m)
 	}
-	addJSONFieldsToMap(reflect.ValueOf(&e.ID), base)
-	addJSONFieldsToMap(reflect.ValueOf(&e.StandardContext), base)
-	base["data"] = e.Data
-	return json.Marshal(base)
+	jsonmap.AddJSONFieldsToMap(reflect.ValueOf(&e.ID), m)
+	jsonmap.AddJSONFieldsToMap(reflect.ValueOf(&e.StandardContext), m)
+	m["data"] = e.Data
+	return json.Marshal(m)
 }
 
+// Note on unmarshal info will be a map with all the fields (except "data")
 func (e *EventWithContext) UnmarshalJSON(b []byte) error {
-	// Note on unmarshal the info will have all the id+context fields
-	e.Info = make(fftypes.JSONObject)
-	err := json.Unmarshal(b, &e.Info)
-	if err == nil {
-		// ... but not the data
-		data := e.Info["data"]
-		delete(e.Info, "data")
+	var m fftypes.JSONObject
+	err := json.Unmarshal(b, &m)
+	if err == nil && m != nil {
+		e.Info = m
+		data := m["data"]
+		delete(m, "data")
 		if data != nil {
 			b, _ := json.Marshal(&data)
 			e.Data = fftypes.JSONAnyPtrBytes(b)

@@ -96,9 +96,9 @@ type EventID struct {
 // The implementation is responsible for ensuring all events on a listener are
 // ordered on to this channel in the exact sequence from the blockchain.
 type Event struct {
-	ID   EventID            // standard fields provided by the connector
-	Info fftypes.JSONObject // extra custom fields from the connector
-	Data *fftypes.JSONAny   // data
+	ID   EventID          // standard fields provided by the connector
+	Info interface{}      // extra custom fields from the connector - can be any JSON serializable struct
+	Data *fftypes.JSONAny // data
 }
 
 func (e *Event) String() string {

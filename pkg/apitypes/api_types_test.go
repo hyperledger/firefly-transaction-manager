@@ -187,6 +187,10 @@ func TestCheckUpdateStringMap(t *testing.T) {
 
 func TestMarshalUnmarshalEventOK(t *testing.T) {
 
+	type customInfo struct {
+		InfoKey1 string `json:"key1"`
+	}
+
 	e := &EventWithContext{
 		StandardContext: EventContext{
 			StreamID:        UUIDVersion1(),
@@ -203,8 +207,8 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 				TransactionIndex: 10,
 				LogIndex:         1,
 			},
-			Info: fftypes.JSONObject{
-				"key1": "val1",
+			Info: &customInfo{
+				InfoKey1: "val1",
 			},
 			Data: fftypes.JSONAnyPtr(`{"dk1":"dv1"}`),
 		},
@@ -233,7 +237,7 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 	assert.Equal(t, e.ID.ListenerID, e2.ID.ListenerID)
 	assert.Equal(t, e.StandardContext.StreamID, e2.StandardContext.StreamID)
 	assert.Equal(t, e.Data, e2.Data)
-	assert.Equal(t, "val1", e2.Info.GetString("key1"))
+	assert.Equal(t, "val1", e2.Info.(fftypes.JSONObject).GetString("key1"))
 
 }
 

@@ -43,6 +43,12 @@ import (
 
 func strPtr(s string) *string { return &s }
 
+type testInfo struct {
+	BlockNumber      string `json:"blockNumber"`
+	TransactionIndex string `json:"transactionIndex"`
+	LogIndex         string `json:"logIndex"`
+}
+
 type utCheckpointType struct {
 	SomeSequenceNumber int64 `json:"someSequenceNumber"`
 }
@@ -372,10 +378,10 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 				LogIndex:         1,
 			},
 			Data: fftypes.JSONAnyPtr(`{"k1":"v1"}`),
-			Info: fftypes.JSONObject{
-				"blockNumber":      "42",
-				"transactionIndex": "13",
-				"logIndex":         "1",
+			Info: &testInfo{
+				BlockNumber:      "42",
+				TransactionIndex: "13",
+				LogIndex:         "1",
 			},
 		},
 	}
@@ -542,10 +548,10 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 				LogIndex:         1,
 			},
 			Data: fftypes.JSONAnyPtr(`{"k1":"v1"}`),
-			Info: fftypes.JSONObject{
-				"blockNumber":      "42",
-				"transactionIndex": "13",
-				"logIndex":         "1",
+			Info: &testInfo{
+				BlockNumber:      "42",
+				TransactionIndex: "13",
+				LogIndex:         "1",
 			},
 		},
 	}
@@ -1254,10 +1260,10 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 				LogIndex:         1,
 			},
 			Data: fftypes.JSONAnyPtr(`{"k1":"v1"}`),
-			Info: fftypes.JSONObject{
-				"blockNumber":      "42",
-				"transactionIndex": "13",
-				"logIndex":         "1",
+			Info: &testInfo{
+				BlockNumber:      "42",
+				TransactionIndex: "13",
+				LogIndex:         "1",
 			},
 		},
 	}
