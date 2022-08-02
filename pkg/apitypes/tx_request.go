@@ -25,3 +25,9 @@ type TransactionRequest struct {
 	Headers RequestHeaders `json:"headers"`
 	ffcapi.TransactionInput
 }
+
+// ContractDeployRequest is the payload sent to initiate a new transaction
+type ContractDeployRequest struct {
+	Headers RequestHeaders `json:"headers"`
+	ffcapi.ContractDeployInput
+}

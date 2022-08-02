@@ -30,6 +30,18 @@ nav_order: 2
 |shutdownTimeout|The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
 |writeTimeout|The maximum time to wait when writing to a HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
 
+## api.auth
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|type|The auth plugin to use for server side authentication of requests|`string`|`<nil>`
+
+## api.auth.basic
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|passwordfile|The path to a .htpasswd file to use for authenticating requests. Passwords should be hashed with bcrypt.|`string`|`<nil>`
+
 ## api.tls
 
 |Key|Description|Type|Default Value|

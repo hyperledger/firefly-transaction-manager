@@ -73,6 +73,12 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 					TransactionInput: tReq.TransactionInput,
 				})
 				return res.Outputs, err
+			case apitypes.RequestTypeDeploy:
+				var tReq apitypes.ContractDeployRequest
+				if err = baseReq.UnmarshalTo(&tReq); err != nil {
+					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
+				}
+				return m.sendManagedContractDeployment(r.Req.Context(), &tReq)
 			default:
 				return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgUnsupportedRequestType, baseReq.Headers.Type)
 			}

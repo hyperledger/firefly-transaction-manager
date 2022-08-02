@@ -189,7 +189,7 @@ func (p *simplePolicyEngine) getGasPrice(ctx context.Context, cAPI ffcapi.API) (
 		p.gasOracleLastQueryTime = fftypes.Now()
 		return p.gasOracleQueryValue, nil
 	default:
-		// Disabled - rust a fixed value
+		// Disabled - just a fixed value
 		return p.fixedGasPrice, nil
 	}
 }
