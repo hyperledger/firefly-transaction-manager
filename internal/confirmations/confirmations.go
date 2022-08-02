@@ -207,6 +207,12 @@ func (pi pendingItems) Less(i, j int) bool {
 			(pi[i].transactionIndex == pi[j].transactionIndex && pi[i].logIndex < pi[j].logIndex)))
 }
 
+type blockState struct {
+	bcm       *blockConfirmationManager
+	blocks    map[uint64]*BlockInfo
+	lowestNil uint64
+}
+
 func (bcm *blockConfirmationManager) Start() {
 	bcm.done = make(chan struct{})
 	go bcm.confirmationsListener()
@@ -327,8 +333,13 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 			}
 		}
 
+		// Each time round the loop we need to have a consistent view of the chain.
+		// This view must not add later blocks (by number) in, or change the hash of blocks,
+		// otherwise we could potentially deliver things out of order.
+		blocks := bcm.newBlockState()
+
 		if bcm.blockListenerStale {
-			if err := bcm.walkChain(); err != nil {
+			if err := bcm.walkChain(blocks); err != nil {
 				log.L(bcm.ctx).Errorf("Failed to create walk chain after restoring blockListener: %s", err)
 				continue
 			}
@@ -342,7 +353,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 
 		// Process any new notifications - we do this at the end, so it can benefit
 		// from knowing the latest highestBlockSeen
-		if err := bcm.processNotifications(notifications); err != nil {
+		if err := bcm.processNotifications(notifications, blocks); err != nil {
 			log.L(bcm.ctx).Errorf("Failed processing notifications: %s", err)
 			continue
 		}
@@ -356,7 +367,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 		// receipt checks, or processing block headers
 		for pendingKey := range bcm.staleReceipts {
 			if pending, ok := bcm.pending[pendingKey]; ok {
-				bcm.checkReceipt(pending)
+				bcm.checkReceipt(pending, blocks)
 			}
 		}
 
@@ -375,14 +386,14 @@ func (bcm *blockConfirmationManager) staleReceiptCheck() {
 	}
 }
 
-func (bcm *blockConfirmationManager) processNotifications(notifications []*Notification) error {
+func (bcm *blockConfirmationManager) processNotifications(notifications []*Notification, blocks *blockState) error {
 
 	for _, n := range notifications {
 		switch n.NotificationType {
 		case NewEventLog:
 			newItem := n.eventPendingItem()
 			bcm.addOrReplaceItem(newItem)
-			if err := bcm.walkChainForItem(newItem); err != nil {
+			if err := bcm.walkChainForItem(newItem, blocks); err != nil {
 				return err
 			}
 		case NewTransaction:
@@ -402,7 +413,7 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 	return nil
 }
 
-func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem) {
+func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem, blocks *blockState) {
 	res, reason, err := bcm.connector.TransactionReceipt(bcm.ctx, &ffcapi.TransactionReceiptRequest{
 		TransactionHash: pending.transactionHash,
 	})
@@ -428,7 +439,7 @@ func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem) {
 			bcm.dispatchConfirmed(pending)
 		} else {
 			// Need to walk the chain for this new receipt
-			if err = bcm.walkChainForItem(pending); err != nil {
+			if err = bcm.walkChainForItem(pending, blocks); err != nil {
 				log.L(bcm.ctx).Debugf("Failed to walk chain for transaction %s: %s", pending.transactionHash, err)
 				return
 			}
@@ -559,7 +570,7 @@ func (bcm *blockConfirmationManager) dispatchConfirmed(item *pendingItem) {
 // walkChain goes through each event and sees whether it's valid,
 // purging any stale confirmations - or whole events if the blockListener is invalid
 // We do this each time our blockListener is invalidated
-func (bcm *blockConfirmationManager) walkChain() error {
+func (bcm *blockConfirmationManager) walkChain(blocks *blockState) error {
 
 	// Grab a copy of all the pending in order
 	bcm.pendingMux.Lock()
@@ -570,9 +581,14 @@ func (bcm *blockConfirmationManager) walkChain() error {
 	bcm.pendingMux.Unlock()
 	sort.Sort(pendingItems)
 
-	// Go through them in order - using the cache for efficiency
+	// Go through them in order, as we must deliver them in the order on the chain.
+	// For the same reason we use a map _including misses_ of blocks:
+	// Without this map we could deliver out of order:
+	//  If a new block were to be mined+detected while we were traversing a long list,
+	//  then only walking the chain for later events in the list would find the block.
+	//  This means those later events would be delivered, but the earlier ones would not.
 	for _, pending := range pendingItems {
-		if err := bcm.walkChainForItem(pending); err != nil {
+		if err := bcm.walkChainForItem(pending, blocks); err != nil {
 			return err
 		}
 	}
@@ -581,7 +597,44 @@ func (bcm *blockConfirmationManager) walkChain() error {
 
 }
 
-func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem) (err error) {
+func (bcm *blockConfirmationManager) newBlockState() *blockState {
+	return &blockState{
+		bcm:    bcm,
+		blocks: make(map[uint64]*BlockInfo),
+	}
+}
+
+func (bs *blockState) getByNumber(blockNumber uint64, expectedParentHash string) (*BlockInfo, error) {
+	// blockState gives a consistent view of the chain throughout a cycle, where we perform a carefully ordered
+	// set of actions against our pending items.
+	// - We never return newer blocks after a query has been made that found a nil result at a lower block number
+	// - We never change the hash of a block
+	// If these changes happen during a cycle, we will pick them up on the next cycle rather than risk out-of-order
+	// delivery of events by detecting them half way through.
+	if bs.lowestNil > 0 && blockNumber >= bs.lowestNil {
+		log.L(bs.bcm.ctx).Debugf("Block %d is after chain head (cached)", blockNumber)
+		return nil, nil
+	}
+	block := bs.blocks[blockNumber]
+	if block != nil {
+		return block, nil
+	}
+	block, err := bs.bcm.getBlockByNumber(blockNumber, expectedParentHash)
+	if err != nil {
+		return nil, err
+	}
+	if block == nil {
+		if bs.lowestNil == 0 || blockNumber <= bs.lowestNil {
+			log.L(bs.bcm.ctx).Debugf("Block %d is after chain head", blockNumber)
+			bs.lowestNil = blockNumber
+		}
+		return nil, nil
+	}
+	bs.blocks[blockNumber] = block
+	return block, nil
+}
+
+func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem, blocks *blockState) (err error) {
 
 	if pending.blockHash == "" {
 		// This is a transaction that we don't yet have the receipt for
@@ -600,7 +653,7 @@ func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem) (err
 			log.L(bcm.ctx).Debugf("Waiting for confirmation after block %d event=%s", bcm.highestBlockSeen, pendingKey)
 			return nil
 		}
-		block, err := bcm.getBlockByNumber(blockNumber, expectedParentHash)
+		block, err := blocks.getByNumber(blockNumber, expectedParentHash)
 		if err != nil {
 			return err
 		}
