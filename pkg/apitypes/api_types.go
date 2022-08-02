@@ -226,7 +226,7 @@ type EventContext struct {
 // EventWithContext is what is delivered
 // There is custom serialization to flatten the whole structure, so all the custom `info` fields from the
 // connector are alongside the required context fields.
-// The `data` is kep separate
+// The `data` is kept separate
 type EventWithContext struct {
 	StandardContext EventContext
 	ffcapi.Event
