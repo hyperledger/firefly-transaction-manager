@@ -30,18 +30,16 @@ import (
 
 func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	tx := &apitypes.ManagedTX{
-		ID:         fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+		Headers: apitypes.ManagedTXHeaders{
+			RequestID:    fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+			TimeReceived: fftypes.Now(),
+		},
 		SequenceID: apitypes.UUIDVersion1(),
 		Nonce:      fftypes.NewFFBigInt(nonce),
-		Created:    fftypes.Now(),
-		Request: &apitypes.TransactionRequest{
-			TransactionInput: ffcapi.TransactionInput{
-				TransactionHeaders: ffcapi.TransactionHeaders{
-					From: signer,
-				},
-			},
+		Status:     status,
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: signer,
 		},
-		Status: status,
 	}
 	err := m.persistence.WriteTransaction(context.Background(), tx, true)
 	assert.NoError(t, err)
@@ -70,36 +68,36 @@ func TestGetTransactions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 	assert.Len(t, transactions, 4)
-	assert.Equal(t, s1t3.ID, transactions[0].ID)
-	assert.Equal(t, s1t2.ID, transactions[1].ID)
-	assert.Equal(t, s2t1.ID, transactions[2].ID)
-	assert.Equal(t, s1t1.ID, transactions[3].ID)
+	assert.Equal(t, s1t3.Headers.RequestID, transactions[0].Headers.RequestID)
+	assert.Equal(t, s1t2.Headers.RequestID, transactions[1].Headers.RequestID)
+	assert.Equal(t, s2t1.Headers.RequestID, transactions[2].Headers.RequestID)
+	assert.Equal(t, s1t1.Headers.RequestID, transactions[3].Headers.RequestID)
 
 	// Test pagination on default sort/filter
 	res, err = resty.New().R().
 		SetResult(&transactions).
-		Get(url + "/transactions?limit=1&after=" + s1t2.ID)
+		Get(url + "/transactions?limit=1&after=" + s1t2.Headers.RequestID)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 	assert.Len(t, transactions, 1)
-	assert.Equal(t, s2t1.ID, transactions[0].ID)
+	assert.Equal(t, s2t1.Headers.RequestID, transactions[0].Headers.RequestID)
 
 	// Test pagination on nonce filter
 	res, err = resty.New().R().
 		SetResult(&transactions).
-		Get(url + "/transactions?signer=0xaaaaa&after=" + s1t2.ID)
+		Get(url + "/transactions?signer=0xaaaaa&after=" + s1t2.Headers.RequestID)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 	assert.Len(t, transactions, 1)
-	assert.Equal(t, s1t1.ID, transactions[0].ID)
+	assert.Equal(t, s1t1.Headers.RequestID, transactions[0].Headers.RequestID)
 
 	// Test pagination on pending filter
 	res, err = resty.New().R().
 		SetResult(&transactions).
-		Get(url + "/transactions?pending&after=" + s1t3.ID)
+		Get(url + "/transactions?pending&after=" + s1t3.Headers.RequestID)
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 	assert.Len(t, transactions, 1)
-	assert.Equal(t, s2t1.ID, transactions[0].ID)
+	assert.Equal(t, s2t1.Headers.RequestID, transactions[0].Headers.RequestID)
 
 }

@@ -100,7 +100,7 @@ func (m *manager) policyLoopCycle(inflightStale bool) {
 	for _, pending := range m.inflight {
 		err := m.execPolicy(pending)
 		if err != nil {
-			log.L(m.ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
+			log.L(m.ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.Headers.RequestID, err)
 		}
 	}
 
@@ -144,7 +144,7 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 		var reason ffcapi.ErrorReason
 		updated, reason, err = m.policyEngine.Execute(m.ctx, m.connector, pending.mtx)
 		if err != nil {
-			log.L(m.ctx).Errorf("Policy engine returned error for operation %s reason=%s: %s", mtx.ID, reason, err)
+			log.L(m.ctx).Errorf("Policy engine returned error for operation %s reason=%s: %s", mtx.Headers.RequestID, reason, err)
 			m.addError(mtx, reason, err)
 		} else if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 			// If now submitted, add to confirmations manager for receipt checking
@@ -155,7 +155,7 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 	if updated || err != nil {
 		err := m.persistence.WriteTransaction(m.ctx, mtx, false)
 		if err != nil {
-			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, mtx.Status, err)
+			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.Headers.RequestID, mtx.Status, err)
 			return err
 		}
 		if completed {
@@ -240,7 +240,7 @@ func wsTransactionReceipt(pending *pendingState) *WsTransactionReceipt {
 
 	return &WsTransactionReceipt{
 		Headers: &WsTransactionReceiptHeaders{
-			RequestID: pending.mtx.ID,
+			RequestID: pending.mtx.Headers.RequestID,
 			ReplyType: replyType,
 		},
 		TransactionHash: pending.mtx.TransactionHash,

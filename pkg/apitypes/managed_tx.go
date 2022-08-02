@@ -40,6 +40,12 @@ type ManagedTXError struct {
 	Mapped ffcapi.ErrorReason `json:"mapped,omitempty"`
 }
 
+type ManagedTXHeaders struct {
+	RequestID    string          `json:"requestId"`
+	TimeReceived *fftypes.FFTime `json:"timeReceived"`
+	LastUpdate   *fftypes.FFTime `json:"lastUpdate"`
+}
+
 // ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
 //
 // Indexing:
@@ -57,20 +63,19 @@ type ManagedTXError struct {
 //   - When listing back entries, the persistence layer will automatically clean up indexes if the underlying
 //     TX they refer to is not available. For this reason the index records are written first.
 type ManagedTX struct {
-	ID              string                             `json:"id"`
-	Status          TxStatus                           `json:"status"`
-	SequenceID      *fftypes.UUID                      `json:"sequenceId"`
-	Nonce           *fftypes.FFBigInt                  `json:"nonce"`
-	Gas             *fftypes.FFBigInt                  `json:"gas"`
-	TransactionHash string                             `json:"transactionHash,omitempty"`
-	TransactionData string                             `json:"transactionData,omitempty"`
-	GasPrice        *fftypes.JSONAny                   `json:"gasPrice"`
-	PolicyInfo      *fftypes.JSONAny                   `json:"policyInfo"`
-	Created         *fftypes.FFTime                    `json:"created"`
-	FirstSubmit     *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
-	LastSubmit      *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
-	Request         *TransactionRequest                `json:"request,omitempty"`
-	Receipt         *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
-	ErrorHistory    []*ManagedTXError                  `json:"errorHistory"`
-	Confirmations   []confirmations.BlockInfo          `json:"confirmations,omitempty"`
+	Headers            ManagedTXHeaders                   `json:"headers"`
+	Status             TxStatus                           `json:"status"`
+	SequenceID         *fftypes.UUID                      `json:"sequenceId"`
+	Nonce              *fftypes.FFBigInt                  `json:"nonce"`
+	Gas                *fftypes.FFBigInt                  `json:"gas"`
+	TransactionHeaders ffcapi.TransactionHeaders          `json:"transactionHeaders"`
+	TransactionData    string                             `json:"transactionData"`
+	TransactionHash    string                             `json:"transactionHash,omitempty"`
+	GasPrice           *fftypes.JSONAny                   `json:"gasPrice"`
+	PolicyInfo         *fftypes.JSONAny                   `json:"policyInfo"`
+	FirstSubmit        *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
+	LastSubmit         *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
+	Receipt            *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
+	ErrorHistory       []*ManagedTXError                  `json:"errorHistory"`
+	Confirmations      []confirmations.BlockInfo          `json:"confirmations,omitempty"`
 }

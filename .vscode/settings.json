@@ -46,6 +46,7 @@
     "goleveldb",
     "httpserver",
     "hyperledger",
+    "idempotence",
     "Infof",
     "IPFS",
     "jsonmap",

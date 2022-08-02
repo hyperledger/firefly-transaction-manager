@@ -90,7 +90,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	// Run the policy once to do the send
 	<-m.inflightStale // from sending the TX
 	m.policyLoopCycle(true)
-	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
+	assert.Equal(t, mtx.Headers.RequestID, m.inflight[0].mtx.Headers.RequestID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// A second time will mark it complete for flush
@@ -101,7 +101,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	assert.Empty(t, m.inflight)
 
 	// Check the update is persisted
-	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.ID)
+	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.Headers.RequestID)
 	assert.NoError(t, err)
 	assert.Equal(t, apitypes.TxStatusSucceeded, rtx.Status)
 
@@ -141,7 +141,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	// Run the policy once to do the send
 	<-m.inflightStale // from sending the TX
 	m.policyLoopCycle(true)
-	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
+	assert.Equal(t, mtx.Headers.RequestID, m.inflight[0].mtx.Headers.RequestID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// A second time will mark it complete for flush
@@ -152,7 +152,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	assert.Empty(t, m.inflight)
 
 	// Check the update is persisted
-	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.ID)
+	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.Headers.RequestID)
 	assert.NoError(t, err)
 	assert.Equal(t, apitypes.TxStatusFailed, rtx.Status)
 
@@ -212,13 +212,13 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	// Run the policy once to do the send with the first hash
 	<-m.inflightStale // from sending the TX
 	m.policyLoopCycle(true)
-	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
+	assert.Equal(t, mtx.Headers.RequestID, m.inflight[0].mtx.Headers.RequestID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// Reset the transaction so the policy manager resubmits it
 	m.inflight[0].mtx.FirstSubmit = nil
 	m.policyLoopCycle(false)
-	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
+	assert.Equal(t, mtx.Headers.RequestID, m.inflight[0].mtx.Headers.RequestID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	mc.AssertExpectations(t)

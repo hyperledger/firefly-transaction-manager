@@ -39,17 +39,15 @@ func TestNonceStaleStateContention(t *testing.T) {
 	// Write a stale record to persistence
 	oldTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
 	err := m.persistence.WriteTransaction(m.ctx, &apitypes.ManagedTX{
-		ID:         "stale1",
+		Headers: apitypes.ManagedTXHeaders{
+			RequestID:    "stale1",
+			TimeReceived: &oldTime,
+		},
 		Status:     apitypes.TxStatusSucceeded,
 		SequenceID: apitypes.UUIDVersion1(),
 		Nonce:      fftypes.NewFFBigInt(1000), // old nonce
-		Created:    &oldTime,                  // old record
-		Request: &apitypes.TransactionRequest{
-			TransactionInput: ffcapi.TransactionInput{
-				TransactionHeaders: ffcapi.TransactionHeaders{
-					From: "0x12345",
-				},
-			},
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x12345",
 		},
 	}, true)
 	assert.NoError(t, err)
@@ -76,17 +74,15 @@ func TestNonceStaleStateContention(t *testing.T) {
 
 		time.Sleep(1 * time.Millisecond)
 		ln.spent = &apitypes.ManagedTX{
-			ID:         "ns1:" + fftypes.NewUUID().String(),
+			Headers: apitypes.ManagedTXHeaders{
+				RequestID:    "ns1:" + fftypes.NewUUID().String(),
+				TimeReceived: &oldTime,
+			},
 			Nonce:      fftypes.NewFFBigInt(int64(ln.nonce)),
 			Status:     apitypes.TxStatusPending,
 			SequenceID: apitypes.UUIDVersion1(),
-			Created:    &oldTime, // old record
-			Request: &apitypes.TransactionRequest{
-				TransactionInput: ffcapi.TransactionInput{
-					TransactionHeaders: ffcapi.TransactionHeaders{
-						From: "0x12345",
-					},
-				},
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From: "0x12345",
 			},
 		}
 		err = m.persistence.WriteTransaction(m.ctx, ln.spent, true)
@@ -117,11 +113,17 @@ func TestNonceListError(t *testing.T) {
 	_, m, cancel := newTestManager(t)
 	defer cancel()
 
+	mFFC := m.connector.(*ffcapimocks.API)
+	mFFC.On("TransactionPrepare", mock.Anything, mock.Anything).Return(&ffcapi.TransactionPrepareResponse{
+		TransactionData: "RAW_UNSIGNED_BYTES",
+		Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
+	}, ffcapi.ErrorReason(""), nil)
+
 	mp := &persistencemocks.Persistence{}
 	m.persistence = mp
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("pop"))
-	mp.On("Close", mock.Anything).Return(nil)
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	_, err := m.sendManagedTransaction(context.Background(), &apitypes.TransactionRequest{
 		TransactionInput: ffcapi.TransactionInput{
@@ -131,6 +133,9 @@ func TestNonceListError(t *testing.T) {
 		},
 	})
 	assert.Regexp(t, "pop", err)
+
+	mp.AssertExpectations(t)
+	mFFC.AssertExpectations(t)
 
 }
 
@@ -144,11 +149,15 @@ func TestNonceListStaleThenQueryFail(t *testing.T) {
 	old := fftypes.FFTime(time.Now().Add(-10000 * time.Hour))
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
-			{ID: "id12345", Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000), Created: &old},
+			{Headers: apitypes.ManagedTXHeaders{RequestID: "id12345", TimeReceived: &old}, Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
 		}, nil)
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	mFFC := m.connector.(*ffcapimocks.API)
+	mFFC.On("TransactionPrepare", mock.Anything, mock.Anything).Return(&ffcapi.TransactionPrepareResponse{
+		TransactionData: "RAW_UNSIGNED_BYTES",
+		Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
+	}, ffcapi.ErrorReason(""), nil)
 	mFFC.On("NextNonceForSigner", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	_, err := m.sendManagedTransaction(context.Background(), &apitypes.TransactionRequest{
@@ -175,7 +184,7 @@ func TestNonceListNotStale(t *testing.T) {
 	m.persistence = mp
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
-			{ID: "id12345", Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000), Created: fftypes.Now()},
+			{Headers: apitypes.ManagedTXHeaders{RequestID: "id12345", TimeReceived: fftypes.Now()}, Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
 		}, nil)
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 

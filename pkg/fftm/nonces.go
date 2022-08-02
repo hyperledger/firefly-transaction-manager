@@ -98,9 +98,9 @@ func (m *manager) calcNextNonce(ctx context.Context, signer string) (uint64, err
 	}
 	if len(txns) > 0 {
 		lastTxn = txns[0]
-		if time.Since(*lastTxn.Created.Time()) < m.nonceStateTimeout {
+		if time.Since(*lastTxn.Headers.TimeReceived.Time()) < m.nonceStateTimeout {
 			nextNonce := lastTxn.Nonce.Uint64() + 1
-			log.L(ctx).Debugf("Allocating next nonce '%s' / '%d' after TX '%s' (status=%s)", signer, nextNonce, lastTxn.ID, lastTxn.Status)
+			log.L(ctx).Debugf("Allocating next nonce '%s' / '%d' after TX '%s' (status=%s)", signer, nextNonce, lastTxn.Headers.RequestID, lastTxn.Status)
 			return nextNonce, nil
 		}
 	}
@@ -118,7 +118,7 @@ func (m *manager) calcNextNonce(ctx context.Context, signer string) (uint64, err
 	// This is important in case we have transactions that have expired from the TX pool of nodes, but we still have them
 	// in our state store. So basically whichever is further forwards of our state store and the node answer wins.
 	if lastTxn != nil && nextNonce <= lastTxn.Nonce.Uint64() {
-		log.L(ctx).Debugf("Node TX pool next nonce '%s' / '%d' is not ahead of '%d' in TX '%s' (status=%s)", signer, nextNonce, lastTxn.Nonce.Uint64(), lastTxn.ID, lastTxn.Status)
+		log.L(ctx).Debugf("Node TX pool next nonce '%s' / '%d' is not ahead of '%d' in TX '%s' (status=%s)", signer, nextNonce, lastTxn.Nonce.Uint64(), lastTxn.Headers.RequestID, lastTxn.Status)
 		nextNonce = lastTxn.Nonce.Uint64() + 1
 	}
 
