@@ -19,13 +19,11 @@ package events
 import (
 	"context"
 
-	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 func mergeValidateWsConfig(ctx context.Context, changed bool, base *apitypes.WebSocketConfig, updates *apitypes.WebSocketConfig) (*apitypes.WebSocketConfig, bool, error) {
@@ -70,7 +68,7 @@ func newWebSocketAction(wsChannels ws.WebSocketChannels, spec *apitypes.WebSocke
 }
 
 // attemptBatch attempts to deliver a batch over socket IO
-func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
 	var err error
 
 	// Get a blocking channel to send and receive on our chosen namespace
@@ -97,11 +95,9 @@ func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt
 		}
 	}
 
-	preparedEvents := prepareEventsForSending(events)
-
 	// Send the batch of events
 	select {
-	case channel <- preparedEvents:
+	case channel <- events:
 		break
 	case <-ctx.Done():
 		err = i18n.NewError(ctx, tmmsgs.MsgWebSocketInterruptedSend)
@@ -126,15 +122,4 @@ func (w *webSocketAction) waitForAck(ctx context.Context, receiver <-chan error)
 		err = i18n.NewError(ctx, tmmsgs.MsgWebSocketInterruptedReceive)
 	}
 	return err
-}
-
-// Unwrap the event info and add data for sending to websocket clients
-func prepareEventsForSending(events []*ffcapi.EventWithContext) []*fftypes.JSONObject {
-	a := make([]*fftypes.JSONObject, len(events))
-	for i, event := range events {
-		o := event.Info.JSONObject()
-		o["data"] = event.Data
-		a[i] = &o
-	}
-	return a
 }

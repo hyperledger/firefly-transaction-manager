@@ -19,9 +19,12 @@ package apitypes
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 
 	"github.com/google/uuid"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/jsonmap"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 type DistributionMode = fftypes.FFEnum
@@ -211,4 +214,51 @@ func CheckUpdateStringMap(changed bool, merged *map[string]string, old map[strin
 	jsonOld, _ := json.Marshal(old)
 	jsonNew, _ := json.Marshal(new)
 	return !bytes.Equal(jsonOld, jsonNew)
+}
+
+type EventContext struct {
+	StreamID        *fftypes.UUID `json:"streamId"`     // the ID of the event stream for this event
+	DeprecatedSubID *fftypes.UUID `json:"subId"`        // ID of the listener - deprecated "subscription" naming
+	ListenerName    string        `json:"listenerName"` // name of the listener
+	Signature       string        `json:"signature"`    // event signature string
+}
+
+// EventWithContext is what is delivered
+// There is custom serialization to flatten the whole structure, so all the custom `info` fields from the
+// connector are alongside the required context fields.
+// The `data` is kept separate
+type EventWithContext struct {
+	StandardContext EventContext
+	ffcapi.Event
+}
+
+func (e *EventWithContext) MarshalJSON() ([]byte, error) {
+	m := make(map[string]interface{})
+	if e.Info != nil {
+		jsonmap.AddJSONFieldsToMap(reflect.ValueOf(e.Info), m)
+	}
+	jsonmap.AddJSONFieldsToMap(reflect.ValueOf(&e.ID), m)
+	jsonmap.AddJSONFieldsToMap(reflect.ValueOf(&e.StandardContext), m)
+	m["data"] = e.Data
+	return json.Marshal(m)
+}
+
+// Note on unmarshal info will be a map with all the fields (except "data")
+func (e *EventWithContext) UnmarshalJSON(b []byte) error {
+	var m fftypes.JSONObject
+	err := json.Unmarshal(b, &m)
+	if err == nil && m != nil {
+		e.Info = m
+		data := m["data"]
+		delete(m, "data")
+		if data != nil {
+			b, _ := json.Marshal(&data)
+			e.Data = fftypes.JSONAnyPtrBytes(b)
+		}
+		err = json.Unmarshal(b, &e.ID)
+		if err == nil {
+			err = json.Unmarshal(b, &e.StandardContext)
+		}
+	}
+	return err
 }

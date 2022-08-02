@@ -77,11 +77,11 @@ func InitDefaults() {
 	}
 }
 
-type eventStreamAction func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error
+type eventStreamAction func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error
 
 type eventStreamBatch struct {
 	number      int
-	events      []*ffcapi.EventWithContext
+	events      []*apitypes.EventWithContext
 	checkpoints map[fftypes.UUID]ffcapi.EventListenerCheckpoint
 	timeout     *time.Timer
 }
@@ -601,12 +601,12 @@ func (es *eventStream) Delete(ctx context.Context) error {
 
 func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.ListenerEvent) {
 	event := fev.Event
-	if event == nil || event.ListenerID == nil || fev.Checkpoint == nil {
+	if event == nil || event.ID.ListenerID == nil || fev.Checkpoint == nil {
 		log.L(ctx).Warnf("Invalid event from connector: %+v", fev)
 		return
 	}
 	es.mux.Lock()
-	l := es.listeners[*fev.Event.ListenerID]
+	l := es.listeners[*fev.Event.ID.ListenerID]
 	es.mux.Unlock()
 	if l != nil {
 		log.L(ctx).Debugf("%s event detected: %s", l.spec.ID, event)
@@ -621,7 +621,7 @@ func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.Listener
 			err := es.confirmations.Notify(&confirmations.Notification{
 				NotificationType: confirmations.NewEventLog,
 				Event: &confirmations.EventInfo{
-					EventID: event.EventID,
+					ID: &event.ID,
 					Confirmed: func(confirmations []confirmations.BlockInfo) {
 						// Push it to the batch when confirmed
 						// - Note this will block the confirmation manager when the event stream is blocked
@@ -637,11 +637,11 @@ func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.Listener
 }
 
 func (es *eventStream) processRemovedEvent(ctx context.Context, fev *ffcapi.ListenerEvent) {
-	if fev.Event != nil && fev.Event.ListenerID != nil && es.confirmations != nil {
+	if fev.Event != nil && fev.Event.ID.ListenerID != nil && es.confirmations != nil {
 		err := es.confirmations.Notify(&confirmations.Notification{
 			NotificationType: confirmations.RemovedEventLog,
 			Event: &confirmations.EventInfo{
-				EventID: fev.Event.EventID,
+				ID: &fev.Event.ID,
 			},
 		})
 		if err != nil {
@@ -693,7 +693,7 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 		case fev := <-es.batchChannel:
 			if fev.Event != nil {
 				es.mux.Lock()
-				l := es.listeners[*fev.Event.ListenerID]
+				l := es.listeners[*fev.Event.ID.ListenerID]
 				es.mux.Unlock()
 				if l != nil {
 					currentCheckpoint := l.checkpoint
@@ -717,13 +717,18 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 						}
 					}
 					if fev.Checkpoint != nil {
-						batch.checkpoints[*fev.Event.ListenerID] = fev.Checkpoint
+						batch.checkpoints[*fev.Event.ID.ListenerID] = fev.Checkpoint
 					}
 
 					log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.Signature, fev.Event)
-					batch.events = append(batch.events, &ffcapi.EventWithContext{
-						StreamID: es.spec.ID,
-						Event:    *fev.Event,
+					batch.events = append(batch.events, &apitypes.EventWithContext{
+						StandardContext: apitypes.EventContext{
+							StreamID:        es.spec.ID,
+							DeprecatedSubID: l.spec.ID,
+							ListenerName:    *l.spec.Name,
+							Signature:       l.spec.Signature,
+						},
+						Event: *fev.Event,
 					})
 				}
 			}

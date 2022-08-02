@@ -43,6 +43,12 @@ import (
 
 func strPtr(s string) *string { return &s }
 
+type testInfo struct {
+	BlockNumber      string `json:"blockNumber"`
+	TransactionIndex string `json:"transactionIndex"`
+	LogIndex         string `json:"logIndex"`
+}
+
 type utCheckpointType struct {
 	SomeSequenceNumber int64 `json:"someSequenceNumber"`
 }
@@ -365,18 +371,22 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	r.EventStream <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
-			EventID: ffcapi.EventID{
+			ID: ffcapi.EventID{
 				ListenerID:       l.ID,
 				BlockNumber:      42,
 				TransactionIndex: 13,
 				LogIndex:         1,
 			},
 			Data: fftypes.JSONAnyPtr(`{"k1":"v1"}`),
-			Info: fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
+			Info: &testInfo{
+				BlockNumber:      "42",
+				TransactionIndex: "13",
+				LogIndex:         "1",
+			},
 		},
 	}
 
-	batch1 := (<-senderChannel).([]*ffcapi.EventWithContext)
+	batch1 := (<-senderChannel).([]*apitypes.EventWithContext)
 	assert.Len(t, batch1, 1)
 	assert.Equal(t, "v1", batch1[0].Data.JSONObject().GetString("k1"))
 
@@ -450,12 +460,12 @@ func TestStartEventStreamCheckpointInvalid(t *testing.T) {
 
 func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 
-	receivedWebhook := make(chan []*ffcapi.EventWithContext, 1)
+	receivedWebhook := make(chan []*apitypes.EventWithContext, 1)
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/test/path", r.URL.Path)
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "application/json", r.Header.Get("content-type"))
-		var events []*ffcapi.EventWithContext
+		var events []*apitypes.EventWithContext
 		err := json.NewDecoder(r.Body).Decode(&events)
 		assert.NoError(t, err)
 		receivedWebhook <- events
@@ -531,14 +541,18 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 	r.EventStream <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
-			EventID: ffcapi.EventID{
+			ID: ffcapi.EventID{
 				ListenerID:       l.ID,
 				BlockNumber:      42,
 				TransactionIndex: 13,
 				LogIndex:         1,
 			},
 			Data: fftypes.JSONAnyPtr(`{"k1":"v1"}`),
-			Info: fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
+			Info: &testInfo{
+				BlockNumber:      "42",
+				TransactionIndex: "13",
+				LogIndex:         "1",
+			},
 		},
 	}
 
@@ -1239,17 +1253,21 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 	r.EventStream <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
-			EventID: ffcapi.EventID{
+			ID: ffcapi.EventID{
 				ListenerID:       l.ID,
 				BlockNumber:      42,
 				TransactionIndex: 13,
 				LogIndex:         1,
 			},
 			Data: fftypes.JSONAnyPtr(`{"k1":"v1"}`),
-			Info: fftypes.JSONAnyPtr(`{"blockNumber":"42","transactionIndex":"13","logIndex":"1"}`),
+			Info: &testInfo{
+				BlockNumber:      "42",
+				TransactionIndex: "13",
+				LogIndex:         "1",
+			},
 		},
 	}
-	batch1 := (<-broadcastChannel).([]*ffcapi.EventWithContext)
+	batch1 := (<-broadcastChannel).([]*apitypes.EventWithContext)
 	assert.Len(t, batch1, 1)
 	assert.Equal(t, "v1", batch1[0].Data.JSONObject().GetString("k1"))
 
@@ -1283,7 +1301,7 @@ func TestActionRetryOk(t *testing.T) {
 
 	es.mux.Lock()
 	callCount := 0
-	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
 		callCount++
 		if callCount > 1 {
 			return nil
@@ -1298,8 +1316,8 @@ func TestActionRetryOk(t *testing.T) {
 
 	// retry then ok
 	err = es.performActionsWithRetry(es.currentState, &eventStreamBatch{
-		events: []*ffcapi.EventWithContext{
-			{StreamID: es.spec.ID},
+		events: []*apitypes.EventWithContext{
+			{StandardContext: apitypes.EventContext{StreamID: es.spec.ID}},
 		},
 	})
 	assert.NoError(t, err)
@@ -1333,15 +1351,15 @@ func TestActionRetrySkip(t *testing.T) {
 	assert.NoError(t, err)
 
 	es.mux.Lock()
-	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
 		return fmt.Errorf("pop")
 	}
 	es.mux.Unlock()
 
 	// Skip behavior
 	err = es.performActionsWithRetry(es.currentState, &eventStreamBatch{
-		events: []*ffcapi.EventWithContext{
-			{StreamID: es.spec.ID},
+		events: []*apitypes.EventWithContext{
+			{StandardContext: apitypes.EventContext{StreamID: es.spec.ID}},
 		},
 	})
 	assert.NoError(t, err)
@@ -1377,7 +1395,7 @@ func TestActionRetryBlock(t *testing.T) {
 	es.mux.Lock()
 	callCount := 0
 	done := make(chan struct{})
-	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
 		callCount++
 		if callCount == 1 {
 			go func() {
@@ -1392,8 +1410,8 @@ func TestActionRetryBlock(t *testing.T) {
 
 	// Skip behavior
 	err = es.performActionsWithRetry(es.currentState, &eventStreamBatch{
-		events: []*ffcapi.EventWithContext{
-			{StreamID: es.spec.ID},
+		events: []*apitypes.EventWithContext{
+			{StandardContext: apitypes.EventContext{StreamID: es.spec.ID}},
 		},
 	})
 	assert.Regexp(t, "FF00154", err)
@@ -1445,7 +1463,7 @@ func TestEventLoopProcessRemovedEvent(t *testing.T) {
 	u1 := &ffcapi.ListenerEvent{
 		Removed: true,
 		Event: &ffcapi.Event{
-			EventID: ffcapi.EventID{
+			ID: ffcapi.EventID{
 				ListenerID: fftypes.NewUUID(),
 			},
 		},
@@ -1455,8 +1473,8 @@ func TestEventLoopProcessRemovedEvent(t *testing.T) {
 		ss.cancelCtx()
 	})
 	es.confirmations = mcm
-	es.listeners[*u1.Event.ListenerID] = &listener{
-		spec: &apitypes.Listener{ID: u1.Event.ListenerID},
+	es.listeners[*u1.Event.ID.ListenerID] = &listener{
+		spec: &apitypes.Listener{ID: u1.Event.ID.ListenerID},
 	}
 
 	go func() {
@@ -1481,7 +1499,7 @@ func TestEventLoopProcessRemovedEventFail(t *testing.T) {
 	u1 := &ffcapi.ListenerEvent{
 		Removed: true,
 		Event: &ffcapi.Event{
-			EventID: ffcapi.EventID{
+			ID: ffcapi.EventID{
 				ListenerID: fftypes.NewUUID(),
 			},
 		},
@@ -1491,8 +1509,8 @@ func TestEventLoopProcessRemovedEventFail(t *testing.T) {
 		ss.cancelCtx()
 	})
 	es.confirmations = mcm
-	es.listeners[*u1.Event.ListenerID] = &listener{
-		spec: &apitypes.Listener{ID: u1.Event.ListenerID},
+	es.listeners[*u1.Event.ID.ListenerID] = &listener{
+		spec: &apitypes.Listener{ID: u1.Event.ID.ListenerID},
 	}
 
 	go func() {
@@ -1517,14 +1535,14 @@ func TestEventLoopConfirmationsManagerBypass(t *testing.T) {
 	u1 := &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
-			EventID: ffcapi.EventID{
+			ID: ffcapi.EventID{
 				ListenerID: fftypes.NewUUID(),
 			},
 		},
 	}
 	es.confirmations = nil
-	es.listeners[*u1.Event.ListenerID] = &listener{
-		spec: &apitypes.Listener{ID: u1.Event.ListenerID},
+	es.listeners[*u1.Event.ID.ListenerID] = &listener{
+		spec: &apitypes.Listener{ID: u1.Event.ID.ListenerID},
 	}
 
 	go func() {
@@ -1552,7 +1570,7 @@ func TestEventLoopConfirmationsManagerFail(t *testing.T) {
 	u1 := &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 		Event: &ffcapi.Event{
-			EventID: ffcapi.EventID{
+			ID: ffcapi.EventID{
 				ListenerID: fftypes.NewUUID(),
 			},
 		},
@@ -1562,8 +1580,8 @@ func TestEventLoopConfirmationsManagerFail(t *testing.T) {
 		ss.cancelCtx()
 	})
 	es.confirmations = mcm
-	es.listeners[*u1.Event.ListenerID] = &listener{
-		spec: &apitypes.Listener{ID: u1.Event.ListenerID},
+	es.listeners[*u1.Event.ID.ListenerID] = &listener{
+		spec: &apitypes.Listener{ID: u1.Event.ID.ListenerID},
 	}
 
 	go func() {
@@ -1591,9 +1609,9 @@ func TestSkipEventsBehindCheckpoint(t *testing.T) {
 	ss := &startedStreamState{
 		updates:       make(chan *ffcapi.ListenerEvent, 1),
 		batchLoopDone: make(chan struct{}),
-		action: func(ctx context.Context, batchNumber, attempt int, events []*ffcapi.EventWithContext) error {
+		action: func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
 			assert.Len(t, events, 1)
-			assert.Equal(t, events[0].BlockNumber, uint64(2001))
+			assert.Equal(t, events[0].ID.BlockNumber, uint64(2001))
 			return nil
 		},
 	}
@@ -1601,7 +1619,7 @@ func TestSkipEventsBehindCheckpoint(t *testing.T) {
 
 	listenerID := fftypes.NewUUID()
 	li := &listener{
-		spec:       &apitypes.Listener{ID: listenerID},
+		spec:       &apitypes.Listener{ID: listenerID, Name: strPtr("listener1")},
 		checkpoint: &utCheckpointType{SomeSequenceNumber: 2000},
 	}
 	es.listeners[*li.spec.ID] = li
@@ -1621,15 +1639,15 @@ func TestSkipEventsBehindCheckpoint(t *testing.T) {
 	}()
 	es.batchChannel <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 1999}, // before checkpoint - redelivery
-		Event:      &ffcapi.Event{EventID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 1999}},
+		Event:      &ffcapi.Event{ID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 1999}},
 	}
 	es.batchChannel <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2000}, // on checkpoint - redelivery
-		Event:      &ffcapi.Event{EventID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 2000}},
+		Event:      &ffcapi.Event{ID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 2000}},
 	}
 	es.batchChannel <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2001}, // this is a new event
-		Event:      &ffcapi.Event{EventID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 2001}},
+		Event:      &ffcapi.Event{ID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 2001}},
 	}
 	wg.Wait()
 

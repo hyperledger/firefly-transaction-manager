@@ -60,7 +60,7 @@ type Notification struct {
 }
 
 type EventInfo struct {
-	ffcapi.EventID
+	ID        *ffcapi.EventID
 	Confirmed func(confirmations []BlockInfo)
 }
 
@@ -173,12 +173,12 @@ func (pi *pendingItem) copyConfirmations() []BlockInfo {
 func (n *Notification) eventPendingItem() *pendingItem {
 	return &pendingItem{
 		pType:             pendingTypeEvent,
-		listenerID:        n.Event.ListenerID,
-		blockNumber:       n.Event.BlockNumber,
-		blockHash:         n.Event.BlockHash,
-		transactionHash:   n.Event.TransactionHash,
-		transactionIndex:  n.Event.TransactionIndex,
-		logIndex:          n.Event.LogIndex,
+		listenerID:        n.Event.ID.ListenerID,
+		blockNumber:       n.Event.ID.BlockNumber,
+		blockHash:         n.Event.ID.BlockHash,
+		transactionHash:   n.Event.ID.TransactionHash,
+		transactionIndex:  n.Event.ID.TransactionIndex,
+		logIndex:          n.Event.ID.LogIndex,
 		confirmedCallback: n.Event.Confirmed,
 	}
 }
@@ -230,7 +230,7 @@ func (bcm *blockConfirmationManager) NewBlockHashes() chan<- *ffcapi.BlockHashEv
 func (bcm *blockConfirmationManager) Notify(n *Notification) error {
 	switch n.NotificationType {
 	case NewEventLog, RemovedEventLog:
-		if n.Event == nil || n.Event.ListenerID == nil || n.Event.TransactionHash == "" || n.Event.BlockHash == "" {
+		if n.Event == nil || n.Event.ID.ListenerID == nil || n.Event.ID.TransactionHash == "" || n.Event.ID.BlockHash == "" {
 			return i18n.NewError(bcm.ctx, tmmsgs.MsgInvalidConfirmationRequest, n)
 		}
 	case NewTransaction, RemovedTransaction:
@@ -390,9 +390,9 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 			bcm.addOrReplaceItem(newItem)
 			bcm.staleReceipts[newItem.getKey()] = true
 		case RemovedEventLog:
-			bcm.removeItem(n.eventPendingItem())
+			bcm.removeItem(n.eventPendingItem().getKey(), true)
 		case RemovedTransaction:
-			bcm.removeItem(n.transactionPendingItem())
+			bcm.removeItem(n.transactionPendingItem().getKey(), true)
 		default:
 			// Note that streamStopped is handled in the polling loop directly
 			log.L(bcm.ctx).Warnf("Unexpected notification type: %d", n.NotificationType)
@@ -425,7 +425,6 @@ func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem) {
 		}
 
 		if bcm.requiredConfirmations == 0 {
-			delete(bcm.pending, pending.getKey())
 			bcm.dispatchConfirmed(pending)
 		} else {
 			// Need to walk the chain for this new receipt
@@ -463,11 +462,10 @@ func (bcm *blockConfirmationManager) addOrReplaceItem(pending *pendingItem) {
 }
 
 // removeEvent is called by the goroutine on receipt of a remove event notification
-func (bcm *blockConfirmationManager) removeItem(pending *pendingItem) {
+func (bcm *blockConfirmationManager) removeItem(pendingKey string, stale bool) {
 	bcm.pendingMux.Lock()
 	defer bcm.pendingMux.Unlock()
-	pendingKey := pending.getKey()
-	log.L(bcm.ctx).Infof("Removing stale item %s", pendingKey)
+	log.L(bcm.ctx).Infof("Removing item %s (stale=%t)", pendingKey, stale)
 	delete(bcm.pending, pendingKey)
 	delete(bcm.staleReceipts, pendingKey)
 }
@@ -535,9 +533,6 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 				expectedBlockNumber++
 			}
 			if len(pending.confirmations) >= bcm.requiredConfirmations {
-				bcm.pendingMux.Lock()
-				delete(bcm.pending, pendingKey)
-				bcm.pendingMux.Unlock()
 				confirmed = append(confirmed, pending)
 			}
 
@@ -555,6 +550,8 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 // dispatchConfirmed drive the event stream for any events that are confirmed, and prunes the state
 func (bcm *blockConfirmationManager) dispatchConfirmed(item *pendingItem) {
 	pendingKey := item.getKey()
+	bcm.removeItem(pendingKey, false)
+
 	log.L(bcm.ctx).Infof("Confirmed with %d confirmations event=%s", len(item.confirmations), pendingKey)
 	item.confirmedCallback(item.copyConfirmations() /* a safe copy outside of our cache */)
 }

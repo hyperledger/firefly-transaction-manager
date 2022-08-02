@@ -17,11 +17,13 @@
 package apitypes
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -181,4 +183,78 @@ func TestCheckUpdateStringMap(t *testing.T) {
 	changed = CheckUpdateStringMap(false, &pVal3, val1, nil)
 	assert.Equal(t, map[string]string{"key1": "val1"}, pVal3) // val1 won
 	assert.False(t, changed)                                  // which was the current value
+}
+
+func TestMarshalUnmarshalEventOK(t *testing.T) {
+
+	type customInfo struct {
+		InfoKey1 string `json:"key1"`
+	}
+
+	e := &EventWithContext{
+		StandardContext: EventContext{
+			StreamID:        UUIDVersion1(),
+			ListenerName:    "listener1",
+			Signature:       "ev()",
+			DeprecatedSubID: UUIDVersion1(),
+		},
+		Event: ffcapi.Event{
+			ID: ffcapi.EventID{
+				ListenerID:       fftypes.NewUUID(),
+				BlockHash:        "0x12345",
+				BlockNumber:      12345,
+				TransactionHash:  "0x23456",
+				TransactionIndex: 10,
+				LogIndex:         1,
+			},
+			Info: &customInfo{
+				InfoKey1: "val1",
+			},
+			Data: fftypes.JSONAnyPtr(`{"dk1":"dv1"}`),
+		},
+	}
+
+	b, err := json.Marshal(&e)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{
+		"blockHash":"0x12345",
+		"blockNumber":12345,
+		"data": {"dk1":"dv1"},
+		"key1":"val1",
+		"listenerId":"`+e.ID.ListenerID.String()+`",
+		"listenerName":"listener1",
+		"logIndex":1, "signature":"ev()",
+		"subId":"`+e.StandardContext.DeprecatedSubID.String()+`",
+		"streamId":"`+e.StandardContext.StreamID.String()+`",
+		"transactionHash":"0x23456",
+		"transactionIndex":10
+	}`, string(b))
+
+	var e2 *EventWithContext
+	err = json.Unmarshal(b, &e2)
+	assert.NoError(t, err)
+
+	assert.Equal(t, e.ID.ListenerID, e2.ID.ListenerID)
+	assert.Equal(t, e.StandardContext.StreamID, e2.StandardContext.StreamID)
+	assert.Equal(t, e.Data, e2.Data)
+	assert.Equal(t, "val1", e2.Info.(fftypes.JSONObject).GetString("key1"))
+
+}
+
+func TestMarshalUnmarshalEmptyInfoOk(t *testing.T) {
+
+	e := &EventWithContext{}
+
+	_, err := json.Marshal(&e)
+	assert.NoError(t, err)
+
+}
+
+func TestUnmarshalFail(t *testing.T) {
+
+	e := &EventWithContext{}
+
+	err := json.Unmarshal([]byte(`!bad JSON`), &e)
+	assert.Error(t, err)
+
 }
