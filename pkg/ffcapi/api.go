@@ -190,7 +190,7 @@ type TransactionInput struct {
 type ContractDeployInput struct {
 	TransactionHeaders
 	ABI      *fftypes.JSONAny   `json:"abi"`
-	Bytecode string             `json:"bytecode"`
+	Bytecode *fftypes.JSONAny   `json:"bytecode"`
 	Params   []*fftypes.JSONAny `json:"params"`
 }
 
