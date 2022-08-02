@@ -634,6 +634,8 @@ github.com/hyperledger/firefly-common v0.1.13 h1:eNK99U9FV43u1F46MM0mPuXT4Xn++or
 github.com/hyperledger/firefly-common v0.1.13/go.mod h1:2NqPi5Ud9H6rSlZXkLbotxW7z4EAD89p3/8oNOpm9Gs=
 github.com/hyperledger/firefly-common v0.1.16-0.20220801130311-02fc08199d51 h1:Izw9pK53kPGliZv12hCwJfP7rYILhXPx3hMNsCNv7YQ=
 github.com/hyperledger/firefly-common v0.1.16-0.20220801130311-02fc08199d51/go.mod h1:MNbaI2spBsdZYOub6Duj9xueE7Qyu9itOmJ4vE8tjYw=
+github.com/hyperledger/firefly-common v0.1.16 h1:21xidDEKrJhtGdBSRqHN4PfDi7aYxF0HOFuAa04V1AE=
+github.com/hyperledger/firefly-common v0.1.16/go.mod h1:MNbaI2spBsdZYOub6Duj9xueE7Qyu9itOmJ4vE8tjYw=
 github.com/iancoleman/strcase v0.2.0/go.mod h1:iwCmte+B7n89clKwxIoIXy/HfoL7AsD47ZCWhYzw7ho=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=

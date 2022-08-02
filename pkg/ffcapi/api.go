@@ -53,6 +53,9 @@ type API interface {
 	// TransactionSend combines a previously prepared encoded transaction, with a current gas price, and submits it to the transaction pool of the blockchain for mining
 	TransactionSend(ctx context.Context, req *TransactionSendRequest) (*TransactionSendResponse, ErrorReason, error)
 
+	// DeployContractPrepare
+	DeployContractPrepare(ctx context.Context, req *ContractDeployPrepareRequest) (*TransactionPrepareResponse, ErrorReason, error)
+
 	// EventStreamStart starts an event stream with an initial set of listeners (which might be empty), a channel to deliver events, and a context that will close to stop the stream
 	EventStreamStart(ctx context.Context, req *EventStreamStartRequest) (*EventStreamStartResponse, ErrorReason, error)
 
@@ -182,6 +185,13 @@ type TransactionInput struct {
 	TransactionHeaders
 	Method *fftypes.JSONAny   `json:"method"`
 	Params []*fftypes.JSONAny `json:"params"`
+}
+
+type ContractDeployInput struct {
+	TransactionHeaders
+	ABI      *fftypes.JSONAny   `json:"abi"`
+	Bytecode string             `json:"bytecode"`
+	Params   []*fftypes.JSONAny `json:"params"`
 }
 
 type TransactionHeaders struct {

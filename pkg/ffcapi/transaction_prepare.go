@@ -23,7 +23,7 @@ import (
 // TransactionPrepareRequest is used to prepare a set of JSON formatted developer friendly
 // inputs, into a raw transaction ready for submission to the blockchain.
 //
-// The connector is responsible for encoding the transaction ready for sumission,
+// The connector is responsible for encoding the transaction ready for submission,
 // and returning the hash for the transaction as well as a string serialization of
 // the pre-signed raw transaction in a format of its own choosing (hex etc.).
 // The hash is expected to be a function of:
@@ -40,6 +40,10 @@ import (
 // detected by the back-end connector.
 type TransactionPrepareRequest struct {
 	TransactionInput
+}
+
+type ContractDeployPrepareRequest struct {
+	ContractDeployInput
 }
 
 type TransactionPrepareResponse struct {

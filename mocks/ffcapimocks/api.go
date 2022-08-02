@@ -74,6 +74,36 @@ func (_m *API) BlockInfoByNumber(ctx context.Context, req *ffcapi.BlockInfoByNum
 	return r0, r1, r2
 }
 
+// DeployContractPrepare provides a mock function with given fields: ctx, req
+func (_m *API) DeployContractPrepare(ctx context.Context, req *ffcapi.ContractDeployPrepareRequest) (*ffcapi.TransactionPrepareResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx, req)
+
+	var r0 *ffcapi.TransactionPrepareResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.ContractDeployPrepareRequest) *ffcapi.TransactionPrepareResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.TransactionPrepareResponse)
+		}
+	}
+
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.ContractDeployPrepareRequest) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.ContractDeployPrepareRequest) error); ok {
+		r2 = rf(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // EventListenerAdd provides a mock function with given fields: ctx, req
 func (_m *API) EventListenerAdd(ctx context.Context, req *ffcapi.EventListenerAddRequest) (*ffcapi.EventListenerAddResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
