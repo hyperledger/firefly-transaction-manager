@@ -22,8 +22,10 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
@@ -90,7 +92,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	// Run the policy once to do the send
 	<-m.inflightStale // from sending the TX
 	m.policyLoopCycle(true)
-	assert.Equal(t, mtx.Headers.RequestID, m.inflight[0].mtx.Headers.RequestID)
+	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// A second time will mark it complete for flush
@@ -101,7 +103,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	assert.Empty(t, m.inflight)
 
 	// Check the update is persisted
-	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.Headers.RequestID)
+	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, apitypes.TxStatusSucceeded, rtx.Status)
 
@@ -141,7 +143,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	// Run the policy once to do the send
 	<-m.inflightStale // from sending the TX
 	m.policyLoopCycle(true)
-	assert.Equal(t, mtx.Headers.RequestID, m.inflight[0].mtx.Headers.RequestID)
+	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// A second time will mark it complete for flush
@@ -152,7 +154,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	assert.Empty(t, m.inflight)
 
 	// Check the update is persisted
-	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.Headers.RequestID)
+	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, apitypes.TxStatusFailed, rtx.Status)
 
@@ -212,13 +214,20 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	// Run the policy once to do the send with the first hash
 	<-m.inflightStale // from sending the TX
 	m.policyLoopCycle(true)
-	assert.Equal(t, mtx.Headers.RequestID, m.inflight[0].mtx.Headers.RequestID)
+	assert.Len(t, m.inflight, 1)
+	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
+
+	// Run again to confirm it does not change anything, when the state is the same
+	m.policyLoopCycle(true)
+	assert.Len(t, m.inflight, 1)
+	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// Reset the transaction so the policy manager resubmits it
 	m.inflight[0].mtx.FirstSubmit = nil
 	m.policyLoopCycle(false)
-	assert.Equal(t, mtx.Headers.RequestID, m.inflight[0].mtx.Headers.RequestID)
+	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	mc.AssertExpectations(t)
@@ -245,5 +254,31 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 
 	mc.AssertExpectations(t)
 	mfc.AssertExpectations(t)
+
+}
+
+func TestInflightSetListFailCancel(t *testing.T) {
+
+	_, m, cancel := newTestManager(t)
+	cancel()
+
+	mp := &persistencemocks.Persistence{}
+	m.persistence = mp
+	mp.On("ListTransactionsPending", m.ctx, (*fftypes.UUID)(nil), m.maxInFlight, persistence.SortDirectionAscending).
+		Return(nil, fmt.Errorf("pop"))
+
+	m.policyLoopCycle(true)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestMarkInflightStaleDoesNotBlock(t *testing.T) {
+
+	_, m, cancel := newTestManager(t)
+	defer cancel()
+
+	m.markInflightStale()
+	m.markInflightStale()
 
 }

@@ -20,9 +20,11 @@ import (
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
@@ -100,7 +102,7 @@ func (m *manager) policyLoopCycle(inflightStale bool) {
 	for _, pending := range m.inflight {
 		err := m.execPolicy(pending)
 		if err != nil {
-			log.L(m.ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.Headers.RequestID, err)
+			log.L(m.ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
 		}
 	}
 
@@ -113,11 +115,13 @@ func (m *manager) addError(mtx *apitypes.ManagedTX, reason ffcapi.ErrorReason, e
 	}
 	oldHistory := mtx.ErrorHistory
 	mtx.ErrorHistory = make([]*apitypes.ManagedTXError, newLen)
-	mtx.ErrorHistory[0] = &apitypes.ManagedTXError{
+	latestError := &apitypes.ManagedTXError{
 		Time:   fftypes.Now(),
 		Mapped: reason,
 		Error:  err.Error(),
 	}
+	mtx.ErrorMessage = latestError.Error
+	mtx.ErrorHistory[0] = latestError
 	for i := 1; i < newLen; i++ {
 		mtx.ErrorHistory[i] = oldHistory[i-1]
 	}
@@ -134,8 +138,10 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 		completed = true
 		if mtx.Receipt.Success {
 			mtx.Status = apitypes.TxStatusSucceeded
+			mtx.ErrorMessage = ""
 		} else {
 			mtx.Status = apitypes.TxStatusFailed
+			mtx.ErrorMessage = i18n.NewError(m.ctx, tmmsgs.MsgTransactionFailed).Error()
 		}
 
 	default:
@@ -144,7 +150,7 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 		var reason ffcapi.ErrorReason
 		updated, reason, err = m.policyEngine.Execute(m.ctx, m.connector, pending.mtx)
 		if err != nil {
-			log.L(m.ctx).Errorf("Policy engine returned error for operation %s reason=%s: %s", mtx.Headers.RequestID, reason, err)
+			log.L(m.ctx).Errorf("Policy engine returned error for operation %s reason=%s: %s", mtx.ID, reason, err)
 			m.addError(mtx, reason, err)
 		} else if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 			// If now submitted, add to confirmations manager for receipt checking
@@ -155,16 +161,36 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 	if updated || err != nil {
 		err := m.persistence.WriteTransaction(m.ctx, mtx, false)
 		if err != nil {
-			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.Headers.RequestID, mtx.Status, err)
+			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, mtx.Status, err)
 			return err
 		}
 		if completed {
 			pending.remove = true
 			m.markInflightStale()
 		}
+		m.sendWSReply(mtx)
 	}
 
 	return nil
+}
+
+func (m *manager) sendWSReply(mtx *apitypes.ManagedTX) {
+	wsr := &apitypes.TransactionUpdateReply{
+		ManagedTX: *mtx,
+		Headers: apitypes.ReplyHeaders{
+			RequestID: mtx.ID,
+		},
+	}
+	switch mtx.Status {
+	case apitypes.TxStatusSucceeded:
+		wsr.Headers.Type = apitypes.TransactionUpdateSuccess
+	case apitypes.TxStatusFailed:
+		wsr.Headers.Type = apitypes.TransactionUpdateFailure
+	default:
+		wsr.Headers.Type = apitypes.TransactionUpdate
+	}
+	// Notify on the websocket - this is best-effort (there is no subscription/acknowledgement)
+	m.wsServer.SendReply(wsr)
 }
 
 func (m *manager) trackSubmittedTransaction(pending *pendingState) {
@@ -190,10 +216,6 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 					// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 					m.mux.Lock()
 					pending.mtx.Receipt = receipt
-					// TODO: This may not be the right spot to do this,
-					// but since it's part of the manager, it has a pointer
-					// to the wsServer to be able to send a reply
-					m.wsServer.SendReply(wsTransactionReceipt(pending))
 					m.mux.Unlock()
 				},
 				Confirmed: func(confirmations []confirmations.BlockInfo) {
@@ -212,38 +234,5 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 		log.L(m.ctx).Infof("Error detected notifying confirmation manager: %s", err)
 	} else {
 		pending.trackingTransactionHash = pending.mtx.TransactionHash
-	}
-}
-
-type WsTransactionReceipt struct {
-	Headers         *WsTransactionReceiptHeaders `json:"headers"`
-	TransactionHash string                       `json:"transactionHash"`
-	ErrorMessage    string                       `json:"errorMessage"`
-}
-
-type WsTransactionReceiptHeaders struct {
-	RequestID string `json:"requestId"`
-	ReplyType string `json:"type"`
-}
-
-const (
-	ReplyTypeTransactionSuccess = "TransactionSuccess"
-	ReplyTypeTransactionFailure = "TransactionFailure"
-)
-
-// This function is used to transform the pendingState into the format
-// that FireFly Core is expecting, preserving backward compatibility
-// with the original Ethconnect implementation
-func wsTransactionReceipt(pending *pendingState) *WsTransactionReceipt {
-	// TODO: Set this status correctly. Always report success for now, for initial testing
-	replyType := ReplyTypeTransactionSuccess
-
-	return &WsTransactionReceipt{
-		Headers: &WsTransactionReceiptHeaders{
-			RequestID: pending.mtx.Headers.RequestID,
-			ReplyType: replyType,
-		},
-		TransactionHash: pending.mtx.TransactionHash,
-		ErrorMessage:    "",
 	}
 }

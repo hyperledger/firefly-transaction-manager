@@ -81,4 +81,5 @@ var (
 	MsgTXConflictSignerPending       = ffe("FF21063", "Only one of 'signer' and 'pending' can be supplied when querying transactions", http.StatusBadRequest)
 	MsgInvalidSortDirection          = ffe("FF21064", "Sort direction must be 'asc'/'ascending' or 'desc'/'descending': '%s'", http.StatusBadRequest)
 	MsgDuplicateID                   = ffe("FF21065", "ID '%s' is not unique", http.StatusConflict)
+	MsgTransactionFailed             = ffe("FF21066", "Transaction execution failed")
 )

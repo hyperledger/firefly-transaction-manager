@@ -151,7 +151,7 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 			now := fftypes.Now()
 			if now.Time().Sub(*lastWarnTime.Time()) > p.warnInterval {
 				secsSinceSubmit := float64(now.Time().Sub(*mtx.FirstSubmit.Time())) / float64(time.Second)
-				log.L(ctx).Warnf("Transaction %s (op=%s) has not been mined after %.2fs", mtx.TransactionHash, mtx.Headers.RequestID, secsSinceSubmit)
+				log.L(ctx).Warnf("Transaction %s (op=%s) has not been mined after %.2fs", mtx.TransactionHash, mtx.ID, secsSinceSubmit)
 				info.LastWarnTime = now
 				return true, "", nil
 			}

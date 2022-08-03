@@ -39,13 +39,11 @@ func TestNonceStaleStateContention(t *testing.T) {
 	// Write a stale record to persistence
 	oldTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
 	err := m.persistence.WriteTransaction(m.ctx, &apitypes.ManagedTX{
-		Headers: apitypes.ManagedTXHeaders{
-			RequestID:    "stale1",
-			TimeReceived: &oldTime,
-		},
-		Status:     apitypes.TxStatusSucceeded,
-		SequenceID: apitypes.UUIDVersion1(),
-		Nonce:      fftypes.NewFFBigInt(1000), // old nonce
+		ID:           "stale1",
+		TimeReceived: &oldTime,
+		Status:       apitypes.TxStatusSucceeded,
+		SequenceID:   apitypes.UUIDVersion1(),
+		Nonce:        fftypes.NewFFBigInt(1000), // old nonce
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: "0x12345",
 		},
@@ -74,13 +72,11 @@ func TestNonceStaleStateContention(t *testing.T) {
 
 		time.Sleep(1 * time.Millisecond)
 		ln.spent = &apitypes.ManagedTX{
-			Headers: apitypes.ManagedTXHeaders{
-				RequestID:    "ns1:" + fftypes.NewUUID().String(),
-				TimeReceived: &oldTime,
-			},
-			Nonce:      fftypes.NewFFBigInt(int64(ln.nonce)),
-			Status:     apitypes.TxStatusPending,
-			SequenceID: apitypes.UUIDVersion1(),
+			ID:           "ns1:" + fftypes.NewUUID().String(),
+			TimeReceived: &oldTime,
+			Nonce:        fftypes.NewFFBigInt(int64(ln.nonce)),
+			Status:       apitypes.TxStatusPending,
+			SequenceID:   apitypes.UUIDVersion1(),
 			TransactionHeaders: ffcapi.TransactionHeaders{
 				From: "0x12345",
 			},
@@ -149,7 +145,7 @@ func TestNonceListStaleThenQueryFail(t *testing.T) {
 	old := fftypes.FFTime(time.Now().Add(-10000 * time.Hour))
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
-			{Headers: apitypes.ManagedTXHeaders{RequestID: "id12345", TimeReceived: &old}, Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
+			{ID: "id12345", TimeReceived: &old, Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
 		}, nil)
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
@@ -184,7 +180,7 @@ func TestNonceListNotStale(t *testing.T) {
 	m.persistence = mp
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
-			{Headers: apitypes.ManagedTXHeaders{RequestID: "id12345", TimeReceived: fftypes.Now()}, Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
+			{ID: "id12345", TimeReceived: fftypes.Now(), Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
 		}, nil)
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 

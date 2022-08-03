@@ -40,12 +40,6 @@ type ManagedTXError struct {
 	Mapped ffcapi.ErrorReason `json:"mapped,omitempty"`
 }
 
-type ManagedTXHeaders struct {
-	RequestID    string          `json:"requestId"`
-	TimeReceived *fftypes.FFTime `json:"timeReceived"`
-	LastUpdate   *fftypes.FFTime `json:"lastUpdate"`
-}
-
 // ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
 //
 // Indexing:
@@ -63,7 +57,9 @@ type ManagedTXHeaders struct {
 //   - When listing back entries, the persistence layer will automatically clean up indexes if the underlying
 //     TX they refer to is not available. For this reason the index records are written first.
 type ManagedTX struct {
-	Headers            ManagedTXHeaders                   `json:"headers"`
+	ID                 string                             `json:"id"`
+	TimeReceived       *fftypes.FFTime                    `json:"timeReceived"`
+	LastUpdate         *fftypes.FFTime                    `json:"lastUpdate"`
 	Status             TxStatus                           `json:"status"`
 	SequenceID         *fftypes.UUID                      `json:"sequenceId"`
 	Nonce              *fftypes.FFBigInt                  `json:"nonce"`
@@ -76,6 +72,28 @@ type ManagedTX struct {
 	FirstSubmit        *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
 	LastSubmit         *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
 	Receipt            *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
+	ErrorMessage       string                             `json:"errorMessage,omitempty"`
 	ErrorHistory       []*ManagedTXError                  `json:"errorHistory"`
 	Confirmations      []confirmations.BlockInfo          `json:"confirmations,omitempty"`
+}
+
+type ReplyType string
+
+const (
+	TransactionUpdate        ReplyType = "TransactionUpdate"
+	TransactionUpdateSuccess ReplyType = "TransactionSuccess"
+	TransactionUpdateFailure ReplyType = "TransactionFailure"
+)
+
+type ReplyHeaders struct {
+	RequestID string `json:"requestId"`
+	Type      ReplyType
+}
+
+// TransactionUpdateReply add a "headers" structure that allows a processor of websocket
+// replies/updates to filter on a standard structure to know how to process the message.
+// Extensible to update update types in the future.
+type TransactionUpdateReply struct {
+	Headers ReplyHeaders
+	ManagedTX
 }

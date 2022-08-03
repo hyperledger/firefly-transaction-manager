@@ -261,10 +261,8 @@ func TestReadWriteCheckpoints(t *testing.T) {
 
 func newTestTX(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	return &apitypes.ManagedTX{
-		Headers: apitypes.ManagedTXHeaders{
-			RequestID:    fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
-			TimeReceived: fftypes.Now(),
-		},
+		ID:           fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+		TimeReceived: fftypes.Now(),
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: signer,
 		},
@@ -300,10 +298,10 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, txns, 4)
 
-	assert.Equal(t, s1t3.Headers.RequestID, txns[0].Headers.RequestID)
-	assert.Equal(t, s1t2.Headers.RequestID, txns[1].Headers.RequestID)
-	assert.Equal(t, s2t1.Headers.RequestID, txns[2].Headers.RequestID)
-	assert.Equal(t, s1t1.Headers.RequestID, txns[3].Headers.RequestID)
+	assert.Equal(t, s1t3.ID, txns[0].ID)
+	assert.Equal(t, s1t2.ID, txns[1].ID)
+	assert.Equal(t, s2t1.ID, txns[2].ID)
+	assert.Equal(t, s1t1.ID, txns[3].ID)
 
 	// Only list pending
 
@@ -311,45 +309,45 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
 
-	assert.Equal(t, s1t3.Headers.RequestID, txns[0].Headers.RequestID)
-	assert.Equal(t, s1t2.Headers.RequestID, txns[1].Headers.RequestID)
+	assert.Equal(t, s1t3.ID, txns[0].ID)
+	assert.Equal(t, s1t2.ID, txns[1].ID)
 
 	// List with time range
 
 	txns, err = p.ListTransactionsByCreateTime(ctx, s1t2, 0, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
-	assert.Equal(t, s2t1.Headers.RequestID, txns[0].Headers.RequestID)
-	assert.Equal(t, s1t1.Headers.RequestID, txns[1].Headers.RequestID)
+	assert.Equal(t, s2t1.ID, txns[0].ID)
+	assert.Equal(t, s1t1.ID, txns[1].ID)
 
 	// Test delete, and querying by nonce to limit TX returned
 
-	err = p.DeleteTransaction(ctx, s1t2.Headers.RequestID)
+	err = p.DeleteTransaction(ctx, s1t2.ID)
 	assert.NoError(t, err)
 	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t1.Nonce, 0, SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 1)
-	assert.Equal(t, s1t3.Headers.RequestID, txns[0].Headers.RequestID)
+	assert.Equal(t, s1t3.ID, txns[0].ID)
 
 	// Check we can use after with the deleted nonce, and not skip the one after
 	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t2.Nonce, 0, SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 1)
-	assert.Equal(t, s1t3.Headers.RequestID, txns[0].Headers.RequestID)
+	assert.Equal(t, s1t3.ID, txns[0].ID)
 
 	// Test get direct
 
-	v, err := p.GetTransactionByID(ctx, s1t3.Headers.RequestID)
+	v, err := p.GetTransactionByID(ctx, s1t3.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, s1t3.Headers.RequestID, v.Headers.RequestID)
+	assert.Equal(t, s1t3.ID, v.ID)
 	assert.Equal(t, s1t3.Nonce, v.Nonce)
 
 	v, err = p.GetTransactionByNonce(ctx, "0xbbbbb", s2t1.Nonce)
 	assert.NoError(t, err)
-	assert.Equal(t, s2t1.Headers.RequestID, v.Headers.RequestID)
+	assert.Equal(t, s2t1.ID, v.ID)
 	assert.Equal(t, s2t1.Nonce, v.Nonce)
 
-	v, err = p.GetTransactionByID(ctx, s1t2.Headers.RequestID)
+	v, err = p.GetTransactionByID(ctx, s1t2.ID)
 	assert.NoError(t, err)
 	assert.Nil(t, v)
 }
@@ -468,15 +466,13 @@ func TestListManagedTransactionFail(t *testing.T) {
 	defer done()
 
 	tx := &apitypes.ManagedTX{
-		Headers: apitypes.ManagedTXHeaders{
-			RequestID:    fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
-			TimeReceived: fftypes.Now(),
-		},
-		SequenceID: apitypes.UUIDVersion1(),
+		ID:           fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
+		TimeReceived: fftypes.Now(),
+		SequenceID:   apitypes.UUIDVersion1(),
 	}
-	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.Headers.RequestID))
+	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
-	err = p.db.Put(txDataKey(tx.Headers.RequestID), []byte("{! not json"), &opt.WriteOptions{})
+	err = p.db.Put(txDataKey(tx.ID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
 	_, err = p.ListTransactionsByCreateTime(context.Background(), nil, 0, SortDirectionDescending)
@@ -489,13 +485,11 @@ func TestListManagedTransactionCleanupOrphans(t *testing.T) {
 	defer done()
 
 	tx := &apitypes.ManagedTX{
-		Headers: apitypes.ManagedTXHeaders{
-			RequestID:    fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
-			TimeReceived: fftypes.Now(),
-		},
-		SequenceID: apitypes.UUIDVersion1(),
+		ID:           fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
+		TimeReceived: fftypes.Now(),
+		SequenceID:   apitypes.UUIDVersion1(),
 	}
-	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.Headers.RequestID))
+	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
 
 	txns, err := p.ListTransactionsByCreateTime(context.Background(), nil, 0, SortDirectionDescending)
