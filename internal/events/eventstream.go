@@ -726,7 +726,6 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 							StreamID:        es.spec.ID,
 							DeprecatedSubID: l.spec.ID,
 							ListenerName:    *l.spec.Name,
-							Signature:       l.spec.Signature,
 						},
 						Event: *fev.Event,
 					})

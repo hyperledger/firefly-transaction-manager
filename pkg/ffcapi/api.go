@@ -86,6 +86,7 @@ type BlockHashEvent struct {
 // EventID are the set of required fields an FFCAPI compatible connector needs to map to the underlying blockchain constructs, to uniquely identify an event
 type EventID struct {
 	ListenerID       *fftypes.UUID   `json:"listenerId"`          // The listener for the event
+	Signature        string          `json:"signature"`           // The signature of this specific event (noting a listener might filter on multiple events)
 	BlockHash        string          `json:"blockHash"`           // String representation of the block, which will change if any transaction info in the block changes
 	BlockNumber      uint64          `json:"blockNumber"`         // A numeric identifier for the block
 	TransactionHash  string          `json:"transactionHash"`     // The transaction

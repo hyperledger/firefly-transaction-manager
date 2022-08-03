@@ -220,7 +220,6 @@ type EventContext struct {
 	StreamID        *fftypes.UUID `json:"streamId"`     // the ID of the event stream for this event
 	DeprecatedSubID *fftypes.UUID `json:"subId"`        // ID of the listener - deprecated "subscription" naming
 	ListenerName    string        `json:"listenerName"` // name of the listener
-	Signature       string        `json:"signature"`    // event signature string
 }
 
 // EventWithContext is what is delivered

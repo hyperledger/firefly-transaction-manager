@@ -195,7 +195,6 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 		StandardContext: EventContext{
 			StreamID:        UUIDVersion1(),
 			ListenerName:    "listener1",
-			Signature:       "ev()",
 			DeprecatedSubID: UUIDVersion1(),
 		},
 		Event: ffcapi.Event{
@@ -206,6 +205,7 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 				TransactionHash:  "0x23456",
 				TransactionIndex: 10,
 				LogIndex:         1,
+				Signature:        "ev()",
 			},
 			Info: &customInfo{
 				InfoKey1: "val1",
