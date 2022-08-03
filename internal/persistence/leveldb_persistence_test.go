@@ -261,8 +261,8 @@ func TestReadWriteCheckpoints(t *testing.T) {
 
 func newTestTX(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	return &apitypes.ManagedTX{
-		ID:           fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
-		TimeReceived: fftypes.Now(),
+		ID:      fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+		Created: fftypes.Now(),
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: signer,
 		},
@@ -466,9 +466,9 @@ func TestListManagedTransactionFail(t *testing.T) {
 	defer done()
 
 	tx := &apitypes.ManagedTX{
-		ID:           fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
-		TimeReceived: fftypes.Now(),
-		SequenceID:   apitypes.UUIDVersion1(),
+		ID:         fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
+		Created:    fftypes.Now(),
+		SequenceID: apitypes.UUIDVersion1(),
 	}
 	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
@@ -485,9 +485,9 @@ func TestListManagedTransactionCleanupOrphans(t *testing.T) {
 	defer done()
 
 	tx := &apitypes.ManagedTX{
-		ID:           fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
-		TimeReceived: fftypes.Now(),
-		SequenceID:   apitypes.UUIDVersion1(),
+		ID:         fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
+		Created:    fftypes.Now(),
+		SequenceID: apitypes.UUIDVersion1(),
 	}
 	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)

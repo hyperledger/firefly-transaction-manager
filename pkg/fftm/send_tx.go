@@ -81,8 +81,8 @@ func (m *manager) submitPreparedTX(ctx context.Context, txID string, txHeaders *
 	now := fftypes.Now()
 	mtx := &apitypes.ManagedTX{
 		ID:                 txID, // on input the request ID must be the namespaced operation ID
-		TimeReceived:       now,
-		LastUpdate:         now,
+		Created:            now,
+		Updated:            now,
 		SequenceID:         seqID,
 		Nonce:              fftypes.NewFFBigInt(int64(lockedNonce.nonce)),
 		Gas:                gas,

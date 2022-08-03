@@ -30,11 +30,11 @@ import (
 
 func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	tx := &apitypes.ManagedTX{
-		ID:           fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
-		TimeReceived: fftypes.Now(),
-		SequenceID:   apitypes.UUIDVersion1(),
-		Nonce:        fftypes.NewFFBigInt(nonce),
-		Status:       status,
+		ID:         fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+		Created:    fftypes.Now(),
+		SequenceID: apitypes.UUIDVersion1(),
+		Nonce:      fftypes.NewFFBigInt(nonce),
+		Status:     status,
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: signer,
 		},

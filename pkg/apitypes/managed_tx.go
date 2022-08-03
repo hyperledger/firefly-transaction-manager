@@ -58,8 +58,8 @@ type ManagedTXError struct {
 //     TX they refer to is not available. For this reason the index records are written first.
 type ManagedTX struct {
 	ID                 string                             `json:"id"`
-	TimeReceived       *fftypes.FFTime                    `json:"timeReceived"`
-	LastUpdate         *fftypes.FFTime                    `json:"lastUpdate"`
+	Created            *fftypes.FFTime                    `json:"created"`
+	Updated            *fftypes.FFTime                    `json:"updated"`
 	Status             TxStatus                           `json:"status"`
 	SequenceID         *fftypes.UUID                      `json:"sequenceId"`
 	Nonce              *fftypes.FFBigInt                  `json:"nonce"`

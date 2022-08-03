@@ -95,7 +95,7 @@ func txPendingIndexKey(sequenceID *fftypes.UUID) []byte {
 }
 
 func txCreatedIndexKey(tx *apitypes.ManagedTX) []byte {
-	return []byte(fmt.Sprintf("%s%.19d/%s", txCreatedIndexPrefix, tx.TimeReceived.UnixNano(), tx.SequenceID))
+	return []byte(fmt.Sprintf("%s%.19d/%s", txCreatedIndexPrefix, tx.Created.UnixNano(), tx.SequenceID))
 }
 
 func txDataKey(k string) []byte {
@@ -367,7 +367,7 @@ func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collec
 func (p *leveldbPersistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) {
 	afterStr := ""
 	if after != nil {
-		afterStr = fmt.Sprintf("%.19d/%s", after.TimeReceived.UnixNano(), after.SequenceID)
+		afterStr = fmt.Sprintf("%.19d/%s", after.Created.UnixNano(), after.SequenceID)
 	}
 	return p.listTransactionsByIndex(ctx, txCreatedIndexPrefix, txCreatedIndexEnd, afterStr, limit, dir)
 }
@@ -409,7 +409,7 @@ func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.
 	if tx.TransactionHeaders.From == "" ||
 		tx.Nonce == nil ||
 		tx.SequenceID == nil ||
-		tx.TimeReceived == nil ||
+		tx.Created == nil ||
 		tx.ID == "" ||
 		tx.Status == "" {
 		return i18n.NewError(ctx, tmmsgs.MsgPersistenceTXIncomplete)

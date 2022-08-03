@@ -159,6 +159,7 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 	}
 
 	if updated || err != nil {
+		mtx.Updated = fftypes.Now()
 		err := m.persistence.WriteTransaction(m.ctx, mtx, false)
 		if err != nil {
 			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, mtx.Status, err)

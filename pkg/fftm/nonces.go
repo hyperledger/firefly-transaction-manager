@@ -98,7 +98,7 @@ func (m *manager) calcNextNonce(ctx context.Context, signer string) (uint64, err
 	}
 	if len(txns) > 0 {
 		lastTxn = txns[0]
-		if time.Since(*lastTxn.TimeReceived.Time()) < m.nonceStateTimeout {
+		if time.Since(*lastTxn.Created.Time()) < m.nonceStateTimeout {
 			nextNonce := lastTxn.Nonce.Uint64() + 1
 			log.L(ctx).Debugf("Allocating next nonce '%s' / '%d' after TX '%s' (status=%s)", signer, nextNonce, lastTxn.ID, lastTxn.Status)
 			return nextNonce, nil
