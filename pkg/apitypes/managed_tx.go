@@ -86,8 +86,8 @@ const (
 )
 
 type ReplyHeaders struct {
-	RequestID string `json:"requestId"`
-	Type      ReplyType
+	RequestID string    `json:"requestId"`
+	Type      ReplyType `json:"type"`
 }
 
 // TransactionUpdateReply add a "headers" structure that allows a processor of websocket
