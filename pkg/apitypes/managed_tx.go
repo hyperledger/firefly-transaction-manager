@@ -57,20 +57,43 @@ type ManagedTXError struct {
 //   - When listing back entries, the persistence layer will automatically clean up indexes if the underlying
 //     TX they refer to is not available. For this reason the index records are written first.
 type ManagedTX struct {
-	ID              string                             `json:"id"`
-	Status          TxStatus                           `json:"status"`
-	SequenceID      *fftypes.UUID                      `json:"sequenceId"`
-	Nonce           *fftypes.FFBigInt                  `json:"nonce"`
-	Gas             *fftypes.FFBigInt                  `json:"gas"`
-	TransactionHash string                             `json:"transactionHash,omitempty"`
-	TransactionData string                             `json:"transactionData,omitempty"`
-	GasPrice        *fftypes.JSONAny                   `json:"gasPrice"`
-	PolicyInfo      *fftypes.JSONAny                   `json:"policyInfo"`
-	Created         *fftypes.FFTime                    `json:"created"`
-	FirstSubmit     *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
-	LastSubmit      *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
-	Request         *TransactionRequest                `json:"request,omitempty"`
-	Receipt         *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
-	ErrorHistory    []*ManagedTXError                  `json:"errorHistory"`
-	Confirmations   []confirmations.BlockInfo          `json:"confirmations,omitempty"`
+	ID                 string                             `json:"id"`
+	Created            *fftypes.FFTime                    `json:"created"`
+	Updated            *fftypes.FFTime                    `json:"updated"`
+	Status             TxStatus                           `json:"status"`
+	SequenceID         *fftypes.UUID                      `json:"sequenceId"`
+	Nonce              *fftypes.FFBigInt                  `json:"nonce"`
+	Gas                *fftypes.FFBigInt                  `json:"gas"`
+	TransactionHeaders ffcapi.TransactionHeaders          `json:"transactionHeaders"`
+	TransactionData    string                             `json:"transactionData"`
+	TransactionHash    string                             `json:"transactionHash,omitempty"`
+	GasPrice           *fftypes.JSONAny                   `json:"gasPrice"`
+	PolicyInfo         *fftypes.JSONAny                   `json:"policyInfo"`
+	FirstSubmit        *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
+	LastSubmit         *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
+	Receipt            *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
+	ErrorMessage       string                             `json:"errorMessage,omitempty"`
+	ErrorHistory       []*ManagedTXError                  `json:"errorHistory"`
+	Confirmations      []confirmations.BlockInfo          `json:"confirmations,omitempty"`
+}
+
+type ReplyType string
+
+const (
+	TransactionUpdate        ReplyType = "TransactionUpdate"
+	TransactionUpdateSuccess ReplyType = "TransactionSuccess"
+	TransactionUpdateFailure ReplyType = "TransactionFailure"
+)
+
+type ReplyHeaders struct {
+	RequestID string    `json:"requestId"`
+	Type      ReplyType `json:"type"`
+}
+
+// TransactionUpdateReply add a "headers" structure that allows a processor of websocket
+// replies/updates to filter on a standard structure to know how to process the message.
+// Extensible to update update types in the future.
+type TransactionUpdateReply struct {
+	Headers ReplyHeaders
+	ManagedTX
 }

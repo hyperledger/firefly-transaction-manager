@@ -816,7 +816,8 @@ func TestWalkChainForEventBlockNotInConfirmationChain(t *testing.T) {
 		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	err := bcm.walkChainForItem(pending)
+	blocks := bcm.newBlockState()
+	err := bcm.walkChainForItem(pending, blocks)
 	assert.NoError(t, err)
 
 	mca.AssertExpectations(t)
@@ -843,7 +844,8 @@ func TestWalkChainForEventBlockLookupFail(t *testing.T) {
 		return r.BlockNumber.Uint64() == 1002
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
 
-	err := bcm.walkChainForItem(pending)
+	blocks := bcm.newBlockState()
+	err := bcm.walkChainForItem(pending, blocks)
 	assert.Regexp(t, "pop", err)
 
 	mca.AssertExpectations(t)
@@ -868,9 +870,10 @@ func TestProcessBlockHashesLookupFail(t *testing.T) {
 func TestProcessNotificationsSwallowsUnknownType(t *testing.T) {
 
 	bcm, _ := newTestBlockConfirmationManager(t, false)
+	blocks := bcm.newBlockState()
 	bcm.processNotifications([]*Notification{
 		{NotificationType: NotificationType(999)},
-	})
+	}, blocks)
 }
 
 func TestGetBlockNotFound(t *testing.T) {
@@ -943,10 +946,39 @@ func TestCheckReceiptNotFound(t *testing.T) {
 	}
 	bcm.pending[pending.getKey()] = pending
 	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
-	bcm.checkReceipt(pending)
+	blocks := bcm.newBlockState()
+	bcm.checkReceipt(pending, blocks)
 
 	assert.False(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
+}
+
+func TestCheckReceiptImmediateConfirm(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm.requiredConfirmations = 0
+
+	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(&ffcapi.TransactionReceiptResponse{
+		BlockHash:        fftypes.NewRandB32().String(),
+		BlockNumber:      fftypes.NewFFBigInt(1001),
+		TransactionIndex: fftypes.NewFFBigInt(0),
+		Success:          true,
+	}, ffcapi.ErrorReasonNotFound, nil)
+
+	done := make(chan struct{})
+	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+	pending := &pendingItem{
+		pType:           pendingTypeTransaction,
+		transactionHash: txHash,
+		confirmedCallback: func(confirmations []BlockInfo) {
+			close(done)
+		},
+	}
+	bcm.pending[pending.getKey()] = pending
+	blocks := bcm.newBlockState()
+	go bcm.checkReceipt(pending, blocks)
+
+	<-done
 }
 
 func TestCheckReceiptFail(t *testing.T) {
@@ -962,7 +994,8 @@ func TestCheckReceiptFail(t *testing.T) {
 	}
 	bcm.pending[pending.getKey()] = pending
 	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
-	bcm.checkReceipt(pending)
+	blocks := bcm.newBlockState()
+	bcm.checkReceipt(pending, blocks)
 
 	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
@@ -988,7 +1021,8 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 	}
 	bcm.pending[pending.getKey()] = pending
 	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
-	bcm.checkReceipt(pending)
+	blocks := bcm.newBlockState()
+	bcm.checkReceipt(pending, blocks)
 
 	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
@@ -1009,4 +1043,42 @@ func TestStaleReceiptCheck(t *testing.T) {
 
 	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
 
+}
+
+func TestBlockState(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager(t, false)
+
+	block1002 := &ffcapi.BlockInfoByNumberResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(1002),
+			BlockHash:   fftypes.NewRandB32().String(),
+		},
+	}
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1002
+	})).Return(block1002, ffcapi.ErrorReason(""), nil).Once()
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1003
+	})).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Once()
+
+	blocks := bcm.newBlockState()
+
+	block, err := blocks.getByNumber(1002, "")
+	assert.NoError(t, err)
+	assert.Equal(t, block1002.BlockHash, block.BlockHash)
+
+	block, err = blocks.getByNumber(1002, "")
+	assert.NoError(t, err)
+	assert.Equal(t, block1002.BlockHash, block.BlockHash) // cached
+
+	block, err = blocks.getByNumber(1003, "")
+	assert.NoError(t, err)
+	assert.Nil(t, block)
+
+	block, err = blocks.getByNumber(1004, "")
+	assert.NoError(t, err)
+	assert.Nil(t, block) // above high water mark
+
+	mca.AssertExpectations(t)
 }

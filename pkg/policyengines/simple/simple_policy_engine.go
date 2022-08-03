@@ -120,7 +120,7 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 			return false, "", err
 		}
 		sendTX := &ffcapi.TransactionSendRequest{
-			TransactionHeaders: mtx.Request.TransactionHeaders,
+			TransactionHeaders: mtx.TransactionHeaders,
 			GasPrice:           mtx.GasPrice,
 			TransactionData:    mtx.TransactionData,
 		}

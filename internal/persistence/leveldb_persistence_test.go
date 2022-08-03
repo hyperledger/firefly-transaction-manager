@@ -259,36 +259,40 @@ func TestReadWriteCheckpoints(t *testing.T) {
 	assert.Equal(t, cp2.StreamID, cp.StreamID)
 }
 
+func newTestTX(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
+	return &apitypes.ManagedTX{
+		ID:      fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+		Created: fftypes.Now(),
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: signer,
+		},
+		SequenceID: apitypes.UUIDVersion1(),
+		Nonce:      fftypes.NewFFBigInt(nonce),
+		Status:     status,
+	}
+}
+
 func TestReadWriteManagedTransactions(t *testing.T) {
 
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	ctx := context.Background()
-	textTX := func(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
-		tx := &apitypes.ManagedTX{
-			ID:         fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
-			SequenceID: apitypes.UUIDVersion1(),
-			Nonce:      fftypes.NewFFBigInt(nonce),
-			Created:    fftypes.Now(),
-			Request: &apitypes.TransactionRequest{
-				TransactionInput: ffcapi.TransactionInput{
-					TransactionHeaders: ffcapi.TransactionHeaders{
-						From: signer,
-					},
-				},
-			},
-			Status: status,
-		}
+	submitNewTX := func(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
+		tx := newTestTX(signer, nonce, status)
 		err := p.WriteTransaction(ctx, tx, true)
 		assert.NoError(t, err)
 		return tx
 	}
 
-	s1t1 := textTX("0xaaaaa", 10001, apitypes.TxStatusSucceeded)
-	s2t1 := textTX("0xbbbbb", 10001, apitypes.TxStatusFailed)
-	s1t2 := textTX("0xaaaaa", 10002, apitypes.TxStatusPending)
-	s1t3 := textTX("0xaaaaa", 10003, apitypes.TxStatusPending)
+	s1t1 := submitNewTX("0xaaaaa", 10001, apitypes.TxStatusSucceeded)
+	s2t1 := submitNewTX("0xbbbbb", 10001, apitypes.TxStatusFailed)
+	s1t2 := submitNewTX("0xaaaaa", 10002, apitypes.TxStatusPending)
+	s1t3 := submitNewTX("0xaaaaa", 10003, apitypes.TxStatusPending)
+
+	// Check dup
+	err := p.WriteTransaction(ctx, s1t1, true)
+	assert.Regexp(t, "FF21065", err)
 
 	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, SortDirectionDescending)
 	assert.NoError(t, err)
@@ -384,6 +388,19 @@ func TestDeleteStreamFail(t *testing.T) {
 	p.db.Close()
 
 	err := p.DeleteStream(context.Background(), apitypes.UUIDVersion1())
+	assert.Error(t, err)
+
+}
+
+func TestWriteTXFail(t *testing.T) {
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	p.db.Close()
+
+	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
+
+	err := p.WriteTransaction(context.Background(), tx, true)
 	assert.Error(t, err)
 
 }

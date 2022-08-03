@@ -31,17 +31,13 @@ import (
 func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	tx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+		Created:    fftypes.Now(),
 		SequenceID: apitypes.UUIDVersion1(),
 		Nonce:      fftypes.NewFFBigInt(nonce),
-		Created:    fftypes.Now(),
-		Request: &apitypes.TransactionRequest{
-			TransactionInput: ffcapi.TransactionInput{
-				TransactionHeaders: ffcapi.TransactionHeaders{
-					From: signer,
-				},
-			},
+		Status:     status,
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: signer,
 		},
-		Status: status,
 	}
 	err := m.persistence.WriteTransaction(context.Background(), tx, true)
 	assert.NoError(t, err)

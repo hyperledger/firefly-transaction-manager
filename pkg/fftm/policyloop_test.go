@@ -22,8 +22,11 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
@@ -212,6 +215,13 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	// Run the policy once to do the send with the first hash
 	<-m.inflightStale // from sending the TX
 	m.policyLoopCycle(true)
+	assert.Len(t, m.inflight, 1)
+	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
+
+	// Run again to confirm it does not change anything, when the state is the same
+	m.policyLoopCycle(true)
+	assert.Len(t, m.inflight, 1)
 	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
@@ -245,5 +255,84 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 
 	mc.AssertExpectations(t)
 	mfc.AssertExpectations(t)
+
+}
+
+func TestInflightSetListFailCancel(t *testing.T) {
+
+	_, m, cancel := newTestManager(t)
+	cancel()
+
+	mp := &persistencemocks.Persistence{}
+	m.persistence = mp
+	mp.On("ListTransactionsPending", m.ctx, (*fftypes.UUID)(nil), m.maxInFlight, persistence.SortDirectionAscending).
+		Return(nil, fmt.Errorf("pop"))
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
+
+	m.policyLoopCycle(true)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestPolicyLoopUpdateFail(t *testing.T) {
+
+	_, m, cancel := newTestManager(t)
+	defer cancel()
+
+	m.inflight = []*pendingState{
+		{
+			confirmed: true,
+			mtx: &apitypes.ManagedTX{
+				ID:          fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+				Created:     fftypes.Now(),
+				SequenceID:  apitypes.UUIDVersion1(),
+				Nonce:       fftypes.NewFFBigInt(1000),
+				Status:      apitypes.TxStatusSucceeded,
+				FirstSubmit: fftypes.Now(),
+				Receipt:     &ffcapi.TransactionReceiptResponse{},
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					From: "0x12345",
+				},
+			},
+		},
+	}
+
+	mp := &persistencemocks.Persistence{}
+	m.persistence = mp
+	mp.On("WriteTransaction", m.ctx, mock.Anything, false).Return(fmt.Errorf("pop"))
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
+
+	m.policyLoopCycle(false)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestPolicyEngineFail(t *testing.T) {
+
+	_, m, cancel := newTestManager(t)
+	defer cancel()
+
+	mpe := &policyenginemocks.PolicyEngine{}
+	m.policyEngine = mpe
+	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).
+		Return(false, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	_ = sendSampleTX(t, m, "0xaaaaa", 12345)
+
+	m.policyLoopCycle(true)
+
+	mpe.AssertExpectations(t)
+
+}
+
+func TestMarkInflightStaleDoesNotBlock(t *testing.T) {
+
+	_, m, cancel := newTestManager(t)
+	defer cancel()
+
+	m.markInflightStale()
+	m.markInflightStale()
 
 }

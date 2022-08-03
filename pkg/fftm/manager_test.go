@@ -18,7 +18,6 @@ package fftm
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -27,7 +26,6 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
-	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
@@ -38,7 +36,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines/simple"
-	"github.com/hyperledger/firefly/pkg/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -88,19 +85,6 @@ func newMockPersistenceManager(t *testing.T) (*persistencemocks.Persistence, *ff
 	m := newManager(context.Background(), mca)
 	m.persistence = mps
 	return mps, mca, m
-}
-
-func newTestOperation(t *testing.T, mtx *apitypes.ManagedTX, status core.OpStatus) *core.Operation {
-	b, err := json.Marshal(&mtx)
-	assert.NoError(t, err)
-	op := &core.Operation{
-		Namespace: strings.Split(mtx.ID, ":")[0],
-		ID:        fftypes.MustParseUUID(strings.Split(mtx.ID, ":")[1]),
-		Status:    status,
-	}
-	err = json.Unmarshal(b, &op.Output)
-	assert.NoError(t, err)
-	return op
 }
 
 func TestNewManagerBadHttpConfig(t *testing.T) {

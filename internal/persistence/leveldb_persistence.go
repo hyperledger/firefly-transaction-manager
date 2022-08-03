@@ -398,7 +398,7 @@ func (p *leveldbPersistence) GetTransactionByNonce(ctx context.Context, signer s
 	return tx, err
 }
 
-func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, possiblyNew bool) (err error) {
+func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, new bool) (err error) {
 	// We take a write-lock here, because we are writing multiple values (the indexes), and anybody
 	// attempting to read the critical nonce allocation index must know the difference between a partial write
 	// (we crashed before we completed all the writes) and an incomplete write that's in process.
@@ -406,16 +406,24 @@ func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.
 	p.txMux.Lock()
 	defer p.txMux.Unlock()
 
-	if tx.Request == nil ||
-		tx.Request.From == "" ||
+	if tx.TransactionHeaders.From == "" ||
 		tx.Nonce == nil ||
 		tx.SequenceID == nil ||
 		tx.Created == nil ||
+		tx.ID == "" ||
 		tx.Status == "" {
 		return i18n.NewError(ctx, tmmsgs.MsgPersistenceTXIncomplete)
 	}
 	idKey := txDataKey(tx.ID)
-	if possiblyNew {
+	if new {
+		// This must be a unique ID, otherwise we return a conflict.
+		// Note we use the final record we write at the end for the conflict check, and also that we're write locked here
+		if existing, err := p.getKeyValue(ctx, idKey); err != nil {
+			return err
+		} else if existing != nil {
+			return i18n.NewError(ctx, tmmsgs.MsgDuplicateID, idKey)
+		}
+
 		// We write the index records first - because if we crash, we need to be able to know if the
 		// index records are valid or not. When reading under the read lock, if there is an index key
 		// that does not have a corresponding managed TX available, we will clean up the
@@ -426,7 +434,7 @@ func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.
 			err = p.writeKeyValue(ctx, txPendingIndexKey(tx.SequenceID), idKey)
 		}
 		if err == nil {
-			err = p.writeKeyValue(ctx, txNonceAllocationKey(tx.Request.From, tx.Nonce), idKey)
+			err = p.writeKeyValue(ctx, txNonceAllocationKey(tx.TransactionHeaders.From, tx.Nonce), idKey)
 		}
 	}
 	// If we are creating/updating a record that is not pending, we need to ensure there is no pending index associated with it
@@ -449,7 +457,7 @@ func (p *leveldbPersistence) DeleteTransaction(ctx context.Context, txID string)
 		txDataKey(txID),
 		txCreatedIndexKey(tx),
 		txPendingIndexKey(tx.SequenceID),
-		txNonceAllocationKey(tx.Request.From, tx.Nonce),
+		txNonceAllocationKey(tx.TransactionHeaders.From, tx.Nonce),
 	)
 }
 
