@@ -248,6 +248,33 @@ func TestQueryOK(t *testing.T) {
 
 }
 
+func TestQueryFail(t *testing.T) {
+
+	url, m, cancel := newTestManager(t)
+	defer cancel()
+	m.Start()
+
+	mca := m.connector.(*ffcapimocks.API)
+	mca.On("QueryInvoke", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	res, err := resty.New().R().
+		SetBody(&apitypes.QueryRequest{
+			Headers: apitypes.RequestHeaders{
+				ID:   fftypes.NewUUID().String(),
+				Type: apitypes.RequestTypeQuery,
+			},
+			TransactionInput: ffcapi.TransactionInput{
+				Method: fftypes.JSONAnyPtr(`"some method details"`),
+			},
+		}).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 500, res.StatusCode())
+
+	mca.AssertExpectations(t)
+
+}
+
 func TestQueryBadRequest(t *testing.T) {
 
 	url, m, cancel := newTestManager(t)
