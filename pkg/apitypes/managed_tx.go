@@ -94,6 +94,6 @@ type ReplyHeaders struct {
 // replies/updates to filter on a standard structure to know how to process the message.
 // Extensible to update update types in the future.
 type TransactionUpdateReply struct {
-	Headers ReplyHeaders
+	Headers ReplyHeaders `json:"headers"`
 	ManagedTX
 }
