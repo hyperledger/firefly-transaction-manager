@@ -116,7 +116,7 @@ func TestSendTransactionE2E(t *testing.T) {
 		SetBody(req).
 		Post(url)
 	assert.NoError(t, err)
-	assert.Equal(t, 200, res.StatusCode())
+	assert.Equal(t, 202, res.StatusCode())
 
 	<-txSent
 
@@ -240,7 +240,7 @@ func TestQueryOK(t *testing.T) {
 		SetResult(&queryRes).
 		Post(url)
 	assert.NoError(t, err)
-	assert.Equal(t, 200, res.StatusCode())
+	assert.Equal(t, 202, res.StatusCode())
 
 	assert.Equal(t, `some output data`, queryRes)
 

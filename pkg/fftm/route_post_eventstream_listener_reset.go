@@ -34,7 +34,7 @@ var postEventStreamListenerReset = func(m *manager) *ffapi.Route {
 			{Name: "listenerId", Description: tmmsgs.APIParamListenerID},
 		},
 		QueryParams:     nil,
-		Description:     tmmsgs.APIEndpointPatchEventStreamListener,
+		Description:     tmmsgs.APIEndpointPostEventStreamListenerReset,
 		JSONInputValue:  func() interface{} { return &apitypes.Listener{} },
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},

@@ -30,19 +30,22 @@ import (
 
 var postRootCommand = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:            "postRootCommand",
-		Path:            "/",
-		Method:          http.MethodPost,
-		PathParams:      nil,
-		QueryParams:     nil,
-		Description:     tmmsgs.APIEndpointPostSubscriptions,
-		JSONInputValue:  func() interface{} { return &apitypes.BaseRequest{} },
-		JSONOutputValue: func() interface{} { return map[string]interface{}{} },
+		Name:           "postRootCommand",
+		Path:           "/",
+		Method:         http.MethodPost,
+		PathParams:     nil,
+		QueryParams:    nil,
+		Description:    tmmsgs.APIEndpointPostRoot,
+		JSONInputValue: func() interface{} { return &apitypes.BaseRequest{} },
 		JSONInputSchema: func(_ context.Context, schemaGen ffapi.SchemaGenerator) (*openapi3.SchemaRef, error) {
 			schemas := []*openapi3.SchemaRef{}
 			txRequest, err := schemaGen(&apitypes.TransactionRequest{})
 			if err == nil {
 				schemas = append(schemas, txRequest)
+			}
+			deployRequest, err := schemaGen(&apitypes.ContractDeployRequest{})
+			if err == nil {
+				schemas = append(schemas, deployRequest)
 			}
 			queryRequest, err := schemaGen(&apitypes.QueryRequest{})
 			if err == nil {
@@ -54,7 +57,20 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 				},
 			}, err
 		},
-		JSONOutputCodes: []int{http.StatusOK},
+		JSONOutputSchema: func(ctx context.Context, schemaGen ffapi.SchemaGenerator) (*openapi3.SchemaRef, error) {
+			managedTX, _ := schemaGen(&apitypes.QueryRequest{})
+			return &openapi3.SchemaRef{
+				Value: &openapi3.Schema{
+					AnyOf: openapi3.SchemaRefs{
+						{Value: &openapi3.Schema{
+							Description: i18n.Expand(ctx, tmmsgs.APIEndpointDeleteEventStream),
+						}},
+						managedTX,
+					},
+				},
+			}, nil
+		},
+		JSONOutputCodes: []int{http.StatusAccepted},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
 			baseReq := r.Input.(*apitypes.BaseRequest)
 			switch baseReq.Headers.Type {
@@ -64,6 +80,12 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 				}
 				return m.sendManagedTransaction(r.Req.Context(), &tReq)
+			case apitypes.RequestTypeDeploy:
+				var tReq apitypes.ContractDeployRequest
+				if err = baseReq.UnmarshalTo(&tReq); err != nil {
+					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
+				}
+				return m.sendManagedContractDeployment(r.Req.Context(), &tReq)
 			case apitypes.RequestTypeQuery:
 				var tReq apitypes.QueryRequest
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
@@ -76,12 +98,6 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 					return nil, err
 				}
 				return res.Outputs, nil
-			case apitypes.RequestTypeDeploy:
-				var tReq apitypes.ContractDeployRequest
-				if err = baseReq.UnmarshalTo(&tReq); err != nil {
-					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
-				}
-				return m.sendManagedContractDeployment(r.Req.Context(), &tReq)
 			default:
 				return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgUnsupportedRequestType, baseReq.Headers.Type)
 			}

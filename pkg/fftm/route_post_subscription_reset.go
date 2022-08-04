@@ -34,7 +34,7 @@ var postSubscriptionReset = func(m *manager) *ffapi.Route {
 			{Name: "listenerId", Description: tmmsgs.APIParamListenerID},
 		},
 		QueryParams:     nil,
-		Description:     tmmsgs.APIEndpointPatchSubscription,
+		Description:     tmmsgs.APIEndpointPostSubscriptionReset,
 		JSONInputValue:  func() interface{} { return &apitypes.Listener{} },
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},

@@ -26,15 +26,12 @@ import (
 
 var postSubscriptions = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:       "postSubscriptions",
-		Path:       "/subscriptions",
-		Deprecated: true, // in favor of "/eventstreams/{id}/listeners"
-		Method:     http.MethodPost,
-		PathParams: nil,
-		QueryParams: []*ffapi.QueryParam{
-			{Name: "limit", Description: tmmsgs.APIParamLimit},
-			{Name: "after", Description: tmmsgs.APIParamAfter},
-		},
+		Name:            "postSubscriptions",
+		Path:            "/subscriptions",
+		Deprecated:      true, // in favor of "/eventstreams/{id}/listeners"
+		Method:          http.MethodPost,
+		PathParams:      nil,
+		QueryParams:     nil,
 		Description:     tmmsgs.APIEndpointPostSubscriptions,
 		JSONInputValue:  func() interface{} { return &apitypes.Listener{} },
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },

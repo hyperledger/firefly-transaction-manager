@@ -32,10 +32,7 @@ var postEventStreamListeners = func(m *manager) *ffapi.Route {
 		PathParams: []*ffapi.PathParam{
 			{Name: "streamId", Description: tmmsgs.APIParamStreamID},
 		},
-		QueryParams: []*ffapi.QueryParam{
-			{Name: "limit", Description: tmmsgs.APIParamLimit},
-			{Name: "after", Description: tmmsgs.APIParamAfter},
-		},
+		QueryParams:     nil,
 		Description:     tmmsgs.APIEndpointPostEventStreamListener,
 		JSONInputValue:  func() interface{} { return &apitypes.Listener{} },
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
