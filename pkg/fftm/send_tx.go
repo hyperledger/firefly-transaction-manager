@@ -44,9 +44,7 @@ func (m *manager) sendManagedContractDeployment(ctx context.Context, request *ap
 	// Prepare the transaction, which will mean we have a transaction that should be submittable.
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
 	// anything to the blockchain itself.
-	prepared, _, err := m.connector.DeployContractPrepare(ctx, &ffcapi.ContractDeployPrepareRequest{
-		ContractDeployInput: request.ContractDeployInput,
-	})
+	prepared, _, err := m.connector.DeployContractPrepare(ctx, &request.ContractDeployPrepareRequest)
 	if err != nil {
 		return nil, err
 	}

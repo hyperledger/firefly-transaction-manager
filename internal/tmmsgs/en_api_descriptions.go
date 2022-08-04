@@ -51,6 +51,7 @@ var (
 
 	APIParamStreamID      = ffm("api.params.streamId", "Event Stream ID")
 	APIParamListenerID    = ffm("api.params.listenerId", "Listener ID")
+	APIParamTransactionID = ffm("api.params.transactionId", "Transaction ID")
 	APIParamLimit         = ffm("api.params.limit", "Maximum number of entries to return")
 	APIParamAfter         = ffm("api.params.after", "Return entries after this ID - for pagination (non-inclusive)")
 	APIParamTXSigner      = ffm("api.params.txSigner", "Return only transactions for a specific signing address, in reverse nonce order")

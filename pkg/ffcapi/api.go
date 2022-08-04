@@ -188,13 +188,6 @@ type TransactionInput struct {
 	Params []*fftypes.JSONAny `json:"params"`
 }
 
-type ContractDeployInput struct {
-	TransactionHeaders
-	ABI      *fftypes.JSONAny   `json:"abi"`
-	Bytecode *fftypes.JSONAny   `json:"bytecode"`
-	Params   []*fftypes.JSONAny `json:"params"`
-}
-
 type TransactionHeaders struct {
 	From  string            `json:"from,omitempty"`
 	To    string            `json:"to,omitempty"`

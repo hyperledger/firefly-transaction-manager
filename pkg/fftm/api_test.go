@@ -61,6 +61,32 @@ const sampleSendTX = `{
 	]
 }`
 
+const sampleDeployTX = `{
+	"headers": {
+		"id": "ns1:904F177C-C790-4B01-BDF4-F2B4E52E607E",
+		"type": "DeployContract"
+	},
+	"from": "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8",
+	"gas": 1000000,
+	"contract": "0xfeedbeef",
+	"definition": [{
+		"inputs": [
+			{
+				"internalType":" uint256",
+				"name": "x",
+				"type": "uint256"
+			}
+		],
+		"type":"constructor"
+	}],
+	"params": [
+		{
+			"value": 4276993775,
+			"type": "uint256"
+		}
+	]
+}`
+
 func TestSendTransactionE2E(t *testing.T) {
 
 	txSent := make(chan struct{})
@@ -112,6 +138,66 @@ func TestSendTransactionE2E(t *testing.T) {
 	m.Start()
 
 	req := strings.NewReader(sampleSendTX)
+	res, err := resty.New().R().
+		SetBody(req).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 202, res.StatusCode())
+
+	<-txSent
+
+}
+
+func TestDeployTransactionE2E(t *testing.T) {
+
+	txSent := make(chan struct{})
+
+	url, m, cancel := newTestManager(t)
+	defer cancel()
+
+	mFFC := m.connector.(*ffcapimocks.API)
+
+	mFFC.On("NextNonceForSigner", mock.Anything, mock.MatchedBy(func(nonceReq *ffcapi.NextNonceForSignerRequest) bool {
+		return "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8" == nonceReq.Signer
+	})).Return(&ffcapi.NextNonceForSignerResponse{
+		Nonce: fftypes.NewFFBigInt(12345),
+	}, ffcapi.ErrorReason(""), nil)
+
+	mFFC.On("DeployContractPrepare", mock.Anything, mock.MatchedBy(func(prepTX *ffcapi.ContractDeployPrepareRequest) bool {
+		return "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8" == prepTX.From &&
+			`constructor` == prepTX.Definition.JSONObjectArray()[0].GetString("type") &&
+			`"0xfeedbeef"` == prepTX.Contract.String() &&
+			uint64(1000000) == prepTX.Gas.Uint64() &&
+			1 == len(prepTX.Params) &&
+			"4276993775" == prepTX.Params[0].JSONObject().GetString("value") &&
+			"4276993775" == prepTX.Params[0].JSONObject().GetString("value")
+	})).Return(&ffcapi.TransactionPrepareResponse{
+		TransactionData: "RAW_UNSIGNED_BYTES",
+		Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
+	}, ffcapi.ErrorReason(""), nil)
+
+	mFFC.On("TransactionSend", mock.Anything, mock.MatchedBy(func(sendTX *ffcapi.TransactionSendRequest) bool {
+		matches := "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8" == sendTX.From &&
+			uint64(2000000) == sendTX.Gas.Uint64() &&
+			`223344556677` == sendTX.GasPrice.String() &&
+			"RAW_UNSIGNED_BYTES" == sendTX.TransactionData
+		if matches {
+			// We're at end of job for this test
+			close(txSent)
+		}
+		return matches
+	})).Return(&ffcapi.TransactionSendResponse{
+		TransactionHash: "0x106215b9c0c9372e3f541beff0cdc3cd061a26f69f3808e28fd139a1abc9d345",
+	}, ffcapi.ErrorReason(""), nil)
+
+	mc := m.confirmations.(*confirmationsmocks.Manager)
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		return n.NotificationType == confirmations.NewTransaction
+	})).Return(nil)
+
+	m.Start()
+
+	req := strings.NewReader(sampleDeployTX)
 	res, err := resty.New().R().
 		SetBody(req).
 		Post(url)

@@ -14,20 +14,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package apitypes
+package ffcapi
 
 import (
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 )
 
-// TransactionRequest is the payload sent to initiate a new transaction
-type TransactionRequest struct {
-	Headers RequestHeaders `json:"headers"`
-	ffcapi.TransactionInput
-}
-
-// ContractDeployRequest is the payload sent to initiate a new transaction
-type ContractDeployRequest struct {
-	Headers RequestHeaders `json:"headers"`
-	ffcapi.ContractDeployPrepareRequest
+type ContractDeployPrepareRequest struct {
+	TransactionHeaders
+	Definition *fftypes.JSONAny   `json:"definition"` // such as an ABI for EVM
+	Contract   *fftypes.JSONAny   `json:"contract"`   // such as the Bytecode for EVM
+	Params     []*fftypes.JSONAny `json:"params"`     // such as the inputs to the constructor for EVM
 }

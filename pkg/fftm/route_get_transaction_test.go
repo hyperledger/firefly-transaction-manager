@@ -14,20 +14,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package apitypes
+package fftm
 
 import (
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"fmt"
+	"testing"
+
+	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/stretchr/testify/assert"
 )
 
-// TransactionRequest is the payload sent to initiate a new transaction
-type TransactionRequest struct {
-	Headers RequestHeaders `json:"headers"`
-	ffcapi.TransactionInput
-}
+func TestGetTransaction(t *testing.T) {
 
-// ContractDeployRequest is the payload sent to initiate a new transaction
-type ContractDeployRequest struct {
-	Headers RequestHeaders `json:"headers"`
-	ffcapi.ContractDeployPrepareRequest
+	url, m, done := newTestManager(t)
+	defer done()
+
+	err := m.Start()
+	assert.NoError(t, err)
+
+	txIn := newTestTxn(t, m, "0xaaaaa", 10001, apitypes.TxStatusSucceeded)
+
+	var txOut *apitypes.ManagedTX
+	res, err := resty.New().R().
+		SetResult(&txOut).
+		Get(fmt.Sprintf("%s/transactions/%s", url, txIn.ID))
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+	assert.Equal(t, *txIn, *txOut)
+
 }

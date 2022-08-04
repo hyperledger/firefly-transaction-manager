@@ -27,6 +27,10 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
+func (m *manager) getTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error) {
+	return m.persistence.GetTransactionByID(ctx, txID)
+}
+
 func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signer string, pending bool, dirString string) (transactions []*apitypes.ManagedTX, err error) {
 	limit, err := m.parseLimit(ctx, limitStr)
 	if err != nil {

@@ -42,10 +42,6 @@ type TransactionPrepareRequest struct {
 	TransactionInput
 }
 
-type ContractDeployPrepareRequest struct {
-	ContractDeployInput
-}
-
 type TransactionPrepareResponse struct {
 	Gas             *fftypes.FFBigInt `json:"gas"`
 	TransactionData string            `json:"transactionData"`
