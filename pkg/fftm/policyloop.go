@@ -35,6 +35,8 @@ func (m *manager) policyLoop() {
 	for {
 		timer := time.NewTimer(m.policyLoopInterval)
 		select {
+		case <-m.inflightUpdate:
+			m.policyLoopCycle(false)
 		case <-m.inflightStale:
 			m.policyLoopCycle(true)
 		case <-timer.C:
@@ -49,6 +51,13 @@ func (m *manager) policyLoop() {
 func (m *manager) markInflightStale() {
 	select {
 	case m.inflightStale <- true:
+	default:
+	}
+}
+
+func (m *manager) markInflightUpdate() {
+	select {
+	case m.inflightUpdate <- true:
 	default:
 	}
 }
@@ -131,9 +140,15 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 
 	var updated bool
 	completed := false
+
+	// Check whether this has been confirmed by the confirmation manager
+	m.mux.Lock()
 	mtx := pending.mtx
+	confirmed := pending.confirmed
+	m.mux.Unlock()
+
 	switch {
-	case pending.confirmed:
+	case confirmed:
 		updated = true
 		completed = true
 		if mtx.Receipt.Success {
@@ -166,7 +181,7 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 			return err
 		}
 		if completed {
-			pending.remove = true
+			pending.remove = true // for the next time round the loop
 			m.markInflightStale()
 		}
 		m.sendWSReply(mtx)
@@ -218,6 +233,7 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 					m.mux.Lock()
 					pending.mtx.Receipt = receipt
 					m.mux.Unlock()
+					m.markInflightUpdate()
 				},
 				Confirmed: func(confirmations []confirmations.BlockInfo) {
 					// Will be picked up on the next policy loop cycle
@@ -225,6 +241,7 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 					pending.confirmed = true
 					pending.mtx.Confirmations = confirmations
 					m.mux.Unlock()
+					m.markInflightUpdate()
 				},
 			},
 		})

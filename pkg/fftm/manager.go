@@ -44,17 +44,18 @@ type Manager interface {
 }
 
 type manager struct {
-	ctx           context.Context
-	cancelCtx     func()
-	retry         *retry.Retry
-	connector     ffcapi.API
-	confirmations confirmations.Manager
-	policyEngine  policyengine.PolicyEngine
-	apiServer     httpserver.HTTPServer
-	wsServer      ws.WebSocketServer
-	persistence   persistence.Persistence
-	inflightStale chan bool
-	inflight      []*pendingState
+	ctx            context.Context
+	cancelCtx      func()
+	retry          *retry.Retry
+	connector      ffcapi.API
+	confirmations  confirmations.Manager
+	policyEngine   policyengine.PolicyEngine
+	apiServer      httpserver.HTTPServer
+	wsServer       ws.WebSocketServer
+	persistence    persistence.Persistence
+	inflightStale  chan bool
+	inflightUpdate chan bool
+	inflight       []*pendingState
 
 	mux            sync.Mutex
 	lockedNonces   map[string]*lockedNonce
@@ -106,6 +107,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 		errorHistoryCount:  config.GetInt(tmconfig.TransactionsErrorHistoryCount),
 		maxInFlight:        config.GetInt(tmconfig.TransactionsMaxInFlight),
 		inflightStale:      make(chan bool, 1),
+		inflightUpdate:     make(chan bool, 1),
 		retry: &retry.Retry{
 			InitialDelay: config.GetDuration(tmconfig.PolicyLoopRetryInitDelay),
 			MaximumDelay: config.GetDuration(tmconfig.PolicyLoopRetryMaxDelay),

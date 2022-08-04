@@ -336,3 +336,13 @@ func TestMarkInflightStaleDoesNotBlock(t *testing.T) {
 	m.markInflightStale()
 
 }
+
+func TestMarkInflightUpdateDoesNotBlock(t *testing.T) {
+
+	_, m, cancel := newTestManager(t)
+	defer cancel()
+
+	m.markInflightUpdate()
+	m.markInflightUpdate()
+
+}
