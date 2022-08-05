@@ -160,16 +160,24 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 		}
 
 	default:
-		// Pass the state to the pluggable policy engine to potentially perform more actions against it,
-		// such as submitting for the first time, or raising the gas etc.
-		var reason ffcapi.ErrorReason
-		updated, reason, err = m.policyEngine.Execute(m.ctx, m.connector, pending.mtx)
-		if err != nil {
-			log.L(m.ctx).Errorf("Policy engine returned error for operation %s reason=%s: %s", mtx.ID, reason, err)
-			m.addError(mtx, reason, err)
-		} else if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
-			// If now submitted, add to confirmations manager for receipt checking
-			m.trackSubmittedTransaction(pending)
+		// We get woken for lots of reasons to go through the policy loop, but we only want
+		// to drive the policy engine at regular intervals.
+		// So we track the last time we ran the policy engine against each pending item.
+		if time.Since(pending.lastPolicyCycle) > m.policyLoopInterval {
+			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
+			// such as submitting for the first time, or raising the gas etc.
+			var reason ffcapi.ErrorReason
+			updated, reason, err = m.policyEngine.Execute(m.ctx, m.connector, pending.mtx)
+			if err != nil {
+				log.L(m.ctx).Errorf("Policy engine returned error for operation %s reason=%s: %s", mtx.ID, reason, err)
+				m.addError(mtx, reason, err)
+			} else {
+				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
+					// If now submitted, add to confirmations manager for receipt checking
+					m.trackSubmittedTransaction(pending)
+				}
+				pending.lastPolicyCycle = time.Now()
+			}
 		}
 	}
 

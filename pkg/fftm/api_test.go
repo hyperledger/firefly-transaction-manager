@@ -232,6 +232,30 @@ func TestSendInvalidRequestBadTXType(t *testing.T) {
 	assert.Regexp(t, "FF21022", errRes.Error)
 }
 
+func TestSendInvalidDeployBadTXType(t *testing.T) {
+
+	url, m, cancel := newTestManager(t)
+	defer cancel()
+	m.Start()
+
+	req := strings.NewReader(`{
+		"headers": {
+			"type": "DeployContract"
+		},
+		"from": {
+			"Not": "a string"
+		}
+	}`)
+	var errRes fftypes.RESTError
+	res, err := resty.New().R().
+		SetBody(req).
+		SetError(&errRes).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 400, res.StatusCode())
+	assert.Regexp(t, "FF21022", errRes.Error)
+}
+
 func TestSwaggerEndpoints(t *testing.T) {
 
 	url, m, cancel := newTestManager(t)
@@ -291,6 +315,32 @@ func TestSendTransactionPrepareFail(t *testing.T) {
 	m.Start()
 
 	req := strings.NewReader(sampleSendTX)
+	res, err := resty.New().R().
+		SetBody(req).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 500, res.StatusCode())
+
+}
+
+func TestDeployContractPrepareFail(t *testing.T) {
+
+	url, m, cancel := newTestManager(t)
+	defer cancel()
+
+	mFFC := m.connector.(*ffcapimocks.API)
+
+	mFFC.On("NextNonceForSigner", mock.Anything, mock.MatchedBy(func(nonceReq *ffcapi.NextNonceForSignerRequest) bool {
+		return "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8" == nonceReq.Signer
+	})).Return(&ffcapi.NextNonceForSignerResponse{
+		Nonce: fftypes.NewFFBigInt(12345),
+	}, ffcapi.ErrorReason(""), nil)
+
+	mFFC.On("DeployContractPrepare", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	m.Start()
+
+	req := strings.NewReader(sampleDeployTX)
 	res, err := resty.New().R().
 		SetBody(req).
 		Post(url)

@@ -106,6 +106,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 		policyLoopInterval: config.GetDuration(tmconfig.PolicyLoopInterval),
 		errorHistoryCount:  config.GetInt(tmconfig.TransactionsErrorHistoryCount),
 		maxInFlight:        config.GetInt(tmconfig.TransactionsMaxInFlight),
+		nonceStateTimeout:  config.GetDuration(tmconfig.TransactionsNonceStateTimeout),
 		inflightStale:      make(chan bool, 1),
 		inflightUpdate:     make(chan bool, 1),
 		retry: &retry.Retry{
@@ -120,6 +121,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 
 type pendingState struct {
 	mtx                     *apitypes.ManagedTX
+	lastPolicyCycle         time.Time
 	confirmed               bool
 	remove                  bool
 	trackingTransactionHash string

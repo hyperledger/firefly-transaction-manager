@@ -59,7 +59,7 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, managerPort)
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
 
-	config.Set(tmconfig.PolicyLoopInterval, "1ms")
+	config.Set(tmconfig.PolicyLoopInterval, "1ns")
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	mm, err := NewManager(context.Background(), &ffcapimocks.API{})

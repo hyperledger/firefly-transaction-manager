@@ -19,6 +19,7 @@ package fftm
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
@@ -309,19 +310,38 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 
 }
 
-func TestPolicyEngineFail(t *testing.T) {
+func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 
 	_, m, cancel := newTestManager(t)
 	defer cancel()
+	m.policyLoopInterval = 1 * time.Hour
 
 	mpe := &policyenginemocks.PolicyEngine{}
 	m.policyEngine = mpe
+	done1 := make(chan struct{})
 	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).
-		Return(false, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+		Return(false, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
+		Once().
+		Run(func(args mock.Arguments) {
+			close(done1)
+			m.markInflightUpdate()
+		})
+
+	done2 := make(chan struct{})
+	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).
+		Return(false, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
+		Once().
+		Run(func(args mock.Arguments) {
+			close(done2)
+		})
 
 	_ = sendSampleTX(t, m, "0xaaaaa", 12345)
 
-	m.policyLoopCycle(true)
+	m.Start()
+
+	<-done1
+
+	<-done2
 
 	mpe.AssertExpectations(t)
 

@@ -62,14 +62,14 @@ func TestGetTransactions(t *testing.T) {
 	var transactions []*apitypes.ManagedTX
 	res, err := resty.New().R().
 		SetResult(&transactions).
-		Get(url + "/transactions")
+		Get(url + "/transactions?direction=asc")
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 	assert.Len(t, transactions, 4)
-	assert.Equal(t, s1t3.ID, transactions[0].ID)
-	assert.Equal(t, s1t2.ID, transactions[1].ID)
-	assert.Equal(t, s2t1.ID, transactions[2].ID)
-	assert.Equal(t, s1t1.ID, transactions[3].ID)
+	assert.Equal(t, s1t1.ID, transactions[0].ID)
+	assert.Equal(t, s2t1.ID, transactions[1].ID)
+	assert.Equal(t, s1t2.ID, transactions[2].ID)
+	assert.Equal(t, s1t3.ID, transactions[3].ID)
 
 	// Test pagination on default sort/filter
 	res, err = resty.New().R().
