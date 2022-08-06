@@ -51,7 +51,7 @@ var (
 	ConfigLoopInterval = ffc("config.policyloop.interval", "Interval at which to invoke the policy engine to evaluate outstanding transactions", i18n.TimeDurationType)
 
 	ConfigPolicyEngineSimpleFixedGasPrice          = ffc("config.policyengine.simple.fixedGasPrice", "A fixed gasPrice value/structure to pass to the connector", "Raw JSON")
-	ConfigPolicyEngineSimpleWarnInterval           = ffc("config.policyengine.simple.warnInterval", "The time between warnings when a blockchain transaction has not been allocated a receipt", i18n.TimeDurationType)
+	ConfigPolicyEngineSimpleResubmitInterval       = ffc("config.policyengine.simple.resubmitInterval", "The time between warning and re-sending a transaction (same nonce) when a blockchain transaction has not been allocated a receipt", i18n.TimeDurationType)
 	ConfigPolicyEngineSimpleGasOracleEnabled       = ffc("config.policyengine.simple.gasOracle.mode", "The gas oracle mode", "connector | restapi | disabled")
 	ConfigPolicyEngineSimpleGasOracleGoTemplate    = ffc("config.policyengine.simple.gasOracle.template", "REST API Gas Oracle: A go template to execute against the result from the Gas Oracle, to create a JSON block that will be passed as the gas price to the connector", i18n.GoTemplateType)
 	ConfigPolicyEngineSimpleGasOracleURL           = ffc("config.policyengine.simple.gasOracle.url", "REST API Gas Oracle: The URL of a Gas Oracle REST API to call", i18n.StringType)

@@ -391,6 +391,8 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
+		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
 
 	ctx := context.Background()
 	updated, _, err := p.Execute(ctx, mockFFCAPI, mtx)
@@ -401,7 +403,7 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 	mockFFCAPI.AssertExpectations(t)
 }
 
-func TestWarnStaleAdditionalWarning(t *testing.T) {
+func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 	f, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	p, err := f.NewPolicyEngine(context.Background(), conf)
@@ -419,10 +421,12 @@ func TestWarnStaleAdditionalWarning(t *testing.T) {
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
+		Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
 	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
-	assert.NoError(t, err)
+	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
 	assert.True(t, updated)
 	assert.NotEmpty(t, mtx.PolicyInfo.JSONObject().GetString("lastWarnTime"))
@@ -433,7 +437,7 @@ func TestWarnStaleAdditionalWarning(t *testing.T) {
 func TestWarnStaleNoWarning(t *testing.T) {
 	f, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
-	conf.Set(WarnInterval, "100s")
+	conf.Set(ResubmitInterval, "100s")
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
@@ -462,7 +466,7 @@ func TestWarnStaleNoWarning(t *testing.T) {
 func TestNoOpWithReceipt(t *testing.T) {
 	f, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
-	conf.Set(WarnInterval, "100s")
+	conf.Set(ResubmitInterval, "100s")
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 

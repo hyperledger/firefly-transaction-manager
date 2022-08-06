@@ -74,7 +74,7 @@ func setDefaults() {
 	viper.SetDefault(string(ConfirmationsBlockQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsStaleReceiptTimeout), "1m")
-	viper.SetDefault(string(PolicyLoopInterval), "1s")
+	viper.SetDefault(string(PolicyLoopInterval), "10s")
 	viper.SetDefault(string(PolicyEngineName), "simple")
 
 	viper.SetDefault(string(EventStreamsDefaultsBatchSize), 50)

@@ -156,7 +156,7 @@ nav_order: 2
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |fixedGasPrice|A fixed gasPrice value/structure to pass to the connector|Raw JSON|`<nil>`
-|warnInterval|The time between warnings when a blockchain transaction has not been allocated a receipt|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|resubmitInterval|The time between warning and re-sending a transaction (same nonce) when a blockchain transaction has not been allocated a receipt|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
 ## policyengine.simple.gasOracle
 
@@ -201,7 +201,7 @@ nav_order: 2
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|interval|Interval at which to invoke the policy engine to evaluate outstanding transactions|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1s`
+|interval|Interval at which to invoke the policy engine to evaluate outstanding transactions|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
 
 ## policyloop.retry
 

@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	FixedGasPrice          = "fixedGasPrice" // when not using a gas station - will be treated as a raw JSON string, so can be numeric 123, or string "123", or object {"maxPriorityFeePerGas":123})
-	WarnInterval           = "warnInterval"  // warnings will be written to the log at this interval if mining has not occurred
+	FixedGasPrice          = "fixedGasPrice"    // when not using a gas station - will be treated as a raw JSON string, so can be numeric 123, or string "123", or object {"maxPriorityFeePerGas":123})
+	ResubmitInterval       = "resubmitInterval" // warnings will be written to the log at this interval if mining has not occurred, and the TX will be resubmitted
 	GasOracleConfig        = "gasOracle"
 	GasOracleMode          = "mode"
 	GasOracleMethod        = "method"
@@ -40,7 +40,7 @@ const (
 )
 
 const (
-	defaultWarnInterval           = "15m"
+	defaultResubmitInterval       = "5m"
 	defaultGasOracleQueryInterval = "5m"
 	defaultGasOracleMethod        = http.MethodGet
 	defaultGasOracleMode          = GasOracleModeConnector
@@ -48,7 +48,7 @@ const (
 
 func (f *PolicyEngineFactory) InitConfig(conf config.Section) {
 	conf.AddKnownKey(FixedGasPrice)
-	conf.AddKnownKey(WarnInterval, defaultWarnInterval)
+	conf.AddKnownKey(ResubmitInterval, defaultResubmitInterval)
 
 	gasOracleConfig := conf.SubSection(GasOracleConfig)
 	ffresty.InitConfig(gasOracleConfig)

@@ -48,8 +48,8 @@ func (f *PolicyEngineFactory) Name() string {
 func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, conf config.Section) (pe policyengine.PolicyEngine, err error) {
 	gasOracleConfig := conf.SubSection(GasOracleConfig)
 	p := &simplePolicyEngine{
-		warnInterval:  conf.GetDuration(WarnInterval),
-		fixedGasPrice: fftypes.JSONAnyPtr(conf.GetString(FixedGasPrice)),
+		resubmitInterval: conf.GetDuration(ResubmitInterval),
+		fixedGasPrice:    fftypes.JSONAnyPtr(conf.GetString(FixedGasPrice)),
 
 		gasOracleMethod:        gasOracleConfig.GetString(GasOracleMethod),
 		gasOracleQueryInterval: gasOracleConfig.GetDuration(GasOracleQueryInterval),
@@ -77,8 +77,8 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, conf config.S
 }
 
 type simplePolicyEngine struct {
-	fixedGasPrice *fftypes.JSONAny
-	warnInterval  time.Duration
+	fixedGasPrice    *fftypes.JSONAny
+	resubmitInterval time.Duration
 
 	gasOracleMode          string
 	gasOracleClient        *resty.Client
@@ -111,31 +111,39 @@ func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *apitypes.M
 	return updated, reason, err
 }
 
+func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (reason ffcapi.ErrorReason, err error) {
+	sendTX := &ffcapi.TransactionSendRequest{
+		TransactionHeaders: mtx.TransactionHeaders,
+		GasPrice:           mtx.GasPrice,
+		TransactionData:    mtx.TransactionData,
+	}
+	sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
+	sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
+	log.L(ctx).Debugf("Sending transaction: %+v", sendTX)
+	res, reason, err := cAPI.TransactionSend(ctx, sendTX)
+	if err != nil {
+		// A more sophisticated policy engine would consider the reason here, and potentially adjust the transaction for future attempts
+		return reason, err
+	}
+	log.L(ctx).Infof("Transaction hash=%s", res.TransactionHash)
+	mtx.TransactionHash = res.TransactionHash
+	mtx.LastSubmit = fftypes.Now()
+	return "", nil
+}
+
 func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (updated bool, reason ffcapi.ErrorReason, err error) {
 	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
-
+		// Only calculate gas price here in the simple policy engine
 		mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
 		if err != nil {
 			return false, "", err
 		}
-		sendTX := &ffcapi.TransactionSendRequest{
-			TransactionHeaders: mtx.TransactionHeaders,
-			GasPrice:           mtx.GasPrice,
-			TransactionData:    mtx.TransactionData,
+		// Submit the first time
+		if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
+			return true, reason, err
 		}
-		sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
-		sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
-		log.L(ctx).Debugf("Sending transaction: %+v", sendTX)
-		res, reason, err := cAPI.TransactionSend(ctx, sendTX)
-		if err != nil {
-			// A more sophisticated policy engine would consider the reason here, and potentially adjust the transaction for future attempts
-			return false, reason, err
-		}
-		log.L(ctx).Infof("Transaction hash=%s", res.TransactionHash)
-		mtx.TransactionHash = res.TransactionHash
-		mtx.FirstSubmit = fftypes.Now()
-		mtx.LastSubmit = mtx.FirstSubmit
+		mtx.FirstSubmit = mtx.LastSubmit
 		return true, "", nil
 
 	} else if mtx.Receipt == nil {
@@ -149,10 +157,16 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 				lastWarnTime = mtx.FirstSubmit
 			}
 			now := fftypes.Now()
-			if now.Time().Sub(*lastWarnTime.Time()) > p.warnInterval {
+			if now.Time().Sub(*lastWarnTime.Time()) > p.resubmitInterval {
 				secsSinceSubmit := float64(now.Time().Sub(*mtx.FirstSubmit.Time())) / float64(time.Second)
 				log.L(ctx).Warnf("Transaction %s (op=%s) has not been mined after %.2fs", mtx.TransactionHash, mtx.ID, secsSinceSubmit)
 				info.LastWarnTime = now
+				// We do a resubmit at this point - as it might no longer be in the TX pool
+				if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
+					if reason != ffcapi.ErrorKnownTransaction {
+						return true, reason, err
+					}
+				}
 				return true, "", nil
 			}
 			return false, "", nil
