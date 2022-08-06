@@ -154,7 +154,7 @@ func (m *manager) Start() error {
 		return err
 	}
 
-	blReq := &ffcapi.NewBlockListenerRequest{ListenerContext: m.ctx, ID: "fftm-receipts"}
+	blReq := &ffcapi.NewBlockListenerRequest{ListenerContext: m.ctx, ID: fftypes.NewUUID()}
 	blReq.BlockListener, m.blockListenerDone = blocklistener.BufferChannel(m.ctx, m.confirmations)
 	_, _, err := m.connector.NewBlockListener(m.ctx, blReq)
 	if err != nil {
