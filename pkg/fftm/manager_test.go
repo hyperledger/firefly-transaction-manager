@@ -44,12 +44,9 @@ const testManagerName = "unittest"
 
 func strPtr(s string) *string { return &s }
 
-func newTestManager(t *testing.T) (string, *manager, func()) {
+func testManagerCommonInit(t *testing.T) string {
 	InitConfig()
 	policyengines.RegisterEngine(&simple.PolicyEngineFactory{})
-	dir, err := ioutil.TempDir("", "ldb_*")
-	assert.NoError(t, err)
-	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").SubSection(simple.GasOracleConfig).Set(simple.GasOracleMode, simple.GasOracleModeDisabled)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -62,14 +59,28 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 	config.Set(tmconfig.PolicyLoopInterval, "1ns")
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	mm, err := NewManager(context.Background(), &ffcapimocks.API{})
+	return fmt.Sprintf("http://127.0.0.1:%s", managerPort)
+}
+
+func newTestManager(t *testing.T) (string, *manager, func()) {
+
+	url := testManagerCommonInit(t)
+
+	dir, err := ioutil.TempDir("", "ldb_*")
 	assert.NoError(t, err)
+	config.Set(tmconfig.PersistenceLevelDBPath, dir)
+
+	mca := &ffcapimocks.API{}
+	mca.On("NewBlockListener", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil).Maybe()
+	mm, err := NewManager(context.Background(), mca)
+	assert.NoError(t, err)
+
 	m := mm.(*manager)
 	mcm := &confirmationsmocks.Manager{}
 	mcm.On("Start").Return().Maybe()
 	m.confirmations = mcm
 
-	return fmt.Sprintf("http://127.0.0.1:%s", managerPort),
+	return url,
 		m,
 		func() {
 			m.Close()
@@ -78,13 +89,21 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 
 }
 
-func newMockPersistenceManager(t *testing.T) (*persistencemocks.Persistence, *ffcapimocks.API, *manager) {
-	InitConfig()
-	mca := &ffcapimocks.API{}
-	mps := &persistencemocks.Persistence{}
-	m := newManager(context.Background(), mca)
-	m.persistence = mps
-	return mps, mca, m
+func newTestManagerMockPersistence(t *testing.T) (string, *manager, func()) {
+
+	url := testManagerCommonInit(t)
+
+	m := newManager(context.Background(), &ffcapimocks.API{})
+	mp := &persistencemocks.Persistence{}
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
+	m.persistence = mp
+
+	err := m.initServices(context.Background())
+	assert.NoError(t, err)
+
+	return url, m, func() {
+		m.Close()
+	}
 }
 
 func TestNewManagerBadHttpConfig(t *testing.T) {
@@ -144,9 +163,8 @@ func TestNewManagerBadPolicyEngine(t *testing.T) {
 
 func TestAddErrorMessageMax(t *testing.T) {
 
-	var m *manager
-	_, m, cancel := newTestManager(t)
-	defer cancel()
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	m.errorHistoryCount = 2
 	mtx := &apitypes.ManagedTX{}
@@ -160,14 +178,28 @@ func TestAddErrorMessageMax(t *testing.T) {
 }
 
 func TestStartRestoreFail(t *testing.T) {
-	_, m, cancel := newTestManager(t)
-	cancel()
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
-	mp := &persistencemocks.Persistence{}
-	m.persistence = mp
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).
 		Return(nil, fmt.Errorf("pop"))
 
 	err := m.Start()
 	assert.Regexp(t, "pop", err)
+}
+
+func TestStartBlockListenerFail(t *testing.T) {
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, nil)
+
+	mca := m.connector.(*ffcapimocks.API)
+	mca.On("NewBlockListener", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	err := m.Start()
+	assert.Regexp(t, "pop", err)
+
 }

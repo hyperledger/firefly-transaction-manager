@@ -27,6 +27,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-common/pkg/retry"
+	"github.com/hyperledger/firefly-transaction-manager/internal/blocklistener"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
@@ -474,12 +475,10 @@ func (es *eventStream) Start(ctx context.Context) error {
 	log.L(ctx).Infof("Starting event stream %s", es)
 
 	startedState := &startedStreamState{
-		startTime:         fftypes.Now(),
-		eventLoopDone:     make(chan struct{}),
-		batchLoopDone:     make(chan struct{}),
-		blockListenerDone: make(chan struct{}),
-		updates:           make(chan *ffcapi.ListenerEvent, int(*es.spec.BatchSize)),
-		blocks:            make(chan *ffcapi.BlockHashEvent), // we promise to consume immediately
+		startTime:     fftypes.Now(),
+		eventLoopDone: make(chan struct{}),
+		batchLoopDone: make(chan struct{}),
+		updates:       make(chan *ffcapi.ListenerEvent, int(*es.spec.BatchSize)),
 	}
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.currentState = startedState
@@ -509,7 +508,7 @@ func (es *eventStream) Start(ctx context.Context) error {
 	// Kick off the loops
 	go es.eventLoop(startedState)
 	go es.batchLoop(startedState)
-	go es.blockListener(startedState)
+	startedState.blocks, startedState.blockListenerDone = blocklistener.BufferChannel(startedState.ctx, es.confirmations)
 
 	// Start the confirmations manager
 	if es.confirmations != nil {

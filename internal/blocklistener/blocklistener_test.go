@@ -14,61 +14,61 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package events
+package blocklistener
 
 import (
 	"context"
-	"sync"
 	"testing"
 
-	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 )
 
+type testBlockConsumer struct {
+	c chan *ffcapi.BlockHashEvent
+}
+
+func (tbc *testBlockConsumer) NewBlockHashes() chan<- *ffcapi.BlockHashEvent {
+	return tbc.c
+}
+
 func TestBlockListenerDoesNotBlock(t *testing.T) {
 
-	es := newTestEventStream(t, `{
-		"name": "ut_stream"
-	}`)
+	unBuffered := make(chan *ffcapi.BlockHashEvent, 1)
+	ctx, cancelCtx := context.WithCancel(context.Background())
 
-	ss := &startedStreamState{
-		blocks:            make(chan *ffcapi.BlockHashEvent, 1),
-		blockListenerDone: make(chan struct{}),
-	}
-	ss.ctx, ss.cancelCtx = context.WithCancel(context.Background())
-
-	blockIt := make(chan *ffcapi.BlockHashEvent, 1)
-	mcm := &confirmationsmocks.Manager{}
-	mcm.On("NewBlockHashes").Return((chan<- *ffcapi.BlockHashEvent)(blockIt))
-	es.confirmations = mcm
-
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		es.blockListener(ss)
-		wg.Done()
-	}()
+	buffered, blockListenerDone := BufferChannel(ctx, &testBlockConsumer{c: unBuffered})
 
 	for i := 0; i < 100; i++ {
-		ss.blocks <- &ffcapi.BlockHashEvent{}
+		buffered <- &ffcapi.BlockHashEvent{}
 	}
 
 	// Get the one that was stuck in the pipe
-	bhe := <-blockIt
+	bhe := <-unBuffered
 	assert.False(t, bhe.GapPotential)
 
 	// We should get the unblocking one too, with GapPotential set
-	bhe = <-blockIt
+	bhe = <-unBuffered
 	assert.True(t, bhe.GapPotential)
 
 	// Block it again
 	for i := 0; i < 100; i++ {
-		ss.blocks <- &ffcapi.BlockHashEvent{}
+		buffered <- &ffcapi.BlockHashEvent{}
 	}
 
 	// And check we can exit while blocked
-	ss.cancelCtx()
-	wg.Wait()
+	cancelCtx()
+	<-blockListenerDone
+
+}
+
+func TestExitOnContextCancel(t *testing.T) {
+
+	unBuffered := make(chan *ffcapi.BlockHashEvent)
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	cancelCtx()
+
+	_, blockListenerDone := BufferChannel(ctx, &testBlockConsumer{c: unBuffered})
+	<-blockListenerDone
 
 }

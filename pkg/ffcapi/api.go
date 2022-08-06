@@ -76,6 +76,9 @@ type API interface {
 
 	// EventStreamNewCheckpointStruct used during checkpoint restore, to get the specific into which to restore the JSON bytes
 	EventStreamNewCheckpointStruct() EventListenerCheckpoint
+
+	// NewBlockListener creates a new block listener, decoupled from an event stream
+	NewBlockListener(ctx context.Context, req *NewBlockListenerRequest) (*NewBlockListenerResponse, ErrorReason, error)
 }
 
 type BlockHashEvent struct {

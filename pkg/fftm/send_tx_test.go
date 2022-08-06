@@ -31,18 +31,15 @@ import (
 
 func TestSendTXPersistFail(t *testing.T) {
 
-	_, m, cancel := newTestManager(t)
-	cancel()
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
-	mp := &persistencemocks.Persistence{}
-	m.persistence = mp
-
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
 			{ID: "id12345", Created: fftypes.Now(), Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
 		}, nil)
 	mp.On("WriteTransaction", m.ctx, mock.Anything, true).Return(fmt.Errorf("pop"))
-	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	var txReq *ffcapi.TransactionSendRequest
 	err := json.Unmarshal([]byte(sampleSendTX), &txReq)

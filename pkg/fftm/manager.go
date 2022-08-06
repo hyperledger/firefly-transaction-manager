@@ -26,6 +26,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/retry"
+	"github.com/hyperledger/firefly-transaction-manager/internal/blocklistener"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
@@ -57,13 +58,14 @@ type manager struct {
 	inflightUpdate chan bool
 	inflight       []*pendingState
 
-	mux            sync.Mutex
-	lockedNonces   map[string]*lockedNonce
-	eventStreams   map[fftypes.UUID]events.Stream
-	streamsByName  map[string]*fftypes.UUID
-	policyLoopDone chan struct{}
-	started        bool
-	apiServerDone  chan error
+	mux               sync.Mutex
+	lockedNonces      map[string]*lockedNonce
+	eventStreams      map[fftypes.UUID]events.Stream
+	streamsByName     map[string]*fftypes.UUID
+	policyLoopDone    chan struct{}
+	blockListenerDone chan struct{}
+	started           bool
+	apiServerDone     chan error
 
 	policyLoopInterval time.Duration
 	nonceStateTimeout  time.Duration
@@ -79,14 +81,7 @@ func InitConfig() {
 func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	var err error
 	m := newManager(ctx, connector)
-	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector)
-	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
-	if err != nil {
-		return nil, err
-	}
-	m.wsServer = ws.NewWebSocketServer(ctx)
-	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
-	if err != nil {
+	if err = m.initServices(ctx); err != nil {
 		return nil, err
 	}
 	if err = m.initPersistence(ctx); err != nil {
@@ -127,6 +122,20 @@ type pendingState struct {
 	trackingTransactionHash string
 }
 
+func (m *manager) initServices(ctx context.Context) (err error) {
+	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector)
+	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
+	if err != nil {
+		return err
+	}
+	m.wsServer = ws.NewWebSocketServer(ctx)
+	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (m *manager) initPersistence(ctx context.Context) (err error) {
 	pType := config.GetString(tmconfig.PersistenceType)
 	switch pType {
@@ -144,11 +153,20 @@ func (m *manager) Start() error {
 	if err := m.restoreStreams(); err != nil {
 		return err
 	}
+
+	blReq := &ffcapi.NewBlockListenerRequest{ListenerContext: m.ctx}
+	blReq.BlockListener, m.blockListenerDone = blocklistener.BufferChannel(m.ctx, m.confirmations)
+	_, _, err := m.connector.NewBlockListener(m.ctx, blReq)
+	if err != nil {
+		return err
+	}
+
 	go m.runAPIServer()
 	m.policyLoopDone = make(chan struct{})
 	m.markInflightStale()
 	go m.policyLoop()
 	go m.confirmations.Start()
+
 	m.started = true
 	return nil
 }
@@ -159,6 +177,7 @@ func (m *manager) Close() {
 		m.started = false
 		<-m.apiServerDone
 		<-m.policyLoopDone
+		<-m.blockListenerDone
 
 		streams := []events.Stream{}
 		m.mux.Lock()

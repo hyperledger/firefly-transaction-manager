@@ -261,14 +261,12 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 
 func TestInflightSetListFailCancel(t *testing.T) {
 
-	_, m, cancel := newTestManager(t)
-	cancel()
+	_, m, close := newTestManagerMockPersistence(t)
+	close()
 
-	mp := &persistencemocks.Persistence{}
-	m.persistence = mp
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsPending", m.ctx, (*fftypes.UUID)(nil), m.maxInFlight, persistence.SortDirectionAscending).
 		Return(nil, fmt.Errorf("pop"))
-	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	m.policyLoopCycle(true)
 
@@ -278,8 +276,8 @@ func TestInflightSetListFailCancel(t *testing.T) {
 
 func TestPolicyLoopUpdateFail(t *testing.T) {
 
-	_, m, cancel := newTestManager(t)
-	defer cancel()
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	m.inflight = []*pendingState{
 		{
@@ -299,8 +297,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 		},
 	}
 
-	mp := &persistencemocks.Persistence{}
-	m.persistence = mp
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("WriteTransaction", m.ctx, mock.Anything, false).Return(fmt.Errorf("pop"))
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 

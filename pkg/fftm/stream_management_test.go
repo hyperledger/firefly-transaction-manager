@@ -23,6 +23,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
@@ -74,8 +75,10 @@ func TestRestoreStreamsAndListenersOK(t *testing.T) {
 
 func TestRestoreStreamsReadFailed(t *testing.T) {
 
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreams", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
 
 	err := m.restoreStreams()
@@ -86,8 +89,10 @@ func TestRestoreStreamsReadFailed(t *testing.T) {
 
 func TestRestoreListenersReadFailed(t *testing.T) {
 
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreams", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{
 		{ID: fftypes.NewUUID()},
 	}, nil)
@@ -170,10 +175,12 @@ func TestDeleteStartedListener(t *testing.T) {
 
 func TestDeleteStartedListenerFail(t *testing.T) {
 
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	esID := apitypes.UUIDVersion1()
 	lID := apitypes.UUIDVersion1()
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{
 		{ID: lID, StreamID: esID},
 	}, nil)
@@ -187,7 +194,8 @@ func TestDeleteStartedListenerFail(t *testing.T) {
 
 func TestDeleteStreamBadID(t *testing.T) {
 
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	err := m.deleteStream(m.ctx, "Bad ID")
 	assert.Regexp(t, "FF00138", err)
@@ -196,9 +204,11 @@ func TestDeleteStreamBadID(t *testing.T) {
 
 func TestDeleteStreamListenerPersistenceFail(t *testing.T) {
 
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	esID := apitypes.UUIDVersion1()
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return(nil, fmt.Errorf("pop"))
 
 	err := m.deleteStream(m.ctx, esID.String())
@@ -209,9 +219,11 @@ func TestDeleteStreamListenerPersistenceFail(t *testing.T) {
 
 func TestDeleteStreamPersistenceFail(t *testing.T) {
 
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	esID := apitypes.UUIDVersion1()
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(fmt.Errorf("pop"))
 
@@ -223,9 +235,11 @@ func TestDeleteStreamPersistenceFail(t *testing.T) {
 
 func TestDeleteStreamNotInitialized(t *testing.T) {
 
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	esID := apitypes.UUIDVersion1()
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(nil)
 
@@ -237,10 +251,13 @@ func TestDeleteStreamNotInitialized(t *testing.T) {
 
 func TestCreateRenameStreamNameReservation(t *testing.T) {
 
-	mp, mfc, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
+	mfc := m.connector.(*ffcapimocks.API)
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(fmt.Errorf("temporary")).Once()
 	mp.On("DeleteCheckpoint", m.ctx, mock.Anything).Return(fmt.Errorf("temporary")).Once()
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
@@ -279,7 +296,8 @@ func TestCreateRenameStreamNameReservation(t *testing.T) {
 
 func TestCreateStreamValidateFail(t *testing.T) {
 
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	wrongType := apitypes.DistributionMode("wrong")
 	_, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1"), Type: &wrongType})
@@ -288,15 +306,18 @@ func TestCreateStreamValidateFail(t *testing.T) {
 }
 
 func TestCreateAndStoreNewStreamListenerBadID(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.createAndStoreNewStreamListener(m.ctx, "bad", nil)
 	assert.Regexp(t, "FF00138", err)
 }
 
 func TestUpdateExistingListenerNotFound(t *testing.T) {
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetListener", m.ctx, mock.Anything).Return(nil, nil)
 
 	_, err := m.updateExistingListener(m.ctx, apitypes.UUIDVersion1().String(), apitypes.UUIDVersion1().String(), &apitypes.Listener{}, false)
@@ -306,7 +327,8 @@ func TestUpdateExistingListenerNotFound(t *testing.T) {
 }
 
 func TestCreateOrUpdateListenerNotFound(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.createOrUpdateListener(m.ctx, apitypes.UUIDVersion1(), &apitypes.Listener{StreamID: apitypes.UUIDVersion1()}, false)
 	assert.Regexp(t, "FF21045", err)
@@ -314,11 +336,14 @@ func TestCreateOrUpdateListenerNotFound(t *testing.T) {
 }
 
 func TestCreateOrUpdateListenerFail(t *testing.T) {
-	mp, mfc, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
+	mfc := m.connector.(*ffcapimocks.API)
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
@@ -332,12 +357,15 @@ func TestCreateOrUpdateListenerFail(t *testing.T) {
 }
 
 func TestCreateOrUpdateListenerWriteFail(t *testing.T) {
-	mp, mfc, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 	mp.On("WriteListener", m.ctx, mock.Anything).Return(fmt.Errorf("pop"))
 	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
+	mfc := m.connector.(*ffcapimocks.API)
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil)
@@ -352,7 +380,8 @@ func TestCreateOrUpdateListenerWriteFail(t *testing.T) {
 }
 
 func TestDeleteListenerBadID(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	err := m.deleteListener(m.ctx, "bad ID", "bad ID")
 	assert.Regexp(t, "FF00138", err)
@@ -360,9 +389,11 @@ func TestDeleteListenerBadID(t *testing.T) {
 }
 
 func TestDeleteListenerStreamNotFound(t *testing.T) {
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), StreamID: apitypes.UUIDVersion1()}
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetListener", m.ctx, mock.Anything).Return(l1, nil)
 
 	err := m.deleteListener(m.ctx, l1.StreamID.String(), l1.ID.String())
@@ -373,12 +404,15 @@ func TestDeleteListenerStreamNotFound(t *testing.T) {
 }
 
 func TestDeleteListenerFail(t *testing.T) {
-	mp, mfc, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 	mp.On("WriteListener", m.ctx, mock.Anything).Return(nil)
 	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
+	mfc := m.connector.(*ffcapimocks.API)
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil)
@@ -399,7 +433,8 @@ func TestDeleteListenerFail(t *testing.T) {
 }
 
 func TestUpdateStreamBadID(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.updateStream(m.ctx, "bad ID", &apitypes.EventStream{})
 	assert.Regexp(t, "FF00138", err)
@@ -407,7 +442,8 @@ func TestUpdateStreamBadID(t *testing.T) {
 }
 
 func TestUpdateStreamNotFound(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.updateStream(m.ctx, apitypes.UUIDVersion1().String(), &apitypes.EventStream{})
 	assert.Regexp(t, "FF21045", err)
@@ -415,9 +451,13 @@ func TestUpdateStreamNotFound(t *testing.T) {
 }
 
 func TestUpdateStreamBadChanges(t *testing.T) {
-	mp, mfc, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+	mfc := m.connector.(*ffcapimocks.API)
+	mp := m.persistence.(*persistencemocks.Persistence)
 
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
+
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
 	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
 
@@ -430,7 +470,10 @@ func TestUpdateStreamBadChanges(t *testing.T) {
 }
 
 func TestUpdateStreamWriteFail(t *testing.T) {
-	mp, mfc, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+	mfc := m.connector.(*ffcapimocks.API)
+	mp := m.persistence.(*persistencemocks.Persistence)
 
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
 	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil).Once()
@@ -447,7 +490,8 @@ func TestUpdateStreamWriteFail(t *testing.T) {
 }
 
 func TestGetStreamBadID(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.getStream(m.ctx, "bad ID")
 	assert.Regexp(t, "FF00138", err)
@@ -455,7 +499,8 @@ func TestGetStreamBadID(t *testing.T) {
 }
 
 func TestGetStreamNotFound(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.getStream(m.ctx, apitypes.UUIDVersion1().String())
 	assert.Regexp(t, "FF21045", err)
@@ -463,7 +508,8 @@ func TestGetStreamNotFound(t *testing.T) {
 }
 
 func TestGetStreamsBadLimit(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.getStreams(m.ctx, "", "wrong")
 	assert.Regexp(t, "FF21044", err)
@@ -471,7 +517,8 @@ func TestGetStreamsBadLimit(t *testing.T) {
 }
 
 func TestGetListenerBadAfter(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.getListeners(m.ctx, "!bad UUID", "")
 	assert.Regexp(t, "FF00138", err)
@@ -479,7 +526,8 @@ func TestGetListenerBadAfter(t *testing.T) {
 }
 
 func TestGetListenerBadStreamID(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.getListener(m.ctx, "bad ID", apitypes.UUIDVersion1().String())
 	assert.Regexp(t, "FF00138", err)
@@ -487,7 +535,8 @@ func TestGetListenerBadStreamID(t *testing.T) {
 }
 
 func TestGetListenerBadListenerID(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.getListener(m.ctx, apitypes.UUIDVersion1().String(), "bad ID")
 	assert.Regexp(t, "FF00138", err)
@@ -495,8 +544,10 @@ func TestGetListenerBadListenerID(t *testing.T) {
 }
 
 func TestGetListenerLookupErr(t *testing.T) {
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetListener", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop"))
 
 	_, err := m.getListener(m.ctx, apitypes.UUIDVersion1().String(), apitypes.UUIDVersion1().String())
@@ -507,8 +558,10 @@ func TestGetListenerLookupErr(t *testing.T) {
 }
 
 func TestGetListenerNotFound(t *testing.T) {
-	mp, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetListener", m.ctx, mock.Anything).Return(nil, nil)
 
 	_, err := m.getListener(m.ctx, apitypes.UUIDVersion1().String(), apitypes.UUIDVersion1().String())
@@ -519,7 +572,8 @@ func TestGetListenerNotFound(t *testing.T) {
 }
 
 func TestGetStreamListenersBadLimit(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.getStreamListeners(m.ctx, "", "!bad limit", apitypes.UUIDVersion1().String())
 	assert.Regexp(t, "FF21044", err)
@@ -527,7 +581,8 @@ func TestGetStreamListenersBadLimit(t *testing.T) {
 }
 
 func TestGetStreamListenersBadStreamID(t *testing.T) {
-	_, _, m := newMockPersistenceManager(t)
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	_, err := m.getStreamListeners(m.ctx, "", "", "bad ID")
 	assert.Regexp(t, "FF00138", err)

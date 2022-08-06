@@ -375,13 +375,13 @@ func (_m *Persistence) WriteStream(ctx context.Context, spec *apitypes.EventStre
 	return r0
 }
 
-// WriteTransaction provides a mock function with given fields: ctx, tx, possiblyNew
-func (_m *Persistence) WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, possiblyNew bool) error {
-	ret := _m.Called(ctx, tx, possiblyNew)
+// WriteTransaction provides a mock function with given fields: ctx, tx, new
+func (_m *Persistence) WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, new bool) error {
+	ret := _m.Called(ctx, tx, new)
 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX, bool) error); ok {
-		r0 = rf(ctx, tx, possiblyNew)
+		r0 = rf(ctx, tx, new)
 	} else {
 		r0 = ret.Error(0)
 	}

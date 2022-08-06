@@ -27,12 +27,10 @@ import (
 
 func TestGetTransactionsErrors(t *testing.T) {
 
-	_, m, cancel := newTestManager(t)
-	cancel()
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
-	mp := &persistencemocks.Persistence{}
-	m.persistence = mp
-
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
 	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, nil).Once()
 	mp.On("Close", mock.Anything).Return(nil).Maybe()

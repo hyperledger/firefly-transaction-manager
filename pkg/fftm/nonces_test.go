@@ -106,8 +106,8 @@ func TestNonceStaleStateContention(t *testing.T) {
 
 func TestNonceListError(t *testing.T) {
 
-	_, m, cancel := newTestManager(t)
-	defer cancel()
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
 	mFFC := m.connector.(*ffcapimocks.API)
 	mFFC.On("TransactionPrepare", mock.Anything, mock.Anything).Return(&ffcapi.TransactionPrepareResponse{
@@ -115,11 +115,9 @@ func TestNonceListError(t *testing.T) {
 		Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
 	}, ffcapi.ErrorReason(""), nil)
 
-	mp := &persistencemocks.Persistence{}
-	m.persistence = mp
+	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("pop"))
-	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	_, err := m.sendManagedTransaction(context.Background(), &apitypes.TransactionRequest{
 		TransactionInput: ffcapi.TransactionInput{
@@ -137,17 +135,15 @@ func TestNonceListError(t *testing.T) {
 
 func TestNonceListStaleThenQueryFail(t *testing.T) {
 
-	_, m, cancel := newTestManager(t)
-	defer cancel()
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 
-	mp := &persistencemocks.Persistence{}
-	m.persistence = mp
+	mp := m.persistence.(*persistencemocks.Persistence)
 	old := fftypes.FFTime(time.Now().Add(-10000 * time.Hour))
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
 			{ID: "id12345", Created: &old, Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
 		}, nil)
-	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	mFFC := m.connector.(*ffcapimocks.API)
 	mFFC.On("TransactionPrepare", mock.Anything, mock.Anything).Return(&ffcapi.TransactionPrepareResponse{
@@ -172,17 +168,16 @@ func TestNonceListStaleThenQueryFail(t *testing.T) {
 
 func TestNonceListNotStale(t *testing.T) {
 
-	_, m, cancel := newTestManager(t)
-	defer cancel()
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
 	m.nonceStateTimeout = 1 * time.Hour
 
-	mp := &persistencemocks.Persistence{}
-	m.persistence = mp
+	mp := m.persistence.(*persistencemocks.Persistence)
+
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
 			{ID: "id12345", Created: fftypes.Now(), Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
 		}, nil)
-	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	n, err := m.calcNextNonce(context.Background(), "0x12345")
 	assert.NoError(t, err)
