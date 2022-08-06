@@ -21,6 +21,7 @@ import (
 )
 
 type NewBlockListenerRequest struct {
+	ID              string                 // unique identifier for this listener
 	ListenerContext context.Context        // Context that will be cancelled when the listener needs to stop - no further events will be consumed after this, so all pushes to the listener should select on the done channel too
 	BlockListener   chan<- *BlockHashEvent // The connector should push new blocks to every listener, marking if it's possible blocks were missed (due to reconnect). The listener guarantees to always consume from this channel, until the listener context closes.
 }
