@@ -18,7 +18,6 @@ package apitypes
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,12 +25,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestV1UUID(t *testing.T) {
-	u1 := UUIDVersion1()
-	u2 := UUIDVersion1()
-	assert.Negative(t, strings.Compare(u1.String(), u2.String()))
-}
 
 func TestCheckUpdateString(t *testing.T) {
 	var val1 = "val1"
@@ -193,9 +186,9 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 
 	e := &EventWithContext{
 		StandardContext: EventContext{
-			StreamID:        UUIDVersion1(),
+			StreamID:        NewULID(),
 			ListenerName:    "listener1",
-			DeprecatedSubID: UUIDVersion1(),
+			DeprecatedSubID: NewULID(),
 		},
 		Event: ffcapi.Event{
 			ID: ffcapi.EventID{

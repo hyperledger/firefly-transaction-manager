@@ -94,6 +94,10 @@ func (m *manager) updateInflightSet() bool {
 		for _, mtx := range additional {
 			m.inflight = append(m.inflight, &pendingState{mtx: mtx})
 		}
+		newLen := len(m.inflight)
+		if newLen > 0 {
+			log.L(m.ctx).Debugf("Inflight set updated len=%d head-seq=%s tail-seq=%s old-tail=%s", len(m.inflight), m.inflight[0].mtx.SequenceID, m.inflight[newLen-1].mtx.SequenceID, after)
+		}
 	}
 	return true
 

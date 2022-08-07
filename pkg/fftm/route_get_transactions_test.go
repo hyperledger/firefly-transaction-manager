@@ -32,7 +32,7 @@ func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status api
 	tx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.UUIDVersion1(),
+		SequenceID: apitypes.NewULID(),
 		Nonce:      fftypes.NewFFBigInt(nonce),
 		Status:     status,
 		TransactionHeaders: ffcapi.TransactionHeaders{

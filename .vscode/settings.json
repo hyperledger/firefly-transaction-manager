@@ -59,6 +59,7 @@
     "NATS",
     "Nowarn",
     "oapispec",
+    "oklog",
     "openapi",
     "optype",
     "persistencemocks",

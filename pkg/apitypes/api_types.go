@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.com/google/uuid"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/jsonmap"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -115,12 +114,6 @@ type Listener struct {
 	Options           *fftypes.JSONAny  `ffstruct:"listener" json:"options"`
 	Signature         string            `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
 	FromBlock         *string           `ffstruct:"listener" json:"fromBlock,omitempty"`
-}
-
-// UUIDVersion1 returns a version 1 UUID - where the alphanumeric sequence is assured to be ascending based on the order of generation
-func UUIDVersion1() *fftypes.UUID {
-	u, _ := uuid.NewUUID()
-	return (*fftypes.UUID)(&u)
 }
 
 // CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset

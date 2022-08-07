@@ -60,7 +60,7 @@ func (cp *utCheckpointType) LessThan(b ffcapi.EventListenerCheckpoint) bool {
 func testESConf(t *testing.T, j string) (spec *apitypes.EventStream) {
 	err := json.Unmarshal([]byte(j), &spec)
 	assert.NoError(t, err)
-	spec.ID = apitypes.UUIDVersion1()
+	spec.ID = apitypes.NewULID()
 	return spec
 }
 
@@ -302,7 +302,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 
 	addr := "0x12345"
 	l := &apitypes.Listener{
-		ID:                apitypes.UUIDVersion1(),
+		ID:                apitypes.NewULID(),
 		Name:              strPtr("ut_listener"),
 		DeprecatedAddress: &addr,
 		DeprecatedEvent:   fftypes.JSONAnyPtr(`{"event":"definition"}`),
@@ -420,7 +420,7 @@ func TestStartEventStreamCheckpointInvalid(t *testing.T) {
 	}`)
 
 	l := &apitypes.Listener{
-		ID:        apitypes.UUIDVersion1(),
+		ID:        apitypes.NewULID(),
 		Name:      strPtr("ut_listener"),
 		Options:   fftypes.JSONAnyPtr(`{"option1":"value1"}`),
 		FromBlock: strPtr("12345"),

@@ -101,17 +101,17 @@ func TestReadWriteStreams(t *testing.T) {
 
 	ctx := context.Background()
 	s1 := &apitypes.EventStream{
-		ID:   apitypes.UUIDVersion1(), // ensure we get sequentially ascending IDs
+		ID:   apitypes.NewULID(), // ensure we get sequentially ascending IDs
 		Name: strPtr("stream1"),
 	}
 	p.WriteStream(ctx, s1)
 	s2 := &apitypes.EventStream{
-		ID:   apitypes.UUIDVersion1(),
+		ID:   apitypes.NewULID(),
 		Name: strPtr("stream2"),
 	}
 	p.WriteStream(ctx, s2)
 	s3 := &apitypes.EventStream{
-		ID:   apitypes.UUIDVersion1(),
+		ID:   apitypes.NewULID(),
 		Name: strPtr("stream3"),
 	}
 	p.WriteStream(ctx, s3)
@@ -166,25 +166,25 @@ func TestReadWriteListeners(t *testing.T) {
 
 	ctx := context.Background()
 
-	sID1 := apitypes.UUIDVersion1()
-	sID2 := apitypes.UUIDVersion1()
+	sID1 := apitypes.NewULID()
+	sID2 := apitypes.NewULID()
 
 	s1l1 := &apitypes.Listener{
-		ID:       apitypes.UUIDVersion1(),
+		ID:       apitypes.NewULID(),
 		StreamID: sID1,
 	}
 	err := p.WriteListener(ctx, s1l1)
 	assert.NoError(t, err)
 
 	s2l1 := &apitypes.Listener{
-		ID:       apitypes.UUIDVersion1(),
+		ID:       apitypes.NewULID(),
 		StreamID: sID2,
 	}
 	err = p.WriteListener(ctx, s2l1)
 	assert.NoError(t, err)
 
 	s1l2 := &apitypes.Listener{
-		ID:       apitypes.UUIDVersion1(),
+		ID:       apitypes.NewULID(),
 		StreamID: sID1,
 	}
 	err = p.WriteListener(ctx, s1l2)
@@ -232,10 +232,10 @@ func TestReadWriteCheckpoints(t *testing.T) {
 
 	ctx := context.Background()
 	cp1 := &apitypes.EventStreamCheckpoint{
-		StreamID: apitypes.UUIDVersion1(),
+		StreamID: apitypes.NewULID(),
 	}
 	cp2 := &apitypes.EventStreamCheckpoint{
-		StreamID: apitypes.UUIDVersion1(),
+		StreamID: apitypes.NewULID(),
 	}
 
 	err := p.WriteCheckpoint(ctx, cp1)
@@ -266,7 +266,7 @@ func newTestTX(signer string, nonce int64, status apitypes.TxStatus) *apitypes.M
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: signer,
 		},
-		SequenceID: apitypes.UUIDVersion1(),
+		SequenceID: apitypes.NewULID(),
 		Nonce:      fftypes.NewFFBigInt(nonce),
 		Status:     status,
 	}
@@ -356,7 +356,7 @@ func TestListStreamsBadJSON(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	sID := apitypes.UUIDVersion1()
+	sID := apitypes.NewULID()
 	err := p.db.Put(prefixedKey(eventstreamsPrefix, sID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
@@ -369,14 +369,14 @@ func TestListListenersBadJSON(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	lID := apitypes.UUIDVersion1()
+	lID := apitypes.NewULID()
 	err := p.db.Put(prefixedKey(listenersPrefix, lID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
 	_, err = p.ListListeners(context.Background(), nil, 0, SortDirectionDescending)
 	assert.Error(t, err)
 
-	_, err = p.ListStreamListeners(context.Background(), nil, 0, SortDirectionDescending, apitypes.UUIDVersion1())
+	_, err = p.ListStreamListeners(context.Background(), nil, 0, SortDirectionDescending, apitypes.NewULID())
 	assert.Error(t, err)
 
 }
@@ -387,7 +387,7 @@ func TestDeleteStreamFail(t *testing.T) {
 
 	p.db.Close()
 
-	err := p.DeleteStream(context.Background(), apitypes.UUIDVersion1())
+	err := p.DeleteStream(context.Background(), apitypes.NewULID())
 	assert.Error(t, err)
 
 }
@@ -411,7 +411,7 @@ func TestWriteCheckpointFailMarshal(t *testing.T) {
 
 	p.db.Close()
 
-	id1 := apitypes.UUIDVersion1()
+	id1 := apitypes.NewULID()
 	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
 		Listeners: map[fftypes.UUID]json.RawMessage{
 			*id1: json.RawMessage([]byte(`{"bad": "json"!`)),
@@ -427,7 +427,7 @@ func TestWriteCheckpointFail(t *testing.T) {
 
 	p.db.Close()
 
-	id1 := apitypes.UUIDVersion1()
+	id1 := apitypes.NewULID()
 	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
 		Listeners: map[fftypes.UUID]json.RawMessage{
 			*id1: json.RawMessage([]byte(`{}`)),
@@ -443,7 +443,7 @@ func TestReadListenerFail(t *testing.T) {
 
 	p.db.Close()
 
-	_, err := p.GetListener(context.Background(), apitypes.UUIDVersion1())
+	_, err := p.GetListener(context.Background(), apitypes.NewULID())
 	assert.Error(t, err)
 
 }
@@ -452,7 +452,7 @@ func TestReadCheckpointFail(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	sID := apitypes.UUIDVersion1()
+	sID := apitypes.NewULID()
 	err := p.db.Put(prefixedKey(checkpointsPrefix, sID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
@@ -466,9 +466,9 @@ func TestListManagedTransactionFail(t *testing.T) {
 	defer done()
 
 	tx := &apitypes.ManagedTX{
-		ID:         fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
+		ID:         fmt.Sprintf("ns1:%s", apitypes.NewULID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.UUIDVersion1(),
+		SequenceID: apitypes.NewULID(),
 	}
 	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
@@ -485,9 +485,9 @@ func TestListManagedTransactionCleanupOrphans(t *testing.T) {
 	defer done()
 
 	tx := &apitypes.ManagedTX{
-		ID:         fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1()),
+		ID:         fmt.Sprintf("ns1:%s", apitypes.NewULID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.UUIDVersion1(),
+		SequenceID: apitypes.NewULID(),
 	}
 	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
@@ -506,7 +506,7 @@ func TestListNonceAllocationsFail(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	txID := fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1())
+	txID := fmt.Sprintf("ns1:%s", apitypes.NewULID())
 	err := p.writeKeyValue(context.Background(), txNonceAllocationKey("0xaaa", fftypes.NewFFBigInt(12345)), txDataKey(txID))
 	assert.NoError(t, err)
 	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
@@ -521,8 +521,8 @@ func TestListInflightTransactionFail(t *testing.T) {
 	p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	txID := fmt.Sprintf("ns1:%s", apitypes.UUIDVersion1())
-	err := p.writeKeyValue(context.Background(), txPendingIndexKey(apitypes.UUIDVersion1()), txDataKey(txID))
+	txID := fmt.Sprintf("ns1:%s", apitypes.NewULID())
+	err := p.writeKeyValue(context.Background(), txPendingIndexKey(apitypes.NewULID()), txDataKey(txID))
 	assert.NoError(t, err)
 	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)

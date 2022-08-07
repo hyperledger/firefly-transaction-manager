@@ -43,23 +43,23 @@ func TestRestoreStreamsAndListenersOK(t *testing.T) {
 
 	falsy := false
 
-	es1 := &apitypes.EventStream{ID: apitypes.UUIDVersion1(), Name: strPtr("stream1"), Suspended: &falsy}
+	es1 := &apitypes.EventStream{ID: apitypes.NewULID(), Name: strPtr("stream1"), Suspended: &falsy}
 	err := m.persistence.WriteStream(m.ctx, es1)
 	assert.NoError(t, err)
 
-	e1l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener1"), StreamID: es1.ID}
+	e1l1 := &apitypes.Listener{ID: apitypes.NewULID(), Name: strPtr("listener1"), StreamID: es1.ID}
 	err = m.persistence.WriteListener(m.ctx, e1l1)
 	assert.NoError(t, err)
 
-	e1l2 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener2"), StreamID: es1.ID}
+	e1l2 := &apitypes.Listener{ID: apitypes.NewULID(), Name: strPtr("listener2"), StreamID: es1.ID}
 	err = m.persistence.WriteListener(m.ctx, e1l2)
 	assert.NoError(t, err)
 
-	es2 := &apitypes.EventStream{ID: apitypes.UUIDVersion1(), Name: strPtr("stream2"), Suspended: &falsy}
+	es2 := &apitypes.EventStream{ID: apitypes.NewULID(), Name: strPtr("stream2"), Suspended: &falsy}
 	err = m.persistence.WriteStream(m.ctx, es2)
 	assert.NoError(t, err)
 
-	e2l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener3"), StreamID: es2.ID}
+	e2l1 := &apitypes.Listener{ID: apitypes.NewULID(), Name: strPtr("listener3"), StreamID: es2.ID}
 	err = m.persistence.WriteListener(m.ctx, e2l1)
 	assert.NoError(t, err)
 
@@ -110,7 +110,7 @@ func TestRestoreStreamsValidateFail(t *testing.T) {
 	defer done()
 
 	falsy := false
-	es1 := &apitypes.EventStream{ID: apitypes.UUIDVersion1(), Name: strPtr(""), Suspended: &falsy}
+	es1 := &apitypes.EventStream{ID: apitypes.NewULID(), Name: strPtr(""), Suspended: &falsy}
 	err := m.persistence.WriteStream(m.ctx, es1)
 	assert.NoError(t, err)
 
@@ -129,11 +129,11 @@ func TestRestoreListenersStartFail(t *testing.T) {
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	falsy := false
-	es1 := &apitypes.EventStream{ID: apitypes.UUIDVersion1(), Name: strPtr("stream1"), Suspended: &falsy}
+	es1 := &apitypes.EventStream{ID: apitypes.NewULID(), Name: strPtr("stream1"), Suspended: &falsy}
 	err := m.persistence.WriteStream(m.ctx, es1)
 	assert.NoError(t, err)
 
-	e1l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener1"), StreamID: es1.ID}
+	e1l1 := &apitypes.Listener{ID: apitypes.NewULID(), Name: strPtr("listener1"), StreamID: es1.ID}
 	err = m.persistence.WriteListener(m.ctx, e1l1)
 	assert.NoError(t, err)
 
@@ -155,11 +155,11 @@ func TestDeleteStartedListener(t *testing.T) {
 	mfc.On("EventStreamStopped", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
 
 	falsy := false
-	es1 := &apitypes.EventStream{ID: apitypes.UUIDVersion1(), Name: strPtr("stream1"), Suspended: &falsy}
+	es1 := &apitypes.EventStream{ID: apitypes.NewULID(), Name: strPtr("stream1"), Suspended: &falsy}
 	err := m.persistence.WriteStream(m.ctx, es1)
 	assert.NoError(t, err)
 
-	e1l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), Name: strPtr("listener1"), StreamID: es1.ID}
+	e1l1 := &apitypes.Listener{ID: apitypes.NewULID(), Name: strPtr("listener1"), StreamID: es1.ID}
 	err = m.persistence.WriteListener(m.ctx, e1l1)
 	assert.NoError(t, err)
 
@@ -178,8 +178,8 @@ func TestDeleteStartedListenerFail(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	esID := apitypes.UUIDVersion1()
-	lID := apitypes.UUIDVersion1()
+	esID := apitypes.NewULID()
+	lID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{
 		{ID: lID, StreamID: esID},
@@ -207,7 +207,7 @@ func TestDeleteStreamListenerPersistenceFail(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	esID := apitypes.UUIDVersion1()
+	esID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return(nil, fmt.Errorf("pop"))
 
@@ -222,7 +222,7 @@ func TestDeleteStreamPersistenceFail(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	esID := apitypes.UUIDVersion1()
+	esID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(fmt.Errorf("pop"))
@@ -238,7 +238,7 @@ func TestDeleteStreamNotInitialized(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	esID := apitypes.UUIDVersion1()
+	esID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(nil)
@@ -320,7 +320,7 @@ func TestUpdateExistingListenerNotFound(t *testing.T) {
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetListener", m.ctx, mock.Anything).Return(nil, nil)
 
-	_, err := m.updateExistingListener(m.ctx, apitypes.UUIDVersion1().String(), apitypes.UUIDVersion1().String(), &apitypes.Listener{}, false)
+	_, err := m.updateExistingListener(m.ctx, apitypes.NewULID().String(), apitypes.NewULID().String(), &apitypes.Listener{}, false)
 	assert.Regexp(t, "FF21046", err)
 
 	mp.AssertExpectations(t)
@@ -330,7 +330,7 @@ func TestCreateOrUpdateListenerNotFound(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.createOrUpdateListener(m.ctx, apitypes.UUIDVersion1(), &apitypes.Listener{StreamID: apitypes.UUIDVersion1()}, false)
+	_, err := m.createOrUpdateListener(m.ctx, apitypes.NewULID(), &apitypes.Listener{StreamID: apitypes.NewULID()}, false)
 	assert.Regexp(t, "FF21045", err)
 
 }
@@ -350,7 +350,7 @@ func TestCreateOrUpdateListenerFail(t *testing.T) {
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
 
-	_, err = m.createOrUpdateListener(m.ctx, apitypes.UUIDVersion1(), &apitypes.Listener{StreamID: es.ID}, false)
+	_, err = m.createOrUpdateListener(m.ctx, apitypes.NewULID(), &apitypes.Listener{StreamID: es.ID}, false)
 	assert.Regexp(t, "pop", err)
 
 	mp.AssertExpectations(t)
@@ -373,7 +373,7 @@ func TestCreateOrUpdateListenerWriteFail(t *testing.T) {
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
 
-	_, err = m.createOrUpdateListener(m.ctx, apitypes.UUIDVersion1(), &apitypes.Listener{StreamID: es.ID}, false)
+	_, err = m.createOrUpdateListener(m.ctx, apitypes.NewULID(), &apitypes.Listener{StreamID: es.ID}, false)
 	assert.Regexp(t, "pop", err)
 
 	mp.AssertExpectations(t)
@@ -392,7 +392,7 @@ func TestDeleteListenerStreamNotFound(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	l1 := &apitypes.Listener{ID: apitypes.UUIDVersion1(), StreamID: apitypes.UUIDVersion1()}
+	l1 := &apitypes.Listener{ID: apitypes.NewULID(), StreamID: apitypes.NewULID()}
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetListener", m.ctx, mock.Anything).Return(l1, nil)
 
@@ -420,7 +420,7 @@ func TestDeleteListenerFail(t *testing.T) {
 
 	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
 
-	l1, err := m.createOrUpdateListener(m.ctx, apitypes.UUIDVersion1(), &apitypes.Listener{StreamID: es.ID}, false)
+	l1, err := m.createOrUpdateListener(m.ctx, apitypes.NewULID(), &apitypes.Listener{StreamID: es.ID}, false)
 	assert.NoError(t, err)
 
 	mp.On("GetListener", m.ctx, mock.Anything).Return(l1, nil)
@@ -445,7 +445,7 @@ func TestUpdateStreamNotFound(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.updateStream(m.ctx, apitypes.UUIDVersion1().String(), &apitypes.EventStream{})
+	_, err := m.updateStream(m.ctx, apitypes.NewULID().String(), &apitypes.EventStream{})
 	assert.Regexp(t, "FF21045", err)
 
 }
@@ -502,7 +502,7 @@ func TestGetStreamNotFound(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.getStream(m.ctx, apitypes.UUIDVersion1().String())
+	_, err := m.getStream(m.ctx, apitypes.NewULID().String())
 	assert.Regexp(t, "FF21045", err)
 
 }
@@ -529,7 +529,7 @@ func TestGetListenerBadStreamID(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.getListener(m.ctx, "bad ID", apitypes.UUIDVersion1().String())
+	_, err := m.getListener(m.ctx, "bad ID", apitypes.NewULID().String())
 	assert.Regexp(t, "FF00138", err)
 
 }
@@ -538,7 +538,7 @@ func TestGetListenerBadListenerID(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.getListener(m.ctx, apitypes.UUIDVersion1().String(), "bad ID")
+	_, err := m.getListener(m.ctx, apitypes.NewULID().String(), "bad ID")
 	assert.Regexp(t, "FF00138", err)
 
 }
@@ -550,7 +550,7 @@ func TestGetListenerLookupErr(t *testing.T) {
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetListener", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop"))
 
-	_, err := m.getListener(m.ctx, apitypes.UUIDVersion1().String(), apitypes.UUIDVersion1().String())
+	_, err := m.getListener(m.ctx, apitypes.NewULID().String(), apitypes.NewULID().String())
 	assert.Regexp(t, "pop", err)
 
 	mp.AssertExpectations(t)
@@ -564,7 +564,7 @@ func TestGetListenerNotFound(t *testing.T) {
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetListener", m.ctx, mock.Anything).Return(nil, nil)
 
-	_, err := m.getListener(m.ctx, apitypes.UUIDVersion1().String(), apitypes.UUIDVersion1().String())
+	_, err := m.getListener(m.ctx, apitypes.NewULID().String(), apitypes.NewULID().String())
 	assert.Regexp(t, "FF21046", err)
 
 	mp.AssertExpectations(t)
@@ -575,7 +575,7 @@ func TestGetStreamListenersBadLimit(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.getStreamListeners(m.ctx, "", "!bad limit", apitypes.UUIDVersion1().String())
+	_, err := m.getStreamListeners(m.ctx, "", "!bad limit", apitypes.NewULID().String())
 	assert.Regexp(t, "FF21044", err)
 
 }

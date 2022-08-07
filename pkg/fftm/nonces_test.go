@@ -42,7 +42,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 		ID:         "stale1",
 		Created:    &oldTime,
 		Status:     apitypes.TxStatusSucceeded,
-		SequenceID: apitypes.UUIDVersion1(),
+		SequenceID: apitypes.NewULID(),
 		Nonce:      fftypes.NewFFBigInt(1000), // old nonce
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: "0x12345",
@@ -76,7 +76,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 			Created:    &oldTime,
 			Nonce:      fftypes.NewFFBigInt(int64(ln.nonce)),
 			Status:     apitypes.TxStatusPending,
-			SequenceID: apitypes.UUIDVersion1(),
+			SequenceID: apitypes.NewULID(),
 			TransactionHeaders: ffcapi.TransactionHeaders{
 				From: "0x12345",
 			},

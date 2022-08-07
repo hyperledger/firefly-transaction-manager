@@ -285,7 +285,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 			mtx: &apitypes.ManagedTX{
 				ID:          fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
 				Created:     fftypes.Now(),
-				SequenceID:  apitypes.UUIDVersion1(),
+				SequenceID:  apitypes.NewULID(),
 				Nonce:       fftypes.NewFFBigInt(1000),
 				Status:      apitypes.TxStatusSucceeded,
 				FirstSubmit: fftypes.Now(),

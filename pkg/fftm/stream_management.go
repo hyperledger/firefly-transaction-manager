@@ -156,7 +156,7 @@ func (m *manager) reserveStreamName(ctx context.Context, name string, id *fftype
 }
 
 func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error) {
-	def.ID = apitypes.UUIDVersion1()
+	def.ID = apitypes.NewULID()
 	def.Created = nil // set to updated time by events.NewEventStream
 	if def.Name == nil || *def.Name == "" {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgMissingName)
@@ -200,7 +200,7 @@ func (m *manager) createAndStoreNewStreamListener(ctx context.Context, idStr str
 }
 
 func (m *manager) createAndStoreNewListener(ctx context.Context, def *apitypes.Listener) (*apitypes.Listener, error) {
-	return m.createOrUpdateListener(ctx, apitypes.UUIDVersion1(), def, false)
+	return m.createOrUpdateListener(ctx, apitypes.NewULID(), def, false)
 }
 
 func (m *manager) updateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
