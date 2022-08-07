@@ -119,15 +119,15 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 	}
 	sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
 	sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
-	log.L(ctx).Debugf("Sending transaction: %+v", sendTX)
+	log.L(ctx).Debugf("Sending transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
 	res, reason, err := cAPI.TransactionSend(ctx, sendTX)
 	if err != nil {
 		// A more sophisticated policy engine would consider the reason here, and potentially adjust the transaction for future attempts
 		return reason, err
 	}
-	log.L(ctx).Infof("Transaction hash=%s", res.TransactionHash)
 	mtx.TransactionHash = res.TransactionHash
 	mtx.LastSubmit = fftypes.Now()
+	log.L(ctx).Infof("Transaction %s at nonce %s / %d submitted. Hash: %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash)
 	return "", nil
 }
 
@@ -159,7 +159,7 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 			now := fftypes.Now()
 			if now.Time().Sub(*lastWarnTime.Time()) > p.resubmitInterval {
 				secsSinceSubmit := float64(now.Time().Sub(*mtx.FirstSubmit.Time())) / float64(time.Second)
-				log.L(ctx).Warnf("Transaction %s (op=%s) has not been mined after %.2fs", mtx.TransactionHash, mtx.ID, secsSinceSubmit)
+				log.L(ctx).Infof("Transaction %s at nonce %s / %d has not been mined after %.2fs", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), secsSinceSubmit)
 				info.LastWarnTime = now
 				// We do a resubmit at this point - as it might no longer be in the TX pool
 				if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {

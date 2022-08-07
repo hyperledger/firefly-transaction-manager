@@ -95,7 +95,7 @@ func (m *manager) submitPreparedTX(ctx context.Context, txID string, txHeaders *
 	if err = m.persistence.WriteTransaction(m.ctx, mtx, true); err != nil {
 		return nil, err
 	}
-	log.L(m.ctx).Infof("Tracking transaction %s at nonce %d", mtx.ID, mtx.Nonce.Int64())
+	log.L(m.ctx).Infof("Tracking transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
 	m.markInflightStale()
 
 	// Ok - we've spent it. The rest of the processing will be triggered off of lockedNonce
