@@ -247,7 +247,7 @@ func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendin
 					m.mux.Lock()
 					pending.mtx.Receipt = receipt
 					m.mux.Unlock()
-					log.L(m.ctx).Infof("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
+					log.L(m.ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 					m.markInflightUpdate()
 				},
 				Confirmed: func(ctx context.Context, confirmations []confirmations.BlockInfo) {
@@ -256,7 +256,7 @@ func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendin
 					pending.confirmed = true
 					pending.mtx.Confirmations = confirmations
 					m.mux.Unlock()
-					log.L(m.ctx).Infof("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
+					log.L(m.ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 					m.markInflightUpdate()
 				},
 			},

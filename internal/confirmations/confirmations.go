@@ -99,9 +99,9 @@ type blockConfirmationManager struct {
 	done                  chan struct{}
 }
 
-func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API) Manager {
+func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API, desc string) Manager {
 	bcm := &blockConfirmationManager{
-		baseContext:           log.WithLogField(baseContext, "role", "confirmations"),
+		baseContext:           baseContext,
 		connector:             connector,
 		blockListenerStale:    true,
 		requiredConfirmations: config.GetInt(tmconfig.ConfirmationsRequired),
@@ -112,6 +112,8 @@ func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.A
 		newBlockHashes:        make(chan *ffcapi.BlockHashEvent, config.GetInt(tmconfig.ConfirmationsBlockQueueLength)),
 	}
 	bcm.ctx, bcm.cancelFunc = context.WithCancel(baseContext)
+	// add a log context for this specific confirmation manager (as there are many within the )
+	bcm.ctx = log.WithLogField(bcm.ctx, "role", fmt.Sprintf("confirmations_%s", desc))
 	return bcm
 }
 
@@ -476,7 +478,7 @@ func (bcm *blockConfirmationManager) addOrReplaceItem(pending *pendingItem) {
 func (bcm *blockConfirmationManager) removeItem(pendingKey string, stale bool) {
 	bcm.pendingMux.Lock()
 	defer bcm.pendingMux.Unlock()
-	log.L(bcm.ctx).Infof("Removing item %s (stale=%t)", pendingKey, stale)
+	log.L(bcm.ctx).Debugf("Removing pending item %s (stale=%t)", pendingKey, stale)
 	delete(bcm.pending, pendingKey)
 	delete(bcm.staleReceipts, pendingKey)
 }
@@ -508,12 +510,14 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 
 	// For any transactions in the block that are known to us, we need to mark them
 	// stale to go query the receipt
+	l := log.L(bcm.ctx)
+	l.Debugf("Transactions mined in block %d / %s: %v", block.BlockNumber, block.BlockHash, block.TransactionHashes)
 	bcm.pendingMux.Lock()
 	for _, txHash := range block.TransactionHashes {
 		txKey := pendingKeyForTX(txHash)
 		if pending, ok := bcm.pending[txKey]; ok {
 			if pending.blockHash != block.BlockHash {
-				log.L(bcm.ctx).Infof("Detected transaction %s added to block %d / %s - receipt check scheduled", txHash, block.BlockNumber, block.BlockHash)
+				l.Infof("Detected transaction %s added to block %d / %s - receipt check scheduled", txHash, block.BlockNumber, block.BlockHash)
 				bcm.staleReceipts[txKey] = true
 			}
 		}

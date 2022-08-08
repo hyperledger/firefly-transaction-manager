@@ -136,7 +136,7 @@ func NewEventStream(
 		checkpointInterval: config.GetDuration(tmconfig.EventStreamsCheckpointInterval),
 	}
 	if config.GetInt(tmconfig.ConfirmationsRequired) > 0 {
-		es.confirmations = confirmations.NewBlockConfirmationManager(esCtx, connector)
+		es.confirmations = confirmations.NewBlockConfirmationManager(esCtx, connector, "_es_"+persistedSpec.ID.String())
 	}
 	// The configuration we have in memory, applies all the defaults to what is passed in
 	// to ensure there are no nil fields on the configuration object.

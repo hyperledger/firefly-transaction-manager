@@ -123,7 +123,7 @@ type pendingState struct {
 }
 
 func (m *manager) initServices(ctx context.Context) (err error) {
-	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector)
+	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts")
 	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
 	if err != nil {
 		return err

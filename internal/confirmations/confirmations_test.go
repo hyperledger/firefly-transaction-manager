@@ -41,7 +41,7 @@ func newTestBlockConfirmationManager(t *testing.T, enabled bool) (*blockConfirma
 func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmationManager, *ffcapimocks.API) {
 	logrus.SetLevel(logrus.DebugLevel)
 	mca := &ffcapimocks.API{}
-	bcm := NewBlockConfirmationManager(context.Background(), mca)
+	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut")
 	return bcm.(*blockConfirmationManager), mca
 }
 
