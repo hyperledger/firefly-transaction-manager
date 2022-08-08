@@ -17,6 +17,7 @@
 package fftm
 
 import (
+	"context"
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -31,18 +32,19 @@ import (
 
 func (m *manager) policyLoop() {
 	defer close(m.policyLoopDone)
+	ctx := log.WithLogField(m.ctx, "role", "policyloop")
 
 	for {
 		timer := time.NewTimer(m.policyLoopInterval)
 		select {
 		case <-m.inflightUpdate:
-			m.policyLoopCycle(false)
+			m.policyLoopCycle(ctx, false)
 		case <-m.inflightStale:
-			m.policyLoopCycle(true)
+			m.policyLoopCycle(ctx, true)
 		case <-timer.C:
-			m.policyLoopCycle(false)
-		case <-m.ctx.Done():
-			log.L(m.ctx).Infof("Receipt poller exiting")
+			m.policyLoopCycle(ctx, false)
+		case <-ctx.Done():
+			log.L(ctx).Infof("Receipt poller exiting")
 			return
 		}
 	}
@@ -62,7 +64,7 @@ func (m *manager) markInflightUpdate() {
 	}
 }
 
-func (m *manager) updateInflightSet() bool {
+func (m *manager) updateInflightSet(ctx context.Context) bool {
 
 	oldInflight := m.inflight
 	m.inflight = make([]*pendingState, 0, len(oldInflight))
@@ -83,12 +85,12 @@ func (m *manager) updateInflightSet() bool {
 		}
 		var additional []*apitypes.ManagedTX
 		// We retry the get from persistence indefinitely (until the context cancels)
-		err := m.retry.Do(m.ctx, "get pending transactions", func(attempt int) (retry bool, err error) {
-			additional, err = m.persistence.ListTransactionsPending(m.ctx, after, spaces, persistence.SortDirectionAscending)
+		err := m.retry.Do(ctx, "get pending transactions", func(attempt int) (retry bool, err error) {
+			additional, err = m.persistence.ListTransactionsPending(ctx, after, spaces, persistence.SortDirectionAscending)
 			return true, err
 		})
 		if err != nil {
-			log.L(m.ctx).Infof("Policy loop context cancelled while retrying")
+			log.L(ctx).Infof("Policy loop context cancelled while retrying")
 			return false
 		}
 		for _, mtx := range additional {
@@ -96,26 +98,26 @@ func (m *manager) updateInflightSet() bool {
 		}
 		newLen := len(m.inflight)
 		if newLen > 0 {
-			log.L(m.ctx).Debugf("Inflight set updated len=%d head-seq=%s tail-seq=%s old-tail=%s", len(m.inflight), m.inflight[0].mtx.SequenceID, m.inflight[newLen-1].mtx.SequenceID, after)
+			log.L(ctx).Debugf("Inflight set updated len=%d head-seq=%s tail-seq=%s old-tail=%s", len(m.inflight), m.inflight[0].mtx.SequenceID, m.inflight[newLen-1].mtx.SequenceID, after)
 		}
 	}
 	return true
 
 }
 
-func (m *manager) policyLoopCycle(inflightStale bool) {
+func (m *manager) policyLoopCycle(ctx context.Context, inflightStale bool) {
 
 	if inflightStale {
-		if !m.updateInflightSet() {
+		if !m.updateInflightSet(ctx) {
 			return
 		}
 	}
 
 	// Go through executing the policy engine against them
 	for _, pending := range m.inflight {
-		err := m.execPolicy(pending)
+		err := m.execPolicy(ctx, pending)
 		if err != nil {
-			log.L(m.ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
+			log.L(ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
 		}
 	}
 
@@ -140,7 +142,7 @@ func (m *manager) addError(mtx *apitypes.ManagedTX, reason ffcapi.ErrorReason, e
 	}
 }
 
-func (m *manager) execPolicy(pending *pendingState) (err error) {
+func (m *manager) execPolicy(ctx context.Context, pending *pendingState) (err error) {
 
 	var updated bool
 	completed := false
@@ -160,7 +162,7 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 			mtx.ErrorMessage = ""
 		} else {
 			mtx.Status = apitypes.TxStatusFailed
-			mtx.ErrorMessage = i18n.NewError(m.ctx, tmmsgs.MsgTransactionFailed).Error()
+			mtx.ErrorMessage = i18n.NewError(ctx, tmmsgs.MsgTransactionFailed).Error()
 		}
 
 	default:
@@ -171,14 +173,14 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 			// such as submitting for the first time, or raising the gas etc.
 			var reason ffcapi.ErrorReason
-			updated, reason, err = m.policyEngine.Execute(m.ctx, m.connector, pending.mtx)
+			updated, reason, err = m.policyEngine.Execute(ctx, m.connector, pending.mtx)
 			if err != nil {
-				log.L(m.ctx).Errorf("Policy engine returned error for operation %s reason=%s: %s", mtx.ID, reason, err)
+				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, reason, err)
 				m.addError(mtx, reason, err)
 			} else {
 				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 					// If now submitted, add to confirmations manager for receipt checking
-					m.trackSubmittedTransaction(pending)
+					m.trackSubmittedTransaction(ctx, pending)
 				}
 				pending.lastPolicyCycle = time.Now()
 			}
@@ -187,9 +189,9 @@ func (m *manager) execPolicy(pending *pendingState) (err error) {
 
 	if updated || err != nil {
 		mtx.Updated = fftypes.Now()
-		err := m.persistence.WriteTransaction(m.ctx, mtx, false)
+		err := m.persistence.WriteTransaction(ctx, mtx, false)
 		if err != nil {
-			log.L(m.ctx).Errorf("Failed to update operation %s (status=%s): %s", mtx.ID, mtx.Status, err)
+			log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
 			return err
 		}
 		if completed {
@@ -221,7 +223,7 @@ func (m *manager) sendWSReply(mtx *apitypes.ManagedTX) {
 	m.wsServer.SendReply(wsr)
 }
 
-func (m *manager) trackSubmittedTransaction(pending *pendingState) {
+func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendingState) {
 	var err error
 
 	// Clear any old transaction hash
@@ -240,19 +242,21 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 			NotificationType: confirmations.NewTransaction,
 			Transaction: &confirmations.TransactionInfo{
 				TransactionHash: pending.mtx.TransactionHash,
-				Receipt: func(receipt *ffcapi.TransactionReceiptResponse) {
+				Receipt: func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse) {
 					// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 					m.mux.Lock()
 					pending.mtx.Receipt = receipt
 					m.mux.Unlock()
+					log.L(m.ctx).Infof("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 					m.markInflightUpdate()
 				},
-				Confirmed: func(confirmations []confirmations.BlockInfo) {
+				Confirmed: func(ctx context.Context, confirmations []confirmations.BlockInfo) {
 					// Will be picked up on the next policy loop cycle
 					m.mux.Lock()
 					pending.confirmed = true
 					pending.mtx.Confirmations = confirmations
 					m.mux.Unlock()
+					log.L(m.ctx).Infof("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 					m.markInflightUpdate()
 				},
 			},
@@ -261,7 +265,7 @@ func (m *manager) trackSubmittedTransaction(pending *pendingState) {
 
 	// Only reason for error here should be a cancelled context
 	if err != nil {
-		log.L(m.ctx).Infof("Error detected notifying confirmation manager: %s", err)
+		log.L(ctx).Infof("Error detected notifying confirmation manager: %s", err)
 	} else {
 		pending.trackingTransactionHash = pending.mtx.TransactionHash
 	}

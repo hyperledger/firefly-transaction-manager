@@ -58,7 +58,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmed: func(confirmations []BlockInfo) {
+		Confirmed: func(ctx context.Context, confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
 	}
@@ -169,7 +169,7 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmed: func(confirmations []BlockInfo) {
+		Confirmed: func(ctx context.Context, confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
 	}
@@ -294,10 +294,10 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	receiptReceived := make(chan *ffcapi.TransactionReceiptResponse, 1)
 	txToConfirmForkA := &TransactionInfo{
 		TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-		Confirmed: func(confirmations []BlockInfo) {
+		Confirmed: func(ctx context.Context, confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
-		Receipt: func(receipt *ffcapi.TransactionReceiptResponse) {
+		Receipt: func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse) {
 			receiptReceived <- receipt
 		},
 	}
@@ -470,7 +470,7 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmed: func(confirmations []BlockInfo) {
+		Confirmed: func(ctx context.Context, confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
 	}
@@ -601,7 +601,7 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmed: func(confirmations []BlockInfo) {
+		Confirmed: func(ctx context.Context, confirmations []BlockInfo) {
 			confirmed <- confirmations
 		},
 	}
@@ -926,7 +926,7 @@ func TestNotificationValidation(t *testing.T) {
 		NotificationType: NewTransaction,
 		Transaction: &TransactionInfo{
 			TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-			Confirmed:       func(confirmations []BlockInfo) {},
+			Confirmed:       func(ctx context.Context, confirmations []BlockInfo) {},
 		},
 	})
 	assert.NoError(t, err)
@@ -970,7 +970,7 @@ func TestCheckReceiptImmediateConfirm(t *testing.T) {
 	pending := &pendingItem{
 		pType:           pendingTypeTransaction,
 		transactionHash: txHash,
-		confirmedCallback: func(confirmations []BlockInfo) {
+		confirmedCallback: func(ctx context.Context, confirmations []BlockInfo) {
 			close(done)
 		},
 	}

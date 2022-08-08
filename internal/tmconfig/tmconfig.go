@@ -89,7 +89,7 @@ func setDefaults() {
 
 	viper.SetDefault(string(PersistenceType), "leveldb")
 	viper.SetDefault(string(PersistenceLevelDBMaxHandles), 100)
-	viper.SetDefault(string(PersistenceLevelDBSyncWrites), true)
+	viper.SetDefault(string(PersistenceLevelDBSyncWrites), false)
 
 	viper.SetDefault(string(APIDefaultRequestTimeout), "30s")
 	viper.SetDefault(string(APIMaxRequestTimeout), "10m")

@@ -61,13 +61,13 @@ type Notification struct {
 
 type EventInfo struct {
 	ID        *ffcapi.EventID
-	Confirmed func(confirmations []BlockInfo)
+	Confirmed func(ctx context.Context, confirmations []BlockInfo)
 }
 
 type TransactionInfo struct {
 	TransactionHash string
-	Receipt         func(receipt *ffcapi.TransactionReceiptResponse)
-	Confirmed       func(confirmations []BlockInfo)
+	Receipt         func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse)
+	Confirmed       func(ctx context.Context, confirmations []BlockInfo)
 }
 
 type RemovedListenerInfo struct {
@@ -101,7 +101,7 @@ type blockConfirmationManager struct {
 
 func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API) Manager {
 	bcm := &blockConfirmationManager{
-		baseContext:           baseContext,
+		baseContext:           log.WithLogField(baseContext, "role", "confirmations"),
 		connector:             connector,
 		blockListenerStale:    true,
 		requiredConfirmations: config.GetInt(tmconfig.ConfirmationsRequired),
@@ -129,8 +129,8 @@ type pendingItem struct {
 	added             time.Time
 	confirmations     []*BlockInfo
 	lastReceiptCheck  time.Time
-	receiptCallback   func(receipt *ffcapi.TransactionReceiptResponse)
-	confirmedCallback func(confirmations []BlockInfo)
+	receiptCallback   func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse)
+	confirmedCallback func(ctx context.Context, confirmations []BlockInfo)
 	transactionHash   string
 	blockHash         string        // can be notified of changes to this for receipts
 	blockNumber       uint64        // known at creation time for event logs
@@ -432,7 +432,7 @@ func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem, blocks *
 		log.L(bcm.ctx).Infof("Receipt for transaction %s downloaded. BlockNumber=%d BlockHash=%s", pending.transactionHash, pending.blockNumber, pending.blockHash)
 		// Notify of the receipt
 		if pending.receiptCallback != nil {
-			pending.receiptCallback(res)
+			pending.receiptCallback(bcm.ctx, res)
 		}
 
 		if bcm.requiredConfirmations == 0 {
@@ -564,7 +564,7 @@ func (bcm *blockConfirmationManager) dispatchConfirmed(item *pendingItem) {
 	bcm.removeItem(pendingKey, false)
 
 	log.L(bcm.ctx).Infof("Confirmed with %d confirmations event=%s", len(item.confirmations), pendingKey)
-	item.confirmedCallback(item.copyConfirmations() /* a safe copy outside of our cache */)
+	item.confirmedCallback(bcm.ctx, item.copyConfirmations() /* a safe copy outside of our cache */)
 }
 
 // walkChain goes through each event and sees whether it's valid,

@@ -143,7 +143,7 @@ nav_order: 2
 |---|-----------|----|-------------|
 |maxHandles|The maximum number of cached file handles LevelDB should keep open|`int`|`100`
 |path|The path for the LevelDB persistence directory|`string`|`<nil>`
-|syncWrites|Whether to synchronously perform writes to the storage|`boolean`|`true`
+|syncWrites|Whether to synchronously perform writes to the storage|`boolean`|`false`
 
 ## policyengine
 

@@ -17,6 +17,7 @@
 package fftm
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -82,26 +83,26 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 		return n.NotificationType == confirmations.NewTransaction
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
-		n.Transaction.Receipt(&ffcapi.TransactionReceiptResponse{
+		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
 			BlockHash:        fftypes.NewRandB32().String(),
 			Success:          true,
 		})
-		n.Transaction.Confirmed([]confirmations.BlockInfo{})
+		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
 	}).Return(nil)
 
 	// Run the policy once to do the send
 	<-m.inflightStale // from sending the TX
-	m.policyLoopCycle(true)
+	m.policyLoopCycle(m.ctx, true)
 	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// A second time will mark it complete for flush
-	m.policyLoopCycle(false)
+	m.policyLoopCycle(m.ctx, false)
 
 	<-m.inflightStale // policy loop should have marked us stale, to clean up the TX
-	m.policyLoopCycle(true)
+	m.policyLoopCycle(m.ctx, true)
 	assert.Empty(t, m.inflight)
 
 	// Check the update is persisted
@@ -133,26 +134,26 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 		return n.NotificationType == confirmations.NewTransaction
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
-		n.Transaction.Receipt(&ffcapi.TransactionReceiptResponse{
+		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
 			BlockHash:        fftypes.NewRandB32().String(),
 			Success:          false,
 		})
-		n.Transaction.Confirmed([]confirmations.BlockInfo{})
+		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
 	}).Return(nil)
 
 	// Run the policy once to do the send
 	<-m.inflightStale // from sending the TX
-	m.policyLoopCycle(true)
+	m.policyLoopCycle(m.ctx, true)
 	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// A second time will mark it complete for flush
-	m.policyLoopCycle(false)
+	m.policyLoopCycle(m.ctx, false)
 
 	<-m.inflightStale // policy loop should have marked us stale, to clean up the TX
-	m.policyLoopCycle(true)
+	m.policyLoopCycle(m.ctx, true)
 	assert.Empty(t, m.inflight)
 
 	// Check the update is persisted
@@ -204,31 +205,31 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 			n.Transaction.TransactionHash == txHash2
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
-		n.Transaction.Receipt(&ffcapi.TransactionReceiptResponse{
+		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
 			BlockHash:        fftypes.NewRandB32().String(),
 			Success:          true,
 		})
-		n.Transaction.Confirmed([]confirmations.BlockInfo{})
+		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
 	}).Return(nil)
 
 	// Run the policy once to do the send with the first hash
 	<-m.inflightStale // from sending the TX
-	m.policyLoopCycle(true)
+	m.policyLoopCycle(m.ctx, true)
 	assert.Len(t, m.inflight, 1)
 	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// Run again to confirm it does not change anything, when the state is the same
-	m.policyLoopCycle(true)
+	m.policyLoopCycle(m.ctx, true)
 	assert.Len(t, m.inflight, 1)
 	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
 	// Reset the transaction so the policy manager resubmits it
 	m.inflight[0].mtx.FirstSubmit = nil
-	m.policyLoopCycle(false)
+	m.policyLoopCycle(m.ctx, false)
 	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
 
@@ -252,7 +253,7 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 	mc := m.confirmations.(*confirmationsmocks.Manager)
 	mc.On("Notify", mock.Anything).Return(fmt.Errorf("pop"))
 
-	m.policyLoopCycle(true)
+	m.policyLoopCycle(m.ctx, true)
 
 	mc.AssertExpectations(t)
 	mfc.AssertExpectations(t)
@@ -268,7 +269,7 @@ func TestInflightSetListFailCancel(t *testing.T) {
 	mp.On("ListTransactionsPending", m.ctx, (*fftypes.UUID)(nil), m.maxInFlight, persistence.SortDirectionAscending).
 		Return(nil, fmt.Errorf("pop"))
 
-	m.policyLoopCycle(true)
+	m.policyLoopCycle(m.ctx, true)
 
 	mp.AssertExpectations(t)
 
@@ -301,7 +302,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 	mp.On("WriteTransaction", m.ctx, mock.Anything, false).Return(fmt.Errorf("pop"))
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
-	m.policyLoopCycle(false)
+	m.policyLoopCycle(m.ctx, false)
 
 	mp.AssertExpectations(t)
 
