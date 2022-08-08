@@ -119,7 +119,7 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 	}
 	sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
 	sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
-	log.L(ctx).Debugf("Sending transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
+	log.L(ctx).Debugf("Sending transaction %s at nonce %s / %d (lastSubmit=%s)", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.LastSubmit)
 	res, reason, err := cAPI.TransactionSend(ctx, sendTX)
 	if err == nil {
 		mtx.TransactionHash = res.TransactionHash
@@ -127,9 +127,17 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 	} else {
 		// We have some simple rules for handling reasons from the connector, which could be enhanced by extending the connector.
 		switch reason {
-		case ffcapi.ErrorKnownTransaction:
+		case ffcapi.ErrorKnownTransaction, ffcapi.ErrorReasonNonceTooLow:
 			// If we already have a transaction hash, this is fine - we just return as if we submitted it
-
+			if mtx.TransactionHash != "" {
+				log.L(ctx).Debugf("Transaction %s at nonce %s / %d known with hash: %s (%s)", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash, err)
+				return "", nil
+			}
+			// TODO: to cover the edge case where we had a timeout or other failure during the initial TransactionSend, we need to
+			//       be able to re-calculate the hash that we would expect for the transaction.
+			//       This would require a new FFCAPI API to calculate that hash, which requires the connector to perform the signing
+			//       without submission to the node. For example using `eth_signTransaction` for EVM JSON/RPC.
+			return reason, err
 		default:
 			return reason, err
 		}
