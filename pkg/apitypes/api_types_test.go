@@ -211,16 +211,17 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 	assert.NoError(t, err)
 	assert.JSONEq(t, `{
 		"blockHash":"0x12345",
-		"blockNumber":12345,
+		"blockNumber":"12345",
 		"data": {"dk1":"dv1"},
 		"key1":"val1",
 		"listenerId":"`+e.ID.ListenerID.String()+`",
 		"listenerName":"listener1",
-		"logIndex":1, "signature":"ev()",
+		"logIndex":"1",
+		"signature":"ev()",
 		"subId":"`+e.StandardContext.DeprecatedSubID.String()+`",
 		"streamId":"`+e.StandardContext.StreamID.String()+`",
 		"transactionHash":"0x23456",
-		"transactionIndex":10
+		"transactionIndex":"10"
 	}`, string(b))
 
 	var e2 *EventWithContext

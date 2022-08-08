@@ -88,14 +88,14 @@ type BlockHashEvent struct {
 
 // EventID are the set of required fields an FFCAPI compatible connector needs to map to the underlying blockchain constructs, to uniquely identify an event
 type EventID struct {
-	ListenerID       *fftypes.UUID   `json:"listenerId"`          // The listener for the event
-	Signature        string          `json:"signature"`           // The signature of this specific event (noting a listener might filter on multiple events)
-	BlockHash        string          `json:"blockHash"`           // String representation of the block, which will change if any transaction info in the block changes
-	BlockNumber      uint64          `json:"blockNumber"`         // A numeric identifier for the block
-	TransactionHash  string          `json:"transactionHash"`     // The transaction
-	TransactionIndex uint64          `json:"transactionIndex"`    // Index within the block of the transaction that emitted the event
-	LogIndex         uint64          `json:"logIndex"`            // Index within the transaction of this emitted event log
-	Timestamp        *fftypes.FFTime `json:"timestamp,omitempty"` // The on-chain timestamp
+	ListenerID       *fftypes.UUID    `json:"listenerId"`          // The listener for the event
+	Signature        string           `json:"signature"`           // The signature of this specific event (noting a listener might filter on multiple events)
+	BlockHash        string           `json:"blockHash"`           // String representation of the block, which will change if any transaction info in the block changes
+	BlockNumber      fftypes.FFuint64 `json:"blockNumber"`         // A numeric identifier for the block
+	TransactionHash  string           `json:"transactionHash"`     // The transaction
+	TransactionIndex fftypes.FFuint64 `json:"transactionIndex"`    // Index within the block of the transaction that emitted the event
+	LogIndex         fftypes.FFuint64 `json:"logIndex"`            // Index within the transaction of this emitted event log
+	Timestamp        *fftypes.FFTime  `json:"timestamp,omitempty"` // The on-chain timestamp
 }
 
 // Event is a blockchain event that matches one of the started listeners,

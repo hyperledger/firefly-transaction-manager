@@ -121,12 +121,19 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 	sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
 	log.L(ctx).Debugf("Sending transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
 	res, reason, err := cAPI.TransactionSend(ctx, sendTX)
-	if err != nil {
-		// A more sophisticated policy engine would consider the reason here, and potentially adjust the transaction for future attempts
-		return reason, err
+	if err == nil {
+		mtx.TransactionHash = res.TransactionHash
+		mtx.LastSubmit = fftypes.Now()
+	} else {
+		// We have some simple rules for handling reasons from the connector, which could be enhanced by extending the connector.
+		switch reason {
+		case ffcapi.ErrorKnownTransaction:
+			// If we already have a transaction hash, this is fine - we just return as if we submitted it
+
+		default:
+			return reason, err
+		}
 	}
-	mtx.TransactionHash = res.TransactionHash
-	mtx.LastSubmit = fftypes.Now()
 	log.L(ctx).Infof("Transaction %s at nonce %s / %d submitted. Hash: %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash)
 	return "", nil
 }

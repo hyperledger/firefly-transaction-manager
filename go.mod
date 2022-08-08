@@ -8,7 +8,7 @@ require (
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/hyperledger/firefly-common v0.1.16
+	github.com/hyperledger/firefly-common v0.1.17-0.20220808193503-961a6b241a1a
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/viper v1.12.0

@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -36,9 +37,9 @@ func TestSortEvents(t *testing.T) {
 		l, _ := rand.Int(rand.Reader, big.NewInt(10))
 		events[i] = &Event{
 			ID: EventID{
-				BlockNumber:      b.Uint64(),
-				TransactionIndex: t.Uint64(),
-				LogIndex:         l.Uint64(),
+				BlockNumber:      fftypes.FFuint64(b.Uint64()),
+				TransactionIndex: fftypes.FFuint64(t.Uint64()),
+				LogIndex:         fftypes.FFuint64(l.Uint64()),
 			},
 		}
 		listenerUpdates[i] = &ListenerEvent{

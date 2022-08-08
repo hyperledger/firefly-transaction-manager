@@ -76,10 +76,10 @@ type RemovedListenerInfo struct {
 }
 
 type BlockInfo struct {
-	BlockNumber       uint64   `json:"blockNumber"`
-	BlockHash         string   `json:"blockHash"`
-	ParentHash        string   `json:"parentHash"`
-	TransactionHashes []string `json:"transactionHashes,omitempty"`
+	BlockNumber       fftypes.FFuint64 `json:"blockNumber"`
+	BlockHash         string           `json:"blockHash"`
+	ParentHash        string           `json:"parentHash"`
+	TransactionHashes []string         `json:"transactionHashes,omitempty"`
 }
 
 type blockConfirmationManager struct {
@@ -174,11 +174,11 @@ func (n *Notification) eventPendingItem() *pendingItem {
 	return &pendingItem{
 		pType:             pendingTypeEvent,
 		listenerID:        n.Event.ID.ListenerID,
-		blockNumber:       n.Event.ID.BlockNumber,
+		blockNumber:       n.Event.ID.BlockNumber.Uint64(),
 		blockHash:         n.Event.ID.BlockHash,
 		transactionHash:   n.Event.ID.TransactionHash,
-		transactionIndex:  n.Event.ID.TransactionIndex,
-		logIndex:          n.Event.ID.LogIndex,
+		transactionIndex:  n.Event.ID.TransactionIndex.Uint64(),
+		logIndex:          n.Event.ID.LogIndex.Uint64(),
 		confirmedCallback: n.Event.Confirmed,
 	}
 }
@@ -302,7 +302,7 @@ func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expect
 
 func transformBlockInfo(res *ffcapi.BlockInfo) *BlockInfo {
 	return &BlockInfo{
-		BlockNumber:       res.BlockNumber.Uint64(),
+		BlockNumber:       fftypes.FFuint64(res.BlockNumber.Uint64()),
 		BlockHash:         res.BlockHash,
 		ParentHash:        res.ParentHash,
 		TransactionHashes: res.TransactionHashes,
@@ -498,8 +498,8 @@ func (bcm *blockConfirmationManager) processBlockHashes(blockHashes []string) {
 		bcm.processBlock(block)
 
 		// Update the highest block (used for efficiency in chain walks)
-		if block.BlockNumber > bcm.highestBlockSeen {
-			bcm.highestBlockSeen = block.BlockNumber
+		if block.BlockNumber.Uint64() > bcm.highestBlockSeen {
+			bcm.highestBlockSeen = block.BlockNumber.Uint64()
 		}
 	}
 }
@@ -522,7 +522,7 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 
 	// Go through all the events, adding in the confirmations, and popping any out
 	// that have reached their threshold. Then drop the log before logging/processing them.
-	blockNumber := block.BlockNumber
+	blockNumber := block.BlockNumber.Uint64()
 	var confirmed pendingItems
 	for pendingKey, pending := range bcm.pending {
 		if pending.blockHash != "" {

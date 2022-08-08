@@ -1611,7 +1611,7 @@ func TestSkipEventsBehindCheckpoint(t *testing.T) {
 		batchLoopDone: make(chan struct{}),
 		action: func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
 			assert.Len(t, events, 1)
-			assert.Equal(t, events[0].ID.BlockNumber, uint64(2001))
+			assert.Equal(t, events[0].ID.BlockNumber.Uint64(), uint64(2001))
 			return nil
 		},
 	}
