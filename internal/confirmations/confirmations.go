@@ -535,10 +535,10 @@ func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
 			expectedParentHash := pending.blockHash
 			expectedBlockNumber := pending.blockNumber + 1
 			for i := 0; i < (len(pending.confirmations) + 1); i++ {
-				log.L(bcm.ctx).Tracef("Comparing block number=%d parent=%s to %d / %s for %s", blockNumber, block.ParentHash, expectedBlockNumber, expectedParentHash, pendingKey)
+				l.Tracef("Comparing block number=%d parent=%s to %d / %s for %s", blockNumber, block.ParentHash, expectedBlockNumber, expectedParentHash, pendingKey)
 				if block.ParentHash == expectedParentHash && blockNumber == expectedBlockNumber {
 					pending.confirmations = append(pending.confirmations[0:i], block)
-					log.L(bcm.ctx).Infof("Confirmation %d at block %d / %s item=%s",
+					l.Infof("Confirmation %d at block %d / %s item=%s",
 						len(pending.confirmations), block.BlockNumber, block.BlockHash, pending.getKey())
 					break
 				}

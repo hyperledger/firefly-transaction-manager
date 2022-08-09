@@ -493,6 +493,7 @@ func (es *eventStream) Start(ctx context.Context) error {
 	for _, l := range es.listeners {
 		initialListeners = append(initialListeners, l.buildAddRequest(ctx, cp))
 	}
+	startedState.blocks, startedState.blockListenerDone = blocklistener.BufferChannel(startedState.ctx, es.confirmations)
 	_, _, err = es.connector.EventStreamStart(startedState.ctx, &ffcapi.EventStreamStartRequest{
 		ID:               es.spec.ID,
 		EventStream:      startedState.updates,
@@ -508,7 +509,6 @@ func (es *eventStream) Start(ctx context.Context) error {
 	// Kick off the loops
 	go es.eventLoop(startedState)
 	go es.batchLoop(startedState)
-	startedState.blocks, startedState.blockListenerDone = blocklistener.BufferChannel(startedState.ctx, es.confirmations)
 
 	// Start the confirmations manager
 	if es.confirmations != nil {
