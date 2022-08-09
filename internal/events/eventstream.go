@@ -360,7 +360,7 @@ func (es *eventStream) verifyListenerOptions(ctx context.Context, id *fftypes.UU
 }
 
 func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID, updates *apitypes.Listener, reset bool) (merged *apitypes.Listener, err error) {
-	log.L(ctx).Warnf("Adding/updating listener %s", id)
+	log.L(ctx).Infof("Adding/updating listener %s", id)
 
 	// Ask the connector to verify the options, and apply defaults
 	spec, err := es.verifyListenerOptions(ctx, id, updates)
@@ -852,7 +852,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 			if l, ok := es.listeners[lID]; ok {
 				l.checkpoint = lCP
 				l.lastCheckpoint = fftypes.Now()
-				log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %s", l.spec.Signature, l.spec.ID, lCP)
+				log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %+v", l.spec.Signature, l.spec.ID, lCP)
 			}
 		}
 	}
