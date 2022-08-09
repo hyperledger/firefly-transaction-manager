@@ -18,6 +18,7 @@ package fftm
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -213,6 +214,9 @@ func (m *manager) updateExistingListener(ctx context.Context, streamIDStr, liste
 }
 
 func (m *manager) createOrUpdateListener(ctx context.Context, id *fftypes.UUID, newOrUpdates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
+	if err := mergeEthCompatMethods(ctx, newOrUpdates); err != nil {
+		return nil, err
+	}
 	var s events.Stream
 	if newOrUpdates.StreamID != nil {
 		m.mux.Lock()
@@ -380,4 +384,25 @@ func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, id
 		return nil, err
 	}
 	return m.persistence.ListStreamListeners(ctx, after, limit, persistence.SortDirectionDescending, id)
+}
+
+func mergeEthCompatMethods(ctx context.Context, listener *apitypes.Listener) error {
+	if listener.EthCompatMethods != nil {
+		if listener.Options == nil {
+			listener.Options = fftypes.JSONAnyPtr("{}")
+		}
+		var optionsMap map[string]interface{}
+		if err := listener.Options.Unmarshal(ctx, &optionsMap); err != nil {
+			return err
+		}
+		var methodList []interface{}
+		if err := listener.EthCompatMethods.Unmarshal(ctx, &methodList); err != nil {
+			return err
+		}
+		optionsMap["methods"] = methodList
+		b, _ := json.Marshal(optionsMap)
+		listener.Options = fftypes.JSONAnyPtrBytes(b)
+		listener.EthCompatMethods = nil
+	}
+	return nil
 }

@@ -57,8 +57,8 @@ func mergeValidateWhConfig(ctx context.Context, changed bool, base *apitypes.Web
 	changed = apitypes.CheckUpdateBool(changed, &merged.TLSkipHostVerify, base.TLSkipHostVerify, updates.TLSkipHostVerify, false)
 
 	// Request timeout
-	if updates.DeprecatedRequestTimeoutSec != nil {
-		dv := fftypes.FFDuration(*updates.DeprecatedRequestTimeoutSec) * fftypes.FFDuration(time.Second)
+	if updates.EthCompatRequestTimeoutSec != nil {
+		dv := fftypes.FFDuration(*updates.EthCompatRequestTimeoutSec) * fftypes.FFDuration(time.Second)
 		changed = apitypes.CheckUpdateDuration(changed, &merged.RequestTimeout, base.RequestTimeout, &dv, esDefaults.webhookRequestTimeout)
 	} else {
 		changed = apitypes.CheckUpdateDuration(changed, &merged.RequestTimeout, base.RequestTimeout, updates.RequestTimeout, esDefaults.webhookRequestTimeout)

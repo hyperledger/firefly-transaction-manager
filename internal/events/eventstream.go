@@ -173,7 +173,7 @@ func (es *eventStream) initAction(startedState *startedStreamState) {
 
 func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, updates *apitypes.EventStream) (merged *apitypes.EventStream, changed bool, err error) {
 
-	// Merged is assured to not have any unset values (default set in all cases), or any deprecated fields
+	// Merged is assured to not have any unset values (default set in all cases), or any EthCompat fields
 	if base == nil {
 		base = &apitypes.EventStream{}
 	}
@@ -210,24 +210,24 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 	changed = apitypes.CheckUpdateEnum(changed, &merged.ErrorHandling, base.ErrorHandling, updates.ErrorHandling, esDefaults.errorHandling)
 
 	// Batch timeout
-	if updates.DeprecatedBatchTimeoutMS != nil {
-		dv := fftypes.FFDuration(*updates.DeprecatedBatchTimeoutMS) * fftypes.FFDuration(time.Millisecond)
+	if updates.EthCompatBatchTimeoutMS != nil {
+		dv := fftypes.FFDuration(*updates.EthCompatBatchTimeoutMS) * fftypes.FFDuration(time.Millisecond)
 		changed = apitypes.CheckUpdateDuration(changed, &merged.BatchTimeout, base.BatchTimeout, &dv, esDefaults.batchTimeout)
 	} else {
 		changed = apitypes.CheckUpdateDuration(changed, &merged.BatchTimeout, base.BatchTimeout, updates.BatchTimeout, esDefaults.batchTimeout)
 	}
 
 	// Retry timeout
-	if updates.DeprecatedRetryTimeoutSec != nil {
-		dv := fftypes.FFDuration(*updates.DeprecatedRetryTimeoutSec) * fftypes.FFDuration(time.Second)
+	if updates.EthCompatRetryTimeoutSec != nil {
+		dv := fftypes.FFDuration(*updates.EthCompatRetryTimeoutSec) * fftypes.FFDuration(time.Second)
 		changed = apitypes.CheckUpdateDuration(changed, &merged.RetryTimeout, base.RetryTimeout, &dv, esDefaults.retryTimeout)
 	} else {
 		changed = apitypes.CheckUpdateDuration(changed, &merged.RetryTimeout, base.RetryTimeout, updates.RetryTimeout, esDefaults.retryTimeout)
 	}
 
 	// Blocked retry delay
-	if updates.DeprecatedBlockedRetryDelaySec != nil {
-		dv := fftypes.FFDuration(*updates.DeprecatedBlockedRetryDelaySec) * fftypes.FFDuration(time.Second)
+	if updates.EthCompatBlockedRetryDelaySec != nil {
+		dv := fftypes.FFDuration(*updates.EthCompatBlockedRetryDelaySec) * fftypes.FFDuration(time.Second)
 		changed = apitypes.CheckUpdateDuration(changed, &merged.BlockedRetryDelay, base.BlockedRetryDelay, &dv, esDefaults.blockedRetryDelay)
 	} else {
 		changed = apitypes.CheckUpdateDuration(changed, &merged.BlockedRetryDelay, base.BlockedRetryDelay, updates.BlockedRetryDelay, esDefaults.blockedRetryDelay)
@@ -319,12 +319,12 @@ func (es *eventStream) mergeListenerOptions(id *fftypes.UUID, updates *apitypes.
 		// Allow a single "event" object to be specified instead of a filter, with an optional "address".
 		// This is migrated to the new syntax: `"filters":[{"address":"0x1235","event":{...}}]`
 		// (only expected to work for the eth connector that supports address/event)
-		if updates.DeprecatedEvent != nil {
+		if updates.EthCompatEvent != nil {
 			migrationFilter := fftypes.JSONObject{
-				"event": updates.DeprecatedEvent,
+				"event": updates.EthCompatEvent,
 			}
-			if updates.DeprecatedAddress != nil {
-				migrationFilter["address"] = *updates.DeprecatedAddress
+			if updates.EthCompatAddress != nil {
+				migrationFilter["address"] = *updates.EthCompatAddress
 			}
 			merged.Filters = []fftypes.JSONAny{fftypes.JSONAny(migrationFilter.String())}
 		} else {
@@ -722,9 +722,9 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 					log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.Signature, fev.Event)
 					batch.events = append(batch.events, &apitypes.EventWithContext{
 						StandardContext: apitypes.EventContext{
-							StreamID:        es.spec.ID,
-							DeprecatedSubID: l.spec.ID,
-							ListenerName:    *l.spec.Name,
+							StreamID:       es.spec.ID,
+							EthCompatSubID: l.spec.ID,
+							ListenerName:   *l.spec.Name,
 						},
 						Event: *fev.Event,
 					})

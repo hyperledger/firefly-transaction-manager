@@ -17,6 +17,8 @@
 package fftm
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -356,6 +358,32 @@ func TestCreateOrUpdateListenerFail(t *testing.T) {
 	mp.AssertExpectations(t)
 }
 
+func TestCreateOrUpdateListenerFailMergeEthCompatMethods(t *testing.T) {
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
+	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
+
+	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	es, err := m.createAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
+
+	l := &apitypes.Listener{
+		StreamID:         es.ID,
+		EthCompatMethods: fftypes.JSONAnyPtr(`{}`),
+	}
+
+	_, err = m.createOrUpdateListener(m.ctx, apitypes.NewULID(), l, false)
+	assert.Error(t, err)
+
+	mp.AssertExpectations(t)
+}
+
 func TestCreateOrUpdateListenerWriteFail(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
@@ -587,4 +615,44 @@ func TestGetStreamListenersBadStreamID(t *testing.T) {
 	_, err := m.getStreamListeners(m.ctx, "", "", "bad ID")
 	assert.Regexp(t, "FF00138", err)
 
+}
+
+func TestMergeEthCompatMethods(t *testing.T) {
+	l := &apitypes.Listener{
+		EthCompatMethods: fftypes.JSONAnyPtr(`[{"method1": "awesomeMethod"}]`),
+		Options:          fftypes.JSONAnyPtr(`{"otherOption": "otherValue"}`),
+	}
+	err := mergeEthCompatMethods(context.Background(), l)
+	assert.NoError(t, err)
+	b, err := json.Marshal(l.Options)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"methods": [{"method1":"awesomeMethod"}], "otherOption":"otherValue"}`, string(b))
+	assert.Nil(t, l.EthCompatMethods)
+
+	l = &apitypes.Listener{
+		EthCompatMethods: fftypes.JSONAnyPtr(`[{"method1": "awesomeMethod"}]`),
+		Options:          nil,
+	}
+	err = mergeEthCompatMethods(context.Background(), l)
+	assert.NoError(t, err)
+	b, err = json.Marshal(l.Options)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{"methods": [{"method1":"awesomeMethod"}]}`, string(b))
+	assert.Nil(t, l.EthCompatMethods)
+}
+
+func TestMergeEthCompatMethodsFail(t *testing.T) {
+	l := &apitypes.Listener{
+		EthCompatMethods: fftypes.JSONAnyPtr(`[{"method1": "awesomeMethod"}`),
+		Options:          fftypes.JSONAnyPtr(`{"otherOption": "otherValue"}`),
+	}
+	err := mergeEthCompatMethods(context.Background(), l)
+	assert.Error(t, err)
+
+	l = &apitypes.Listener{
+		EthCompatMethods: fftypes.JSONAnyPtr(`[{"method1": "awesomeMethod"}]`),
+		Options:          fftypes.JSONAnyPtr(`{"otherOption": "otherValue"`),
+	}
+	err = mergeEthCompatMethods(context.Background(), l)
+	assert.Error(t, err)
 }
