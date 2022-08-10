@@ -1,5 +1,5 @@
 VGO=go
-GOFILES := $(shell find cmd internal pkg -name '*.go' -print)
+GOFILES := $(shell find internal pkg -name '*.go' -print)
 GOBIN := $(shell $(VGO) env GOPATH)/bin
 LINT := $(GOBIN)/golangci-lint
 MOCKERY := $(GOBIN)/mockery
@@ -12,43 +12,40 @@ GOGC=30
 
 all: build test go-mod-tidy
 test: deps lint
-		$(VGO) test ./internal/... ./cmd/... -cover -coverprofile=coverage.txt -covermode=atomic -timeout=30s
+		$(VGO) test ./internal/... ./pkg/... -cover -coverprofile=coverage.txt -covermode=atomic -timeout=30s ${TEST_FLAGS}
 coverage.html:
 		$(VGO) tool cover -html=coverage.txt
 coverage: test coverage.html
 lint: ${LINT}
 		GOGC=20 $(LINT) run -v --timeout 5m
-ffcapi:
-		$(eval FFCAPI_PATH := $(shell $(VGO) list -f '{{.Dir}}' github.com/hyperledger/firefly-common/pkg/ffcapi))
-	
+
 ${MOCKERY}:
 		$(VGO) install github.com/vektra/mockery/cmd/mockery@latest
 ${LINT}:
-		$(VGO) install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+		$(VGO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.47.0
 
 
 define makemock
 mocks: mocks-$(strip $(1))-$(strip $(2))
-mocks-$(strip $(1))-$(strip $(2)): ${MOCKERY} ffcapi
+mocks-$(strip $(1))-$(strip $(2)): ${MOCKERY}
 	${MOCKERY} --case underscore --dir $(1) --name $(2) --outpkg $(3) --output mocks/$(strip $(3))
 endef
 
-$(eval $(call makemock, $${FFCAPI_PATH},             API,                 ffcapimocks))
-$(eval $(call makemock, pkg/policyengine,            PolicyEngine,        policyenginemocks))
-$(eval $(call makemock, internal/confirmations,      Manager,             confirmationsmocks))
-$(eval $(call makemock, internal/manager,            Manager,             managermocks))
+$(eval $(call makemock, pkg/ffcapi,             API,                    ffcapimocks))
+$(eval $(call makemock, pkg/policyengine,       PolicyEngine,           policyenginemocks))
+$(eval $(call makemock, internal/confirmations, Manager,                confirmationsmocks))
+$(eval $(call makemock, internal/persistence,   Persistence,            persistencemocks))
+$(eval $(call makemock, internal/ws,            WebSocketChannels,      wsmocks))
+$(eval $(call makemock, internal/events,        Stream,                 eventsmocks))
 
-firefly-transaction-manager: ${GOFILES}
-		$(VGO) build -o ./firefly-transaction-manager -ldflags "-X main.buildDate=`date -u +\"%Y-%m-%dT%H:%M:%SZ\"` -X main.buildVersion=$(BUILD_VERSION)" -tags=prod -tags=prod -v ./fftm 
 go-mod-tidy: .ALWAYS
 		$(VGO) mod tidy
-build: firefly-transaction-manager
+build: test
 .ALWAYS: ;
 clean:
 		$(VGO) clean
 deps:
-		$(VGO) get ./fftm
-docs:
-		$(VGO) test ./cmd -timeout=10s -tags docs
-docker:
-		docker build --build-arg BUILD_VERSION=${BUILD_VERSION} ${DOCKER_ARGS} -t hyperledger/firefly-transaction-manager .
+		$(VGO) get ./internal/... ./pkg/...
+		$(VGO) get -t ./internal/... ./pkg/...
+reference:
+		$(VGO) test ./pkg/fftm -timeout=10s -tags docs

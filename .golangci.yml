@@ -8,6 +8,9 @@ linters-settings:
     enabled-checks: []
     disabled-checks:
       - regexpMust
+  gosec:
+    excludes:
+    - G402
   goheader:
     values:
       regexp:
