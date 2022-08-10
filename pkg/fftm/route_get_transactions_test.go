@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -48,6 +49,7 @@ func TestGetTransactions(t *testing.T) {
 
 	url, m, done := newTestManager(t)
 	defer done()
+	m.policyLoopInterval = 1 * time.Hour
 
 	err := m.Start()
 	assert.NoError(t, err)
