@@ -20,13 +20,14 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
@@ -45,11 +46,17 @@ func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status api
 	return tx
 }
 
+func noopPolicyEngine(m *manager) {
+	mpe := &policyenginemocks.PolicyEngine{}
+	m.policyEngine = mpe
+	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(false, ffcapi.ErrorReason(""), nil).Maybe()
+}
+
 func TestGetTransactions(t *testing.T) {
 
 	url, m, done := newTestManager(t)
 	defer done()
-	m.policyLoopInterval = 1 * time.Hour
+	noopPolicyEngine(m)
 
 	err := m.Start()
 	assert.NoError(t, err)

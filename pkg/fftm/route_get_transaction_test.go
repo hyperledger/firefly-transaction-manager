@@ -19,7 +19,6 @@ package fftm
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -30,7 +29,7 @@ func TestGetTransaction(t *testing.T) {
 
 	url, m, done := newTestManager(t)
 	defer done()
-	m.policyLoopInterval = 1 * time.Hour
+	noopPolicyEngine(m)
 
 	err := m.Start()
 	assert.NoError(t, err)
