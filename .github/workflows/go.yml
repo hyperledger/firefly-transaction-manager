@@ -21,6 +21,8 @@ jobs:
           go-version: 1.17
 
       - name: Build and Test
+        env:
+          TEST_FLAGS: -v
         run: make
 
       - name: Upload coverage
