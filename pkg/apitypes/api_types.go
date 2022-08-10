@@ -61,9 +61,9 @@ type EventStream struct {
 	RetryTimeout      *fftypes.FFDuration `ffstruct:"eventstream" json:"retryTimeout"`
 	BlockedRetryDelay *fftypes.FFDuration `ffstruct:"eventstream" json:"blockedRetryDelay"`
 
-	DeprecatedBatchTimeoutMS       *uint64 `ffstruct:"eventstream" json:"batchTimeoutMS,omitempty"`       // input only, for backwards compatibility
-	DeprecatedRetryTimeoutSec      *uint64 `ffstruct:"eventstream" json:"retryTimeoutSec,omitempty"`      // input only, for backwards compatibility
-	DeprecatedBlockedRetryDelaySec *uint64 `ffstruct:"eventstream" json:"blockedRetryDelaySec,omitempty"` // input only, for backwards compatibility
+	EthCompatBatchTimeoutMS       *uint64 `ffstruct:"eventstream" json:"batchTimeoutMS,omitempty"`       // input only, for backwards compatibility
+	EthCompatRetryTimeoutSec      *uint64 `ffstruct:"eventstream" json:"retryTimeoutSec,omitempty"`      // input only, for backwards compatibility
+	EthCompatBlockedRetryDelaySec *uint64 `ffstruct:"eventstream" json:"blockedRetryDelaySec,omitempty"` // input only, for backwards compatibility
 
 	Webhook   *WebhookConfig   `ffstruct:"eventstream" json:"webhook,omitempty"`
 	WebSocket *WebSocketConfig `ffstruct:"eventstream" json:"websocket,omitempty"`
@@ -90,11 +90,11 @@ type EventStreamCheckpoint struct {
 }
 
 type WebhookConfig struct {
-	URL                         *string             `ffstruct:"whconfig" json:"url,omitempty"`
-	Headers                     map[string]string   `ffstruct:"whconfig" json:"headers,omitempty"`
-	TLSkipHostVerify            *bool               `ffstruct:"whconfig" json:"tlsSkipHostVerify,omitempty"`
-	RequestTimeout              *fftypes.FFDuration `ffstruct:"whconfig" json:"requestTimeout,omitempty"`
-	DeprecatedRequestTimeoutSec *int64              `ffstruct:"whconfig" json:"requestTimeoutSec,omitempty"` // input only, for backwards compatibility
+	URL                        *string             `ffstruct:"whconfig" json:"url,omitempty"`
+	Headers                    map[string]string   `ffstruct:"whconfig" json:"headers,omitempty"`
+	TLSkipHostVerify           *bool               `ffstruct:"whconfig" json:"tlsSkipHostVerify,omitempty"`
+	RequestTimeout             *fftypes.FFDuration `ffstruct:"whconfig" json:"requestTimeout,omitempty"`
+	EthCompatRequestTimeoutSec *int64              `ffstruct:"whconfig" json:"requestTimeoutSec,omitempty"` // input only, for backwards compatibility
 }
 
 type WebSocketConfig struct {
@@ -103,17 +103,18 @@ type WebSocketConfig struct {
 }
 
 type Listener struct {
-	ID                *fftypes.UUID     `ffstruct:"listener" json:"id,omitempty"`
-	Created           *fftypes.FFTime   `ffstruct:"listener" json:"created"`
-	Updated           *fftypes.FFTime   `ffstruct:"listener" json:"updated"`
-	Name              *string           `ffstruct:"listener" json:"name"`
-	StreamID          *fftypes.UUID     `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
-	DeprecatedAddress *string           `ffstruct:"listener" json:"address,omitempty"`
-	DeprecatedEvent   *fftypes.JSONAny  `ffstruct:"listener" json:"event,omitempty"`
-	Filters           []fftypes.JSONAny `ffstruct:"listener" json:"filters"`
-	Options           *fftypes.JSONAny  `ffstruct:"listener" json:"options"`
-	Signature         string            `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
-	FromBlock         *string           `ffstruct:"listener" json:"fromBlock,omitempty"`
+	ID               *fftypes.UUID     `ffstruct:"listener" json:"id,omitempty"`
+	Created          *fftypes.FFTime   `ffstruct:"listener" json:"created"`
+	Updated          *fftypes.FFTime   `ffstruct:"listener" json:"updated"`
+	Name             *string           `ffstruct:"listener" json:"name"`
+	StreamID         *fftypes.UUID     `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
+	EthCompatAddress *string           `ffstruct:"listener" json:"address,omitempty"`
+	EthCompatEvent   *fftypes.JSONAny  `ffstruct:"listener" json:"event,omitempty"`
+	EthCompatMethods *fftypes.JSONAny  `ffstruct:"listener" json:"methods,omitempty"`
+	Filters          []fftypes.JSONAny `ffstruct:"listener" json:"filters"`
+	Options          *fftypes.JSONAny  `ffstruct:"listener" json:"options"`
+	Signature        string            `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
+	FromBlock        *string           `ffstruct:"listener" json:"fromBlock,omitempty"`
 }
 
 // CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset
@@ -210,9 +211,9 @@ func CheckUpdateStringMap(changed bool, merged *map[string]string, old map[strin
 }
 
 type EventContext struct {
-	StreamID        *fftypes.UUID `json:"streamId"`     // the ID of the event stream for this event
-	DeprecatedSubID *fftypes.UUID `json:"subId"`        // ID of the listener - deprecated "subscription" naming
-	ListenerName    string        `json:"listenerName"` // name of the listener
+	StreamID       *fftypes.UUID `json:"streamId"`     // the ID of the event stream for this event
+	EthCompatSubID *fftypes.UUID `json:"subId"`        // ID of the listener - EthCompat "subscription" naming
+	ListenerName   string        `json:"listenerName"` // name of the listener
 }
 
 // EventWithContext is what is delivered

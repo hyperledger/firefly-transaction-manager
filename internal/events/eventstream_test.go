@@ -302,12 +302,12 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 
 	addr := "0x12345"
 	l := &apitypes.Listener{
-		ID:                apitypes.NewULID(),
-		Name:              strPtr("ut_listener"),
-		DeprecatedAddress: &addr,
-		DeprecatedEvent:   fftypes.JSONAnyPtr(`{"event":"definition"}`),
-		Options:           fftypes.JSONAnyPtr(`{"option1":"value1"}`),
-		FromBlock:         strPtr("12345"),
+		ID:               apitypes.NewULID(),
+		Name:             strPtr("ut_listener"),
+		EthCompatAddress: &addr,
+		EthCompatEvent:   fftypes.JSONAnyPtr(`{"event":"definition"}`),
+		Options:          fftypes.JSONAnyPtr(`{"option1":"value1"}`),
+		FromBlock:        strPtr("12345"),
 	}
 
 	mfc := es.connector.(*ffcapimocks.API)

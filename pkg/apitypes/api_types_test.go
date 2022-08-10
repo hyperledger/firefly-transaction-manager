@@ -186,9 +186,9 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 
 	e := &EventWithContext{
 		StandardContext: EventContext{
-			StreamID:        NewULID(),
-			ListenerName:    "listener1",
-			DeprecatedSubID: NewULID(),
+			StreamID:       NewULID(),
+			ListenerName:   "listener1",
+			EthCompatSubID: NewULID(),
 		},
 		Event: ffcapi.Event{
 			ID: ffcapi.EventID{
@@ -218,7 +218,7 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 		"listenerName":"listener1",
 		"logIndex":"1",
 		"signature":"ev()",
-		"subId":"`+e.StandardContext.DeprecatedSubID.String()+`",
+		"subId":"`+e.StandardContext.EthCompatSubID.String()+`",
 		"streamId":"`+e.StandardContext.StreamID.String()+`",
 		"transactionHash":"0x23456",
 		"transactionIndex":"10"
