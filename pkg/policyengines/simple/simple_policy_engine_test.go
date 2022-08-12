@@ -403,6 +403,34 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 	mockFFCAPI.AssertExpectations(t)
 }
 
+func TestKnownTransactionHashKnown(t *testing.T) {
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
+	p, err := f.NewPolicyEngine(context.Background(), conf)
+	assert.NoError(t, err)
+
+	mtx := &apitypes.ManagedTX{
+		TransactionData: "SOME_RAW_TX_BYTES",
+		PolicyInfo:      fftypes.JSONAnyPtr("!not json!"),
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+		},
+		TransactionHash: "0x01020304",
+	}
+
+	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
+		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
+
+	ctx := context.Background()
+	updated, _, err := p.Execute(ctx, mockFFCAPI, mtx)
+	assert.NoError(t, err)
+	assert.True(t, updated)
+
+	mockFFCAPI.AssertExpectations(t)
+}
+
 func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 	f, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
