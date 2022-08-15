@@ -133,8 +133,8 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 				log.L(ctx).Debugf("Transaction %s at nonce %s / %d known with hash: %s (%s)", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash, err)
 				return "", nil
 			}
-			// TODO: to cover the edge case where we had a timeout or other failure during the initial TransactionSend, we need to
-			//       be able to re-calculate the hash that we would expect for the transaction.
+			// Note: to cover the edge case where we had a timeout or other failure during the initial TransactionSend,
+			//       a policy engine implementation would need to be able to re-calculate the hash that we would expect for the transaction.
 			//       This would require a new FFCAPI API to calculate that hash, which requires the connector to perform the signing
 			//       without submission to the node. For example using `eth_signTransaction` for EVM JSON/RPC.
 			return reason, err
