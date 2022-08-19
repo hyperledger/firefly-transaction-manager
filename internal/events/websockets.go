@@ -26,7 +26,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-func mergeValidateWsConfig(ctx context.Context, changed bool, base *apitypes.WebSocketConfig, updates *apitypes.WebSocketConfig) (*apitypes.WebSocketConfig, bool, error) {
+func mergeValidateWsConfig(ctx context.Context, changed bool, esName string, base *apitypes.WebSocketConfig, updates *apitypes.WebSocketConfig) (*apitypes.WebSocketConfig, bool, error) {
 
 	if base == nil {
 		base = &apitypes.WebSocketConfig{}
@@ -48,7 +48,7 @@ func mergeValidateWsConfig(ctx context.Context, changed bool, base *apitypes.Web
 	}
 
 	// Topic
-	changed = apitypes.CheckUpdateString(changed, &merged.Topic, base.Topic, updates.Topic, esDefaults.topic)
+	changed = apitypes.CheckUpdateString(changed, &merged.Topic, base.Topic, updates.Topic, esName /* default to the ES name */)
 
 	return merged, changed, nil
 }

@@ -135,7 +135,10 @@ func TestConfigNewDefaultsUpdate(t *testing.T) {
 	InitDefaults()
 
 	es := testESConf(t, `{
-		"name": "test1"
+		"name":  "test1",
+		"websocket": {
+			"topic": "test1"
+		}
 	}`)
 	es, changed, err := mergeValidateEsConfig(context.Background(), nil, es)
 	assert.NoError(t, err)
@@ -157,7 +160,7 @@ func TestConfigNewDefaultsUpdate(t *testing.T) {
 		"type":"websocket",
 		"websocket": {
 			"distributionMode":"load_balance",
-			"topic":""
+			"topic":"test1"
 		}
 	}`, string(b))
 
@@ -297,7 +300,10 @@ func TestInitActionBadAction(t *testing.T) {
 func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 
 	es := newTestEventStream(t, `{
-		"name": "ut_stream"
+		"name":  "ut_stream",
+		"websocket": {
+			"topic": "ut_stream"
+		}
 	}`)
 
 	addr := "0x12345"
@@ -1198,7 +1204,8 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 	es := newTestEventStream(t, `{
 		"name": "ut_stream",
 		"websocket": {
-			"distributionMode": "broadcast"
+			"distributionMode": "broadcast",
+			"topic": "ut_stream"
 		}
 	}`)
 
