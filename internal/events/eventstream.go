@@ -59,7 +59,6 @@ var esDefaults struct {
 	blockedRetryDelay         fftypes.FFDuration
 	webhookRequestTimeout     fftypes.FFDuration
 	websocketDistributionMode apitypes.DistributionMode
-	topic                     string
 	retry                     *retry.Retry
 }
 
@@ -237,7 +236,7 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 	changed = apitypes.CheckUpdateEnum(changed, &merged.Type, base.Type, updates.Type, apitypes.EventStreamTypeWebSocket)
 	switch *merged.Type {
 	case apitypes.EventStreamTypeWebSocket:
-		if merged.WebSocket, changed, err = mergeValidateWsConfig(ctx, changed, base.WebSocket, updates.WebSocket); err != nil {
+		if merged.WebSocket, changed, err = mergeValidateWsConfig(ctx, changed, *merged.Name, base.WebSocket, updates.WebSocket); err != nil {
 			return nil, false, err
 		}
 	case apitypes.EventStreamTypeWebhook:
