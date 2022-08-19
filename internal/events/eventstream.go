@@ -164,7 +164,7 @@ func (es *eventStream) initAction(startedState *startedStreamState) {
 	case apitypes.EventStreamTypeWebhook:
 		startedState.action = newWebhookAction(ctx, es.spec.Webhook).attemptBatch
 	case apitypes.EventStreamTypeWebSocket:
-		startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
+		startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.WebSocket.Topic).attemptBatch
 	default:
 		// mergeValidateEsConfig always be called previous to this
 		panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
