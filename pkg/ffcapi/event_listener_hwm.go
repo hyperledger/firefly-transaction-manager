@@ -27,4 +27,5 @@ type EventListenerHWMRequest struct {
 
 type EventListenerHWMResponse struct {
 	Checkpoint EventListenerCheckpoint `json:"checkpoint"`
+	Catchup    bool                    `json:"catchup,omitempty"` // informational only - informs an operator that the stream is catching up
 }

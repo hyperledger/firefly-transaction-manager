@@ -117,6 +117,11 @@ type Listener struct {
 	FromBlock        *string           `ffstruct:"listener" json:"fromBlock,omitempty"`
 }
 
+type ListenerWithStatus struct {
+	Listener
+	ffcapi.EventListenerHWMResponse
+}
+
 // CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset
 func CheckUpdateString(changed bool, merged **string, old *string, new *string, defValue string) bool {
 	if new != nil {
