@@ -656,3 +656,23 @@ func TestMergeEthCompatMethodsFail(t *testing.T) {
 	err = mergeEthCompatMethods(context.Background(), l)
 	assert.Error(t, err)
 }
+
+func TestGetListenerStatusFailStillReturn(t *testing.T) {
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	l1 := &apitypes.Listener{ID: apitypes.NewULID(), StreamID: apitypes.NewULID()}
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("GetListener", m.ctx, mock.Anything).Return(l1, nil)
+
+	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("EventListenerHWM", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Maybe()
+
+	l, err := m.getListener(m.ctx, l1.StreamID.String(), l1.ID.String())
+	assert.NoError(t, err)
+	assert.Nil(t, l.Checkpoint)
+	assert.False(t, l.Catchup)
+
+	mp.AssertExpectations(t)
+
+}

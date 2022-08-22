@@ -28,6 +28,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 const (
@@ -205,7 +206,7 @@ func (m *manager) createAndStoreNewListener(ctx context.Context, def *apitypes.L
 }
 
 func (m *manager) updateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
-	l, err := m.getListener(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
+	l, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +240,7 @@ func (m *manager) createOrUpdateListener(ctx context.Context, id *fftypes.UUID, 
 }
 
 func (m *manager) deleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error {
-	spec, err := m.getListener(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
+	spec, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
 	if err != nil {
 		return err
 	}
@@ -342,7 +343,7 @@ func (m *manager) getStreams(ctx context.Context, afterStr, limitStr string) (st
 	return m.persistence.ListStreams(ctx, after, limit, persistence.SortDirectionDescending)
 }
 
-func (m *manager) getListener(ctx context.Context, streamIDStr, listenerIDStr string) (spec *apitypes.Listener, err error) {
+func (m *manager) getListenerSpec(ctx context.Context, streamIDStr, listenerIDStr string) (spec *apitypes.Listener, err error) {
 	var streamID *fftypes.UUID
 	if streamIDStr != "" {
 		streamID, err = fftypes.ParseUUID(ctx, streamIDStr)
@@ -364,6 +365,24 @@ func (m *manager) getListener(ctx context.Context, streamIDStr, listenerIDStr st
 		return nil, i18n.NewError(ctx, tmmsgs.MsgListenerNotFound, listenerID)
 	}
 	return spec, nil
+}
+
+func (m *manager) getListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error) {
+	spec, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr)
+	if err != nil {
+		return nil, err
+	}
+	l = &apitypes.ListenerWithStatus{Listener: *spec}
+	status, _, err := m.connector.EventListenerHWM(ctx, &ffcapi.EventListenerHWMRequest{
+		StreamID:   spec.StreamID,
+		ListenerID: spec.ID,
+	})
+	if err == nil {
+		l.EventListenerHWMResponse = *status
+	} else {
+		log.L(ctx).Warnf("Failed to query status for listener %s/%s: %s", spec.StreamID, spec.ID, err)
+	}
+	return l, nil
 }
 
 func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.Listener, err error) {

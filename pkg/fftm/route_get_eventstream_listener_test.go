@@ -42,6 +42,7 @@ func TestGetEventStreamsListener(t *testing.T) {
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
 	mfc.On("EventStreamStopped", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
+	mfc.On("EventListenerHWM", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerHWMResponse{Catchup: true}, ffcapi.ErrorReason(""), nil).Maybe()
 
 	// Create a stream
 	var es1 apitypes.EventStream
@@ -54,7 +55,7 @@ func TestGetEventStreamsListener(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Then get it
-	var listener apitypes.Listener
+	var listener apitypes.ListenerWithStatus
 	res, err = resty.New().R().
 		SetResult(&listener).
 		Get(fmt.Sprintf("%s/eventstreams/%s/listeners/%s", url, es1.ID, l1.ID))
@@ -62,6 +63,7 @@ func TestGetEventStreamsListener(t *testing.T) {
 	assert.Equal(t, 200, res.StatusCode())
 
 	assert.Equal(t, l1.ID, listener.ID)
+	assert.True(t, listener.Catchup)
 
 	mfc.AssertExpectations(t)
 
