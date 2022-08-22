@@ -61,6 +61,7 @@ type ManagedTX struct {
 	Created            *fftypes.FFTime                    `json:"created"`
 	Updated            *fftypes.FFTime                    `json:"updated"`
 	Status             TxStatus                           `json:"status"`
+	DeleteRequested    *fftypes.FFTime                    `json:"deleteRequested,omitempty"`
 	SequenceID         *fftypes.UUID                      `json:"sequenceId"`
 	Nonce              *fftypes.FFBigInt                  `json:"nonce"`
 	Gas                *fftypes.FFBigInt                  `json:"gas"`

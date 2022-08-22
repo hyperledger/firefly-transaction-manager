@@ -44,6 +44,26 @@ type Manager interface {
 	Close()
 }
 
+type policyEngineAPIRequestType int
+
+const (
+	policyEngineAPIRequestTypeDelete policyEngineAPIRequestType = iota
+)
+
+// policyEngineAPIRequest requests are queued to the policy engine thread for processing against a given Transaction
+type policyEngineAPIRequest struct {
+	requestType policyEngineAPIRequestType
+	txID        string
+	startTime   time.Time
+	response    chan policyEngineAPIResponse
+}
+
+type policyEngineAPIResponse struct {
+	tx     *apitypes.ManagedTX
+	err    error
+	status int // http status code (200 Ok vs. 202 Accepted) - only set for success cases
+}
+
 type manager struct {
 	ctx            context.Context
 	cancelCtx      func()
@@ -58,14 +78,15 @@ type manager struct {
 	inflightUpdate chan bool
 	inflight       []*pendingState
 
-	mux               sync.Mutex
-	lockedNonces      map[string]*lockedNonce
-	eventStreams      map[fftypes.UUID]events.Stream
-	streamsByName     map[string]*fftypes.UUID
-	policyLoopDone    chan struct{}
-	blockListenerDone chan struct{}
-	started           bool
-	apiServerDone     chan error
+	mux                     sync.Mutex
+	policyEngineAPIRequests []*policyEngineAPIRequest
+	lockedNonces            map[string]*lockedNonce
+	eventStreams            map[fftypes.UUID]events.Stream
+	streamsByName           map[string]*fftypes.UUID
+	policyLoopDone          chan struct{}
+	blockListenerDone       chan struct{}
+	started                 bool
+	apiServerDone           chan error
 
 	policyLoopInterval time.Duration
 	nonceStateTimeout  time.Duration

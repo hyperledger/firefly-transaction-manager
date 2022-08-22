@@ -26,12 +26,13 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
-	tx := &apitypes.ManagedTX{
+func genTestTxn(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
+	return &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
 		SequenceID: apitypes.NewULID(),
@@ -41,6 +42,10 @@ func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status api
 			From: signer,
 		},
 	}
+}
+
+func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
+	tx := genTestTxn(signer, nonce, status)
 	err := m.persistence.WriteTransaction(context.Background(), tx, true)
 	assert.NoError(t, err)
 	return tx
@@ -49,7 +54,7 @@ func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status api
 func noopPolicyEngine(m *manager) {
 	mpe := &policyenginemocks.PolicyEngine{}
 	m.policyEngine = mpe
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(false, ffcapi.ErrorReason(""), nil).Maybe()
+	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(policyengine.UpdateNo, ffcapi.ErrorReason(""), nil).Maybe()
 }
 
 func TestGetTransactions(t *testing.T) {

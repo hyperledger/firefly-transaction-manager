@@ -94,7 +94,7 @@ type simplePolicyInfo struct {
 }
 
 // withPolicyInfo is a convenience helper to run some logic that accesses/updates our policy section
-func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *apitypes.ManagedTX, fn func(info *simplePolicyInfo) (updated bool, reason ffcapi.ErrorReason, err error)) (updated bool, reason ffcapi.ErrorReason, err error) {
+func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *apitypes.ManagedTX, fn func(info *simplePolicyInfo) (update policyengine.UpdateType, reason ffcapi.ErrorReason, err error)) (update policyengine.UpdateType, reason ffcapi.ErrorReason, err error) {
 	var info simplePolicyInfo
 	infoBytes := []byte(mtx.PolicyInfo.String())
 	if len(infoBytes) > 0 {
@@ -103,12 +103,12 @@ func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *apitypes.M
 			log.L(ctx).Warnf("Failed to parse existing info `%s`: %s", infoBytes, err)
 		}
 	}
-	updated, reason, err = fn(&info)
-	if updated {
+	update, reason, err = fn(&info)
+	if update != policyengine.UpdateNo {
 		infoBytes, _ = json.Marshal(&info)
 		mtx.PolicyInfo = fftypes.JSONAnyPtrBytes(infoBytes)
 	}
-	return updated, reason, err
+	return update, reason, err
 }
 
 func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (reason ffcapi.ErrorReason, err error) {
@@ -146,27 +146,33 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 	return "", nil
 }
 
-func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (updated bool, reason ffcapi.ErrorReason, err error) {
+func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (update policyengine.UpdateType, reason ffcapi.ErrorReason, err error) {
+
+	// Simply policy engine allows deletion of the transaction without additional checks ( ensuring the TX has not been submitted / gap filling the nonce etc. )
+	if mtx.DeleteRequested != nil {
+		return policyengine.UpdateDelete, "", nil
+	}
+
 	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
 		// Only calculate gas price here in the simple policy engine
 		mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
 		if err != nil {
-			return false, "", err
+			return policyengine.UpdateNo, "", err
 		}
 		// Submit the first time
 		if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
-			return true, reason, err
+			return policyengine.UpdateYes, reason, err
 		}
 		mtx.FirstSubmit = mtx.LastSubmit
-		return true, "", nil
+		return policyengine.UpdateYes, "", nil
 
 	} else if mtx.Receipt == nil {
 
 		// A more sophisticated policy engine would look at the reason for the lack of a receipt, and consider taking progressive
 		// action such as increasing the gas cost slowly over time. This simple example shows how the policy engine
 		// can use the FireFly core operation as a store for its historical state/decisions (in this case the last time we warned).
-		return p.withPolicyInfo(ctx, mtx, func(info *simplePolicyInfo) (updated bool, reason ffcapi.ErrorReason, err error) {
+		return p.withPolicyInfo(ctx, mtx, func(info *simplePolicyInfo) (update policyengine.UpdateType, reason ffcapi.ErrorReason, err error) {
 			lastWarnTime := info.LastWarnTime
 			if lastWarnTime == nil {
 				lastWarnTime = mtx.FirstSubmit
@@ -179,17 +185,17 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 				// We do a resubmit at this point - as it might no longer be in the TX pool
 				if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
 					if reason != ffcapi.ErrorKnownTransaction {
-						return true, reason, err
+						return policyengine.UpdateYes, reason, err
 					}
 				}
-				return true, "", nil
+				return policyengine.UpdateYes, "", nil
 			}
-			return false, "", nil
+			return policyengine.UpdateNo, "", nil
 		})
 
 	}
 	// No action in the case we have a receipt
-	return false, "", nil
+	return policyengine.UpdateNo, "", nil
 }
 
 // getGasPrice either uses a fixed gas price, or invokes a gas station API

@@ -82,4 +82,7 @@ var (
 	MsgInvalidSortDirection          = ffe("FF21064", "Sort direction must be 'asc'/'ascending' or 'desc'/'descending': '%s'", http.StatusBadRequest)
 	MsgDuplicateID                   = ffe("FF21065", "ID '%s' is not unique", http.StatusConflict)
 	MsgTransactionFailed             = ffe("FF21066", "Transaction execution failed")
+	MsgTransactionNotFound           = ffe("FF21067", "Transaction '%s' not found", http.StatusNotFound)
+	MsgPolicyEngineRequestTimeout    = ffe("FF21068", "The policy engine did not acknowledge the request after %.2fs", 408)
+	MsgPolicyEngineRequestInvalid    = ffe("FF21069", "Invalid policy engine request type '%d'")
 )

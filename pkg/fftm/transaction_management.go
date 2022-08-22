@@ -28,7 +28,14 @@ import (
 )
 
 func (m *manager) getTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error) {
-	return m.persistence.GetTransactionByID(ctx, txID)
+	tx, err := m.persistence.GetTransactionByID(ctx, txID)
+	if err != nil {
+		return nil, err
+	}
+	if tx == nil {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
+	}
+	return tx, nil
 }
 
 func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signer string, pending bool, dirString string) (transactions []*apitypes.ManagedTX, err error) {
@@ -75,4 +82,12 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 		return m.persistence.ListTransactionsByCreateTime(ctx, afterTx, limit, dir)
 	}
 
+}
+
+func (m *manager) requestTransactionDeletion(ctx context.Context, txID string) (status int, transaction *apitypes.ManagedTX, err error) {
+	res := m.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
+		requestType: policyEngineAPIRequestTypeDelete,
+		txID:        txID,
+	})
+	return res.status, res.tx, res.err
 }

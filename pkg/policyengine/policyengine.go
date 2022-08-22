@@ -23,6 +23,15 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
+// UpdateType informs FFTM whether the transaction needs an update to be persisted after this execution of the policy engine
+type UpdateType int
+
+const (
+	UpdateNo     UpdateType = iota // Instructs that no update is necessary
+	UpdateYes                      // Instructs that the transaction should be updated in persistence
+	UpdateDelete                   // Instructs that the transaction should be removed completely from persistence - generally only returned when TX status is TxStatusDeleteRequested
+)
+
 type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (updated bool, reason ffcapi.ErrorReason, err error)
+	Execute(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (updateType UpdateType, reason ffcapi.ErrorReason, err error)
 }
