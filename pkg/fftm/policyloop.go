@@ -18,6 +18,7 @@ package fftm
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -28,6 +29,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 )
 
 func (m *manager) policyLoop() {
@@ -107,6 +109,9 @@ func (m *manager) updateInflightSet(ctx context.Context) bool {
 
 func (m *manager) policyLoopCycle(ctx context.Context, inflightStale bool) {
 
+	// Process any synchronous commands first - these might not be in our inflight set
+	m.processPolicyAPIRequests(ctx)
+
 	if inflightStale {
 		if !m.updateInflightSet(ctx) {
 			return
@@ -115,9 +120,59 @@ func (m *manager) policyLoopCycle(ctx context.Context, inflightStale bool) {
 
 	// Go through executing the policy engine against them
 	for _, pending := range m.inflight {
-		err := m.execPolicy(ctx, pending)
+		err := m.execPolicy(ctx, pending, false)
 		if err != nil {
 			log.L(ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
+		}
+	}
+
+}
+
+// processPolicyAPIRequests executes any API calls requested that require policy engine involvement - such as transaction deletions
+func (m *manager) processPolicyAPIRequests(ctx context.Context) {
+
+	m.mux.Lock()
+	requests := m.policyEngineAPIRequests
+	if len(requests) > 0 {
+		m.policyEngineAPIRequests = []*policyEngineAPIRequest{}
+	}
+	m.mux.Unlock()
+
+	for _, request := range requests {
+		var pending *pendingState
+		// If this transaction is in-flight, we use that record
+		for _, inflight := range m.inflight {
+			if inflight.mtx.ID == request.txID {
+				pending = inflight
+				break
+			}
+		}
+		if pending == nil {
+			mtx, err := m.getTransactionByID(ctx, request.txID)
+			if err != nil {
+				request.response <- policyEngineAPIResponse{err: err}
+				continue
+			}
+			// This transaction was valid, but outside of our in-flight set - we still evaluate the policy engine in-line for it.
+			// This does NOT cause it to be added to the in-flight set
+			pending = &pendingState{mtx: mtx}
+		}
+
+		switch request.requestType {
+		case policyEngineAPIRequestTypeDelete:
+			if err := m.execPolicy(ctx, pending, true); err != nil {
+				request.response <- policyEngineAPIResponse{err: err}
+			} else {
+				res := policyEngineAPIResponse{tx: pending.mtx, status: http.StatusAccepted}
+				if pending.remove {
+					res.status = http.StatusOK // synchronously completed
+				}
+				request.response <- res
+			}
+		default:
+			request.response <- policyEngineAPIResponse{
+				err: i18n.NewError(ctx, tmmsgs.MsgPolicyEngineRequestInvalid, request.requestType),
+			}
 		}
 	}
 
@@ -142,20 +197,23 @@ func (m *manager) addError(mtx *apitypes.ManagedTX, reason ffcapi.ErrorReason, e
 	}
 }
 
-func (m *manager) execPolicy(ctx context.Context, pending *pendingState) (err error) {
+func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDeleteRequest bool) (err error) {
 
-	var updated bool
+	update := policyengine.UpdateNo
 	completed := false
 
 	// Check whether this has been confirmed by the confirmation manager
 	m.mux.Lock()
 	mtx := pending.mtx
 	confirmed := pending.confirmed
+	if syncDeleteRequest && mtx.DeleteRequested == nil {
+		mtx.DeleteRequested = fftypes.Now()
+	}
 	m.mux.Unlock()
 
 	switch {
-	case confirmed:
-		updated = true
+	case confirmed && !syncDeleteRequest:
+		update = policyengine.UpdateYes
 		completed = true
 		if mtx.Receipt.Success {
 			mtx.Status = apitypes.TxStatusSucceeded
@@ -169,11 +227,12 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState) (err er
 		// We get woken for lots of reasons to go through the policy loop, but we only want
 		// to drive the policy engine at regular intervals.
 		// So we track the last time we ran the policy engine against each pending item.
-		if time.Since(pending.lastPolicyCycle) > m.policyLoopInterval {
+		// We always call the policy engine on every loop, when deletion has been requested.
+		if syncDeleteRequest || time.Since(pending.lastPolicyCycle) > m.policyLoopInterval {
 			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 			// such as submitting for the first time, or raising the gas etc.
 			var reason ffcapi.ErrorReason
-			updated, reason, err = m.policyEngine.Execute(ctx, m.connector, pending.mtx)
+			update, reason, err = m.policyEngine.Execute(ctx, m.connector, pending.mtx)
 			if err != nil {
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, reason, err)
 				m.addError(mtx, reason, err)
@@ -187,14 +246,25 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState) (err er
 		}
 	}
 
-	if updated || err != nil {
-		mtx.Updated = fftypes.Now()
-		err := m.persistence.WriteTransaction(ctx, mtx, false)
-		if err != nil {
-			log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
-			return err
-		}
-		if completed {
+	if err == nil {
+		switch update {
+		case policyengine.UpdateYes:
+			mtx.Updated = fftypes.Now()
+			err := m.persistence.WriteTransaction(ctx, mtx, false)
+			if err != nil {
+				log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
+				return err
+			}
+			if completed {
+				pending.remove = true // for the next time round the loop
+				m.markInflightStale()
+			}
+		case policyengine.UpdateDelete:
+			err := m.persistence.DeleteTransaction(ctx, mtx.ID)
+			if err != nil {
+				log.L(ctx).Errorf("Failed to delete transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
+				return err
+			}
 			pending.remove = true // for the next time round the loop
 			m.markInflightStale()
 		}
@@ -268,5 +338,22 @@ func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendin
 		log.L(ctx).Infof("Error detected notifying confirmation manager: %s", err)
 	} else {
 		pending.trackingTransactionHash = pending.mtx.TransactionHash
+	}
+}
+
+func (m *manager) policyEngineAPIRequest(ctx context.Context, req *policyEngineAPIRequest) policyEngineAPIResponse {
+	m.mux.Lock()
+	m.policyEngineAPIRequests = append(m.policyEngineAPIRequests, req)
+	m.mux.Unlock()
+	m.markInflightUpdate()
+	req.response = make(chan policyEngineAPIResponse, 1)
+	req.startTime = time.Now()
+	select {
+	case res := <-req.response:
+		return res
+	case <-ctx.Done():
+		return policyEngineAPIResponse{
+			err: i18n.NewError(ctx, tmmsgs.MsgPolicyEngineRequestTimeout, time.Since(req.startTime).Seconds()),
+		}
 	}
 }

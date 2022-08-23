@@ -36,6 +36,7 @@ var (
 	APIEndpointGetEventStreams              = ffm("api.endpoints.get.eventstreams", "List event streams")
 	APIEndpointGetEventStream               = ffm("api.endpoints.get.eventstream", "Get an event stream with status")
 	APIEndpointDeleteEventStream            = ffm("api.endpoints.delete.eventstream", "Delete an event stream")
+	APIEndpointDeleteTransaction            = ffm("api.endpoints.delete.transaction", "Request transaction deletion by the policy engine. Result could be immediate (200), asynchronous (202), or rejected with an error")
 	APIEndpointGetSubscriptions             = ffm("api.endpoints.get.subscriptions", "Get listeners - route deprecated in favor of /eventstreams/{streamId}/listeners")
 	APIEndpointGetSubscription              = ffm("api.endpoints.get.subscription", "Get listener - route deprecated in favor of /eventstreams/{streamId}/listeners/{listenerId}")
 	APIEndpointPostSubscriptions            = ffm("api.endpoints.post.subscriptions", "Create new listener - route deprecated in favor of /eventstreams/{streamId}/listeners")

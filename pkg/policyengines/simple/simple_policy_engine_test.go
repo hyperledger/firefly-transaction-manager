@@ -31,6 +31,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -82,7 +83,7 @@ func TestFixedGasPriceOK(t *testing.T) {
 	ctx := context.Background()
 	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.NoError(t, err)
-	assert.True(t, updated)
+	assert.Equal(t, policyengine.UpdateYes, updated)
 	assert.Empty(t, reason)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
@@ -147,7 +148,7 @@ func TestGasOracleSendOK(t *testing.T) {
 	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
-	assert.True(t, updated)
+	assert.Equal(t, policyengine.UpdateYes, updated)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
 	assert.Equal(t, `{"unit":"gwei","value":32.146027800733336}`, mtx.GasPrice.String())
@@ -191,7 +192,7 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
-	assert.True(t, updated)
+	assert.Equal(t, policyengine.UpdateYes, updated)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
 	assert.Equal(t, `"12345"`, mtx.GasPrice.String())
@@ -397,7 +398,7 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 	ctx := context.Background()
 	updated, _, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.NoError(t, err)
-	assert.True(t, updated)
+	assert.Equal(t, policyengine.UpdateYes, updated)
 	assert.NotEmpty(t, mtx.PolicyInfo.JSONObject().GetString("lastWarnTime"))
 
 	mockFFCAPI.AssertExpectations(t)
@@ -426,7 +427,7 @@ func TestKnownTransactionHashKnown(t *testing.T) {
 	ctx := context.Background()
 	updated, _, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.NoError(t, err)
-	assert.True(t, updated)
+	assert.Equal(t, policyengine.UpdateYes, updated)
 
 	mockFFCAPI.AssertExpectations(t)
 }
@@ -456,7 +457,7 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
-	assert.True(t, updated)
+	assert.Equal(t, policyengine.UpdateYes, updated)
 	assert.NotEmpty(t, mtx.PolicyInfo.JSONObject().GetString("lastWarnTime"))
 
 	mockFFCAPI.AssertExpectations(t)
@@ -486,7 +487,7 @@ func TestWarnStaleNoWarning(t *testing.T) {
 	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
-	assert.False(t, updated)
+	assert.Equal(t, policyengine.UpdateNo, updated)
 
 	mockFFCAPI.AssertExpectations(t)
 }
@@ -516,7 +517,29 @@ func TestNoOpWithReceipt(t *testing.T) {
 	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
-	assert.False(t, updated)
+	assert.Equal(t, policyengine.UpdateNo, updated)
+
+	mockFFCAPI.AssertExpectations(t)
+}
+
+func TestAllowsDeleteRequest(t *testing.T) {
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(ResubmitInterval, "100s")
+	p, err := f.NewPolicyEngine(context.Background(), conf)
+	assert.NoError(t, err)
+
+	mtx := &apitypes.ManagedTX{
+		DeleteRequested: fftypes.Now(),
+	}
+
+	mockFFCAPI := &ffcapimocks.API{}
+
+	ctx := context.Background()
+	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	assert.Empty(t, reason)
+	assert.NoError(t, err)
+	assert.Equal(t, policyengine.UpdateDelete, updated)
 
 	mockFFCAPI.AssertExpectations(t)
 }

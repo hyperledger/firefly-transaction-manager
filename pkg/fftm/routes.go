@@ -23,6 +23,7 @@ func (m *manager) routes() []*ffapi.Route {
 		deleteEventStream(m),
 		deleteEventStreamListener(m),
 		deleteSubscription(m),
+		deleteTransaction(m),
 		getEventStream(m),
 		getEventStreamListener(m),
 		getEventStreamListeners(m),

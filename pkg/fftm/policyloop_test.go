@@ -19,6 +19,7 @@ package fftm
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -318,7 +320,7 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 	m.policyEngine = mpe
 	done1 := make(chan struct{})
 	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).
-		Return(false, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
+		Return(policyengine.UpdateNo, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
 		Once().
 		Run(func(args mock.Arguments) {
 			close(done1)
@@ -327,7 +329,7 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 
 	done2 := make(chan struct{})
 	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).
-		Return(false, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
+		Return(policyengine.UpdateNo, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
 		Once().
 		Run(func(args mock.Arguments) {
 			close(done2)
@@ -362,5 +364,131 @@ func TestMarkInflightUpdateDoesNotBlock(t *testing.T) {
 
 	m.markInflightUpdate()
 	m.markInflightUpdate()
+
+}
+
+func TestExecPolicyDeleteFail(t *testing.T) {
+
+	_, m, cancel := newTestManagerMockPersistence(t)
+	defer cancel()
+
+	mpe := &policyenginemocks.PolicyEngine{}
+	m.policyEngine = mpe
+	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(policyengine.UpdateDelete, ffcapi.ErrorReason(""), nil).Maybe()
+
+	tx := genTestTxn("0xabcd1234", 12345, apitypes.TxStatusPending)
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", m.ctx, tx.ID).Return(tx, nil)
+	mp.On("DeleteTransaction", m.ctx, tx.ID).Return(fmt.Errorf("pop"))
+
+	req := &policyEngineAPIRequest{
+		requestType: policyEngineAPIRequestTypeDelete,
+		txID:        tx.ID,
+		response:    make(chan policyEngineAPIResponse, 1),
+	}
+	m.policyEngineAPIRequests = append(m.policyEngineAPIRequests, req)
+
+	m.processPolicyAPIRequests(m.ctx)
+
+	res := <-req.response
+	assert.Regexp(t, "pop", res.err)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestExecPolicyDeleteInflightSync(t *testing.T) {
+
+	_, m, cancel := newTestManagerMockPersistence(t)
+	defer cancel()
+
+	mpe := &policyenginemocks.PolicyEngine{}
+	m.policyEngine = mpe
+	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(policyengine.UpdateDelete, ffcapi.ErrorReason(""), nil).Maybe()
+
+	tx := genTestTxn("0xabcd1234", 12345, apitypes.TxStatusPending)
+	m.inflight = []*pendingState{{mtx: tx}}
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("DeleteTransaction", m.ctx, tx.ID).Return(nil)
+
+	req := &policyEngineAPIRequest{
+		requestType: policyEngineAPIRequestTypeDelete,
+		txID:        tx.ID,
+		response:    make(chan policyEngineAPIResponse, 1),
+	}
+	m.policyEngineAPIRequests = append(m.policyEngineAPIRequests, req)
+
+	m.processPolicyAPIRequests(m.ctx)
+
+	res := <-req.response
+	assert.NoError(t, res.err)
+	assert.Equal(t, http.StatusOK, res.status)
+	assert.True(t, m.inflight[0].remove)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestExecPolicyDeleteNotFound(t *testing.T) {
+
+	_, m, cancel := newTestManagerMockPersistence(t)
+	defer cancel()
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", m.ctx, "bad-id").Return(nil, nil)
+
+	req := &policyEngineAPIRequest{
+		requestType: policyEngineAPIRequestTypeDelete,
+		txID:        "bad-id",
+		response:    make(chan policyEngineAPIResponse, 1),
+	}
+	m.policyEngineAPIRequests = append(m.policyEngineAPIRequests, req)
+
+	m.processPolicyAPIRequests(m.ctx)
+
+	res := <-req.response
+	assert.Regexp(t, "FF21067", res.err)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestBadPolicyAPIRequest(t *testing.T) {
+
+	_, m, cancel := newTestManagerMockPersistence(t)
+	defer cancel()
+
+	tx := genTestTxn("0xabcd1234", 12345, apitypes.TxStatusPending)
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", m.ctx, tx.ID).Return(tx, nil)
+
+	req := &policyEngineAPIRequest{
+		requestType: policyEngineAPIRequestType(999),
+		txID:        tx.ID,
+		response:    make(chan policyEngineAPIResponse, 1),
+	}
+	m.policyEngineAPIRequests = append(m.policyEngineAPIRequests, req)
+
+	m.processPolicyAPIRequests(m.ctx)
+
+	res := <-req.response
+	assert.Regexp(t, "FF21069", res.err)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestBadPolicyAPITimeout(t *testing.T) {
+
+	_, m, cancel := newTestManagerMockPersistence(t)
+	defer cancel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	cancelCtx()
+
+	res := m.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{})
+	assert.Regexp(t, "FF21068", res.err)
 
 }

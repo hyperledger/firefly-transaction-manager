@@ -25,6 +25,26 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+func TestGetTransactionErrors(t *testing.T) {
+
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
+	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, nil).Once()
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
+
+	_, err := m.getTransactionByID(m.ctx, "id")
+	assert.Regexp(t, "pop", err)
+
+	_, err = m.getTransactionByID(m.ctx, "id")
+	assert.Regexp(t, "FF21067", err)
+
+	mp.AssertExpectations(t)
+
+}
+
 func TestGetTransactionsErrors(t *testing.T) {
 
 	_, m, close := newTestManagerMockPersistence(t)
@@ -49,5 +69,7 @@ func TestGetTransactionsErrors(t *testing.T) {
 
 	_, err = m.getTransactions(m.ctx, "after-not-found", "", "", false, "")
 	assert.Regexp(t, "FF21062", err)
+
+	mp.AssertExpectations(t)
 
 }
