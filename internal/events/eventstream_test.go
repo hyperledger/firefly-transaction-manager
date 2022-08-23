@@ -135,10 +135,7 @@ func TestConfigNewDefaultsUpdate(t *testing.T) {
 	InitDefaults()
 
 	es := testESConf(t, `{
-		"name":  "test1",
-		"websocket": {
-			"topic": "test1"
-		}
+		"name":  "test1"
 	}`)
 	es, changed, err := mergeValidateEsConfig(context.Background(), nil, es)
 	assert.NoError(t, err)
@@ -159,8 +156,7 @@ func TestConfigNewDefaultsUpdate(t *testing.T) {
 		"suspended":false,
 		"type":"websocket",
 		"websocket": {
-			"distributionMode":"load_balance",
-			"topic":"test1"
+			"distributionMode":"load_balance"
 		}
 	}`, string(b))
 

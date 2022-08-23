@@ -9,6 +9,7 @@
     "badurl",
     "blocklistener",
     "ccache",
+    "Compat",
     "confirmationsmocks",
     "dataexchange",
     "Debugf",
