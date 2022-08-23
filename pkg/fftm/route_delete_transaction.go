@@ -36,7 +36,7 @@ var deleteTransaction = func(m *manager) *ffapi.Route {
 		Description:     tmmsgs.APIEndpointDeleteTransaction,
 		JSONInputValue:  nil,
 		JSONOutputValue: func() interface{} { return &apitypes.ManagedTX{} },
-		JSONOutputCodes: []int{http.StatusAccepted},
+		JSONOutputCodes: []int{http.StatusOK, http.StatusAccepted},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
 			r.SuccessStatus, output, err = m.requestTransactionDeletion(r.Req.Context(), r.PP["transactionId"])
 			return output, err
