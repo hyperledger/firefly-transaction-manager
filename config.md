@@ -73,6 +73,12 @@ nav_order: 2
 |methods| CORS setting to control the allowed methods|`string`|`[GET POST PUT PATCH DELETE]`
 |origins|CORS setting to control the allowed origins|`string`|`[*]`
 
+## debug
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|port|An HTTP port on which to enable the go debugger|`int`|`-1`
+
 ## eventstreams
 
 |Key|Description|Type|Default Value|

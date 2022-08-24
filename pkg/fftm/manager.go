@@ -87,6 +87,7 @@ type manager struct {
 	blockListenerDone       chan struct{}
 	started                 bool
 	apiServerDone           chan error
+	debugServerDone         chan struct{}
 
 	policyLoopInterval time.Duration
 	nonceStateTimeout  time.Duration
@@ -182,6 +183,8 @@ func (m *manager) Start() error {
 		return err
 	}
 
+	m.debugServerDone = make(chan struct{})
+	go m.runDebugServer()
 	go m.runAPIServer()
 	m.policyLoopDone = make(chan struct{})
 	m.markInflightStale()
@@ -199,6 +202,7 @@ func (m *manager) Close() {
 		<-m.apiServerDone
 		<-m.policyLoopDone
 		<-m.blockListenerDone
+		<-m.debugServerDone
 
 		streams := []events.Stream{}
 		m.mux.Lock()
