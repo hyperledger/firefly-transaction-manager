@@ -56,6 +56,7 @@ var (
 	PersistenceLevelDBSyncWrites                  = ffc("persistence.leveldb.syncWrites")
 	APIDefaultRequestTimeout                      = ffc("api.defaultRequestTimeout")
 	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
+	DebugPort                                     = ffc("debug.port")
 )
 
 var APIConfig config.Section
@@ -100,6 +101,7 @@ func setDefaults() {
 	viper.SetDefault(string(EventStreamsRetryInitDelay), "250ms")
 	viper.SetDefault(string(EventStreamsRetryMaxDelay), "30s")
 	viper.SetDefault(string(EventStreamsRetryFactor), 2.0)
+	viper.SetDefault(string(DebugPort), -1)
 }
 
 func Reset() {
