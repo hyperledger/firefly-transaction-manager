@@ -237,6 +237,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, reason, err)
 				m.addError(mtx, reason, err)
 			} else {
+				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 					// If now submitted, add to confirmations manager for receipt checking
 					m.trackSubmittedTransaction(ctx, pending)
@@ -257,6 +258,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 			}
 			if completed {
 				pending.remove = true // for the next time round the loop
+				log.L(ctx).Errorf("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
 				m.markInflightStale()
 			}
 		case policyengine.UpdateDelete:
