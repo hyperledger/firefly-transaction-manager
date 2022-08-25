@@ -18,6 +18,7 @@ package fftm
 
 import (
 	"context"
+	"net/http"
 	"sync"
 	"time"
 
@@ -87,6 +88,7 @@ type manager struct {
 	blockListenerDone       chan struct{}
 	started                 bool
 	apiServerDone           chan error
+	debugServer             *http.Server
 	debugServerDone         chan struct{}
 
 	policyLoopInterval time.Duration
@@ -199,6 +201,9 @@ func (m *manager) Close() {
 	m.cancelCtx()
 	if m.started {
 		m.started = false
+		if m.debugServer != nil {
+			m.debugServer.Close()
+		}
 		<-m.apiServerDone
 		<-m.policyLoopDone
 		<-m.blockListenerDone
