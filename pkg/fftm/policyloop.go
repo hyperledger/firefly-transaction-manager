@@ -37,26 +37,34 @@ func (m *manager) policyLoop() {
 	ctx := log.WithLogField(m.ctx, "role", "policyloop")
 
 	for {
+		// Wait to be notified, or timeout to run
 		timer := time.NewTimer(m.policyLoopInterval)
 		select {
 		case <-m.inflightUpdate:
-			m.policyLoopCycle(ctx, false)
-		case <-m.inflightStale:
-			m.policyLoopCycle(ctx, true)
 		case <-timer.C:
-			m.policyLoopCycle(ctx, false)
 		case <-ctx.Done():
 			log.L(ctx).Infof("Receipt poller exiting")
 			return
 		}
+		// Pop whether we were marked stale
+		stale := false
+		select {
+		case <-m.inflightStale:
+			stale = true
+		default:
+		}
+		m.policyLoopCycle(ctx, stale)
 	}
 }
 
 func (m *manager) markInflightStale() {
+	// First mark that we're stale
 	select {
 	case m.inflightStale <- true:
 	default:
 	}
+	// Then ensure we queue a loop that picks up the stale marker
+	m.markInflightUpdate()
 }
 
 func (m *manager) markInflightUpdate() {
@@ -237,6 +245,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, reason, err)
 				m.addError(mtx, reason, err)
 			} else {
+				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 					// If now submitted, add to confirmations manager for receipt checking
 					m.trackSubmittedTransaction(ctx, pending)
@@ -257,6 +266,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 			}
 			if completed {
 				pending.remove = true // for the next time round the loop
+				log.L(ctx).Errorf("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
 				m.markInflightStale()
 			}
 		case policyengine.UpdateDelete:

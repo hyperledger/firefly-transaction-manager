@@ -83,13 +83,8 @@ func (m *manager) runAPIServer() {
 }
 
 func (m *manager) runDebugServer() {
-	var debugServer *http.Server
 	debugPort := config.GetInt(tmconfig.DebugPort)
-
 	defer func() {
-		if debugServer != nil {
-			_ = debugServer.Close()
-		}
 		close(m.debugServerDone)
 	}()
 
@@ -100,8 +95,8 @@ func (m *manager) runDebugServer() {
 		r.PathPrefix("/debug/pprof/symbol").HandlerFunc(pprof.Symbol)
 		r.PathPrefix("/debug/pprof/trace").HandlerFunc(pprof.Trace)
 		r.PathPrefix("/debug/pprof/").HandlerFunc(pprof.Index)
-		debugServer = &http.Server{Addr: fmt.Sprintf("localhost:%d", debugPort), Handler: r, ReadHeaderTimeout: 30 * time.Second}
+		m.debugServer = &http.Server{Addr: fmt.Sprintf("localhost:%d", debugPort), Handler: r, ReadHeaderTimeout: 30 * time.Second}
 		log.L(m.ctx).Debugf("Debug HTTP endpoint listening on localhost:%d", debugPort)
-		_ = debugServer.ListenAndServe()
+		_ = m.debugServer.ListenAndServe()
 	}
 }

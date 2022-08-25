@@ -22,8 +22,10 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -148,7 +150,7 @@ func TestSendTransactionE2E(t *testing.T) {
 
 }
 
-func TestDeployTransactionE2E(t *testing.T) {
+func TestDeployTransactionE2EWithDebugServer(t *testing.T) {
 
 	txSent := make(chan struct{})
 
@@ -195,6 +197,7 @@ func TestDeployTransactionE2E(t *testing.T) {
 		return n.NotificationType == confirmations.NewTransaction
 	})).Return(nil)
 
+	config.Set(tmconfig.DebugPort, 0)
 	m.Start()
 
 	req := strings.NewReader(sampleDeployTX)
