@@ -224,6 +224,10 @@ func (s *webSocketServer) processReplies() {
 
 func (s *webSocketServer) broadcastToConnections(connections []*webSocketConnection, message interface{}) {
 	for _, c := range connections {
-		c.broadcast <- message
+		select {
+		case c.broadcast <- message:
+		case <-c.closing:
+			log.L(s.ctx).Warnf("Connection %s closed while attempting to deliver reply", c.id)
+		}
 	}
 }
