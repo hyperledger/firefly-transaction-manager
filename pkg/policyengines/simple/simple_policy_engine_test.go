@@ -122,7 +122,7 @@ func TestGasOracleSendOK(t *testing.T) {
 	f, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, `{"unit":"gwei","value":{{ .standard.maxPriorityFee }}}`)
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, `{"unit":"wei","value":{{ multiply 1000000000 .standard.maxPriorityFee }}}`)
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
@@ -136,8 +136,8 @@ func TestGasOracleSendOK(t *testing.T) {
 
 	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.MatchedBy(func(req *ffcapi.TransactionSendRequest) bool {
-		return req.GasPrice.JSONObject().GetString("unit") == "gwei" &&
-			req.GasPrice.JSONObject().GetString("value") == "32.146027800733336" &&
+		return req.GasPrice.JSONObject().GetString("unit") == "wei" &&
+			req.GasPrice.JSONObject().GetString("value") == "32146027801" &&
 			req.From == "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712" &&
 			req.TransactionData == "SOME_RAW_TX_BYTES"
 	})).Return(&ffcapi.TransactionSendResponse{
@@ -151,7 +151,7 @@ func TestGasOracleSendOK(t *testing.T) {
 	assert.Equal(t, policyengine.UpdateYes, updated)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
-	assert.Equal(t, `{"unit":"gwei","value":32.146027800733336}`, mtx.GasPrice.String())
+	assert.Equal(t, `{"unit":"wei","value":32146027801}`, mtx.GasPrice.String())
 
 	mockFFCAPI.AssertExpectations(t)
 

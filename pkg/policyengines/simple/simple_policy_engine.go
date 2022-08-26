@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math/big"
 	"text/template"
 	"time"
 
@@ -64,7 +65,11 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, conf config.S
 		if templateString == "" {
 			return nil, i18n.NewError(ctx, tmmsgs.MsgMissingGOTemplate)
 		}
-		p.gasOracleTemplate, err = template.New("").Parse(templateString)
+		p.gasOracleTemplate, err = template.New("").Funcs(template.FuncMap{
+			"multiply": func(val1, val2 float64) (string, error) {
+				return big.NewFloat(val1*val2).Text('f', 0), nil
+			},
+		}).Parse(templateString)
 		if err != nil {
 			return nil, i18n.NewError(ctx, tmmsgs.MsgBadGOTemplate, err)
 		}
