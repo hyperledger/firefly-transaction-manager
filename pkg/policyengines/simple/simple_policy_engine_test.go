@@ -19,6 +19,7 @@ package simple
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -107,7 +108,7 @@ func TestGasOracleSendOK(t *testing.T) {
 			  },
 			"standard": {
 			  "maxPriorityFee":32.146027800733336,
-			  "maxFee":32.14602781673334
+			  "maxFee":32.24712781673334
 			  },
 			"fast": {
 			  "maxPriorityFee":33.284344224133335,
@@ -122,7 +123,9 @@ func TestGasOracleSendOK(t *testing.T) {
 	f, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, `{"unit":"gwei","value":{{ .standard.maxPriorityFee }}}`)
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, `{"unit":"gwei","value":{{ 
+		<< GO TEMPLATE MAGIC EXAMPLE GOES HERE TO CONVERT .standard FROM FLOAT64 GWEI TO HEX ENCODED WEI >>
+	}}}`)
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
 
@@ -151,7 +154,10 @@ func TestGasOracleSendOK(t *testing.T) {
 	assert.Equal(t, policyengine.UpdateYes, updated)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
-	assert.Equal(t, `{"unit":"gwei","value":32.146027800733336}`, mtx.GasPrice.String())
+	assert.Equal(t, `{
+		"maxPriorityFeePerGas": "0x`+big.NewInt(32146027800).Text(16)+`",
+		"maxFeePerGas": "0x`+big.NewInt(32247127816).Text(16)+`"
+	}`, mtx.GasPrice.String())
 
 	mockFFCAPI.AssertExpectations(t)
 

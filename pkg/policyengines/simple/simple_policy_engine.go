@@ -20,9 +20,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"text/template"
+	"html/template"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffresty"
@@ -64,7 +65,7 @@ func (f *PolicyEngineFactory) NewPolicyEngine(ctx context.Context, conf config.S
 		if templateString == "" {
 			return nil, i18n.NewError(ctx, tmmsgs.MsgMissingGOTemplate)
 		}
-		p.gasOracleTemplate, err = template.New("").Parse(templateString)
+		p.gasOracleTemplate, err = template.New("").Funcs(sprig.FuncMap()).Parse(templateString)
 		if err != nil {
 			return nil, i18n.NewError(ctx, tmmsgs.MsgBadGOTemplate, err)
 		}
@@ -224,7 +225,9 @@ func (p *simplePolicyEngine) getGasPrice(ctx context.Context, cAPI ffcapi.API) (
 		p.gasOracleLastQueryTime = fftypes.Now()
 		return p.gasOracleQueryValue, nil
 	default:
-		// Disabled - just a fixed value
+		// Disabled - just a fixed value - note that the fixed value can be any JSON structure,
+		// as interpreted by the connector. For example EVMConnect support a simple value, or a
+		// post EIP-1559 structure.
 		return p.fixedGasPrice, nil
 	}
 }
