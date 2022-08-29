@@ -626,7 +626,7 @@ func TestMergeEthCompatMethods(t *testing.T) {
 	assert.NoError(t, err)
 	b, err := json.Marshal(l.Options)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"methods": [{"method1":"awesomeMethod"}], "otherOption":"otherValue"}`, string(b))
+	assert.JSONEq(t, `{"methods": [{"method1":"awesomeMethod"}], "signer":true, "otherOption":"otherValue"}`, string(b))
 	assert.Nil(t, l.EthCompatMethods)
 
 	l = &apitypes.Listener{
@@ -637,7 +637,7 @@ func TestMergeEthCompatMethods(t *testing.T) {
 	assert.NoError(t, err)
 	b, err = json.Marshal(l.Options)
 	assert.NoError(t, err)
-	assert.JSONEq(t, `{"methods": [{"method1":"awesomeMethod"}]}`, string(b))
+	assert.JSONEq(t, `{"methods": [{"method1":"awesomeMethod"}],"signer":true}`, string(b))
 	assert.Nil(t, l.EthCompatMethods)
 }
 

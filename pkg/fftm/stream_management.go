@@ -419,6 +419,7 @@ func mergeEthCompatMethods(ctx context.Context, listener *apitypes.Listener) err
 			return err
 		}
 		optionsMap["methods"] = methodList
+		optionsMap["signer"] = true // the EthCompat support extracts the signer automatically when you choose methods (was just one option)
 		b, _ := json.Marshal(optionsMap)
 		listener.Options = fftypes.JSONAnyPtrBytes(b)
 		listener.EthCompatMethods = nil
