@@ -266,7 +266,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 			}
 			if completed {
 				pending.remove = true // for the next time round the loop
-				log.L(ctx).Errorf("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
+				log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
 				m.markInflightStale()
 			}
 		case policyengine.UpdateDelete:
