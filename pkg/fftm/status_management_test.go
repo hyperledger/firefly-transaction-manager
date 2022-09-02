@@ -16,4 +16,37 @@
 
 package fftm
 
-// TODO
+import (
+	"fmt"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"testing"
+)
+
+func TestGetLiveStatusError(t *testing.T) {
+	_, m, close := newTestManager(t)
+	defer close()
+
+	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("IsLive", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("failed to get live status"))
+
+	_, err := m.getLiveStatus(m.ctx)
+	assert.Error(t, err)
+
+	mfc.AssertExpectations(t)
+}
+
+func TestGetReadyStatusError(t *testing.T) {
+	_, m, close := newTestManager(t)
+	defer close()
+
+	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("IsReady", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("failed to get ready status"))
+
+	_, err := m.getReadyStatus(m.ctx)
+	assert.Error(t, err)
+
+	mfc.AssertExpectations(t)
+}
