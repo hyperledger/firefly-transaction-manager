@@ -24,9 +24,6 @@ import (
 )
 
 func (m *manager) getLiveStatus(ctx context.Context) (resp *apitypes.LiveStatus, err error) {
-	if err != nil {
-		return nil, err
-	}
 	resp = &apitypes.LiveStatus{}
 	status, _, err := m.connector.IsLive(ctx)
 	if err == nil {
@@ -39,9 +36,6 @@ func (m *manager) getLiveStatus(ctx context.Context) (resp *apitypes.LiveStatus,
 }
 
 func (m *manager) getReadyStatus(ctx context.Context) (resp *apitypes.ReadyStatus, err error) {
-	if err != nil {
-		return nil, err
-	}
 	resp = &apitypes.ReadyStatus{}
 	status, _, err := m.connector.IsReady(ctx)
 	if err == nil {
