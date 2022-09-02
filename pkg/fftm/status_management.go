@@ -32,6 +32,7 @@ func (m *manager) getLiveStatus(ctx context.Context) (resp *apitypes.LiveStatus,
 		resp.LiveResponse = *status
 	} else {
 		log.L(ctx).Warnf("Failed to fetch live status: %s", err)
+		return nil, err
 	}
 	return resp, nil
 }
@@ -46,6 +47,7 @@ func (m *manager) getReadyStatus(ctx context.Context) (resp *apitypes.ReadyStatu
 		resp.ReadyResponse = *status
 	} else {
 		log.L(ctx).Warnf("Failed to fetch ready status: %s", err)
+		return nil, err
 	}
 	return resp, nil
 }

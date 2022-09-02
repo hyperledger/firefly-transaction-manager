@@ -29,6 +29,7 @@ func (m *manager) routes() []*ffapi.Route {
 		getEventStreamListeners(m),
 		getEventStreams(m),
 		getLiveStatus(m),
+		getStatus(m),
 		getSubscription(m),
 		getSubscriptions(m),
 		getReadyStatus(m),
