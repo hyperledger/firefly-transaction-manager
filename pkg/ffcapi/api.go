@@ -79,6 +79,12 @@ type API interface {
 
 	// NewBlockListener creates a new block listener, decoupled from an event stream
 	NewBlockListener(ctx context.Context, req *NewBlockListenerRequest) (*NewBlockListenerResponse, ErrorReason, error)
+
+	// IsLive confirms if the connector up and running
+	IsLive(ctx context.Context) (*LiveResponse, ErrorReason, error)
+
+	// IsReady confirms if the connector is connected to the downstream JSONRPC endpoint and therefore ready to receive traffic
+	IsReady(ctx context.Context) (*ReadyResponse, ErrorReason, error)
 }
 
 type BlockHashEvent struct {
@@ -177,6 +183,8 @@ const (
 	ErrorReasonNotFound ErrorReason = "not_found"
 	// ErrorKnownTransaction if the exact transaction is already known
 	ErrorKnownTransaction ErrorReason = "known_transaction"
+	// ErrorReasonDownstreamDown if the downstream JSONRPC endpoint is down
+	ErrorReasonDownstreamDown = "downstream_down"
 )
 
 // TransactionInput is a standardized set of parameters that describe a transaction submission to a blockchain.

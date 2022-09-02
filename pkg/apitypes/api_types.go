@@ -121,6 +121,14 @@ type ListenerWithStatus struct {
 	ffcapi.EventListenerHWMResponse
 }
 
+type LiveStatus struct {
+	ffcapi.LiveResponse
+}
+
+type ReadyStatus struct {
+	ffcapi.ReadyResponse
+}
+
 // CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset
 func CheckUpdateString(changed bool, merged **string, old *string, new *string, defValue string) bool {
 	if new != nil {
