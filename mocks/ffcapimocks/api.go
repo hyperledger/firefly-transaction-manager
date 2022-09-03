@@ -330,6 +330,66 @@ func (_m *API) GasPriceEstimate(ctx context.Context, req *ffcapi.GasPriceEstimat
 	return r0, r1, r2
 }
 
+// IsLive provides a mock function with given fields: ctx
+func (_m *API) IsLive(ctx context.Context) (*ffcapi.LiveResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx)
+
+	var r0 *ffcapi.LiveResponse
+	if rf, ok := ret.Get(0).(func(context.Context) *ffcapi.LiveResponse); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.LiveResponse)
+		}
+	}
+
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context) error); ok {
+		r2 = rf(ctx)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// IsReady provides a mock function with given fields: ctx
+func (_m *API) IsReady(ctx context.Context) (*ffcapi.ReadyResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx)
+
+	var r0 *ffcapi.ReadyResponse
+	if rf, ok := ret.Get(0).(func(context.Context) *ffcapi.ReadyResponse); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.ReadyResponse)
+		}
+	}
+
+	var r1 ffcapi.ErrorReason
+	if rf, ok := ret.Get(1).(func(context.Context) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	var r2 error
+	if rf, ok := ret.Get(2).(func(context.Context) error); ok {
+		r2 = rf(ctx)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // NewBlockListener provides a mock function with given fields: ctx, req
 func (_m *API) NewBlockListener(ctx context.Context, req *ffcapi.NewBlockListenerRequest) (*ffcapi.NewBlockListenerResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
