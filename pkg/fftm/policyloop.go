@@ -244,6 +244,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 			if err != nil {
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, reason, err)
 				m.addError(mtx, reason, err)
+				update = policyengine.UpdateYes
 			} else {
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
