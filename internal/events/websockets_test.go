@@ -18,8 +18,10 @@ package events
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
+	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/stretchr/testify/assert"
@@ -40,11 +42,19 @@ func TestWSAttemptBatchBadDistMode(t *testing.T) {
 
 }
 
-func TestWSAttemptBatchPurge(t *testing.T) {
+func TestWSAttemptIgnoreWrongAcks(t *testing.T) {
 
 	mws := &wsmocks.WebSocketChannels{}
 	_, _, rc := mockWSChannels(mws)
-	rc <- nil
+
+	go func() {
+		rc <- &ws.WebSocketCommandMessageOrError{Msg: &ws.WebSocketCommandMessage{
+			BatchNumber: 12345,
+		}}
+		rc <- &ws.WebSocketCommandMessageOrError{Msg: &ws.WebSocketCommandMessage{
+			BatchNumber: 23456,
+		}}
+	}()
 
 	dmw := apitypes.DistributionModeBroadcast
 	wsa := newWebSocketAction(mws, &apitypes.WebSocketConfig{
@@ -54,11 +64,8 @@ func TestWSAttemptBatchPurge(t *testing.T) {
 	err := wsa.attemptBatch(context.Background(), 0, 0, []*apitypes.EventWithContext{})
 	assert.NoError(t, err)
 
-	select {
-	case <-rc:
-		assert.Fail(t, "Should not be anything left on the ack channel - should have been purged before send")
-	default:
-	}
+	err = wsa.waitForAck(context.Background(), rc, 23456)
+	assert.NoError(t, err)
 }
 
 func TestWSAttemptBatchExitPushingEvent(t *testing.T) {
@@ -91,7 +98,25 @@ func TestWSAttemptBatchExitReceivingReply(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := wsa.waitForAck(ctx, rc)
+	err := wsa.waitForAck(ctx, rc, -1)
 	assert.Regexp(t, "FF21039", err)
+
+}
+
+func TestWSAttemptBatchNackFromClient(t *testing.T) {
+
+	mws := &wsmocks.WebSocketChannels{}
+	_, _, rc := mockWSChannels(mws)
+	rc <- &ws.WebSocketCommandMessageOrError{
+		Err: fmt.Errorf("pop"),
+	}
+
+	dmw := apitypes.DistributionModeBroadcast
+	wsa := newWebSocketAction(mws, &apitypes.WebSocketConfig{
+		DistributionMode: &dmw,
+	}, "ut_stream")
+
+	err := wsa.waitForAck(context.Background(), rc, -1)
+	assert.Regexp(t, "pop", err)
 
 }

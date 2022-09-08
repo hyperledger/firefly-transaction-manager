@@ -31,6 +31,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
@@ -98,11 +99,11 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 	return es, err
 }
 
-func mockWSChannels(wsc *wsmocks.WebSocketChannels) (chan interface{}, chan interface{}, chan error) {
+func mockWSChannels(wsc *wsmocks.WebSocketChannels) (chan interface{}, chan interface{}, chan *ws.WebSocketCommandMessageOrError) {
 	senderChannel := make(chan interface{}, 1)
 	broadcastChannel := make(chan interface{}, 1)
-	receiverChannel := make(chan error, 1)
-	wsc.On("GetChannels", "ut_stream").Return((chan<- interface{})(senderChannel), (chan<- interface{})(broadcastChannel), (<-chan error)(receiverChannel))
+	receiverChannel := make(chan *ws.WebSocketCommandMessageOrError, 1)
+	wsc.On("GetChannels", "ut_stream").Return((chan<- interface{})(senderChannel), (chan<- interface{})(broadcastChannel), (<-chan *ws.WebSocketCommandMessageOrError)(receiverChannel))
 	return senderChannel, broadcastChannel, receiverChannel
 }
 
@@ -388,11 +389,17 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 		},
 	}
 
-	batch1 := (<-senderChannel).([]*apitypes.EventWithContext)
-	assert.Len(t, batch1, 1)
-	assert.Equal(t, "v1", batch1[0].Data.JSONObject().GetString("k1"))
+	batch1 := (<-senderChannel).(*apitypes.EventBatch)
+	assert.Len(t, batch1.Events, 1)
+	assert.Greater(t, batch1.BatchNumber, int64(0))
+	assert.Equal(t, "v1", batch1.Events[0].Data.JSONObject().GetString("k1"))
 
-	receiverChannel <- nil // ack
+	receiverChannel <- &ws.WebSocketCommandMessageOrError{
+		Msg: &ws.WebSocketCommandMessage{
+			Type:        "ack",
+			BatchNumber: batch1.BatchNumber,
+		},
+	}
 
 	err = es.Stop(es.bgCtx)
 	assert.NoError(t, err)
@@ -1270,9 +1277,9 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 			},
 		},
 	}
-	batch1 := (<-broadcastChannel).([]*apitypes.EventWithContext)
-	assert.Len(t, batch1, 1)
-	assert.Equal(t, "v1", batch1[0].Data.JSONObject().GetString("k1"))
+	batch1 := (<-broadcastChannel).(*apitypes.EventBatch)
+	assert.Len(t, batch1.Events, 1)
+	assert.Equal(t, "v1", batch1.Events[0].Data.JSONObject().GetString("k1"))
 
 	<-r.StreamContext.Done()
 	<-done
@@ -1304,7 +1311,7 @@ func TestActionRetryOk(t *testing.T) {
 
 	es.mux.Lock()
 	callCount := 0
-	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
+	es.currentState.action = func(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error {
 		callCount++
 		if callCount > 1 {
 			return nil
@@ -1354,7 +1361,7 @@ func TestActionRetrySkip(t *testing.T) {
 	assert.NoError(t, err)
 
 	es.mux.Lock()
-	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
+	es.currentState.action = func(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error {
 		return fmt.Errorf("pop")
 	}
 	es.mux.Unlock()
@@ -1398,7 +1405,7 @@ func TestActionRetryBlock(t *testing.T) {
 	es.mux.Lock()
 	callCount := 0
 	done := make(chan struct{})
-	es.currentState.action = func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
+	es.currentState.action = func(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error {
 		callCount++
 		if callCount == 1 {
 			go func() {
@@ -1612,7 +1619,7 @@ func TestSkipEventsBehindCheckpoint(t *testing.T) {
 	ss := &startedStreamState{
 		updates:       make(chan *ffcapi.ListenerEvent, 1),
 		batchLoopDone: make(chan struct{}),
-		action: func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
+		action: func(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error {
 			assert.Len(t, events, 1)
 			assert.Equal(t, events[0].ID.BlockNumber.Uint64(), uint64(2001))
 			return nil
