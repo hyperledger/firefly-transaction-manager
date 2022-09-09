@@ -228,6 +228,11 @@ type EventContext struct {
 	ListenerName   string        `json:"listenerName"` // name of the listener
 }
 
+type EventBatch struct {
+	BatchNumber int64               `json:"batchNumber"`
+	Events      []*EventWithContext `json:"events"`
+}
+
 // EventWithContext is what is delivered
 // There is custom serialization to flatten the whole structure, so all the custom `info` fields from the
 // connector are alongside the required context fields.

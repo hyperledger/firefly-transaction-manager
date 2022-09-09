@@ -39,15 +39,21 @@ type webSocketConnection struct {
 	topics    map[string]*webSocketTopic
 	broadcast chan interface{}
 	newTopic  chan bool
-	receive   chan error
+	receive   chan *WebSocketCommandMessageOrError
 	closing   chan struct{}
 }
 
-type webSocketCommandMessage struct {
-	Type    string `json:"type,omitempty"`
-	Topic   string `json:"topic,omitempty"`  // synonym for "topic" - from a time when we let you configure the topic separate to the stream name
-	Stream  string `json:"stream,omitempty"` // name of the event stream
-	Message string `json:"message,omitempty"`
+type WebSocketCommandMessageOrError struct {
+	Msg *WebSocketCommandMessage
+	Err error
+}
+
+type WebSocketCommandMessage struct {
+	Type        string `json:"type,omitempty"`
+	Topic       string `json:"topic,omitempty"`  // synonym for "topic" - from a time when we let you configure the topic separate to the stream name
+	Stream      string `json:"stream,omitempty"` // name of the event stream
+	Message     string `json:"message,omitempty"`
+	BatchNumber int64  `json:"batchNumber,omitempty"`
 }
 
 func newConnection(bgCtx context.Context, server *webSocketServer, conn *ws.Conn) *webSocketConnection {
@@ -60,7 +66,7 @@ func newConnection(bgCtx context.Context, server *webSocketServer, conn *ws.Conn
 		newTopic:  make(chan bool),
 		topics:    make(map[string]*webSocketTopic),
 		broadcast: make(chan interface{}),
-		receive:   make(chan error),
+		receive:   make(chan *WebSocketCommandMessageOrError, 10),
 		closing:   make(chan struct{}),
 	}
 	go wsc.listen()
@@ -140,13 +146,13 @@ func (c *webSocketConnection) listen() {
 	defer c.close()
 	log.L(c.ctx).Infof("Connected")
 	for {
-		var msg webSocketCommandMessage
+		var msg WebSocketCommandMessage
 		err := c.conn.ReadJSON(&msg)
 		if err != nil {
 			log.L(c.ctx).Errorf("Error: %s", err)
 			return
 		}
-		log.L(c.ctx).Debugf("Received: %+v", msg)
+		log.L(c.ctx).Tracef("Received: %+v", msg)
 
 		topic := msg.Stream
 		if topic == "" {
@@ -159,23 +165,33 @@ func (c *webSocketConnection) listen() {
 		case "listenreplies":
 			c.listenReplies()
 		case "ack":
-			c.handleAckOrError(t, nil)
+			if !c.dispatchAckOrError(t, &msg, nil) {
+				return
+			}
 		case "error":
-			c.handleAckOrError(t, i18n.NewError(c.ctx, tmmsgs.MsgWSErrorFromClient, msg.Message))
+			if !c.dispatchAckOrError(t, &msg, i18n.NewError(c.ctx, tmmsgs.MsgWSErrorFromClient, msg.Message)) {
+				return
+			}
 		default:
 			log.L(c.ctx).Errorf("Unexpected message type: %+v", msg)
 		}
 	}
 }
 
-func (c *webSocketConnection) handleAckOrError(t *webSocketTopic, err error) {
-	isError := err != nil
-	select {
-	case t.receiverChannel <- err:
-		log.L(c.ctx).Debugf("response (error='%t') on topic '%s' passed on for processing", isError, t.topic)
-		break
-	default:
-		log.L(c.ctx).Debugf("spurious ack received (error='%t') on topic '%s'", isError, t.topic)
-		break
+func (c *webSocketConnection) dispatchAckOrError(t *webSocketTopic, msg *WebSocketCommandMessage, err error) bool {
+	if err != nil {
+		log.L(c.ctx).Debugf("Received WebSocket error on topic '%s': %s", t.topic, err)
+	} else {
+		log.L(c.ctx).Debugf("Received WebSocket ack for batch %d on topic '%s'", msg.BatchNumber, t.topic)
 	}
+	select {
+	case t.receiverChannel <- &WebSocketCommandMessageOrError{Msg: msg, Err: err}:
+	default:
+		log.L(c.ctx).Debugf("Received WebSocket ack for batch %d on topic '%s'. Too many spurious acks - closing connection", msg.BatchNumber, t.topic)
+		// This shouldn't happen, as the channel has a buffer. So this means the client has sent us a number of
+		// acks that are not on the right topic (so no event stream is attached).
+		// We cannot discard this ack and continue, but we cannot afford to block here either, so we close the websocket
+		return false
+	}
+	return true
 }

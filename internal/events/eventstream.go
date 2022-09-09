@@ -77,10 +77,10 @@ func InitDefaults() {
 	}
 }
 
-type eventStreamAction func(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error
+type eventStreamAction func(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error
 
 type eventStreamBatch struct {
-	number      int
+	number      int64
 	events      []*apitypes.EventWithContext
 	checkpoints map[fftypes.UUID]ffcapi.EventListenerCheckpoint
 	timeout     *time.Timer
@@ -673,7 +673,7 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 	defer close(startedState.batchLoopDone)
 	ctx := startedState.ctx
 	maxSize := int(*es.spec.BatchSize)
-	batchNumber := 0
+	batchNumber := int64(0)
 
 	var batch *eventStreamBatch
 	var checkpointTimer = time.NewTimer(es.checkpointInterval)

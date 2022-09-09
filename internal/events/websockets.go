@@ -65,7 +65,7 @@ func newWebSocketAction(wsChannels ws.WebSocketChannels, spec *apitypes.WebSocke
 }
 
 // attemptBatch attempts to deliver a batch over socket IO
-func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt int, events []*apitypes.EventWithContext) error {
+func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error {
 	var err error
 
 	// Get a blocking channel to send and receive on our chosen namespace
@@ -81,20 +81,12 @@ func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt
 		return i18n.NewError(ctx, tmmsgs.MsgInvalidDistributionMode, *w.spec.DistributionMode)
 	}
 
-	// Clear out any current ack/error
-	purging := true
-	for purging {
-		select {
-		case err1 := <-receiver:
-			log.L(ctx).Warnf("Cleared out spurious ack (could be from previous disconnect). err=%v", err1)
-		default:
-			purging = false
-		}
-	}
-
 	// Send the batch of events
 	select {
-	case channel <- events:
+	case channel <- &apitypes.EventBatch{
+		BatchNumber: batchNumber,
+		Events:      events,
+	}:
 		break
 	case <-ctx.Done():
 		err = i18n.NewError(ctx, tmmsgs.MsgWebSocketInterruptedSend)
@@ -102,21 +94,36 @@ func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber, attempt
 
 	// If we ever add more distribution modes, we may want to change this logic from a simple if statement
 	if err == nil && *w.spec.DistributionMode != apitypes.DistributionModeBroadcast {
-		err = w.waitForAck(ctx, receiver)
+		log.L(ctx).Infof("Batch %d dispatched (len=%d)", batchNumber, len(events))
+		err = w.waitForAck(ctx, receiver, batchNumber)
 	}
 
-	// Pass back any exception from the client
-	log.L(ctx).Infof("WebSocket event batch %d complete (len=%d). err=%v", batchNumber, len(events), err)
-	return err
+	// Pass back any exception due
+	if err != nil {
+		log.L(ctx).Infof("WebSocket event batch %d delivery failed (len=%d): %s", batchNumber, len(events), err)
+		return err
+	}
+	log.L(ctx).Infof("WebSocket event batch %d complete (len=%d)", batchNumber, len(events))
+	return nil
 }
 
-func (w *webSocketAction) waitForAck(ctx context.Context, receiver <-chan error) (err error) {
+func (w *webSocketAction) waitForAck(ctx context.Context, receiver <-chan *ws.WebSocketCommandMessageOrError, batchNumber int64) error {
 	// Wait for the next ack or exception
-	select {
-	case err = <-receiver:
-		break
-	case <-ctx.Done():
-		err = i18n.NewError(ctx, tmmsgs.MsgWebSocketInterruptedReceive)
+	for {
+		select {
+		case msgOrErr := <-receiver:
+			if msgOrErr.Err != nil {
+				// If we get an error, we have to assume the other side did not receive this batch, and send it again
+				return msgOrErr.Err
+			}
+			if msgOrErr.Msg.BatchNumber != batchNumber {
+				log.L(ctx).Infof("Discarding ack for batch %d (awaiting %d)", msgOrErr.Msg.BatchNumber, batchNumber)
+				continue
+			}
+			log.L(ctx).Infof("Batch %d acknowledged", batchNumber)
+			return nil
+		case <-ctx.Done():
+			return i18n.NewError(ctx, tmmsgs.MsgWebSocketInterruptedReceive)
+		}
 	}
-	return err
 }
