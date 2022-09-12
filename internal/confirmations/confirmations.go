@@ -150,7 +150,7 @@ func (pi *pendingItem) getKey() string {
 	case pendingTypeEvent:
 		// For events they are identified by their hash, blockNumber, transactionIndex and logIndex
 		// If any of those change, it's a new new event - and as such we should get informed of it separately by the blockchain connector.
-		return fmt.Sprintf("Event:l=%s,th=%s,bh=%s,bn=%d,ti=%d,li=%d", pi.listenerID, pi.transactionHash, pi.blockHash, pi.blockNumber, pi.transactionIndex, pi.logIndex)
+		return fmt.Sprintf("Event:%.12d/%.6d/%.6d,l=%s,th=%s,bh=%s", pi.blockNumber, pi.transactionIndex, pi.logIndex, pi.listenerID, pi.transactionHash, pi.blockHash)
 	case pendingTypeTransaction:
 		// For transactions, it's simply the transaction hash that identifies it. It can go into any block
 		return pendingKeyForTX(pi.transactionHash)

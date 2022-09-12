@@ -39,7 +39,6 @@ type webSocketConnection struct {
 	topics    map[string]*webSocketTopic
 	broadcast chan interface{}
 	newTopic  chan bool
-	receive   chan *WebSocketCommandMessageOrError
 	closing   chan struct{}
 }
 
@@ -66,7 +65,6 @@ func newConnection(bgCtx context.Context, server *webSocketServer, conn *ws.Conn
 		newTopic:  make(chan bool),
 		topics:    make(map[string]*webSocketTopic),
 		broadcast: make(chan interface{}),
-		receive:   make(chan *WebSocketCommandMessageOrError, 10),
 		closing:   make(chan struct{}),
 	}
 	go wsc.listen()

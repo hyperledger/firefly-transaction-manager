@@ -189,6 +189,10 @@ func TestSpuriousAckProcessing(t *testing.T) {
 	c, _, err := ws.DefaultDialer.Dial(u.String(), nil)
 	assert.NoError(err)
 
+	// Drop depth to 1 for spurious ack processing
+	topic := w.getTopic("mytopic")
+	topic.receiverChannel = make(chan *WebSocketCommandMessageOrError, 1)
+
 	c.WriteJSON(&WebSocketCommandMessage{
 		Type:  "ack",
 		Topic: "mytopic",
@@ -216,6 +220,10 @@ func TestSpuriousNackProcessing(t *testing.T) {
 	u.Path = "/ws"
 	c, _, err := ws.DefaultDialer.Dial(u.String(), nil)
 	assert.NoError(err)
+
+	// Drop depth to 1 for spurious ack processing
+	topic := w.getTopic("mytopic")
+	topic.receiverChannel = make(chan *WebSocketCommandMessageOrError, 1)
 
 	c.WriteJSON(&WebSocketCommandMessage{
 		Type:  "ack",
