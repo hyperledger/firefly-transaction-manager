@@ -29,12 +29,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const configDocHeader = `---
+layout: default
+title: pages.reference
+parent: Reference
+nav_order: 2
+---
+
+# Configuration Reference
+{: .no_toc }
+
+<!-- ## Table of contents
+{: .no_toc .text-delta }
+
+1. TOC
+{:toc} -->
+
+---
+`
+
 func TestGenerateConfigDocs(t *testing.T) {
 	// Initialize config of all plugins
 	InitConfig()
 	f, err := os.Create(filepath.Join("..", "..", "config.md"))
 	assert.NoError(t, err)
-	generatedConfig, err := config.GenerateConfigMarkdown(context.Background(), config.GetKnownKeys())
+	generatedConfig, err := config.GenerateConfigMarkdown(context.Background(), configDocHeader, config.GetKnownKeys())
 	assert.NoError(t, err)
 	_, err = f.Write(generatedConfig)
 	assert.NoError(t, err)
