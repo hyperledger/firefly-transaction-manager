@@ -9,11 +9,11 @@ require (
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/hyperledger/firefly-common v0.1.17-0.20220808193503-961a6b241a1a
+	github.com/hyperledger/firefly-common v1.1.3
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/sirupsen/logrus v1.8.1
-	github.com/spf13/viper v1.12.0
-	github.com/stretchr/testify v1.7.1
+	github.com/spf13/viper v1.12.1-0.20220712161005-5247643f0235
+	github.com/stretchr/testify v1.8.0
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	golang.org/x/text v0.3.7
 )
@@ -44,7 +44,7 @@ require (
 	github.com/mitchellh/reflectwalk v1.0.0 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
-	github.com/pelletier/go-toml/v2 v2.0.1 // indirect
+	github.com/pelletier/go-toml/v2 v2.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/cors v1.8.2 // indirect
@@ -54,7 +54,7 @@ require (
 	github.com/spf13/cast v1.5.0 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/objx v0.2.0 // indirect
+	github.com/stretchr/objx v0.4.0 // indirect
 	github.com/subosito/gotenv v1.4.0 // indirect
 	github.com/x-cray/logrus-prefixed-formatter v0.5.2 // indirect
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e // indirect
