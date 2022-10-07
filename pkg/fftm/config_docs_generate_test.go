@@ -29,24 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const configDocHeader = `---
-layout: default
-title: pages.reference
-parent: Reference
-nav_order: 2
----
-
-# Configuration Reference
-{: .no_toc }
-
-<!-- ## Table of contents
-{: .no_toc .text-delta }
-
-1. TOC
-{:toc} -->
-
----
-`
+const configDocHeader = "# Configuration reference"
 
 func TestGenerateConfigDocs(t *testing.T) {
 	// Initialize config of all plugins

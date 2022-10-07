@@ -1,21 +1,4 @@
----
-layout: default
-title: pages.reference
-parent: Reference
-nav_order: 2
----
-
-# Configuration Reference
-{: .no_toc }
-
-<!-- ## Table of contents
-{: .no_toc .text-delta }
-
-1. TOC
-{:toc} -->
-
----
-
+# Configuration reference
 
 ## api
 
