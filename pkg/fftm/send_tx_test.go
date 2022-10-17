@@ -45,7 +45,7 @@ func TestSendTXPersistFail(t *testing.T) {
 	err := json.Unmarshal([]byte(sampleSendTX), &txReq)
 	assert.NoError(t, err)
 
-	_, err = m.submitPreparedTX(m.ctx, "id1", &txReq.TransactionHeaders, fftypes.NewFFBigInt(12345), "0x123456", false)
+	_, err = m.submitPreparedTX(m.ctx, "id1", &txReq.TransactionHeaders, fftypes.NewFFBigInt(12345), "0x123456")
 	assert.Regexp(t, "pop", err)
 
 }

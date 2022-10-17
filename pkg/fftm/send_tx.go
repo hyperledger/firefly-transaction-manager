@@ -37,7 +37,7 @@ func (m *manager) sendManagedTransaction(ctx context.Context, request *apitypes.
 		return nil, err
 	}
 
-	return m.submitPreparedTX(ctx, request.Headers.ID, &request.TransactionHeaders, prepared.Gas, prepared.TransactionData, prepared.PreSigned)
+	return m.submitPreparedTX(ctx, request.Headers.ID, &request.TransactionHeaders, prepared.Gas, prepared.TransactionData)
 }
 
 func (m *manager) sendManagedContractDeployment(ctx context.Context, request *apitypes.ContractDeployRequest) (*apitypes.ManagedTX, error) {
@@ -50,10 +50,10 @@ func (m *manager) sendManagedContractDeployment(ctx context.Context, request *ap
 		return nil, err
 	}
 
-	return m.submitPreparedTX(ctx, request.Headers.ID, &request.TransactionHeaders, prepared.Gas, prepared.TransactionData, prepared.PreSigned)
+	return m.submitPreparedTX(ctx, request.Headers.ID, &request.TransactionHeaders, prepared.Gas, prepared.TransactionData)
 }
 
-func (m *manager) submitPreparedTX(ctx context.Context, txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string, preSigned bool) (*apitypes.ManagedTX, error) {
+func (m *manager) submitPreparedTX(ctx context.Context, txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) (*apitypes.ManagedTX, error) {
 
 	// The request ID is the primary ID, and should be supplied by the user for idempotence
 	if txID == "" {
@@ -89,7 +89,6 @@ func (m *manager) submitPreparedTX(ctx context.Context, txID string, txHeaders *
 		Gas:                gas,
 		TransactionHeaders: *txHeaders,
 		TransactionData:    transactionData,
-		PreSigned:          preSigned,
 		Status:             apitypes.TxStatusPending,
 	}
 
