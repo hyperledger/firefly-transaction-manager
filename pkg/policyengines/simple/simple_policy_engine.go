@@ -117,6 +117,7 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 		TransactionHeaders: mtx.TransactionHeaders,
 		GasPrice:           mtx.GasPrice,
 		TransactionData:    mtx.TransactionData,
+		PreSigned:          mtx.PreSigned,
 	}
 	sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
 	sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())

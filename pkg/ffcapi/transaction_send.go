@@ -27,6 +27,7 @@ type TransactionSendRequest struct {
 	GasPrice *fftypes.JSONAny `json:"gasPrice,omitempty"` // can be a simple string/number, or a complex object - contract is between policy engine and blockchain connector
 	TransactionHeaders
 	TransactionData string `json:"transactionData"`
+	PreSigned       bool   `json:"preSigned,omitempty"`
 }
 
 type TransactionSendResponse struct {

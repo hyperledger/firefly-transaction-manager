@@ -76,6 +76,7 @@ type ManagedTX struct {
 	ErrorMessage       string                             `json:"errorMessage,omitempty"`
 	ErrorHistory       []*ManagedTXError                  `json:"errorHistory"`
 	Confirmations      []confirmations.BlockInfo          `json:"confirmations,omitempty"`
+	PreSigned          bool                               `json:"preSigned,omitempty"`
 }
 
 type ReplyType string

@@ -45,4 +45,5 @@ type TransactionPrepareRequest struct {
 type TransactionPrepareResponse struct {
 	Gas             *fftypes.FFBigInt `json:"gas"`
 	TransactionData string            `json:"transactionData"`
+	PreSigned       bool              `json:"preSigned,omitempty"`
 }

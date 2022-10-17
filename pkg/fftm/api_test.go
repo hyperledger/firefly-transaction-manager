@@ -150,6 +150,66 @@ func TestSendTransactionE2E(t *testing.T) {
 
 }
 
+func TestSendPreSignedTransactionE2E(t *testing.T) {
+
+	txSent := make(chan struct{})
+
+	url, m, cancel := newTestManager(t)
+	defer cancel()
+
+	mFFC := m.connector.(*ffcapimocks.API)
+
+	mFFC.On("NextNonceForSigner", mock.Anything, mock.MatchedBy(func(nonceReq *ffcapi.NextNonceForSignerRequest) bool {
+		return "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8" == nonceReq.Signer
+	})).Return(&ffcapi.NextNonceForSignerResponse{
+		Nonce: fftypes.NewFFBigInt(12345),
+	}, ffcapi.ErrorReason(""), nil)
+
+	mFFC.On("TransactionPrepare", mock.Anything, mock.MatchedBy(func(prepTX *ffcapi.TransactionPrepareRequest) bool {
+		return "0xb480F96c0a3d6E9e9a263e4665a39bFa6c4d01E8" == prepTX.From &&
+			"0xe1a078b9e2b145d0a7387f09277c6ae1d9470771" == prepTX.To &&
+			uint64(1000000) == prepTX.Gas.Uint64() &&
+			"set" == prepTX.Method.JSONObject().GetString("name") &&
+			1 == len(prepTX.Params) &&
+			"4276993775" == prepTX.Params[0].JSONObject().GetString("value") &&
+			"4276993775" == prepTX.Params[0].JSONObject().GetString("value")
+	})).Return(&ffcapi.TransactionPrepareResponse{
+		TransactionData: "SIGNED_BYTES",
+		Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
+		PreSigned:       true,
+	}, ffcapi.ErrorReason(""), nil)
+
+	mFFC.On("TransactionSend", mock.Anything, mock.MatchedBy(func(sendTX *ffcapi.TransactionSendRequest) bool {
+		matches :=
+			"SIGNED_BYTES" == sendTX.TransactionData &&
+				true == sendTX.PreSigned
+		if matches {
+			// We're at end of job for this test
+			close(txSent)
+		}
+		return matches
+	})).Return(&ffcapi.TransactionSendResponse{
+		TransactionHash: "0x106215b9c0c9372e3f541beff0cdc3cd061a26f69f3808e28fd139a1abc9d345",
+	}, ffcapi.ErrorReason(""), nil)
+
+	mc := m.confirmations.(*confirmationsmocks.Manager)
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		return n.NotificationType == confirmations.NewTransaction
+	})).Return(nil)
+
+	m.Start()
+
+	req := strings.NewReader(sampleSendTX)
+	res, err := resty.New().R().
+		SetBody(req).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 202, res.StatusCode())
+
+	<-txSent
+
+}
+
 func TestDeployTransactionE2EWithDebugServer(t *testing.T) {
 
 	txSent := make(chan struct{})
