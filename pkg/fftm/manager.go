@@ -30,6 +30,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/blocklistener"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
+	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
@@ -73,6 +74,7 @@ type manager struct {
 	confirmations  confirmations.Manager
 	policyEngine   policyengine.PolicyEngine
 	apiServer      httpserver.HTTPServer
+	metricsServer  httpserver.HTTPServer
 	wsServer       ws.WebSocketServer
 	persistence    persistence.Persistence
 	inflightStale  chan bool
@@ -88,6 +90,9 @@ type manager struct {
 	blockListenerDone       chan struct{}
 	started                 bool
 	apiServerDone           chan error
+	metricsServerDone       chan error
+	metricsEnabled          bool
+	metricsManager          metrics.Manager
 	debugServer             *http.Server
 	debugServerDone         chan struct{}
 
@@ -100,6 +105,10 @@ type manager struct {
 func InitConfig() {
 	tmconfig.Reset()
 	events.InitDefaults()
+
+	if config.GetBool(tmconfig.MetricsEnabled) {
+		metrics.Registry()
+	}
 }
 
 func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
@@ -116,12 +125,14 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 
 func newManager(ctx context.Context, connector ffcapi.API) *manager {
 	m := &manager{
-		connector:     connector,
-		lockedNonces:  make(map[string]*lockedNonce),
-		apiServerDone: make(chan error),
-		eventStreams:  make(map[fftypes.UUID]events.Stream),
-		streamsByName: make(map[string]*fftypes.UUID),
-
+		connector:          connector,
+		lockedNonces:       make(map[string]*lockedNonce),
+		apiServerDone:      make(chan error),
+		metricsServerDone:  make(chan error),
+		metricsEnabled:     config.GetBool(tmconfig.MetricsEnabled),
+		eventStreams:       make(map[fftypes.UUID]events.Stream),
+		streamsByName:      make(map[string]*fftypes.UUID),
+		metricsManager:     metrics.NewMetricsManager(ctx),
 		policyLoopInterval: config.GetDuration(tmconfig.PolicyLoopInterval),
 		errorHistoryCount:  config.GetInt(tmconfig.TransactionsErrorHistoryCount),
 		maxInFlight:        config.GetInt(tmconfig.TransactionsMaxInFlight),
@@ -157,6 +168,13 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
+	if m.metricsEnabled {
+		m.metricsServer, err = httpserver.NewHTTPServer(ctx, "metrics", m.createMetricsMuxRouter(), m.metricsServerDone, tmconfig.MetricsConfig, tmconfig.CorsConfig)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -188,6 +206,9 @@ func (m *manager) Start() error {
 	m.debugServerDone = make(chan struct{})
 	go m.runDebugServer()
 	go m.runAPIServer()
+	if m.metricsEnabled {
+		go m.runMetricsServer()
+	}
 	m.policyLoopDone = make(chan struct{})
 	m.markInflightStale()
 	go m.policyLoop()
@@ -205,6 +226,9 @@ func (m *manager) Close() {
 			m.debugServer.Close()
 		}
 		<-m.apiServerDone
+		if m.metricsEnabled {
+			<-m.metricsServerDone
+		}
 		<-m.policyLoopDone
 		<-m.blockListenerDone
 		<-m.debugServerDone

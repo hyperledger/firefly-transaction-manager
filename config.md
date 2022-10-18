@@ -137,6 +137,41 @@ nav_order: 2
 |message|Configures the JSON key containing the log message|`string`|`message`
 |timestamp|Configures the JSON key containing the timestamp of the log|`string`|`@timestamp`
 
+## metrics
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|address|The IP address on which the metrics HTTP API should listen|`int`|`127.0.0.1`
+|enabled|Enables the metrics API|`boolean`|`false`
+|path|The path from which to serve the Prometheus metrics|`string`|`/metrics`
+|port|The port on which the metrics HTTP API should listen|`int`|`6000`
+|publicURL|The fully qualified public URL for the metrics API. This is used for building URLs in HTTP responses and in OpenAPI Spec generation|URL `string`|`<nil>`
+|readTimeout|The maximum time to wait when reading from an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
+|shutdownTimeout|The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
+|writeTimeout|The maximum time to wait when writing to an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
+
+## metrics.auth
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|type|The auth plugin to use for server side authentication of requests|`string`|`<nil>`
+
+## metrics.auth.basic
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|passwordfile|The path to a .htpasswd file to use for authenticating requests. Passwords should be hashed with bcrypt.|`string`|`<nil>`
+
+## metrics.tls
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|caFile|The path to the CA file for TLS on this API|`string`|`<nil>`
+|certFile|The path to the certificate file for TLS on this API|`string`|`<nil>`
+|clientAuth|Enables or disables client auth for TLS on this API|`string`|`<nil>`
+|enabled|Enables or disables TLS on this API|`boolean`|`false`
+|keyFile|The path to the private key file for TLS on this API|`string`|`<nil>`
+
 ## persistence
 
 |Key|Description|Type|Default Value|

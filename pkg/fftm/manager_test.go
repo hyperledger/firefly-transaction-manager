@@ -161,6 +161,15 @@ func TestNewManagerBadPolicyEngine(t *testing.T) {
 
 }
 
+func TestNewManagerMetricsOffByDefault(t *testing.T) {
+
+	tmconfig.Reset()
+
+	m := newManager(context.Background(), nil)
+	assert.False(t, m.metricsEnabled)
+
+}
+
 func TestAddErrorMessageMax(t *testing.T) {
 
 	_, m, close := newTestManagerMockPersistence(t)

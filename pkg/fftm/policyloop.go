@@ -127,6 +127,10 @@ func (m *manager) policyLoopCycle(ctx context.Context, inflightStale bool) {
 	}
 
 	// Go through executing the policy engine against them
+	if m.metricsManager.IsMetricsEnabled() {
+		m.metricsManager.TransactionsInFlightSet(float64(len(m.inflight)))
+	}
+
 	for _, pending := range m.inflight {
 		err := m.execPolicy(ctx, pending, false)
 		if err != nil {
@@ -241,10 +245,14 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 			// such as submitting for the first time, or raising the gas etc.
 			var reason ffcapi.ErrorReason
 			update, reason, err = m.policyEngine.Execute(ctx, m.connector, pending.mtx)
+
 			if err != nil {
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, reason, err)
 				m.addError(mtx, reason, err)
 				update = policyengine.UpdateYes
+				if m.metricsManager.IsMetricsEnabled() {
+					m.metricsManager.TransactionSubmissionError()
+				}
 			} else {
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {

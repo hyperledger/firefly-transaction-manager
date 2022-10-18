@@ -29,7 +29,9 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (m *manager) router() *mux.Router {
@@ -78,8 +80,21 @@ func (m *manager) router() *mux.Router {
 	return mux
 }
 
+func (m *manager) createMetricsMuxRouter() *mux.Router {
+	r := mux.NewRouter()
+
+	r.Path(config.GetString(tmconfig.MetricsPath)).Handler(promhttp.InstrumentMetricHandler(metrics.Registry(),
+		promhttp.HandlerFor(metrics.Registry(), promhttp.HandlerOpts{})))
+
+	return r
+}
+
 func (m *manager) runAPIServer() {
 	m.apiServer.ServeHTTP(m.ctx)
+}
+
+func (m *manager) runMetricsServer() {
+	m.metricsServer.ServeHTTP(m.ctx)
 }
 
 func (m *manager) runDebugServer() {
