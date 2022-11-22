@@ -197,6 +197,7 @@ type TransactionInput struct {
 	TransactionHeaders
 	Method *fftypes.JSONAny   `json:"method"`
 	Params []*fftypes.JSONAny `json:"params"`
+	Errors []*fftypes.JSONAny `json:"errors"`
 }
 
 type TransactionHeaders struct {
