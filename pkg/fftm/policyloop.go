@@ -286,22 +286,26 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 }
 
 func (m *manager) sendWSReply(mtx *apitypes.ManagedTX) {
-	wsr := &apitypes.TransactionUpdateReply{
-		ManagedTX: *mtx,
-		Headers: apitypes.ReplyHeaders{
-			RequestID: mtx.ID,
-		},
+	if mtx.Status == apitypes.TxStatusSucceeded || mtx.Status == apitypes.TxStatusFailed {
+
+		wsr := &apitypes.TransactionUpdateReply{
+			Headers: apitypes.ReplyHeaders{
+				RequestID: mtx.ID,
+			},
+			Status:          mtx.Status,
+			TransactionHash: mtx.TransactionHash,
+		}
+		wsr.ProtocolID = ffcapi.ProtocolIDForReceipt(mtx.Receipt)
+
+		switch mtx.Status {
+		case apitypes.TxStatusSucceeded:
+			wsr.Headers.Type = apitypes.TransactionUpdateSuccess
+		case apitypes.TxStatusFailed:
+			wsr.Headers.Type = apitypes.TransactionUpdateFailure
+		}
+		// Notify on the websocket - this is best-effort (there is no subscription/acknowledgement)
+		m.wsServer.SendReply(wsr)
 	}
-	switch mtx.Status {
-	case apitypes.TxStatusSucceeded:
-		wsr.Headers.Type = apitypes.TransactionUpdateSuccess
-	case apitypes.TxStatusFailed:
-		wsr.Headers.Type = apitypes.TransactionUpdateFailure
-	default:
-		wsr.Headers.Type = apitypes.TransactionUpdate
-	}
-	// Notify on the websocket - this is best-effort (there is no subscription/acknowledgement)
-	m.wsServer.SendReply(wsr)
 }
 
 func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendingState) {
