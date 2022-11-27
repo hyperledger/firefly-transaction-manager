@@ -256,31 +256,29 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 		}
 	}
 
-	if err == nil {
-		switch update {
-		case policyengine.UpdateYes:
-			mtx.Updated = fftypes.Now()
-			err := m.persistence.WriteTransaction(ctx, mtx, false)
-			if err != nil {
-				log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
-				return err
-			}
-			if completed {
-				pending.remove = true // for the next time round the loop
-				log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
-				m.markInflightStale()
-			}
-		case policyengine.UpdateDelete:
-			err := m.persistence.DeleteTransaction(ctx, mtx.ID)
-			if err != nil {
-				log.L(ctx).Errorf("Failed to delete transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
-				return err
-			}
+	switch update {
+	case policyengine.UpdateYes:
+		mtx.Updated = fftypes.Now()
+		err := m.persistence.WriteTransaction(ctx, mtx, false)
+		if err != nil {
+			log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
+			return err
+		}
+		if completed {
 			pending.remove = true // for the next time round the loop
+			log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
 			m.markInflightStale()
 		}
-		m.sendWSReply(mtx)
+	case policyengine.UpdateDelete:
+		err := m.persistence.DeleteTransaction(ctx, mtx.ID)
+		if err != nil {
+			log.L(ctx).Errorf("Failed to delete transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
+			return err
+		}
+		pending.remove = true // for the next time round the loop
+		m.markInflightStale()
 	}
+	m.sendWSReply(mtx)
 
 	return nil
 }
