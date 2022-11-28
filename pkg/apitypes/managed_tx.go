@@ -17,6 +17,8 @@
 package apitypes
 
 import (
+	"fmt"
+
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -34,10 +36,30 @@ const (
 	TxStatusFailed TxStatus = "Failed"
 )
 
-type ManagedTXError struct {
-	Time   *fftypes.FFTime    `json:"time"`
-	Error  string             `json:"error,omitempty"`
-	Mapped ffcapi.ErrorReason `json:"mapped,omitempty"`
+type ManagedTXUpdate struct {
+	Time           *fftypes.FFTime    `json:"time"`
+	LastOccurrence *fftypes.FFTime    `json:"lastOccurrence"`
+	Count          int                `json:"count"`
+	Info           string             `json:"info,omitempty"`
+	Error          string             `json:"error,omitempty"`
+	MappedReason   ffcapi.ErrorReason `json:"reason,omitempty"`
+}
+
+// MsgString is assured to be the same, as long as the type/message is the same.
+// Does not change if the count/times are different - so allows comparison.
+func (mtu *ManagedTXUpdate) MsgString() string {
+	if mtu == nil {
+		return ""
+	}
+	msg := ""
+	if mtu.Error != "" {
+		msg = fmt.Sprintf("error: %s, ", mtu.Error)
+	}
+	if mtu.MappedReason != "" {
+		msg += fmt.Sprintf("reason: %s, ", mtu.MappedReason)
+	}
+	msg += fmt.Sprintf("info: %s", mtu.Info)
+	return msg
 }
 
 // ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
@@ -74,7 +96,7 @@ type ManagedTX struct {
 	LastSubmit         *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
 	Receipt            *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
 	ErrorMessage       string                             `json:"errorMessage,omitempty"`
-	ErrorHistory       []*ManagedTXError                  `json:"errorHistory"`
+	History            []*ManagedTXUpdate                 `json:"history"`
 	Confirmations      []confirmations.BlockInfo          `json:"confirmations,omitempty"`
 }
 
