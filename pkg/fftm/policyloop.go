@@ -203,7 +203,6 @@ func (m *manager) updateHistory(mtx *apitypes.ManagedTX, info string, err error,
 		MappedReason: reason,
 		Count:        1,
 	}
-	newEntry.LastOccurrence = newEntry.Time
 
 	// Set or clear the error message - on the entry, and the top-level TX
 	if err != nil {
@@ -244,10 +243,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 	m.mux.Lock()
 	mtx := pending.mtx
 	confirmed := pending.confirmed
-	receipt := ""
-	if pending.mtx.Receipt != nil {
-		receipt = pending.mtx.Receipt.TransactionIndex.String()
-	}
+	receipt := ffcapi.ProtocolIDForReceipt(mtx.Receipt)
 	if syncDeleteRequest && mtx.DeleteRequested == nil {
 		mtx.DeleteRequested = fftypes.Now()
 	}
@@ -260,7 +256,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 	case receipt != "" && confirmed && !syncDeleteRequest:
 		update = policyengine.UpdateYes
 		completed = true
-		updateInfo = fmt.Sprintf("Receipt=%s,Success=%t,Confirmations=%d,Hash=%s", receipt, mtx.Receipt.Success, len(mtx.Confirmations), mtx.TransactionHash)
+		updateInfo = fmt.Sprintf("Success=%t,Receipt=%s,Confirmations=%d,Hash=%s", mtx.Receipt.Success, receipt, len(mtx.Confirmations), mtx.TransactionHash)
 		if pending.mtx.Receipt.Success {
 			mtx.Status = apitypes.TxStatusSucceeded
 		} else {
