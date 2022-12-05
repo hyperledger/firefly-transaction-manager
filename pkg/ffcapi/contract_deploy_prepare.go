@@ -25,4 +25,5 @@ type ContractDeployPrepareRequest struct {
 	Definition *fftypes.JSONAny   `json:"definition"` // such as an ABI for EVM
 	Contract   *fftypes.JSONAny   `json:"contract"`   // such as the Bytecode for EVM
 	Params     []*fftypes.JSONAny `json:"params"`     // such as the inputs to the constructor for EVM
+	Errors     []*fftypes.JSONAny `json:"errors"`     // such as the errors spec for EVM
 }
