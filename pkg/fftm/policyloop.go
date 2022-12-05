@@ -18,6 +18,7 @@ package fftm
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -186,23 +187,51 @@ func (m *manager) processPolicyAPIRequests(ctx context.Context) {
 
 }
 
-func (m *manager) addError(mtx *apitypes.ManagedTX, reason ffcapi.ErrorReason, err error) {
-	newLen := len(mtx.ErrorHistory) + 1
+// updateHistory applies an update to the object, and returns if a new item was added
+// to the history.
+func (m *manager) updateHistory(mtx *apitypes.ManagedTX, info string, err error, reason ffcapi.ErrorReason) bool {
+
+	if info == "" && err == nil {
+		return false
+	}
+
+	// Initialize a new entry
+	mtx.Updated = fftypes.Now()
+	newEntry := &apitypes.ManagedTXUpdate{
+		Time:         mtx.Updated,
+		Info:         info,
+		MappedReason: reason,
+		Count:        1,
+	}
+
+	// Set or clear the error message - on the entry, and the top-level TX
+	if err != nil {
+		newEntry.Error = err.Error()
+		mtx.ErrorMessage = err.Error()
+	} else {
+		mtx.ErrorMessage = ""
+	}
+
+	// Check if we just need to increment the last occurrence and count on the latest
+	if len(mtx.History) > 0 && mtx.History[0].MsgString() == newEntry.MsgString() {
+		existingEntry := mtx.History[0]
+		existingEntry.Count++
+		existingEntry.LastOccurrence = mtx.Updated
+		return err != nil // Always store error count bumps
+	}
+
+	// Otherwise extend the list - newest first
+	newLen := len(mtx.History) + 1
 	if newLen > m.errorHistoryCount {
 		newLen = m.errorHistoryCount
 	}
-	oldHistory := mtx.ErrorHistory
-	mtx.ErrorHistory = make([]*apitypes.ManagedTXError, newLen)
-	latestError := &apitypes.ManagedTXError{
-		Time:   fftypes.Now(),
-		Mapped: reason,
-		Error:  err.Error(),
-	}
-	mtx.ErrorMessage = latestError.Error
-	mtx.ErrorHistory[0] = latestError
+	oldHistory := mtx.History
+	mtx.History = make([]*apitypes.ManagedTXUpdate, newLen)
+	mtx.History[0] = newEntry
 	for i := 1; i < newLen; i++ {
-		mtx.ErrorHistory[i] = oldHistory[i-1]
+		mtx.History[i] = oldHistory[i-1]
 	}
+	return true
 }
 
 func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDeleteRequest bool) (err error) {
@@ -214,21 +243,25 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 	m.mux.Lock()
 	mtx := pending.mtx
 	confirmed := pending.confirmed
+	receipt := ffcapi.ProtocolIDForReceipt(mtx.Receipt)
 	if syncDeleteRequest && mtx.DeleteRequested == nil {
 		mtx.DeleteRequested = fftypes.Now()
 	}
 	m.mux.Unlock()
 
+	var updateErr error
+	var updateReason ffcapi.ErrorReason
+	var updateInfo string
 	switch {
-	case confirmed && !syncDeleteRequest:
+	case receipt != "" && confirmed && !syncDeleteRequest:
 		update = policyengine.UpdateYes
 		completed = true
-		if mtx.Receipt.Success {
+		updateInfo = fmt.Sprintf("Success=%t,Receipt=%s,Confirmations=%d,Hash=%s", mtx.Receipt.Success, receipt, len(mtx.Confirmations), mtx.TransactionHash)
+		if pending.mtx.Receipt.Success {
 			mtx.Status = apitypes.TxStatusSucceeded
-			mtx.ErrorMessage = ""
 		} else {
 			mtx.Status = apitypes.TxStatusFailed
-			mtx.ErrorMessage = i18n.NewError(ctx, tmmsgs.MsgTransactionFailed).Error()
+			updateErr = i18n.NewError(ctx, tmmsgs.MsgTransactionFailed)
 		}
 
 	default:
@@ -239,13 +272,12 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 		if syncDeleteRequest || time.Since(pending.lastPolicyCycle) > m.policyLoopInterval {
 			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 			// such as submitting for the first time, or raising the gas etc.
-			var reason ffcapi.ErrorReason
-			update, reason, err = m.policyEngine.Execute(ctx, m.connector, pending.mtx)
-			if err != nil {
-				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, reason, err)
-				m.addError(mtx, reason, err)
+			update, updateReason, updateErr = m.policyEngine.Execute(ctx, m.connector, pending.mtx)
+			if updateErr != nil {
+				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, updateReason, err)
 				update = policyengine.UpdateYes
 			} else {
+				updateInfo = fmt.Sprintf("Submitted=%t,Receipt=%s,Hash=%s", mtx.FirstSubmit != nil, receipt, mtx.TransactionHash)
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 					// If now submitted, add to confirmations manager for receipt checking
@@ -256,31 +288,37 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 		}
 	}
 
-	if err == nil {
-		switch update {
-		case policyengine.UpdateYes:
-			mtx.Updated = fftypes.Now()
-			err := m.persistence.WriteTransaction(ctx, mtx, false)
-			if err != nil {
-				log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
-				return err
-			}
-			if completed {
-				pending.remove = true // for the next time round the loop
-				log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
-				m.markInflightStale()
-			}
-		case policyengine.UpdateDelete:
-			err := m.persistence.DeleteTransaction(ctx, mtx.ID)
-			if err != nil {
-				log.L(ctx).Errorf("Failed to delete transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
-				return err
-			}
+	infoChanged := m.updateHistory(mtx, updateInfo, updateErr, updateReason)
+	if infoChanged && update == policyengine.UpdateNo {
+		// TODO: The interface with policy engine could do with enhancing, including
+		//       reconciling FireFly core issue 1108. For now, if the policy engine
+		//       doesn't mark an update, but the info we have about the TX changed
+		//       due to receipt/confirmations popping in or then we publish an update.
+		update = policyengine.UpdateYes
+	}
+
+	switch update {
+	case policyengine.UpdateYes:
+		err := m.persistence.WriteTransaction(ctx, mtx, false)
+		if err != nil {
+			log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
+			return err
+		}
+		if completed {
 			pending.remove = true // for the next time round the loop
+			log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
 			m.markInflightStale()
 		}
-		m.sendWSReply(mtx)
+	case policyengine.UpdateDelete:
+		err := m.persistence.DeleteTransaction(ctx, mtx.ID)
+		if err != nil {
+			log.L(ctx).Errorf("Failed to delete transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
+			return err
+		}
+		pending.remove = true // for the next time round the loop
+		m.markInflightStale()
 	}
+	m.sendWSReply(mtx)
 
 	return nil
 }

@@ -134,6 +134,13 @@ func (eid *EventID) ProtocolID() string {
 	return fmt.Sprintf("%.12d/%.6d/%.6d", eid.BlockNumber, eid.TransactionIndex, eid.LogIndex)
 }
 
+func ProtocolIDForReceipt(receipt *TransactionReceiptResponse) string {
+	if receipt == nil {
+		return ""
+	}
+	return fmt.Sprintf("%.12d/%.6d", receipt.BlockNumber.Int(), receipt.TransactionIndex.Int())
+}
+
 // Events array has a natural sort order of the block/txIndex/logIndex
 type Events []*Event
 
