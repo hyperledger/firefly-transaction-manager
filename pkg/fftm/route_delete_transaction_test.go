@@ -41,7 +41,7 @@ func TestDeleteTransaction(t *testing.T) {
 	err := m.Start()
 	assert.NoError(t, err)
 
-	txIn := newTestTxn(t, m, "0xaaaaa", 10001, apitypes.TxStatusSucceeded)
+	txIn := newTestTxn(t, m, "0x0aaaaa", 10001, apitypes.TxStatusSucceeded)
 
 	var txOut *apitypes.ManagedTX
 	res, err := resty.New().R().
