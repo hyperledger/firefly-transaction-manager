@@ -51,6 +51,7 @@ var (
 	APIEndpointPostEventStreamListenerReset = ffm("api.endpoints.post.eventstream.listener.reset", "Reset an event stream listener, to redeliver all events since the specified block")
 	APIEndpointPatchEventStreamListener     = ffm("api.endpoints.patch.eventstream.listener", "Update event stream listener")
 	APIEndpointDeleteEventStreamListener    = ffm("api.endpoints.delete.eventstream.listener", "Delete event stream listener")
+	APIEndpointGetAddressBalance            = ffm("api.endpoints.get.address.balance", "Get balance for a signer address")
 
 	APIParamStreamID      = ffm("api.params.streamId", "Event Stream ID")
 	APIParamListenerID    = ffm("api.params.listenerId", "Listener ID")
@@ -60,4 +61,5 @@ var (
 	APIParamTXSigner      = ffm("api.params.txSigner", "Return only transactions for a specific signing address, in reverse nonce order")
 	APIParamTXPending     = ffm("api.params.txPending", "Return only pending transactions, in reverse submission sequence (a 'sequenceId' is assigned to each transaction to determine its sequence")
 	APIParamSortDirection = ffm("api.params.sortDirection", "Sort direction: 'asc'/'ascending' or 'desc'/'descending'")
+	APIParamSignerAddress = ffm("api.params.signerAddress", "A signing address, for example to get the balance for")
 )
