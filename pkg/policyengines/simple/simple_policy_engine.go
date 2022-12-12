@@ -184,6 +184,7 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 				log.L(ctx).Infof("Transaction %s at nonce %s / %d has not been mined after %.2fs", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), secsSinceSubmit)
 				info.LastWarnTime = now
 				// We do a resubmit at this point - as it might no longer be in the TX pool
+				mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
 				if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
 					if reason != ffcapi.ErrorKnownTransaction {
 						return policyengine.UpdateYes, reason, err

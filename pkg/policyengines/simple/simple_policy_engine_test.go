@@ -399,6 +399,9 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
+		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
+	}, ffcapi.ErrorReason(""), nil).Once()
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
 		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
 
@@ -457,6 +460,9 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
+		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
+	}, ffcapi.ErrorReason(""), nil).Once()
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
 		Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
