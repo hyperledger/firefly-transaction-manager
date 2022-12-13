@@ -185,6 +185,9 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 				info.LastWarnTime = now
 				// We do a resubmit at this point - as it might no longer be in the TX pool
 				mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
+				if err != nil {
+					return policyengine.UpdateNo, "", err
+				}
 				if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
 					if reason != ffcapi.ErrorKnownTransaction {
 						return policyengine.UpdateYes, reason, err
