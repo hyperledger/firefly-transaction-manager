@@ -241,6 +241,38 @@ func TestConnectorGasOracleFail(t *testing.T) {
 
 }
 
+func TestConnectorGasOracleFailStale(t *testing.T) {
+
+	f, conf := newTestPolicyEngineFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
+	p, err := f.NewPolicyEngine(context.Background(), conf)
+	assert.NoError(t, err)
+
+	longAgo := time.Now().Add(-1000 * time.Hour)
+	mtx := &apitypes.ManagedTX{
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+		},
+		TransactionHash: "0x12345",
+		TransactionData: "SOME_RAW_TX_BYTES",
+		FirstSubmit:     (*fftypes.FFTime)(&longAgo),
+		LastSubmit:      (*fftypes.FFTime)(&longAgo),
+	}
+
+	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
+		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
+	}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	ctx := context.Background()
+	_, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	assert.Regexp(t, "pop", err)
+	assert.Empty(t, reason)
+
+	mockFFCAPI.AssertExpectations(t)
+
+}
+
 func TestGasOracleSendFail(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -399,6 +431,9 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
+		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
+	}, ffcapi.ErrorReason(""), nil).Once()
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
 		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
 
@@ -457,6 +492,9 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 	}
 
 	mockFFCAPI := &ffcapimocks.API{}
+	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
+		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
+	}, ffcapi.ErrorReason(""), nil).Once()
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
 		Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
