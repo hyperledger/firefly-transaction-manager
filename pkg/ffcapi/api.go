@@ -28,6 +28,8 @@ import (
 // The functions follow a consistent pattern of request/response objects, to allow extensibility of the
 // inputs/outputs with minimal code change to existing connector implementations.
 type API interface {
+	// AddressBalance gets the balance of the specified address
+	AddressBalance(ctx context.Context, req *AddressBalanceRequest) (*AddressBalanceResponse, ErrorReason, error)
 
 	// BlockInfoByHash gets block information using the hash of the block
 	BlockInfoByHash(ctx context.Context, req *BlockInfoByHashRequest) (*BlockInfoByHashResponse, ErrorReason, error)

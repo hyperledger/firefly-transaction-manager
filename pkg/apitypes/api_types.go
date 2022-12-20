@@ -129,6 +129,10 @@ type ReadyStatus struct {
 	ffcapi.ReadyResponse
 }
 
+type LiveAddressBalance struct {
+	ffcapi.AddressBalanceResponse
+}
+
 // CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset
 func CheckUpdateString(changed bool, merged **string, old *string, new *string, defValue string) bool {
 	if new != nil {
