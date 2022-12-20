@@ -61,5 +61,6 @@ var (
 	APIParamTXSigner      = ffm("api.params.txSigner", "Return only transactions for a specific signing address, in reverse nonce order")
 	APIParamTXPending     = ffm("api.params.txPending", "Return only pending transactions, in reverse submission sequence (a 'sequenceId' is assigned to each transaction to determine its sequence")
 	APIParamSortDirection = ffm("api.params.sortDirection", "Sort direction: 'asc'/'ascending' or 'desc'/'descending'")
-	APIParamSignerAddress = ffm("api.params.signerAddress", "A signing address, for example to get the balance for")
+	APIParamSignerAddress = ffm("api.params.signerAddress", "A signing address, for example to get the gas token balance for")
+	APIParamBlocktag      = ffm("api.params.blocktag", "The optional block tag to use when making a gas token balance query")
 )

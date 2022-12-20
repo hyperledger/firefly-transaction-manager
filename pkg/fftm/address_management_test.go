@@ -37,7 +37,13 @@ func TestBalanceOK(t *testing.T) {
 	mca := m.connector.(*ffcapimocks.API)
 	mca.On("AddressBalance", mock.Anything, mock.Anything).Return(&ffcapi.AddressBalanceResponse{Balance: fftypes.NewFFBigInt(999)}, ffcapi.ErrorReason(""), nil)
 
-	res, err := m.getLiveBalance(context.Background(), "0x4a8c8f1717570f9774652075e249ded38124d708")
+	res, err := m.getLiveBalance(context.Background(), "0x4a8c8f1717570f9774652075e249ded38124d708", "latest")
+
+	assert.Nil(t, err)
+	assert.NotNil(t, res)
+	assert.Equal(t, int64(999), res.AddressBalanceResponse.Balance.Int64())
+
+	res, err = m.getLiveBalance(context.Background(), "0x4a8c8f1717570f9774652075e249ded38124d708", "")
 
 	assert.Nil(t, err)
 	assert.NotNil(t, res)
@@ -55,7 +61,7 @@ func TestBalanceFail(t *testing.T) {
 	mca := m.connector.(*ffcapimocks.API)
 	mca.On("AddressBalance", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
-	res, err := m.getLiveBalance(context.Background(), "0x4a8c8f1717570f9774652075e249ded38124d708")
+	res, err := m.getLiveBalance(context.Background(), "0x4a8c8f1717570f9774652075e249ded38124d708", "")
 
 	assert.Nil(t, res)
 	assert.Regexp(t, "pop", err)

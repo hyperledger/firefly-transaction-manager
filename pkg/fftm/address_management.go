@@ -24,9 +24,9 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
-func (m *manager) getLiveBalance(ctx context.Context, address string) (resp *apitypes.LiveAddressBalance, err error) {
+func (m *manager) getLiveBalance(ctx context.Context, address string, blockTag string) (resp *apitypes.LiveAddressBalance, err error) {
 	resp = &apitypes.LiveAddressBalance{}
-	balance, reason, err := m.connector.AddressBalance(ctx, &ffcapi.AddressBalanceRequest{Address: address})
+	balance, reason, err := m.connector.AddressBalance(ctx, &ffcapi.AddressBalanceRequest{Address: address, BlockTag: blockTag})
 	if err == nil {
 		resp.AddressBalanceResponse = *balance
 	} else {

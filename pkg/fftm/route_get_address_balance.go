@@ -32,13 +32,15 @@ var getAddressBalance = func(m *manager) *ffapi.Route {
 		PathParams: []*ffapi.PathParam{
 			{Name: "address", Description: tmmsgs.APIParamSignerAddress},
 		},
-		QueryParams:     nil,
+		QueryParams: []*ffapi.QueryParam{
+			{Name: "blocktag", Description: tmmsgs.APIParamBlocktag},
+		},
 		Description:     tmmsgs.APIEndpointGetAddressBalance,
 		JSONInputValue:  nil,
 		JSONOutputValue: func() interface{} { return &apitypes.LiveAddressBalance{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getLiveBalance(r.Req.Context(), r.PP["address"])
+			return m.getLiveBalance(r.Req.Context(), r.PP["address"], r.QP["blocktag"])
 		},
 	}
 }
