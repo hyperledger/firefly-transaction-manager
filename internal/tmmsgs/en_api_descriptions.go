@@ -51,7 +51,7 @@ var (
 	APIEndpointPostEventStreamListenerReset = ffm("api.endpoints.post.eventstream.listener.reset", "Reset an event stream listener, to redeliver all events since the specified block")
 	APIEndpointPatchEventStreamListener     = ffm("api.endpoints.patch.eventstream.listener", "Update event stream listener")
 	APIEndpointDeleteEventStreamListener    = ffm("api.endpoints.delete.eventstream.listener", "Delete event stream listener")
-	APIEndpointGetAddressBalance            = ffm("api.endpoints.get.address.balance", "Get balance for a signer address")
+	APIEndpointGetAddressBalance            = ffm("api.endpoints.get.address.balance", "Get gas token balance for a signer address")
 
 	APIParamStreamID      = ffm("api.params.streamId", "Event Stream ID")
 	APIParamListenerID    = ffm("api.params.listenerId", "Listener ID")
