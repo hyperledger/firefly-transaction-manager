@@ -17,6 +17,8 @@
 package apitypes
 
 import (
+	"fmt"
+
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -34,23 +36,44 @@ const (
 	TxStatusFailed TxStatus = "Failed"
 )
 
-type ManagedTXError struct {
-	Time   *fftypes.FFTime    `json:"time"`
-	Error  string             `json:"error,omitempty"`
-	Mapped ffcapi.ErrorReason `json:"mapped,omitempty"`
+type ManagedTXUpdate struct {
+	Time           *fftypes.FFTime    `json:"time"`
+	LastOccurrence *fftypes.FFTime    `json:"lastOccurrence"`
+	Count          int                `json:"count"`
+	Info           string             `json:"info,omitempty"`
+	Error          string             `json:"error,omitempty"`
+	MappedReason   ffcapi.ErrorReason `json:"reason,omitempty"`
+}
+
+// MsgString is assured to be the same, as long as the type/message is the same.
+// Does not change if the count/times are different - so allows comparison.
+func (mtu *ManagedTXUpdate) MsgString() string {
+	if mtu == nil {
+		return ""
+	}
+	msg := ""
+	if mtu.Error != "" {
+		msg = fmt.Sprintf("error: %s, ", mtu.Error)
+	}
+	if mtu.MappedReason != "" {
+		msg += fmt.Sprintf("reason: %s, ", mtu.MappedReason)
+	}
+	msg += fmt.Sprintf("info: %s", mtu.Info)
+	return msg
 }
 
 // ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
 //
 // Indexing:
-//   Multiple index collection are stored for the managed transactions, to allow them to be managed including:
 //
-//   - Nonce allocation: this is a critical index, and why cleanup is so important (mentioned below).
-//     We use this index to determine the next nonce to assign to a given signing key.
-//   - Created time: a timestamp ordered index for the transactions for convenient ordering.
-//     the key includes the ID of the TX for uniqueness.
-//   - Pending sequence: An entry in this index only exists while the transaction is pending, and is
-//     ordered by a UUIDv1 sequence allocated to each entry.
+//	Multiple index collection are stored for the managed transactions, to allow them to be managed including:
+//
+//	- Nonce allocation: this is a critical index, and why cleanup is so important (mentioned below).
+//	  We use this index to determine the next nonce to assign to a given signing key.
+//	- Created time: a timestamp ordered index for the transactions for convenient ordering.
+//	  the key includes the ID of the TX for uniqueness.
+//	- Pending sequence: An entry in this index only exists while the transaction is pending, and is
+//	  ordered by a UUIDv1 sequence allocated to each entry.
 //
 // Index cleanup after partial write:
 //   - All indexes are stored before the TX itself.
@@ -74,7 +97,7 @@ type ManagedTX struct {
 	LastSubmit         *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
 	Receipt            *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
 	ErrorMessage       string                             `json:"errorMessage,omitempty"`
-	ErrorHistory       []*ManagedTXError                  `json:"errorHistory"`
+	History            []*ManagedTXUpdate                 `json:"history"`
 	Confirmations      []confirmations.BlockInfo          `json:"confirmations,omitempty"`
 }
 
@@ -93,8 +116,12 @@ type ReplyHeaders struct {
 
 // TransactionUpdateReply add a "headers" structure that allows a processor of websocket
 // replies/updates to filter on a standard structure to know how to process the message.
-// Extensible to update update types in the future.
+// Extensible to update types in the future. The reply is a small summary of the
+// latest status change. Full status for a transaction must be retrieved with
+// /transactions/{txid}
 type TransactionUpdateReply struct {
-	Headers ReplyHeaders `json:"headers"`
-	ManagedTX
+	Headers         ReplyHeaders `json:"headers"`
+	Status          TxStatus     `json:"status"`
+	ProtocolID      string       `json:"protocolId"`
+	TransactionHash string       `json:"transactionHash,omitempty"`
 }

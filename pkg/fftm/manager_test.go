@@ -170,32 +170,55 @@ func TestNewManagerMetricsOffByDefault(t *testing.T) {
 
 }
 
-func TestAddErrorMessageMax(t *testing.T) {
+func TestAddHistoryEntryMax(t *testing.T) {
 
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
 	m.errorHistoryCount = 2
 	mtx := &apitypes.ManagedTX{}
-	m.addError(mtx, ffcapi.ErrorReasonTransactionUnderpriced, fmt.Errorf("snap"))
-	m.addError(mtx, ffcapi.ErrorReasonTransactionUnderpriced, fmt.Errorf("crackle"))
-	m.addError(mtx, ffcapi.ErrorReasonTransactionUnderpriced, fmt.Errorf("pop"))
-	assert.Len(t, mtx.ErrorHistory, 2)
-	assert.Equal(t, "pop", mtx.ErrorHistory[0].Error)
-	assert.Equal(t, "crackle", mtx.ErrorHistory[1].Error)
+	m.updateHistory(mtx, "", fmt.Errorf("snap"), ffcapi.ErrorReasonTransactionUnderpriced)
+	for i := 0; i < 20; i++ {
+		m.updateHistory(mtx, "", fmt.Errorf("crackle"), ffcapi.ErrorReasonTransactionUnderpriced)
+	}
+	m.updateHistory(mtx, "", fmt.Errorf("pop"), ffcapi.ErrorReasonTransactionUnderpriced)
+	assert.False(t, m.updateHistory(mtx, "", nil, "")) // ignored
+	assert.Len(t, mtx.History, 2)
+	assert.Equal(t, "pop", mtx.History[0].Error)
+	assert.Equal(t, "crackle", mtx.History[1].Error)
 
 }
 
-func TestStartRestoreFail(t *testing.T) {
+func TestAddHistoryEntryDups(t *testing.T) {
+
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	m.errorHistoryCount = 2
+	mtx := &apitypes.ManagedTX{}
+	m.updateHistory(mtx, "some info", fmt.Errorf("snap"), ffcapi.ErrorReasonTransactionUnderpriced)
+	for i := 0; i < 20; i++ {
+		m.updateHistory(mtx, "some info", fmt.Errorf("crackle"), ffcapi.ErrorReasonTransactionUnderpriced)
+	}
+	m.updateHistory(mtx, "some info", fmt.Errorf("pop"), ffcapi.ErrorReasonTransactionUnderpriced)
+	assert.Len(t, mtx.History, 2)
+	assert.Equal(t, "pop", mtx.History[0].Error)
+	assert.Equal(t, 1, mtx.History[0].Count)
+	assert.Equal(t, "crackle", mtx.History[1].Error)
+	assert.Equal(t, 20, mtx.History[1].Count)
+
+}
+
+func TestStartListListenersFail(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).
-		Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
 
 	err := m.Start()
 	assert.Regexp(t, "pop", err)
+
 }
 
 func TestStartBlockListenerFail(t *testing.T) {

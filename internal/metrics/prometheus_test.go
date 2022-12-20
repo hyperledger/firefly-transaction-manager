@@ -25,5 +25,5 @@ import (
 func TestPrometheusMiddleware(t *testing.T) {
 	Registry()
 	evmInstrumentation = nil
-	assert.NotNil(t, GetEvmServerInstrumentation())
+	assert.NotNil(t, GetTransactionManagerServerInstrumentation())
 }

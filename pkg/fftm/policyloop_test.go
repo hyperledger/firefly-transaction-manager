@@ -89,6 +89,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
 			BlockHash:        fftypes.NewRandB32().String(),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 			Success:          true,
 		})
 		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
@@ -140,6 +141,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
 			BlockHash:        fftypes.NewRandB32().String(),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 			Success:          false,
 		})
 		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
@@ -211,6 +213,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
 			BlockHash:        fftypes.NewRandB32().String(),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 			Success:          true,
 		})
 		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
@@ -490,5 +493,32 @@ func TestBadPolicyAPITimeout(t *testing.T) {
 
 	res := m.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{})
 	assert.Regexp(t, "FF21068", res.err)
+
+}
+
+func TestExecPolicyUpdateNewInfo(t *testing.T) {
+
+	_, m, cancel := newTestManagerMockPersistence(t)
+	defer cancel()
+
+	mpe := &policyenginemocks.PolicyEngine{}
+	m.policyEngine = mpe
+	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(
+		policyengine.UpdateNo, // Even though we return no, our update gets passed through
+		ffcapi.ErrorReason(""), nil).Maybe()
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("WriteTransaction", mock.Anything, mock.Anything, false).Return(nil)
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	cancelCtx()
+
+	err := m.execPolicy(ctx, &pendingState{
+		mtx: &apitypes.ManagedTX{
+			ID: "id1",
+		},
+	}, false)
+	assert.NoError(t, err)
 
 }
