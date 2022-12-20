@@ -41,7 +41,7 @@ func Registry() *prometheus.Registry {
 
 // GetAdminServerInstrumentation returns the admin server's Prometheus middleware, ensuring its metrics are never
 // registered twice
-func GetEvmServerInstrumentation() *muxprom.Instrumentation {
+func GetTransactionManagerServerInstrumentation() *muxprom.Instrumentation {
 	regMux.Lock()
 	defer regMux.Unlock()
 	if evmInstrumentation == nil {
