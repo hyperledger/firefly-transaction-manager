@@ -89,6 +89,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
 			BlockHash:        fftypes.NewRandB32().String(),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 			Success:          true,
 		})
 		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
@@ -140,6 +141,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
 			BlockHash:        fftypes.NewRandB32().String(),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 			Success:          false,
 		})
 		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
@@ -211,6 +213,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 			BlockNumber:      fftypes.NewFFBigInt(12345),
 			TransactionIndex: fftypes.NewFFBigInt(10),
 			BlockHash:        fftypes.NewRandB32().String(),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 			Success:          true,
 		})
 		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})

@@ -238,12 +238,17 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 
 	update := policyengine.UpdateNo
 	completed := false
+	var receiptProtocolID string
 
 	// Check whether this has been confirmed by the confirmation manager
 	m.mux.Lock()
 	mtx := pending.mtx
+	if mtx.Receipt != nil {
+		receiptProtocolID = mtx.Receipt.ProtocolID
+	} else {
+		receiptProtocolID = ""
+	}
 	confirmed := pending.confirmed
-	receipt := ffcapi.ProtocolIDForReceipt(mtx.Receipt)
 	if syncDeleteRequest && mtx.DeleteRequested == nil {
 		mtx.DeleteRequested = fftypes.Now()
 	}
@@ -253,10 +258,10 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 	var updateReason ffcapi.ErrorReason
 	var updateInfo string
 	switch {
-	case receipt != "" && confirmed && !syncDeleteRequest:
+	case receiptProtocolID != "" && confirmed && !syncDeleteRequest:
 		update = policyengine.UpdateYes
 		completed = true
-		updateInfo = fmt.Sprintf("Success=%t,Receipt=%s,Confirmations=%d,Hash=%s", mtx.Receipt.Success, receipt, len(mtx.Confirmations), mtx.TransactionHash)
+		updateInfo = fmt.Sprintf("Success=%t,Receipt=%s,Confirmations=%d,Hash=%s", mtx.Receipt.Success, receiptProtocolID, len(mtx.Confirmations), mtx.TransactionHash)
 		if pending.mtx.Receipt.Success {
 			mtx.Status = apitypes.TxStatusSucceeded
 		} else {
@@ -277,7 +282,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, updateReason, err)
 				update = policyengine.UpdateYes
 			} else {
-				updateInfo = fmt.Sprintf("Submitted=%t,Receipt=%s,Hash=%s", mtx.FirstSubmit != nil, receipt, mtx.TransactionHash)
+				updateInfo = fmt.Sprintf("Submitted=%t,Receipt=%s,Hash=%s", mtx.FirstSubmit != nil, receiptProtocolID, mtx.TransactionHash)
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 					// If now submitted, add to confirmations manager for receipt checking
@@ -309,6 +314,10 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 			log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
 			m.markInflightStale()
 		}
+		// if and only if the transaction is now resolved send web a socket update
+		if mtx.Status == apitypes.TxStatusSucceeded || mtx.Status == apitypes.TxStatusFailed {
+			m.sendWSReply(mtx)
+		}
 	case policyengine.UpdateDelete:
 		err := m.persistence.DeleteTransaction(ctx, mtx.ID)
 		if err != nil {
@@ -317,26 +326,32 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 		}
 		pending.remove = true // for the next time round the loop
 		m.markInflightStale()
+		m.sendWSReply(mtx)
 	}
-	m.sendWSReply(mtx)
 
 	return nil
 }
 
 func (m *manager) sendWSReply(mtx *apitypes.ManagedTX) {
 	wsr := &apitypes.TransactionUpdateReply{
-		ManagedTX: *mtx,
 		Headers: apitypes.ReplyHeaders{
 			RequestID: mtx.ID,
 		},
+		Status:          mtx.Status,
+		TransactionHash: mtx.TransactionHash,
 	}
+
+	if mtx.Receipt != nil {
+		wsr.ProtocolID = mtx.Receipt.ProtocolID
+	} else {
+		wsr.ProtocolID = ""
+	}
+
 	switch mtx.Status {
 	case apitypes.TxStatusSucceeded:
 		wsr.Headers.Type = apitypes.TransactionUpdateSuccess
 	case apitypes.TxStatusFailed:
 		wsr.Headers.Type = apitypes.TransactionUpdateFailure
-	default:
-		wsr.Headers.Type = apitypes.TransactionUpdate
 	}
 	// Notify on the websocket - this is best-effort (there is no subscription/acknowledgement)
 	m.wsServer.SendReply(wsr)

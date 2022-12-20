@@ -347,6 +347,7 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		BlockHash:        block1002a.ParentHash,
 		BlockNumber:      fftypes.NewFFBigInt(1001),
 		TransactionIndex: fftypes.NewFFBigInt(0),
+		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
 		Success:          true,
 	}, ffcapi.ErrorReason(""), nil).Once()
 
@@ -385,6 +386,7 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 		BlockHash:        block1001b.BlockHash,
 		BlockNumber:      fftypes.NewFFBigInt(1001),
 		TransactionIndex: fftypes.NewFFBigInt(0),
+		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
 		Success:          true,
 	}, ffcapi.ErrorReason(""), nil).Once()
 
@@ -962,6 +964,7 @@ func TestCheckReceiptImmediateConfirm(t *testing.T) {
 		BlockHash:        fftypes.NewRandB32().String(),
 		BlockNumber:      fftypes.NewFFBigInt(1001),
 		TransactionIndex: fftypes.NewFFBigInt(0),
+		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
 		Success:          true,
 	}, ffcapi.ErrorReasonNotFound, nil)
 
@@ -1009,6 +1012,7 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 		BlockNumber:      fftypes.NewFFBigInt(12345),
 		BlockHash:        "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 		TransactionIndex: fftypes.NewFFBigInt(10),
+		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 	}, ffcapi.ErrorReason(""), nil)
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 12346

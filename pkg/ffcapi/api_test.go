@@ -55,13 +55,3 @@ func TestSortEvents(t *testing.T) {
 		assert.LessOrEqual(t, strings.Compare(listenerUpdates[i-1].Event.ID.ProtocolID(), listenerUpdates[i].Event.ID.ProtocolID()), 0)
 	}
 }
-
-func TestProtocolIDForReceipt(t *testing.T) {
-	var receipt *TransactionReceiptResponse
-	assert.Empty(t, ProtocolIDForReceipt(receipt))
-	receipt = &TransactionReceiptResponse{
-		BlockNumber:      fftypes.NewFFBigInt(12345),
-		TransactionIndex: fftypes.NewFFBigInt(42),
-	}
-	assert.Equal(t, "000000012345/000042", ProtocolIDForReceipt(receipt))
-}
