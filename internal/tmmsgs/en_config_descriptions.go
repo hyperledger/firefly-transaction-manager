@@ -81,4 +81,13 @@ var (
 	ConfigWebhooksAllowPrivateIPs = ffc("config.webhooks.allowPrivateIPs", "Whether to allow WebHook URLs that resolve to Private IP address ranges (vs. internet addresses)", i18n.BooleanType)
 	ConfigWebhooksURL             = ffc("config.webhooks.url", "Unused (overridden by the WebHook configuration of an individual event stream)", i18n.IgnoredType)
 	ConfigWebhooksProxyURL        = ffc("config.webhooks.proxy.url", "Optional HTTP proxy to use when invoking WebHooks", i18n.StringType)
+
+	ConfigMetricsAddress         = ffc("config.metrics.address", "The IP address on which the metrics HTTP API should listen", i18n.IntType)
+	ConfigMetricsEnabled         = ffc("config.metrics.enabled", "Enables the metrics API", i18n.BooleanType)
+	ConfigMetricsPath            = ffc("config.metrics.path", "The path from which to serve the Prometheus metrics", i18n.StringType)
+	ConfigMetricsPort            = ffc("config.metrics.port", "The port on which the metrics HTTP API should listen", i18n.IntType)
+	ConfigMetricsPublicURL       = ffc("config.metrics.publicURL", "The fully qualified public URL for the metrics API. This is used for building URLs in HTTP responses and in OpenAPI Spec generation", "URL "+i18n.StringType)
+	ConfigMetricsReadTimeout     = ffc("config.metrics.readTimeout", "The maximum time to wait when reading from an HTTP connection", i18n.TimeDurationType)
+	ConfigMetricsWriteTimeout    = ffc("config.metrics.writeTimeout", "The maximum time to wait when writing to an HTTP connection", i18n.TimeDurationType)
+	ConfigMetricsShutdownTimeout = ffc("config.metrics.shutdownTimeout", "The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server", i18n.TimeDurationType)
 )

@@ -57,6 +57,8 @@ var (
 	APIDefaultRequestTimeout                      = ffc("api.defaultRequestTimeout")
 	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
 	DebugPort                                     = ffc("debug.port")
+	MetricsEnabled                                = ffc("metrics.enabled")
+	MetricsPath                                   = ffc("metrics.path")
 )
 
 var APIConfig config.Section
@@ -66,6 +68,8 @@ var CorsConfig config.Section
 var PolicyEngineBaseConfig config.Section
 
 var WebhookPrefix config.Section
+
+var MetricsConfig config.Section
 
 func setDefaults() {
 	viper.SetDefault(string(TransactionsMaxInFlight), 100)
@@ -102,6 +106,8 @@ func setDefaults() {
 	viper.SetDefault(string(EventStreamsRetryMaxDelay), "30s")
 	viper.SetDefault(string(EventStreamsRetryFactor), 2.0)
 	viper.SetDefault(string(DebugPort), -1)
+	viper.SetDefault(string(MetricsEnabled), false)
+	viper.SetDefault(string(MetricsPath), "/metrics")
 }
 
 func Reset() {
@@ -119,4 +125,6 @@ func Reset() {
 	PolicyEngineBaseConfig = config.RootSection("policyengine")
 	// policy engines must be registered outside of this package
 
+	MetricsConfig = config.RootSection("metrics")
+	httpserver.InitHTTPConfig(MetricsConfig, 6000)
 }
