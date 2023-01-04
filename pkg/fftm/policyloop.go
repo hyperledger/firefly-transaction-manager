@@ -388,6 +388,7 @@ func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendin
 					// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 					m.mux.Lock()
 					pending.mtx.Receipt = receipt
+					pending.mtx.AddSubStatus(apitypes.TxSubStatusReceivedReceipt)
 					m.mux.Unlock()
 					log.L(m.ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 					m.markInflightUpdate()
@@ -397,6 +398,7 @@ func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendin
 					m.mux.Lock()
 					pending.confirmed = true
 					pending.mtx.Confirmations = confirmations
+					pending.mtx.AddSubStatus(apitypes.TxSubStatusConfirmed)
 					m.mux.Unlock()
 					log.L(m.ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 					m.markInflightUpdate()

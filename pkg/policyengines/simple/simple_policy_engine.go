@@ -157,14 +157,17 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
 		// Only calculate gas price here in the simple policy engine
+		mtx.AddSubStatus(apitypes.TxSubStatusRetrievingGasPrice)
 		mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
 		if err != nil {
 			return policyengine.UpdateNo, "", err
 		}
+		mtx.AddSubStatus(apitypes.TxSubStatusRetrievedGasPrice)
 		// Submit the first time
 		if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
 			return policyengine.UpdateYes, reason, err
 		}
+		mtx.AddSubStatus(apitypes.TxSubStatusSubmitted)
 		mtx.FirstSubmit = mtx.LastSubmit
 		return policyengine.UpdateYes, "", nil
 
@@ -193,6 +196,7 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 						return policyengine.UpdateYes, reason, err
 					}
 				}
+				mtx.AddSubStatus(apitypes.TxSubStatusSubmitted)
 				return policyengine.UpdateYes, "", nil
 			}
 			return policyengine.UpdateNo, "", nil
