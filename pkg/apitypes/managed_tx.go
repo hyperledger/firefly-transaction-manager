@@ -45,6 +45,31 @@ type ManagedTXUpdate struct {
 	MappedReason   ffcapi.ErrorReason `json:"reason,omitempty"`
 }
 
+// TxSubStatus is an intermediate status a transaction may go through
+type TxSubStatus string
+
+const (
+	// TxSubStatusRetrievedGasPrice indicates the operation has had gas price calculated for it
+	TxSubStatusRetrievedGasPrice TxSubStatus = "RetrievedGasPrice"
+	// TxSubStatusRetrievingGasPrice indicates the operation is getting a gas price
+	TxSubStatusRetrievingGasPrice TxSubStatus = "RetrievingGasPrice"
+	// TxSubStatusSubmitting indicates that the transaction is about to be submitted
+	TxSubStatusSubmitting TxSubStatus = "Submitting"
+	// TxSubStatusSubmitted indicates that the transaction has been submitted to the JSON/RPC endpoint
+	TxSubStatusSubmitted TxSubStatus = "Submitted"
+	// TxSubStatusReceivedReceipt indicates that we have received a receipt for the transaction
+	TxSubStatusReceivedReceipt TxSubStatus = "ReceivedReceipt"
+	// TxSubStatusConfirmed indicates that we have met the required number of confirmations for the transaction
+	TxSubStatusConfirmed TxSubStatus = "Confirmed"
+)
+
+type TxSubStatusEntry struct {
+	Time           *fftypes.FFTime `json:"time"`
+	LastOccurrence *fftypes.FFTime `json:"lastOccurrence"`
+	Status         TxSubStatus     `json:"subStatus"`
+	Count          int             `json:"count"`
+}
+
 // MsgString is assured to be the same, as long as the type/message is the same.
 // Does not change if the count/times are different - so allows comparison.
 func (mtu *ManagedTXUpdate) MsgString() string {
@@ -98,6 +123,7 @@ type ManagedTX struct {
 	Receipt            *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
 	ErrorMessage       string                             `json:"errorMessage,omitempty"`
 	History            []*ManagedTXUpdate                 `json:"history"`
+	SubStatusHistory   []*TxSubStatusEntry                `json:"subStatusHistory"`
 	Confirmations      []confirmations.BlockInfo          `json:"confirmations,omitempty"`
 }
 
@@ -124,4 +150,18 @@ type TransactionUpdateReply struct {
 	Status          TxStatus     `json:"status"`
 	ProtocolID      string       `json:"protocolId"`
 	TransactionHash string       `json:"transactionHash,omitempty"`
+}
+
+func (mtx *ManagedTX) AddSubStatus(subStatus TxSubStatus) {
+	newStatus := &TxSubStatusEntry{
+		Time:           fftypes.Now(),
+		LastOccurrence: fftypes.Now(),
+		Count:          1,
+		Status:         subStatus,
+	}
+	mtx.SubStatusHistory = append(mtx.SubStatusHistory, newStatus)
+
+	if len(mtx.SubStatusHistory) > 20 {
+		mtx.SubStatusHistory = mtx.SubStatusHistory[1:]
+	}
 }
