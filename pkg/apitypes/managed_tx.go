@@ -17,9 +17,11 @@
 package apitypes
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
@@ -49,10 +51,10 @@ type ManagedTXUpdate struct {
 type TxSubStatus string
 
 const (
-	// TxSubStatusRetrievedGasPrice indicates the operation has had gas price calculated for it
-	TxSubStatusRetrievedGasPrice TxSubStatus = "RetrievedGasPrice"
 	// TxSubStatusRetrievingGasPrice indicates the operation is getting a gas price
 	TxSubStatusRetrievingGasPrice TxSubStatus = "RetrievingGasPrice"
+	// TxSubStatusRetrievedGasPrice indicates the operation has had gas price calculated for it
+	TxSubStatusRetrievedGasPrice TxSubStatus = "RetrievedGasPrice"
 	// TxSubStatusSubmitting indicates that the transaction is about to be submitted
 	TxSubStatusSubmitting TxSubStatus = "Submitting"
 	// TxSubStatusSubmitted indicates that the transaction has been submitted to the JSON/RPC endpoint
@@ -152,16 +154,36 @@ type TransactionUpdateReply struct {
 	TransactionHash string       `json:"transactionHash,omitempty"`
 }
 
-func (mtx *ManagedTX) AddSubStatus(subStatus TxSubStatus) {
-	newStatus := &TxSubStatusEntry{
-		Time:           fftypes.Now(),
-		LastOccurrence: fftypes.Now(),
-		Count:          1,
-		Status:         subStatus,
+// Transaction sub-status entries can be added for a given transaction so a caller
+// can see discrete steps in a transaction moving to confirmation on the blockchain.
+// There only exists a single entry in the list for each unique sub-status type. If
+// a transaction goes through the same sub-status more than once (for example if it
+// has gas recalculated for it more than once) then the "Count" and "LastOccurence" fields
+// should be updated accordingly. This design allows a caller to see when the most recent
+// sub-status changes took place and if necessary, to order them by time, but prevents
+// the potential for the sub-status list to grow indefinitely.
+func (mtx *ManagedTX) AddSubStatus(ctx context.Context, subStatus TxSubStatus) {
+	// See if this status exists in the list already
+	for _, entry := range mtx.SubStatusHistory {
+		if entry.Status == subStatus {
+			entry.Count++
+			entry.LastOccurrence = fftypes.Now()
+			return
+		}
 	}
-	mtx.SubStatusHistory = append(mtx.SubStatusHistory, newStatus)
 
-	if len(mtx.SubStatusHistory) > 20 {
-		mtx.SubStatusHistory = mtx.SubStatusHistory[1:]
+	// Prevent crazy run-away situations by limiting the number of unique sub-status
+	// types we will keep
+	if len(mtx.SubStatusHistory) >= 50 {
+		log.L(ctx).Warn("Number of unique sub-status types reached. Some status detail may be lost.")
+	} else {
+		// If this is an entirely new status add it to the list
+		newStatus := &TxSubStatusEntry{
+			Time:           fftypes.Now(),
+			LastOccurrence: fftypes.Now(),
+			Count:          1,
+			Status:         subStatus,
+		}
+		mtx.SubStatusHistory = append(mtx.SubStatusHistory, newStatus)
 	}
 }
