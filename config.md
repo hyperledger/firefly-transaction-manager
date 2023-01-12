@@ -7,6 +7,7 @@
 |address|Listener address for API|`string`|`127.0.0.1`
 |defaultRequestTimeout|Default server-side request timeout for API calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
 |maxRequestTimeout|Maximum server-side request timeout a caller can request with a Request-Timeout header|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10m`
+|passthroughHeaders|A list of HTTP request headers to pass through to dependency microservices|`[]string`|`[]`
 |port|Listener port for API|`int`|`5008`
 |publicURL|External address callers should access API over|`string`|`<nil>`
 |readTimeout|The maximum time to wait when reading from an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
@@ -193,6 +194,7 @@
 |maxIdleConns|The max number of idle connections to hold pooled|`int`|`<nil>`
 |method|The HTTP Method to use when invoking the Gas Oracle REST API|`string`|`<nil>`
 |mode|The gas oracle mode|'connector', 'restapi', 'fixed', or 'disabled'|`<nil>`
+|passthroughHeadersEnabled|Enable passing through the set of allowed HTTP request headers|`boolean`|`<nil>`
 |queryInterval|The minimum interval between queries to the Gas Oracle|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |requestTimeout|The maximum amount of time that a request is allowed to remain open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |template|REST API Gas Oracle: A go template to execute against the result from the Gas Oracle, to create a JSON block that will be passed as the gas price to the connector|[Go Template](https://pkg.go.dev/text/template) `string`|`<nil>`
@@ -253,6 +255,7 @@
 |headers|Adds custom headers to HTTP requests|`map[string]string`|`<nil>`
 |idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`475ms`
 |maxIdleConns|The max number of idle connections to hold pooled|`int`|`100`
+|passthroughHeadersEnabled|Enable passing through the set of allowed HTTP request headers|`boolean`|`false`
 |requestTimeout|The maximum amount of time that a request is allowed to remain open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
 |tlsHandshakeTimeout|The maximum amount of time to wait for a successful TLS handshake|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
 

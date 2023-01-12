@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -39,6 +39,7 @@ func (m *manager) router() *mux.Router {
 	hf := ffapi.HandlerFactory{
 		DefaultRequestTimeout: config.GetDuration(tmconfig.APIDefaultRequestTimeout),
 		MaxTimeout:            config.GetDuration(tmconfig.APIMaxRequestTimeout),
+		PassthroughHeaders:    config.GetStringSlice(tmconfig.APIPassthroughHeaders),
 	}
 	routes := m.routes()
 	for _, r := range routes {
