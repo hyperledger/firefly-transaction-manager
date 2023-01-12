@@ -7,6 +7,7 @@
 |address|Listener address for API|`string`|`127.0.0.1`
 |defaultRequestTimeout|Default server-side request timeout for API calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
 |maxRequestTimeout|Maximum server-side request timeout a caller can request with a Request-Timeout header|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10m`
+|passthroughHeaders|A list of HTTP request headers to pass through to dependency microservices|`[]string`|`[]`
 |port|Listener port for API|`int`|`5008`
 |publicURL|External address callers should access API over|`string`|`<nil>`
 |readTimeout|The maximum time to wait when reading from an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
