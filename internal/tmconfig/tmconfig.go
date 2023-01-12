@@ -56,6 +56,7 @@ var (
 	PersistenceLevelDBSyncWrites                  = ffc("persistence.leveldb.syncWrites")
 	APIDefaultRequestTimeout                      = ffc("api.defaultRequestTimeout")
 	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
+	APIPassthroughHeaders                         = ffc("api.passthroughHeaders")
 	DebugPort                                     = ffc("debug.port")
 	MetricsEnabled                                = ffc("metrics.enabled")
 	MetricsPath                                   = ffc("metrics.path")
@@ -108,6 +109,8 @@ func setDefaults() {
 	viper.SetDefault(string(DebugPort), -1)
 	viper.SetDefault(string(MetricsEnabled), false)
 	viper.SetDefault(string(MetricsPath), "/metrics")
+
+	viper.SetDefault(string(APIPassthroughHeaders), []string{})
 }
 
 func Reset() {

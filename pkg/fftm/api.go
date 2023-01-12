@@ -39,6 +39,7 @@ func (m *manager) router() *mux.Router {
 	hf := ffapi.HandlerFactory{
 		DefaultRequestTimeout: config.GetDuration(tmconfig.APIDefaultRequestTimeout),
 		MaxTimeout:            config.GetDuration(tmconfig.APIMaxRequestTimeout),
+		PassthroughHeaders:    config.GetStringSlice(tmconfig.APIPassthroughHeaders),
 	}
 	routes := m.routes()
 	for _, r := range routes {
