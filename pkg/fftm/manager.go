@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -105,10 +105,6 @@ type manager struct {
 func InitConfig() {
 	tmconfig.Reset()
 	events.InitDefaults()
-
-	if config.GetBool(tmconfig.MetricsEnabled) {
-		metrics.Registry()
-	}
 }
 
 func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {

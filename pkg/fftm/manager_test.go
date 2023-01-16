@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -44,10 +44,15 @@ const testManagerName = "unittest"
 
 func strPtr(s string) *string { return &s }
 
-func testManagerCommonInit(t *testing.T) string {
+func testManagerCommonInit(t *testing.T, withMetrics bool) string {
+
 	InitConfig()
 	policyengines.RegisterEngine(&simple.PolicyEngineFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").SubSection(simple.GasOracleConfig).Set(simple.GasOracleMode, simple.GasOracleModeDisabled)
+
+	if withMetrics {
+		tmconfig.MetricsConfig.Set("enabled", true)
+	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.NoError(t, err)
@@ -55,6 +60,11 @@ func testManagerCommonInit(t *testing.T) string {
 	ln.Close()
 	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, managerPort)
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
+
+	if withMetrics {
+		tmconfig.MetricsConfig.Set(httpserver.HTTPConfPort, 6010)
+		tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
+	}
 
 	config.Set(tmconfig.PolicyLoopInterval, "1ns")
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
@@ -64,7 +74,7 @@ func testManagerCommonInit(t *testing.T) string {
 
 func newTestManager(t *testing.T) (string, *manager, func()) {
 
-	url := testManagerCommonInit(t)
+	url := testManagerCommonInit(t, false)
 
 	dir, err := ioutil.TempDir("", "ldb_*")
 	assert.NoError(t, err)
@@ -86,12 +96,37 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 			m.Close()
 			os.RemoveAll(dir)
 		}
+}
 
+func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
+
+	url := testManagerCommonInit(t, true)
+
+	dir, err := ioutil.TempDir("", "ldb_*")
+	assert.NoError(t, err)
+	config.Set(tmconfig.PersistenceLevelDBPath, dir)
+
+	mca := &ffcapimocks.API{}
+	mca.On("NewBlockListener", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil).Maybe()
+	mm, err := NewManager(context.Background(), mca)
+	assert.NoError(t, err)
+
+	m := mm.(*manager)
+	mcm := &confirmationsmocks.Manager{}
+	mcm.On("Start").Return().Maybe()
+	m.confirmations = mcm
+
+	return url,
+		m,
+		func() {
+			m.Close()
+			os.RemoveAll(dir)
+		}
 }
 
 func newTestManagerMockPersistence(t *testing.T) (string, *manager, func()) {
 
-	url := testManagerCommonInit(t)
+	url := testManagerCommonInit(t, false)
 
 	m := newManager(context.Background(), &ffcapimocks.API{})
 	mp := &persistencemocks.Persistence{}
@@ -115,6 +150,7 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background(), nil)
+	assert.Error(t, err)
 	assert.Regexp(t, "FF00151", err)
 
 }
@@ -167,7 +203,29 @@ func TestNewManagerMetricsOffByDefault(t *testing.T) {
 
 	m := newManager(context.Background(), nil)
 	assert.False(t, m.metricsEnabled)
+}
 
+func TestNewManagerWithMetrics(t *testing.T) {
+
+	_, m, close := newTestManagerWithMetrics(t)
+	defer close()
+	_ = m.Start()
+
+	assert.True(t, m.metricsEnabled)
+}
+
+func TestNewManagerWithMetricsBadConfig(t *testing.T) {
+
+	tmconfig.Reset()
+	tmconfig.MetricsConfig.Set("enabled", true)
+	tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "::::")
+
+	policyengines.RegisterEngine(&simple.PolicyEngineFactory{})
+	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
+
+	_, err := NewManager(context.Background(), nil)
+	assert.Error(t, err)
+	assert.Regexp(t, "FF00151", err)
 }
 
 func TestAddHistoryEntryMax(t *testing.T) {
