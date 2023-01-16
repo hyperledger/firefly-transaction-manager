@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -131,6 +131,10 @@ type ReadyStatus struct {
 
 type LiveAddressBalance struct {
 	ffcapi.AddressBalanceResponse
+}
+
+type LiveGasPrice struct {
+	ffcapi.GasPriceEstimateResponse
 }
 
 // CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset
