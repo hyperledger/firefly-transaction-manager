@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -47,5 +47,6 @@ func (m *manager) routes() []*ffapi.Route {
 		postSubscriptionReset(m),
 		postSubscriptions(m),
 		getAddressBalance(m),
+		getGasPrice(m),
 	}
 }
