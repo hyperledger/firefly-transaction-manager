@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -315,7 +315,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 
 func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 
-	_, m, cancel := newTestManager(t)
+	_, m, cancel := newTestManagerWithMetrics(t)
 	defer cancel()
 	m.policyLoopInterval = 1 * time.Hour
 
@@ -345,6 +345,8 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 	<-done1
 
 	<-done2
+
+	m.Close()
 
 	mpe.AssertExpectations(t)
 
