@@ -96,10 +96,12 @@ type manager struct {
 	debugServer             *http.Server
 	debugServerDone         chan struct{}
 
-	policyLoopInterval time.Duration
-	nonceStateTimeout  time.Duration
-	errorHistoryCount  int
-	maxInFlight        int
+	policyLoopInterval     time.Duration
+	nonceStateTimeout      time.Duration
+	maxHistoryCount        int
+	maxHistorySummaryCount int
+	maxHistoryActions      int
+	maxInFlight            int
 }
 
 func InitConfig() {
@@ -121,20 +123,22 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 
 func newManager(ctx context.Context, connector ffcapi.API) *manager {
 	m := &manager{
-		connector:          connector,
-		lockedNonces:       make(map[string]*lockedNonce),
-		apiServerDone:      make(chan error),
-		metricsServerDone:  make(chan error),
-		metricsEnabled:     config.GetBool(tmconfig.MetricsEnabled),
-		eventStreams:       make(map[fftypes.UUID]events.Stream),
-		streamsByName:      make(map[string]*fftypes.UUID),
-		metricsManager:     metrics.NewMetricsManager(ctx),
-		policyLoopInterval: config.GetDuration(tmconfig.PolicyLoopInterval),
-		errorHistoryCount:  config.GetInt(tmconfig.TransactionsErrorHistoryCount),
-		maxInFlight:        config.GetInt(tmconfig.TransactionsMaxInFlight),
-		nonceStateTimeout:  config.GetDuration(tmconfig.TransactionsNonceStateTimeout),
-		inflightStale:      make(chan bool, 1),
-		inflightUpdate:     make(chan bool, 1),
+		connector:              connector,
+		lockedNonces:           make(map[string]*lockedNonce),
+		apiServerDone:          make(chan error),
+		metricsServerDone:      make(chan error),
+		metricsEnabled:         config.GetBool(tmconfig.MetricsEnabled),
+		eventStreams:           make(map[fftypes.UUID]events.Stream),
+		streamsByName:          make(map[string]*fftypes.UUID),
+		metricsManager:         metrics.NewMetricsManager(ctx),
+		policyLoopInterval:     config.GetDuration(tmconfig.PolicyLoopInterval),
+		maxHistoryCount:        config.GetInt(tmconfig.TransactionsMaxHistoryCount),
+		maxHistorySummaryCount: config.GetInt(tmconfig.TransactionsMaxHistorySummaryCount),
+		maxHistoryActions:      config.GetInt(tmconfig.TransactionsMaxHistoryActions),
+		maxInFlight:            config.GetInt(tmconfig.TransactionsMaxInFlight),
+		nonceStateTimeout:      config.GetDuration(tmconfig.TransactionsNonceStateTimeout),
+		inflightStale:          make(chan bool, 1),
+		inflightUpdate:         make(chan bool, 1),
 		retry: &retry.Retry{
 			InitialDelay: config.GetDuration(tmconfig.PolicyLoopRetryInitDelay),
 			MaximumDelay: config.GetDuration(tmconfig.PolicyLoopRetryMaxDelay),

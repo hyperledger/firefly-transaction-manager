@@ -18,7 +18,6 @@ package fftm
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -191,58 +190,17 @@ func (m *manager) processPolicyAPIRequests(ctx context.Context) {
 
 }
 
-// updateHistory applies an update to the object, and returns if a new item was added
-// to the history.
-func (m *manager) updateHistory(mtx *apitypes.ManagedTX, info string, err error, reason ffcapi.ErrorReason) bool {
-
-	if info == "" && err == nil {
-		return false
-	}
-
-	// Initialize a new entry
-	mtx.Updated = fftypes.Now()
-	newEntry := &apitypes.ManagedTXUpdate{
-		Time:         mtx.Updated,
-		Info:         info,
-		MappedReason: reason,
-		Count:        1,
-	}
-
-	// Set or clear the error message - on the entry, and the top-level TX
-	if err != nil {
-		newEntry.Error = err.Error()
-		mtx.ErrorMessage = err.Error()
-	} else {
-		mtx.ErrorMessage = ""
-	}
-
-	// Check if we just need to increment the last occurrence and count on the latest
-	if len(mtx.History) > 0 && mtx.History[0].MsgString() == newEntry.MsgString() {
-		existingEntry := mtx.History[0]
-		existingEntry.Count++
-		existingEntry.LastOccurrence = mtx.Updated
-		return err != nil // Always store error count bumps
-	}
-
-	// Otherwise extend the list - newest first
-	newLen := len(mtx.History) + 1
-	if newLen > m.errorHistoryCount {
-		newLen = m.errorHistoryCount
-	}
-	oldHistory := mtx.History
-	mtx.History = make([]*apitypes.ManagedTXUpdate, newLen)
-	mtx.History[0] = newEntry
-	for i := 1; i < newLen; i++ {
-		mtx.History[i] = oldHistory[i-1]
-	}
-	return true
-}
-
 func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDeleteRequest bool) (err error) {
 
 	update := policyengine.UpdateNo
 	completed := false
 	var receiptProtocolID string
+	var lastStatusChange *fftypes.FFTime
+	currentSubStatus := pending.mtx.CurrentSubStatus(ctx)
+
+	if currentSubStatus != nil {
+		lastStatusChange = currentSubStatus.Time
+	}
 
 	// Check whether this has been confirmed by the confirmation manager
 	m.mux.Lock()
@@ -260,17 +218,14 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 
 	var updateErr error
 	var updateReason ffcapi.ErrorReason
-	var updateInfo string
 	switch {
 	case receiptProtocolID != "" && confirmed && !syncDeleteRequest:
 		update = policyengine.UpdateYes
 		completed = true
-		updateInfo = fmt.Sprintf("Success=%t,Receipt=%s,Confirmations=%d,Hash=%s", mtx.Receipt.Success, receiptProtocolID, len(mtx.Confirmations), mtx.TransactionHash)
 		if pending.mtx.Receipt.Success {
 			mtx.Status = apitypes.TxStatusSucceeded
 		} else {
 			mtx.Status = apitypes.TxStatusFailed
-			updateErr = i18n.NewError(ctx, tmmsgs.MsgTransactionFailed)
 		}
 
 	default:
@@ -290,7 +245,6 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 					m.metricsManager.TransactionSubmissionError()
 				}
 			} else {
-				updateInfo = fmt.Sprintf("Submitted=%t,Receipt=%s,Hash=%s", mtx.FirstSubmit != nil, receiptProtocolID, mtx.TransactionHash)
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 					// If now submitted, add to confirmations manager for receipt checking
@@ -301,13 +255,10 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 		}
 	}
 
-	infoChanged := m.updateHistory(mtx, updateInfo, updateErr, updateReason)
-	if infoChanged && update == policyengine.UpdateNo {
-		// TODO: The interface with policy engine could do with enhancing, including
-		//       reconciling FireFly core issue 1108. For now, if the policy engine
-		//       doesn't mark an update, but the info we have about the TX changed
-		//       due to receipt/confirmations popping in or then we publish an update.
-		update = policyengine.UpdateYes
+	if mtx.CurrentSubStatus(ctx) != nil {
+		if !mtx.CurrentSubStatus(ctx).Time.Equal(lastStatusChange) {
+			update = policyengine.UpdateYes
+		}
 	}
 
 	switch update {
@@ -390,7 +341,7 @@ func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendin
 					pending.mtx.Receipt = receipt
 					m.mux.Unlock()
 					log.L(m.ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
-					pending.mtx.AddSubStatus(ctx, apitypes.TxSubStatusReceivedReceipt)
+					pending.mtx.AddSubStatusAction(ctx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
 					m.markInflightUpdate()
 				},
 				Confirmed: func(ctx context.Context, confirmations []confirmations.BlockInfo) {
@@ -400,6 +351,7 @@ func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendin
 					pending.mtx.Confirmations = confirmations
 					m.mux.Unlock()
 					log.L(m.ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
+					pending.mtx.AddSubStatusAction(ctx, apitypes.TxActionConfirmTransaction, nil, nil)
 					pending.mtx.AddSubStatus(ctx, apitypes.TxSubStatusConfirmed)
 					m.markInflightUpdate()
 				},

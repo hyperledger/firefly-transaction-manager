@@ -45,9 +45,11 @@ var (
 	ConfigConfirmationsRequired                 = ffc("config.confirmations.required", "Number of confirmations required to consider a transaction/event final", i18n.IntType)
 	ConfigConfirmationsStaleReceiptTimeout      = ffc("config.confirmations.staleReceiptTimeout", "Duration after which to force a receipt check for a pending transaction", i18n.TimeDurationType)
 
-	ConfigTransactionsErrorHistoryCount = ffc("config.transactions.errorHistoryCount", "The number of historical errors to retain in the operation", i18n.IntType)
-	ConfigTransactionsMaxInflight       = ffc("config.transactions.maxInFlight", "The maximum number of transactions to have in-flight with the policy engine / blockchain transaction pool", i18n.IntType)
-	ConfigTransactionsNonceStateTimeout = ffc("config.transactions.nonceStateTimeout", "How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address", i18n.TimeDurationType)
+	ConfigTransactionsMaxHistoryCount        = ffc("config.transactions.maxHistoryCount", "The number of historical status updates to retain in the operation", i18n.IntType)
+	ConfigTransactionsMaxHistorySummaryCount = ffc("config.transactions.maxHistorySummaryCount", "The number of historical status summary records to retain in the operation", i18n.IntType)
+	ConfigTransactionsMaxHistoryActions      = ffc("config.transactions.maxHistoryActions", "The number of actions to store per historical status updates", i18n.IntType)
+	ConfigTransactionsMaxInflight            = ffc("config.transactions.maxInFlight", "The maximum number of transactions to have in-flight with the policy engine / blockchain transaction pool", i18n.IntType)
+	ConfigTransactionsNonceStateTimeout      = ffc("config.transactions.nonceStateTimeout", "How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address", i18n.TimeDurationType)
 
 	ConfigPolicyEngineName = ffc("config.policyengine.name", "The name of the policy engine to use", i18n.StringType)
 

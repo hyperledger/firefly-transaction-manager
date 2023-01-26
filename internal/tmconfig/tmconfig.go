@@ -30,7 +30,9 @@ var (
 	ConfirmationsBlockQueueLength                 = ffc("confirmations.blockQueueLength")
 	ConfirmationsStaleReceiptTimeout              = ffc("confirmations.staleReceiptTimeout")
 	ConfirmationsNotificationQueueLength          = ffc("confirmations.notificationQueueLength")
-	TransactionsErrorHistoryCount                 = ffc("transactions.errorHistoryCount")
+	TransactionsMaxHistoryCount                   = ffc("transactions.maxHistoryCount")
+	TransactionsMaxHistorySummaryCount            = ffc("transactions.maxHistorySummaryCount")
+	TransactionsMaxHistoryActions                 = ffc("transactions.maxHistoryActions")
 	TransactionsMaxInFlight                       = ffc("transactions.maxInFlight")
 	TransactionsNonceStateTimeout                 = ffc("transactions.nonceStateTimeout")
 	PolicyLoopInterval                            = ffc("policyloop.interval")
@@ -74,7 +76,9 @@ var MetricsConfig config.Section
 
 func setDefaults() {
 	viper.SetDefault(string(TransactionsMaxInFlight), 100)
-	viper.SetDefault(string(TransactionsErrorHistoryCount), 25)
+	viper.SetDefault(string(TransactionsMaxHistoryCount), 50)
+	viper.SetDefault(string(TransactionsMaxHistorySummaryCount), 50)
+	viper.SetDefault(string(TransactionsMaxHistoryActions), 50)
 	viper.SetDefault(string(TransactionsNonceStateTimeout), "1h")
 	viper.SetDefault(string(ConfirmationsRequired), 20)
 	viper.SetDefault(string(ConfirmationsBlockQueueLength), 50)

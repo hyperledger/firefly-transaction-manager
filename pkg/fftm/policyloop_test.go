@@ -294,7 +294,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 				SequenceID:  apitypes.NewULID(),
 				Nonce:       fftypes.NewFFBigInt(1000),
 				Status:      apitypes.TxStatusSucceeded,
-				FirstSubmit: fftypes.Now(),
+				FirstSubmit: nil,
 				Receipt:     &ffcapi.TransactionReceiptResponse{},
 				TransactionHeaders: ffcapi.TransactionHeaders{
 					From: "0x12345",
@@ -302,6 +302,12 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 			},
 		},
 	}
+
+	m.inflight[0].mtx.AddSubStatus(m.ctx, apitypes.TxSubStatusReceived)
+	mpe := &policyenginemocks.PolicyEngine{}
+	m.policyEngine = mpe
+	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).
+		Return(policyengine.UpdateYes, ffcapi.ErrorReason(""), nil)
 
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("WriteTransaction", m.ctx, mock.Anything, false).Return(fmt.Errorf("pop"))
