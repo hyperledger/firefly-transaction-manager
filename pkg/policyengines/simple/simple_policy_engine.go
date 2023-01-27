@@ -112,8 +112,7 @@ func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *apitypes.M
 	return update, reason, err
 }
 
-func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (reason ffcapi.ErrorReason, err error) {
-	defer mtx.AddSubStatus(ctx, apitypes.TxSubStatusTracking)
+func (p *simplePolicyEngine) submitTX(ctx context.Context, tk *policyengine.ToolkitAPI, mtx *apitypes.ManagedTX) (reason ffcapi.ErrorReason, err error) {
 	sendTX := &ffcapi.TransactionSendRequest{
 		TransactionHeaders: mtx.TransactionHeaders,
 		GasPrice:           mtx.GasPrice,
@@ -122,13 +121,13 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 	sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
 	sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
 	log.L(ctx).Debugf("Sending transaction %s at nonce %s / %d (lastSubmit=%s)", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.LastSubmit)
-	res, reason, err := cAPI.TransactionSend(ctx, sendTX)
+	res, reason, err := tk.Connector.TransactionSend(ctx, sendTX)
 	if err == nil {
-		mtx.AddSubStatusAction(ctx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), nil)
+		tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), nil)
 		mtx.TransactionHash = res.TransactionHash
 		mtx.LastSubmit = fftypes.Now()
 	} else {
-		mtx.AddSubStatusAction(ctx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
+		tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
 		// We have some simple rules for handling reasons from the connector, which could be enhanced by extending the connector.
 		switch reason {
 		case ffcapi.ErrorKnownTransaction, ffcapi.ErrorReasonNonceTooLow:
@@ -147,10 +146,11 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 		}
 	}
 	log.L(ctx).Infof("Transaction %s at nonce %s / %d submitted. Hash: %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash)
+	tk.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusTracking)
 	return "", nil
 }
 
-func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (update policyengine.UpdateType, reason ffcapi.ErrorReason, err error) {
+func (p *simplePolicyEngine) Execute(ctx context.Context, tk *policyengine.ToolkitAPI, mtx *apitypes.ManagedTX) (update policyengine.UpdateType, reason ffcapi.ErrorReason, err error) {
 
 	// Simply policy engine allows deletion of the transaction without additional checks ( ensuring the TX has not been submitted / gap filling the nonce etc. )
 	if mtx.DeleteRequested != nil {
@@ -160,14 +160,14 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
 		// Only calculate gas price here in the simple policy engine
-		mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
+		mtx.GasPrice, err = p.getGasPrice(ctx, tk.Connector)
 		if err != nil {
-			mtx.AddSubStatusAction(ctx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
+			tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
 			return policyengine.UpdateNo, "", err
 		}
-		mtx.AddSubStatusAction(ctx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
+		tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
 		// Submit the first time
-		if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
+		if reason, err := p.submitTX(ctx, tk, mtx); err != nil {
 			return policyengine.UpdateYes, reason, err
 		}
 		mtx.FirstSubmit = mtx.LastSubmit
@@ -189,20 +189,20 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 				log.L(ctx).Infof("Transaction %s at nonce %s / %d has not been mined after %.2fs", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), secsSinceSubmit)
 				info.LastWarnTime = now
 				// We do a resubmit at this point - as it might no longer be in the TX pool
-				mtx.AddSubStatusAction(ctx, apitypes.TxActionTimeout, nil, nil)
-				mtx.AddSubStatus(ctx, apitypes.TxSubStatusStale)
-				mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
+				tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionTimeout, nil, nil)
+				tk.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusStale)
+				mtx.GasPrice, err = p.getGasPrice(ctx, tk.Connector)
 				if err != nil {
-					mtx.AddSubStatusAction(ctx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
+					tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
 					return policyengine.UpdateNo, "", err
 				}
-				mtx.AddSubStatusAction(ctx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
-				if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
+				tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
+				if reason, err := p.submitTX(ctx, tk, mtx); err != nil {
 					if reason != ffcapi.ErrorKnownTransaction {
 						return policyengine.UpdateYes, reason, err
 					}
 				}
-				mtx.AddSubStatus(ctx, apitypes.TxSubStatusTracking)
+				tk.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusTracking)
 				return policyengine.UpdateYes, "", nil
 			}
 			return policyengine.UpdateNo, "", nil

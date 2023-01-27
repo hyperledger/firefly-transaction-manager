@@ -84,6 +84,7 @@
     "Tracef",
     "txcommon",
     "txcommonmocks",
+    "txhistory",
     "txid",
     "txns",
     "txtype",

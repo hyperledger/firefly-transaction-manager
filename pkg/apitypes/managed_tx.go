@@ -17,12 +17,7 @@
 package apitypes
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
@@ -55,17 +50,20 @@ const (
 	TxSubStatusFailed TxSubStatus = "Failed"
 )
 
-type TxHistoryRecord struct {
-	Time    *fftypes.FFTime  `json:"time"`
-	Status  TxSubStatus      `json:"subStatus"`
-	Actions []*TxActionEntry `json:"actions"`
-	Info    string           `json:"info,omitempty"`
-	Error   string           `json:"error,omitempty"`
+// TxHistoryStateTransitionEntry represents a state that the policy engine that manages transaction submission has entered,
+// and a list of the actions attempted within that state in order to attempt to move to the next state.
+type TxHistoryStateTransitionEntry struct {
+	Status  TxSubStatus             `json:"subStatus"` // the subStatus we entered
+	Time    *fftypes.FFTime         `json:"time"`      // the time we transitioned to this subStatus
+	Actions []*TxHistoryActionEntry `json:"actions"`   // the unique actions we attempted while in this sub-status
 }
 
-type TxHistorySummaryRecord struct {
-	FirstOccurrence *fftypes.FFTime `json:"firstOccurence"`
+// TxHistorySummaryEntry records summarize the transaction history, by recording the number of times each
+// subStatus was entered. Because the detailed history might wrap, this means we can retain some basic
+// information about the complete history of the transaction beyond the life of the individual history records.
+type TxHistorySummaryEntry struct {
 	Status          TxSubStatus     `json:"subStatus"`
+	FirstOccurrence *fftypes.FFTime `json:"firstOccurrence"`
 	Count           int             `json:"count"`
 }
 
@@ -87,8 +85,12 @@ const (
 	TxActionConfirmTransaction TxAction = "Confirm"
 )
 
-// An action taken in order to progress a transaction, e.g. retrieve gas price from an oracle
-type TxActionEntry struct {
+// An action taken in order to progress a transaction, e.g. retrieve gas price from an oracle.
+// Actions are retaining similarly to the TxHistorySummaryEntry records, where we have a finite
+// list based on the action name. Actions are only added to the list once, then updated
+// when they occur multiple times. So if we are retrying the same set of actions over and over
+// again the list of actions does not grow.
+type TxHistoryActionEntry struct {
 	Time           *fftypes.FFTime  `json:"time"`
 	Action         TxAction         `json:"action"`
 	LastOccurrence *fftypes.FFTime  `json:"lastOccurrence"`
@@ -133,8 +135,8 @@ type ManagedTX struct {
 	LastSubmit         *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
 	Receipt            *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
 	ErrorMessage       string                             `json:"errorMessage,omitempty"`
-	History            []*TxHistoryRecord                 `json:"history,omitempty"`
-	HistorySummary     []*TxHistorySummaryRecord          `json:"historySummary,omitempty"`
+	History            []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
+	HistorySummary     []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`
 	Confirmations      []confirmations.BlockInfo          `json:"confirmations,omitempty"`
 }
 
@@ -161,136 +163,4 @@ type TransactionUpdateReply struct {
 	Status          TxStatus     `json:"status"`
 	ProtocolID      string       `json:"protocolId"`
 	TransactionHash string       `json:"transactionHash,omitempty"`
-}
-
-func (mtx *ManagedTX) CurrentSubStatus(ctx context.Context) *TxHistoryRecord {
-	if len(mtx.History) > 0 {
-		return mtx.History[len(mtx.History)-1]
-	}
-	return nil
-}
-
-// Transaction sub-status entries can be added for a given transaction so a caller
-// can see discrete steps in a transaction moving to confirmation on the blockchain.
-// For example a transaction might have a sub-status of "Stale" if a transaction has
-// been in pending state for a given period of time. In order to progress the transaction
-// while it's in a given sub-status, certain actions might be taken (such as retrieving
-// the latest gas price for the chain). See AddSubStatusAction(). Since a transaction
-// might go through many sub-status changes before being confirmed on chain the list of
-// entries is capped at the configured number and FIFO approach used to keep within that cap.
-func (mtx *ManagedTX) AddSubStatus(ctx context.Context, subStatus TxSubStatus) {
-	// See if the status being added is the same as the current status. If so we won't create
-	// a new record, just increment the total count
-	if len(mtx.History) > 0 {
-		if mtx.History[len(mtx.History)-1].Status == subStatus {
-			return
-		}
-		log.L(ctx).Debugf("Entered sub-status %s", subStatus)
-	}
-
-	// Do we need to remove the oldest entry to make space for this one?
-	if len(mtx.History) > 50 { // TODO - get from config
-		mtx.History = mtx.History[1:]
-	} else {
-		// If this is a change in status add a new record
-		newStatus := &TxHistoryRecord{
-			Time:    fftypes.Now(),
-			Status:  subStatus,
-			Actions: make([]*TxActionEntry, 0),
-		}
-		mtx.History = append(mtx.History, newStatus)
-
-		// As was as detailed sub-status records (which might be a long list and early entries
-		// get purged at some point) we keep a separate list of all the discrete types of sub-status
-		// we've ever seen for this transaction along with a count of them. This means an early sub-status
-		// (e.g. "queued") followed by 100s of different sub-status types will still be recorded
-		newHistorySummary := true
-		for _, statusType := range mtx.HistorySummary {
-			if statusType.Status == subStatus {
-				// Just increment the counter
-				statusType.Count++
-				newHistorySummary = false
-				break
-			}
-		}
-
-		if newHistorySummary {
-			if len(mtx.HistorySummary) < 50 { // TODO - get from config
-				mtx.HistorySummary = append(mtx.HistorySummary, &TxHistorySummaryRecord{Status: subStatus, Count: 1, FirstOccurrence: fftypes.Now()})
-			} else {
-				log.L(ctx).Warnf("Reached maximum number of history summary records. New summary status will be not be recorded.")
-			}
-		}
-	}
-}
-
-// Make sure the provided value can be serialised to JSON
-func ensureValidJSON(value *fftypes.JSONAny) *fftypes.JSONAny {
-	if json.Valid([]byte(*value)) {
-		// Already valid
-		return value
-	}
-
-	// Convert to hex and wrap in a valid struct
-	hex := fmt.Sprintf("%x", []byte(*value))
-	return fftypes.JSONAnyPtr(`{"invalidJson":"` + hex + `"}`)
-}
-
-// When a transaction is in a given sub-status (e.g. "Stale") the blockchain connector
-// may perform certain actions to move it out of the status. For example it might
-// retrieve the current gas price for the chain. TxAction's represent an action taken
-// while in a given sub-status. In order to limit the number of TxAction entries in
-// a TxSubStatusEntry each action has a count of the number of occurrences and a
-// latest timestamp to indicate when it was last executed. There is a last error field
-// which can be used to indicate the most recent error that occurred, for example an
-// HTTP 4xx return code from a gas oracle. There is also an information field to record
-// arbitrary data about the action, for example the gas price retrieved from an oracle.
-func (mtx *ManagedTX) AddSubStatusAction(ctx context.Context, action TxAction, info *fftypes.JSONAny, error *fftypes.JSONAny) {
-	// An action always exists within a sub-status. If a sub-status hasn't been recorded yet we don't record the action
-	if len(mtx.History) > 0 {
-
-		// See if this action exists in the list already since we only want to update the single entry, not
-		// add a new one
-		currentSubStatus := mtx.History[len(mtx.History)-1]
-		for _, entry := range currentSubStatus.Actions {
-			if entry.Action == action {
-				entry.Count++
-				entry.LastOccurrence = fftypes.Now()
-
-				if error != nil {
-					entry.LastError = ensureValidJSON(error)
-					entry.LastErrorTime = fftypes.Now()
-				}
-
-				if info != nil {
-					entry.LastInfo = ensureValidJSON(info)
-				}
-				return
-			}
-		}
-
-		// This action hasn't been recorded yet in this sub-status. Add a new entry for it.
-		if len(currentSubStatus.Actions) >= 50 { // TODO - get from config
-			log.L(ctx).Warn("Number of unique sub-status actions. New action detail will not be recorded.")
-		} else {
-			// If this is an entirely new status add it to the list
-			newAction := &TxActionEntry{
-				Time:           fftypes.Now(),
-				Action:         action,
-				LastOccurrence: fftypes.Now(),
-				Count:          1,
-			}
-
-			if error != nil {
-				newAction.LastError = ensureValidJSON(error)
-				newAction.LastErrorTime = fftypes.Now()
-			}
-
-			if info != nil {
-				newAction.LastInfo = ensureValidJSON(info)
-			}
-
-			currentSubStatus.Actions = append(currentSubStatus.Actions, newAction)
-		}
-	}
 }

@@ -39,6 +39,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
 type Manager interface {
@@ -70,7 +71,6 @@ type manager struct {
 	ctx            context.Context
 	cancelCtx      func()
 	retry          *retry.Retry
-	connector      ffcapi.API
 	confirmations  confirmations.Manager
 	policyEngine   policyengine.PolicyEngine
 	apiServer      httpserver.HTTPServer
@@ -80,6 +80,10 @@ type manager struct {
 	inflightStale  chan bool
 	inflightUpdate chan bool
 	inflight       []*pendingState
+
+	txhistory txhistory.Manager
+	connector ffcapi.API
+	tkAPI     *policyengine.ToolkitAPI
 
 	mux                     sync.Mutex
 	policyEngineAPIRequests []*policyEngineAPIRequest
@@ -96,12 +100,9 @@ type manager struct {
 	debugServer             *http.Server
 	debugServerDone         chan struct{}
 
-	policyLoopInterval     time.Duration
-	nonceStateTimeout      time.Duration
-	maxHistoryCount        int
-	maxHistorySummaryCount int
-	maxHistoryActions      int
-	maxInFlight            int
+	policyLoopInterval time.Duration
+	nonceStateTimeout  time.Duration
+	maxInFlight        int
 }
 
 func InitConfig() {
@@ -123,27 +124,29 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 
 func newManager(ctx context.Context, connector ffcapi.API) *manager {
 	m := &manager{
-		connector:              connector,
-		lockedNonces:           make(map[string]*lockedNonce),
-		apiServerDone:          make(chan error),
-		metricsServerDone:      make(chan error),
-		metricsEnabled:         config.GetBool(tmconfig.MetricsEnabled),
-		eventStreams:           make(map[fftypes.UUID]events.Stream),
-		streamsByName:          make(map[string]*fftypes.UUID),
-		metricsManager:         metrics.NewMetricsManager(ctx),
-		policyLoopInterval:     config.GetDuration(tmconfig.PolicyLoopInterval),
-		maxHistoryCount:        config.GetInt(tmconfig.TransactionsMaxHistoryCount),
-		maxHistorySummaryCount: config.GetInt(tmconfig.TransactionsMaxHistorySummaryCount),
-		maxHistoryActions:      config.GetInt(tmconfig.TransactionsMaxHistoryActions),
-		maxInFlight:            config.GetInt(tmconfig.TransactionsMaxInFlight),
-		nonceStateTimeout:      config.GetDuration(tmconfig.TransactionsNonceStateTimeout),
-		inflightStale:          make(chan bool, 1),
-		inflightUpdate:         make(chan bool, 1),
+		connector:          connector,
+		lockedNonces:       make(map[string]*lockedNonce),
+		apiServerDone:      make(chan error),
+		metricsServerDone:  make(chan error),
+		metricsEnabled:     config.GetBool(tmconfig.MetricsEnabled),
+		eventStreams:       make(map[fftypes.UUID]events.Stream),
+		streamsByName:      make(map[string]*fftypes.UUID),
+		metricsManager:     metrics.NewMetricsManager(ctx),
+		policyLoopInterval: config.GetDuration(tmconfig.PolicyLoopInterval),
+		maxInFlight:        config.GetInt(tmconfig.TransactionsMaxInFlight),
+		nonceStateTimeout:  config.GetDuration(tmconfig.TransactionsNonceStateTimeout),
+		inflightStale:      make(chan bool, 1),
+		inflightUpdate:     make(chan bool, 1),
 		retry: &retry.Retry{
 			InitialDelay: config.GetDuration(tmconfig.PolicyLoopRetryInitDelay),
 			MaximumDelay: config.GetDuration(tmconfig.PolicyLoopRetryMaxDelay),
 			Factor:       config.GetFloat64(tmconfig.PolicyLoopRetryFactor),
 		},
+		txhistory: txhistory.NewTxHistoryManager(ctx),
+	}
+	m.tkAPI = &policyengine.ToolkitAPI{
+		Connector: m.connector,
+		TXHistory: m.txhistory,
 	}
 	m.ctx, m.cancelCtx = context.WithCancel(ctx)
 	return m

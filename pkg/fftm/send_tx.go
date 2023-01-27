@@ -92,8 +92,8 @@ func (m *manager) submitPreparedTX(ctx context.Context, txID string, txHeaders *
 		Status:             apitypes.TxStatusPending,
 	}
 
-	mtx.AddSubStatus(ctx, apitypes.TxSubStatusReceived)
-	mtx.AddSubStatusAction(ctx, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
+	m.txhistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
+	m.txhistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
 
 	if err = m.persistence.WriteTransaction(m.ctx, mtx, true); err != nil {
 		return nil, err

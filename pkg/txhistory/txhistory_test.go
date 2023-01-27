@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package apitypes
+package txhistory
 
 import (
 	"context"
@@ -23,161 +23,156 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestManagedTXSubStatus(t *testing.T) {
+func newTestTxHistoryManager(t *testing.T) (context.Context, *manager, func()) {
+	tmconfig.Reset()
 	ctx, cancelCtx := context.WithCancel(context.Background())
-	mtx := ManagedTX{}
+	h := NewTxHistoryManager(ctx).(*manager)
+	return ctx, h, cancelCtx
+}
+
+func TestManagedTXSubStatus(t *testing.T) {
+	mtx := &apitypes.ManagedTX{}
+	ctx, h, done := newTestTxHistoryManager(t)
+	defer done()
 
 	// No sub-status entries initially
-	assert.Nil(t, mtx.CurrentSubStatus(ctx))
+	assert.Nil(t, h.CurrentSubStatus(ctx, mtx))
 
 	// Adding the same sub-status lots of times in succession should only result
 	// in a single entry for that instance
 	for i := 0; i < 100; i++ {
-		mtx.AddSubStatus(ctx, TxSubStatusReceived)
+		h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
 	}
 
 	assert.Equal(t, 1, len(mtx.History))
-	assert.Equal(t, "Received", string(mtx.CurrentSubStatus(ctx).Status))
+	assert.Equal(t, "Received", string(h.CurrentSubStatus(ctx, mtx).Status))
 
 	// Adding a different type of sub-status should result in
 	// a new entry in the list
-	mtx.AddSubStatus(ctx, TxSubStatusTracking)
+	h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusTracking)
 
 	assert.Equal(t, 2, len(mtx.History))
 
 	// Even if many new types are added we shouldn't go over the
 	// configured upper limit
 	for i := 0; i < 100; i++ {
-		mtx.AddSubStatus(ctx, TxSubStatusStale)
-		mtx.AddSubStatus(ctx, TxSubStatusTracking)
+		h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusStale)
+		h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusTracking)
 	}
 	assert.Equal(t, 50, len(mtx.History))
 
-	cancelCtx()
 }
 
 func TestManagedTXSubStatusRepeat(t *testing.T) {
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	mtx := ManagedTX{}
+	ctx, h, done := newTestTxHistoryManager(t)
+	defer done()
+	mtx := &apitypes.ManagedTX{}
 
 	// Add a sub-status
-	mtx.AddSubStatus(ctx, TxSubStatusReceived)
+	h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
 	assert.Equal(t, 1, len(mtx.History))
 	assert.Equal(t, 1, len(mtx.HistorySummary))
 
 	// Add another sub-status
-	mtx.AddSubStatus(ctx, TxSubStatusTracking)
+	h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusTracking)
 	assert.Equal(t, 2, len(mtx.History))
 	assert.Equal(t, 2, len(mtx.HistorySummary))
 
 	// Add another that we've seen before
-	mtx.AddSubStatus(ctx, TxSubStatusReceived)
+	h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
 	assert.Equal(t, 3, len(mtx.History))        // This goes up
 	assert.Equal(t, 2, len(mtx.HistorySummary)) // This doesn't
-
-	cancelCtx()
 }
 
 func TestManagedTXSubStatusAction(t *testing.T) {
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	mtx := ManagedTX{}
+	ctx, h, done := newTestTxHistoryManager(t)
+	defer done()
+	mtx := &apitypes.ManagedTX{}
 
 	// Add at least 1 sub-status
-	mtx.AddSubStatus(ctx, TxSubStatusReceived)
+	h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
 
 	// Add an action
-	mtx.AddSubStatusAction(ctx, TxActionAssignNonce, nil, nil)
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionAssignNonce, nil, nil)
 	assert.Equal(t, 1, len(mtx.History[0].Actions))
 	assert.Nil(t, mtx.History[0].Actions[0].LastErrorTime)
 
 	// Add an action
-	mtx.AddSubStatusAction(ctx, TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=12345"}`))
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=12345"}`))
 	assert.Equal(t, 2, len(mtx.History[0].Actions))
 	assert.Equal(t, (*mtx.History[0].Actions[1].LastError).String(), `{"gasError":"Acme Gas Oracle RC=12345"}`)
 
 	// Add the same action which should cause the previous one to inc its counter
-	mtx.AddSubStatusAction(ctx, TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"info":"helloworld"}`), fftypes.JSONAnyPtr(`{"error":"nogood"}`))
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"info":"helloworld"}`), fftypes.JSONAnyPtr(`{"error":"nogood"}`))
 	assert.Equal(t, 2, len(mtx.History[0].Actions))
-	assert.Equal(t, mtx.History[0].Actions[1].Action, TxActionRetrieveGasPrice)
+	assert.Equal(t, mtx.History[0].Actions[1].Action, apitypes.TxActionRetrieveGasPrice)
 	assert.Equal(t, 2, mtx.History[0].Actions[1].Count)
 
 	// Add the same action but with new error information should update the last error field
-	mtx.AddSubStatusAction(ctx, TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=67890"}`))
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=67890"}`))
 	assert.Equal(t, 2, len(mtx.History[0].Actions))
 	assert.NotNil(t, mtx.History[0].Actions[1].LastErrorTime)
 	assert.Equal(t, (*mtx.History[0].Actions[1].LastError).String(), `{"gasError":"Acme Gas Oracle RC=67890"}`)
 
 	// Add a new type of action
 	reason := "known_transaction"
-	mtx.AddSubStatusAction(ctx, TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil)
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil)
 	assert.Equal(t, 3, len(mtx.History[0].Actions))
-	assert.Equal(t, mtx.History[0].Actions[2].Action, TxActionSubmitTransaction)
+	assert.Equal(t, mtx.History[0].Actions[2].Action, apitypes.TxActionSubmitTransaction)
 	assert.Equal(t, 1, mtx.History[0].Actions[2].Count)
 	assert.Nil(t, mtx.History[0].Actions[2].LastErrorTime)
 
 	// Add one more type of action
 
 	receiptId := "123456"
-	mtx.AddSubStatusAction(ctx, TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil)
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil)
 	assert.Equal(t, 4, len(mtx.History[0].Actions))
-	assert.Equal(t, mtx.History[0].Actions[3].Action, TxActionReceiveReceipt)
+	assert.Equal(t, mtx.History[0].Actions[3].Action, apitypes.TxActionReceiveReceipt)
 	assert.Equal(t, 1, mtx.History[0].Actions[3].Count)
 	assert.Nil(t, mtx.History[0].Actions[3].LastErrorTime)
 
-	cancelCtx()
 }
 
 func TestManagedTXSubStatusInvalidJSON(t *testing.T) {
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	mtx := ManagedTX{}
+	ctx, h, done := newTestTxHistoryManager(t)
+	defer done()
+	mtx := &apitypes.ManagedTX{}
 
 	reason := "\"cannot-marshall\""
 
 	// Add a new type of action
-	mtx.AddSubStatus(ctx, TxSubStatusReceived)
-	mtx.AddSubStatusAction(ctx, TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil)
-	val, err := json.Marshal(mtx.History)
+	h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil)
+	val, err := json.Marshal(mtx.History[0].Actions[0].LastInfo)
 
 	// It should never be possible to cause the sub-status history to become un-marshallable
 	assert.NoError(t, err)
-	assert.Contains(t, string(val), "invalidJson")
+	assert.Contains(t, string(val), "cannot-marshall")
 
-	cancelCtx()
 }
 
 func TestManagedTXSubStatusMaxEntries(t *testing.T) {
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	mtx := ManagedTX{}
-	var nextSubStatus TxSubStatus
+	ctx, h, done := newTestTxHistoryManager(t)
+	defer done()
+	mtx := &apitypes.ManagedTX{}
+	var nextSubStatus apitypes.TxSubStatus
 
 	// Create 100 unique sub-status strings. We should only keep the
 	// first 50
 	for i := 0; i < 100; i++ {
-		nextSubStatus = TxSubStatus(fmt.Sprint(i))
-		mtx.AddSubStatus(ctx, nextSubStatus)
+		nextSubStatus = apitypes.TxSubStatus(fmt.Sprint(i))
+		h.SetSubStatus(ctx, mtx, nextSubStatus)
 	}
 
 	assert.Equal(t, 50, len(mtx.History))
 
-	cancelCtx()
 }
 
-func TestManagedTXSubStatusMaxActions(t *testing.T) {
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	mtx := ManagedTX{}
-
-	// Add a sub-status
-	mtx.AddSubStatus(ctx, TxSubStatusReceived)
-
-	// Add lots of unique sub-status actions which we cap at the configured amount
-	for i := 0; i < 100; i++ {
-		newAction := fmt.Sprintf("action-%d", i)
-		mtx.AddSubStatusAction(ctx, TxAction(newAction), nil, nil)
-	}
-	assert.Equal(t, 50, len(mtx.History[0].Actions))
-
-	cancelCtx()
+func TestJSONOrStringNull(t *testing.T) {
+	assert.Nil(t, jsonOrString(nil))
 }

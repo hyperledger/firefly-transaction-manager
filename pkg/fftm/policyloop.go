@@ -196,7 +196,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 	completed := false
 	var receiptProtocolID string
 	var lastStatusChange *fftypes.FFTime
-	currentSubStatus := pending.mtx.CurrentSubStatus(ctx)
+	currentSubStatus := m.txhistory.CurrentSubStatus(ctx, pending.mtx)
 
 	if currentSubStatus != nil {
 		lastStatusChange = currentSubStatus.Time
@@ -237,7 +237,7 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 			// such as submitting for the first time, or raising the gas etc.
 
-			update, updateReason, updateErr = m.policyEngine.Execute(ctx, m.connector, pending.mtx)
+			update, updateReason, updateErr = m.policyEngine.Execute(ctx, m.tkAPI, pending.mtx)
 			if updateErr != nil {
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, updateReason, err)
 				update = policyengine.UpdateYes
@@ -255,8 +255,8 @@ func (m *manager) execPolicy(ctx context.Context, pending *pendingState, syncDel
 		}
 	}
 
-	if mtx.CurrentSubStatus(ctx) != nil {
-		if !mtx.CurrentSubStatus(ctx).Time.Equal(lastStatusChange) {
+	if m.txhistory.CurrentSubStatus(ctx, mtx) != nil {
+		if !m.txhistory.CurrentSubStatus(ctx, mtx).Time.Equal(lastStatusChange) {
 			update = policyengine.UpdateYes
 		}
 	}
@@ -341,7 +341,7 @@ func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendin
 					pending.mtx.Receipt = receipt
 					m.mux.Unlock()
 					log.L(m.ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
-					pending.mtx.AddSubStatusAction(ctx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
+					m.txhistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
 					m.markInflightUpdate()
 				},
 				Confirmed: func(ctx context.Context, confirmations []confirmations.BlockInfo) {
@@ -351,8 +351,8 @@ func (m *manager) trackSubmittedTransaction(ctx context.Context, pending *pendin
 					pending.mtx.Confirmations = confirmations
 					m.mux.Unlock()
 					log.L(m.ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
-					pending.mtx.AddSubStatusAction(ctx, apitypes.TxActionConfirmTransaction, nil, nil)
-					pending.mtx.AddSubStatus(ctx, apitypes.TxSubStatusConfirmed)
+					m.txhistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionConfirmTransaction, nil, nil)
+					m.txhistory.SetSubStatus(ctx, pending.mtx, apitypes.TxSubStatusConfirmed)
 					m.markInflightUpdate()
 				},
 			},
