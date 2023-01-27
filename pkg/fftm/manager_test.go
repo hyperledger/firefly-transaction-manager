@@ -32,7 +32,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines/simple"
@@ -226,45 +225,6 @@ func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 	_, err := NewManager(context.Background(), nil)
 	assert.Error(t, err)
 	assert.Regexp(t, "FF00151", err)
-}
-
-func TestAddHistoryEntryMax(t *testing.T) {
-
-	_, m, close := newTestManagerMockPersistence(t)
-	defer close()
-
-	m.errorHistoryCount = 2
-	mtx := &apitypes.ManagedTX{}
-	m.updateHistory(mtx, "", fmt.Errorf("snap"), ffcapi.ErrorReasonTransactionUnderpriced)
-	for i := 0; i < 20; i++ {
-		m.updateHistory(mtx, "", fmt.Errorf("crackle"), ffcapi.ErrorReasonTransactionUnderpriced)
-	}
-	m.updateHistory(mtx, "", fmt.Errorf("pop"), ffcapi.ErrorReasonTransactionUnderpriced)
-	assert.False(t, m.updateHistory(mtx, "", nil, "")) // ignored
-	assert.Len(t, mtx.History, 2)
-	assert.Equal(t, "pop", mtx.History[0].Error)
-	assert.Equal(t, "crackle", mtx.History[1].Error)
-
-}
-
-func TestAddHistoryEntryDups(t *testing.T) {
-
-	_, m, close := newTestManagerMockPersistence(t)
-	defer close()
-
-	m.errorHistoryCount = 2
-	mtx := &apitypes.ManagedTX{}
-	m.updateHistory(mtx, "some info", fmt.Errorf("snap"), ffcapi.ErrorReasonTransactionUnderpriced)
-	for i := 0; i < 20; i++ {
-		m.updateHistory(mtx, "some info", fmt.Errorf("crackle"), ffcapi.ErrorReasonTransactionUnderpriced)
-	}
-	m.updateHistory(mtx, "some info", fmt.Errorf("pop"), ffcapi.ErrorReasonTransactionUnderpriced)
-	assert.Len(t, mtx.History, 2)
-	assert.Equal(t, "pop", mtx.History[0].Error)
-	assert.Equal(t, 1, mtx.History[0].Count)
-	assert.Equal(t, "crackle", mtx.History[1].Error)
-	assert.Equal(t, 20, mtx.History[1].Count)
-
 }
 
 func TestStartListListenersFail(t *testing.T) {

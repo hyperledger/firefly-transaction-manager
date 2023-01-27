@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -113,6 +113,7 @@ func (p *simplePolicyEngine) withPolicyInfo(ctx context.Context, mtx *apitypes.M
 }
 
 func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (reason ffcapi.ErrorReason, err error) {
+	defer mtx.AddSubStatus(ctx, apitypes.TxSubStatusTracking)
 	sendTX := &ffcapi.TransactionSendRequest{
 		TransactionHeaders: mtx.TransactionHeaders,
 		GasPrice:           mtx.GasPrice,
@@ -123,9 +124,11 @@ func (p *simplePolicyEngine) submitTX(ctx context.Context, cAPI ffcapi.API, mtx 
 	log.L(ctx).Debugf("Sending transaction %s at nonce %s / %d (lastSubmit=%s)", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.LastSubmit)
 	res, reason, err := cAPI.TransactionSend(ctx, sendTX)
 	if err == nil {
+		mtx.AddSubStatusAction(ctx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), nil)
 		mtx.TransactionHash = res.TransactionHash
 		mtx.LastSubmit = fftypes.Now()
 	} else {
+		mtx.AddSubStatusAction(ctx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
 		// We have some simple rules for handling reasons from the connector, which could be enhanced by extending the connector.
 		switch reason {
 		case ffcapi.ErrorKnownTransaction, ffcapi.ErrorReasonNonceTooLow:
@@ -159,8 +162,10 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 		// Only calculate gas price here in the simple policy engine
 		mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
 		if err != nil {
+			mtx.AddSubStatusAction(ctx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
 			return policyengine.UpdateNo, "", err
 		}
+		mtx.AddSubStatusAction(ctx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
 		// Submit the first time
 		if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
 			return policyengine.UpdateYes, reason, err
@@ -184,15 +189,20 @@ func (p *simplePolicyEngine) Execute(ctx context.Context, cAPI ffcapi.API, mtx *
 				log.L(ctx).Infof("Transaction %s at nonce %s / %d has not been mined after %.2fs", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), secsSinceSubmit)
 				info.LastWarnTime = now
 				// We do a resubmit at this point - as it might no longer be in the TX pool
+				mtx.AddSubStatusAction(ctx, apitypes.TxActionTimeout, nil, nil)
+				mtx.AddSubStatus(ctx, apitypes.TxSubStatusStale)
 				mtx.GasPrice, err = p.getGasPrice(ctx, cAPI)
 				if err != nil {
+					mtx.AddSubStatusAction(ctx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
 					return policyengine.UpdateNo, "", err
 				}
+				mtx.AddSubStatusAction(ctx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
 				if reason, err := p.submitTX(ctx, cAPI, mtx); err != nil {
 					if reason != ffcapi.ErrorKnownTransaction {
 						return policyengine.UpdateYes, reason, err
 					}
 				}
+				mtx.AddSubStatus(ctx, apitypes.TxSubStatusTracking)
 				return policyengine.UpdateYes, "", nil
 			}
 			return policyengine.UpdateNo, "", nil

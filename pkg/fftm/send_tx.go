@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -91,6 +91,9 @@ func (m *manager) submitPreparedTX(ctx context.Context, txID string, txHeaders *
 		TransactionData:    transactionData,
 		Status:             apitypes.TxStatusPending,
 	}
+
+	mtx.AddSubStatus(ctx, apitypes.TxSubStatusReceived)
+	mtx.AddSubStatusAction(ctx, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
 
 	if err = m.persistence.WriteTransaction(m.ctx, mtx, true); err != nil {
 		return nil, err
