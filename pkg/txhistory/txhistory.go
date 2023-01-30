@@ -81,19 +81,20 @@ func (h *manager) SetSubStatus(ctx context.Context, mtx *apitypes.ManagedTX, sub
 		mtx.History = mtx.History[1:]
 	}
 
-	// As was as detailed sub-status records (which might be a long list and early entries
+	// As we have a possibly indefinite list of sub-status records (which might be a long list and early entries
 	// get purged at some point) we keep a separate list of all the discrete types of sub-status
-	// we've ever seen for this transaction along with a count of them. This means an early sub-status
+	// and action we've we've ever seen for this transaction along with a count of them. This means an early sub-status
 	// (e.g. "queued") followed by 100s of different sub-status types will still be recorded
 	for _, statusType := range mtx.HistorySummary {
 		if statusType.Status == subStatus {
-			// Just increment the counter
+			// Just increment the counter and last timestamp
+			statusType.LastOccurrence = fftypes.Now()
 			statusType.Count++
 			return
 		}
 	}
 
-	mtx.HistorySummary = append(mtx.HistorySummary, &apitypes.TxHistorySummaryEntry{Status: subStatus, Count: 1, FirstOccurrence: fftypes.Now()})
+	mtx.HistorySummary = append(mtx.HistorySummary, &apitypes.TxHistorySummaryEntry{Status: subStatus, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
 }
 
 // Takes a string that might be valid JSON, and returns valid JSON that is either:
@@ -141,6 +142,20 @@ func (h *manager) AddSubStatusAction(ctx context.Context, mtx *apitypes.ManagedT
 			if info != nil {
 				entry.LastInfo = jsonOrString(info)
 			}
+
+			// As we have a possibly indefinite list of sub-status records (which might be a long list and early entries
+			// get purged at some point) we keep a separate list of all the discrete types of sub-status
+			// and action we've we've ever seen for this transaction along with a count of them. This means an early sub-status
+			// (e.g. "queued") with an action that never happens again (e.g. "assignNonce") followed by 100s of different sub-status
+			// types will still be recorded
+			for _, actionType := range mtx.HistorySummary {
+				if actionType.Action == action {
+					// Just increment the counter and last timestamp
+					actionType.LastOccurrence = fftypes.Now()
+					actionType.Count++
+					break
+				}
+			}
 			return
 		}
 	}
@@ -163,4 +178,5 @@ func (h *manager) AddSubStatusAction(ctx context.Context, mtx *apitypes.ManagedT
 	}
 
 	currentSubStatus.Actions = append(currentSubStatus.Actions, newAction)
+	mtx.HistorySummary = append(mtx.HistorySummary, &apitypes.TxHistorySummaryEntry{Action: action, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
 }

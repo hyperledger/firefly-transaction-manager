@@ -136,6 +136,23 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	assert.Equal(t, 1, mtx.History[0].Actions[3].Count)
 	assert.Nil(t, mtx.History[0].Actions[3].LastErrorTime)
 
+	// History is the complete list of unique sub-status types and actions
+	assert.Equal(t, 5, len(mtx.HistorySummary))
+
+	// Sanity check the history summary entries
+	for _, historyEntry := range mtx.HistorySummary {
+		assert.NotNil(t, historyEntry.FirstOccurrence)
+		assert.NotNil(t, historyEntry.LastOccurrence)
+		assert.GreaterOrEqual(t, historyEntry.Count, 1)
+
+		if historyEntry.Action == apitypes.TxActionRetrieveGasPrice {
+			// The first and last occurrence timestamps shoudn't be the same
+			assert.NotEqual(t, historyEntry.FirstOccurrence, historyEntry.LastOccurrence)
+
+			// We should have a count of 3 for this action
+			assert.Equal(t, historyEntry.Count, 3)
+		}
+	}
 }
 
 func TestManagedTXSubStatusInvalidJSON(t *testing.T) {

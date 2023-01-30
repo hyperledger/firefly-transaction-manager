@@ -62,8 +62,10 @@ type TxHistoryStateTransitionEntry struct {
 // subStatus was entered. Because the detailed history might wrap, this means we can retain some basic
 // information about the complete history of the transaction beyond the life of the individual history records.
 type TxHistorySummaryEntry struct {
-	Status          TxSubStatus     `json:"subStatus"`
+	Status          TxSubStatus     `json:"subStatus,omitempty"`
+	Action          TxAction        `json:"action,omitempty"`
 	FirstOccurrence *fftypes.FFTime `json:"firstOccurrence"`
+	LastOccurrence  *fftypes.FFTime `json:"lastOccurrence"`
 	Count           int             `json:"count"`
 }
 
