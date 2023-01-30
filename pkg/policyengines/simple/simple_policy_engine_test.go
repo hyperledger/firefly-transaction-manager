@@ -30,6 +30,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/txhistorymocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
@@ -37,24 +38,34 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func newTestPolicyEngineFactory(t *testing.T) (*PolicyEngineFactory, config.Section) {
+func newTestPolicyEngineFactory(t *testing.T) (*PolicyEngineFactory, *policyengine.ToolkitAPI, *ffcapimocks.API, *txhistorymocks.Manager, config.Section) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
 	f := &PolicyEngineFactory{}
 	f.InitConfig(conf)
 	assert.Equal(t, "simple", f.Name())
-	return f, conf
+
+	mockHistory := &txhistorymocks.Manager{}
+	mockHistory.On("SetSubStatus", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	mockHistory.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe()
+
+	mockFFCAPI := &ffcapimocks.API{}
+
+	return f, &policyengine.ToolkitAPI{
+		Connector: mockFFCAPI,
+		TXHistory: mockHistory,
+	}, mockFFCAPI, mockHistory, conf
 }
 
 func TestMissingGasConfig(t *testing.T) {
-	f, conf := newTestPolicyEngineFactory(t)
+	f, _, _, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	_, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.Regexp(t, "FF21020", err)
 }
 
 func TestFixedGasPriceOK(t *testing.T) {
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	conf.Set(FixedGasPrice, `{
 		"maxPriorityFee":32.146027800733336,
@@ -71,7 +82,6 @@ func TestFixedGasPriceOK(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.MatchedBy(func(req *ffcapi.TransactionSendRequest) bool {
 		return req.GasPrice.JSONObject().GetString("maxPriorityFee") == "32.146027800733336" &&
 			req.GasPrice.JSONObject().GetString("maxFee") == "32.14602781673334" &&
@@ -82,7 +92,7 @@ func TestFixedGasPriceOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, tk, mtx)
 	assert.NoError(t, err)
 	assert.Equal(t, policyengine.UpdateYes, updated)
 	assert.Empty(t, reason)
@@ -120,7 +130,7 @@ func TestGasOracleSendOK(t *testing.T) {
 		  }`))
 	}))
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, `{
@@ -138,7 +148,6 @@ func TestGasOracleSendOK(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.MatchedBy(func(req *ffcapi.TransactionSendRequest) bool {
 		return req.GasPrice.JSONObject().GetInteger("maxPriorityFeePerGas").Cmp(big.NewInt(32146027800)) == 0 &&
 			req.GasPrice.JSONObject().GetInteger("maxFeePerGas").Cmp(big.NewInt(32247127816)) == 0 &&
@@ -149,7 +158,7 @@ func TestGasOracleSendOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, tk, mtx)
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
 	assert.Equal(t, policyengine.UpdateYes, updated)
@@ -171,7 +180,7 @@ func TestGasOracleSendOK(t *testing.T) {
 
 func TestConnectorGasOracleSendOK(t *testing.T) {
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
@@ -184,7 +193,6 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
 		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
 	}, ffcapi.ErrorReason(""), nil).Once()
@@ -196,7 +204,7 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, tk, mtx)
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
 	assert.Equal(t, policyengine.UpdateYes, updated)
@@ -214,7 +222,7 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 
 func TestConnectorGasOracleFail(t *testing.T) {
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
@@ -227,13 +235,12 @@ func TestConnectorGasOracleFail(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
 		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
 	}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
-	_, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	_, reason, err := p.Execute(ctx, tk, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
 
@@ -243,7 +250,7 @@ func TestConnectorGasOracleFail(t *testing.T) {
 
 func TestConnectorGasOracleFailStale(t *testing.T) {
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
@@ -259,13 +266,12 @@ func TestConnectorGasOracleFailStale(t *testing.T) {
 		LastSubmit:      (*fftypes.FFTime)(&longAgo),
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
 		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
 	}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
-	_, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	_, reason, err := p.Execute(ctx, tk, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
 
@@ -281,7 +287,7 @@ func TestGasOracleSendFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, _, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -295,9 +301,8 @@ func TestGasOracleSendFail(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	ctx := context.Background()
-	_, _, err = p.Execute(ctx, mockFFCAPI, mtx)
+	_, _, err = p.Execute(ctx, tk, mtx)
 	assert.Regexp(t, "FF21021", err)
 
 }
@@ -307,7 +312,7 @@ func TestGasOracleMissingTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, _, _, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
 	_, err := f.NewPolicyEngine(context.Background(), conf)
@@ -320,7 +325,7 @@ func TestGasOracleBadTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, _, _, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ !!! wrong")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -337,7 +342,7 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, _, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ .wrong.thing | len }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -351,9 +356,8 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	ctx := context.Background()
-	_, _, err = p.Execute(ctx, mockFFCAPI, mtx)
+	_, _, err = p.Execute(ctx, tk, mtx)
 	assert.Regexp(t, "FF21026", err)
 
 }
@@ -363,7 +367,7 @@ func TestGasOracleNonJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, _, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -377,9 +381,8 @@ func TestGasOracleNonJSON(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	ctx := context.Background()
-	_, _, err = p.Execute(ctx, mockFFCAPI, mtx)
+	_, _, err = p.Execute(ctx, tk, mtx)
 	assert.Regexp(t, "FF21021", err)
 
 }
@@ -392,7 +395,7 @@ func TestTXSendFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -406,16 +409,15 @@ func TestTXSendFail(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonInvalidInputs, fmt.Errorf("pop"))
 	ctx := context.Background()
-	_, _, err = p.Execute(ctx, mockFFCAPI, mtx)
+	_, _, err = p.Execute(ctx, tk, mtx)
 	assert.Regexp(t, "pop", err)
 
 }
 
 func TestWarnStaleWarningCannotParse(t *testing.T) {
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
@@ -430,7 +432,6 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 		},
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
 		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
 	}, ffcapi.ErrorReason(""), nil).Once()
@@ -438,7 +439,7 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
 
 	ctx := context.Background()
-	updated, _, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, _, err := p.Execute(ctx, tk, mtx)
 	assert.NoError(t, err)
 	assert.Equal(t, policyengine.UpdateYes, updated)
 	assert.NotEmpty(t, mtx.PolicyInfo.JSONObject().GetString("lastWarnTime"))
@@ -447,7 +448,7 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 }
 
 func TestKnownTransactionHashKnown(t *testing.T) {
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	p, err := f.NewPolicyEngine(context.Background(), conf)
@@ -462,12 +463,11 @@ func TestKnownTransactionHashKnown(t *testing.T) {
 		TransactionHash: "0x01020304",
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
 		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
 
 	ctx := context.Background()
-	updated, _, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, _, err := p.Execute(ctx, tk, mtx)
 	assert.NoError(t, err)
 	assert.Equal(t, policyengine.UpdateYes, updated)
 
@@ -475,7 +475,7 @@ func TestKnownTransactionHashKnown(t *testing.T) {
 }
 
 func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	p, err := f.NewPolicyEngine(context.Background(), conf)
 	assert.NoError(t, err)
@@ -491,7 +491,6 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 		PolicyInfo:      fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
 		GasPrice: fftypes.JSONAnyPtr(`"12345"`),
 	}, ffcapi.ErrorReason(""), nil).Once()
@@ -499,7 +498,7 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 		Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, tk, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
 	assert.Equal(t, policyengine.UpdateYes, updated)
@@ -509,7 +508,7 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 }
 
 func TestWarnStaleNoWarning(t *testing.T) {
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	p, err := f.NewPolicyEngine(context.Background(), conf)
@@ -526,10 +525,8 @@ func TestWarnStaleNoWarning(t *testing.T) {
 		PolicyInfo:      fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
-
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, tk, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
 	assert.Equal(t, policyengine.UpdateNo, updated)
@@ -538,7 +535,7 @@ func TestWarnStaleNoWarning(t *testing.T) {
 }
 
 func TestNoOpWithReceipt(t *testing.T) {
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	p, err := f.NewPolicyEngine(context.Background(), conf)
@@ -556,10 +553,8 @@ func TestNoOpWithReceipt(t *testing.T) {
 		},
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
-
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, tk, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
 	assert.Equal(t, policyengine.UpdateNo, updated)
@@ -568,7 +563,7 @@ func TestNoOpWithReceipt(t *testing.T) {
 }
 
 func TestAllowsDeleteRequest(t *testing.T) {
-	f, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	p, err := f.NewPolicyEngine(context.Background(), conf)
@@ -578,10 +573,8 @@ func TestAllowsDeleteRequest(t *testing.T) {
 		DeleteRequested: fftypes.Now(),
 	}
 
-	mockFFCAPI := &ffcapimocks.API{}
-
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, mockFFCAPI, mtx)
+	updated, reason, err := p.Execute(ctx, tk, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
 	assert.Equal(t, policyengine.UpdateDelete, updated)

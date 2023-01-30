@@ -241,9 +241,7 @@
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|maxHistoryActions|The number of actions to store per historical status updates|`int`|`50`
 |maxHistoryCount|The number of historical status updates to retain in the operation|`int`|`50`
-|maxHistorySummaryCount|The number of historical status summary records to retain in the operation|`int`|`50`
 |maxInFlight|The maximum number of transactions to have in-flight with the policy engine / blockchain transaction pool|`int`|`100`
 |nonceStateTimeout|How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1h`
 

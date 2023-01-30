@@ -33,6 +33,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -303,7 +304,8 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 		},
 	}
 
-	m.inflight[0].mtx.AddSubStatus(m.ctx, apitypes.TxSubStatusReceived)
+	h := txhistory.NewTxHistoryManager(m.ctx)
+	h.SetSubStatus(m.ctx, m.inflight[0].mtx, apitypes.TxSubStatusReceived)
 	mpe := &policyenginemocks.PolicyEngine{}
 	m.policyEngine = mpe
 	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).

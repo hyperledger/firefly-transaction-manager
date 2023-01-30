@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,10 +21,16 @@ import (
 
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
 // UpdateType informs FFTM whether the transaction needs an update to be persisted after this execution of the policy engine
 type UpdateType int
+
+type ToolkitAPI struct {
+	Connector ffcapi.API
+	TXHistory txhistory.Manager
+}
 
 const (
 	UpdateNo     UpdateType = iota // Instructs that no update is necessary
@@ -33,5 +39,5 @@ const (
 )
 
 type PolicyEngine interface {
-	Execute(ctx context.Context, cAPI ffcapi.API, mtx *apitypes.ManagedTX) (updateType UpdateType, reason ffcapi.ErrorReason, err error)
+	Execute(ctx context.Context, cAPI *ToolkitAPI, mtx *apitypes.ManagedTX) (updateType UpdateType, reason ffcapi.ErrorReason, err error)
 }
