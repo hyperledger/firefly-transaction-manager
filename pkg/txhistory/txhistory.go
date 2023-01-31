@@ -129,8 +129,10 @@ func (h *manager) AddSubStatusAction(ctx context.Context, mtx *apitypes.ManagedT
 	// See if this action exists in the list already since we only want to update the single entry, not
 	// add a new one
 	currentSubStatus := mtx.History[len(mtx.History)-1]
+	alreadyRecordedAction := false
 	for _, entry := range currentSubStatus.Actions {
 		if entry.Action == action {
+			alreadyRecordedAction = true
 			entry.Count++
 			entry.LastOccurrence = fftypes.Now()
 
@@ -142,41 +144,39 @@ func (h *manager) AddSubStatusAction(ctx context.Context, mtx *apitypes.ManagedT
 			if info != nil {
 				entry.LastInfo = jsonOrString(info)
 			}
-
-			// As we have a possibly indefinite list of sub-status records (which might be a long list and early entries
-			// get purged at some point) we keep a separate list of all the discrete types of sub-status
-			// and action we've we've ever seen for this transaction along with a count of them. This means an early sub-status
-			// (e.g. "queued") with an action that never happens again (e.g. "assignNonce") followed by 100s of different sub-status
-			// types will still be recorded
-			for _, actionType := range mtx.HistorySummary {
-				if actionType.Action == action {
-					// Just increment the counter and last timestamp
-					actionType.LastOccurrence = fftypes.Now()
-					actionType.Count++
-					break
-				}
-			}
-			return
+			break
 		}
 	}
 
-	// If this is an entirely new status add it to the list
-	newAction := &apitypes.TxHistoryActionEntry{
-		Time:           fftypes.Now(),
-		Action:         action,
-		LastOccurrence: fftypes.Now(),
-		Count:          1,
+	if !alreadyRecordedAction {
+		// If this is an entirely new action for this status entry, add it to the list
+		newAction := &apitypes.TxHistoryActionEntry{
+			Time:           fftypes.Now(),
+			Action:         action,
+			LastOccurrence: fftypes.Now(),
+			Count:          1,
+		}
+
+		if err != nil {
+			newAction.LastError = jsonOrString(err)
+			newAction.LastErrorTime = fftypes.Now()
+		}
+
+		if info != nil {
+			newAction.LastInfo = jsonOrString(info)
+		}
+
+		currentSubStatus.Actions = append(currentSubStatus.Actions, newAction)
 	}
 
-	if err != nil {
-		newAction.LastError = jsonOrString(err)
-		newAction.LastErrorTime = fftypes.Now()
+	// Check if the history summary needs updating
+	for _, actionType := range mtx.HistorySummary {
+		if actionType.Action == action {
+			// Just increment the counter and last timestamp
+			actionType.LastOccurrence = fftypes.Now()
+			actionType.Count++
+			return
+		}
 	}
-
-	if info != nil {
-		newAction.LastInfo = jsonOrString(info)
-	}
-
-	currentSubStatus.Actions = append(currentSubStatus.Actions, newAction)
 	mtx.HistorySummary = append(mtx.HistorySummary, &apitypes.TxHistorySummaryEntry{Action: action, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
 }
