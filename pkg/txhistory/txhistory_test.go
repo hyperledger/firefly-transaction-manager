@@ -102,7 +102,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	assert.Equal(t, 1, len(mtx.History[0].Actions))
 	assert.Nil(t, mtx.History[0].Actions[0].LastErrorTime)
 
-	// Add an action
+	// Add another action
 	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=12345"}`))
 	assert.Equal(t, 2, len(mtx.History[0].Actions))
 	assert.Equal(t, (*mtx.History[0].Actions[1].LastError).String(), `{"gasError":"Acme Gas Oracle RC=12345"}`)
@@ -138,6 +138,17 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 
 	// History is the complete list of unique sub-status types and actions
 	assert.Equal(t, 5, len(mtx.HistorySummary))
+
+	// Add some new sub-status and actions to check max lengths are correct
+	// Seen one of these before - should increase summary length by 1
+	h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusConfirmed)
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil)
+	assert.Equal(t, 6, len(mtx.HistorySummary))
+
+	// Seen both of these before - no change expected
+	h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionAssignNonce, nil, nil)
+	assert.Equal(t, 6, len(mtx.HistorySummary))
 
 	// Sanity check the history summary entries
 	for _, historyEntry := range mtx.HistorySummary {
