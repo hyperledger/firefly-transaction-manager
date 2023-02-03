@@ -300,6 +300,10 @@ func (m *manager) sendWSReply(mtx *apitypes.ManagedTX) {
 		TransactionHash: mtx.TransactionHash,
 	}
 
+	if mtx.Receipt != nil && mtx.Receipt.ContractLocation != nil {
+		wsr.ContractLocation = mtx.Receipt.ContractLocation
+	}
+
 	if mtx.Receipt != nil {
 		wsr.ProtocolID = mtx.Receipt.ProtocolID
 	} else {

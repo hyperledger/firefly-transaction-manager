@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -31,4 +31,5 @@ type TransactionReceiptResponse struct {
 	Success          bool              `json:"success"`
 	ProtocolID       string            `json:"protocolId"`
 	ExtraInfo        *fftypes.JSONAny  `json:"extraInfo"`
+	ContractLocation *fftypes.JSONAny  `json:"contractLocation"`
 }

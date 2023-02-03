@@ -92,6 +92,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 			BlockHash:        fftypes.NewRandB32().String(),
 			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 			Success:          true,
+			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
 		})
 		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
 	}).Return(nil)

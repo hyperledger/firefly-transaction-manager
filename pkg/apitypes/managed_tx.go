@@ -161,8 +161,9 @@ type ReplyHeaders struct {
 // latest status change. Full status for a transaction must be retrieved with
 // /transactions/{txid}
 type TransactionUpdateReply struct {
-	Headers         ReplyHeaders `json:"headers"`
-	Status          TxStatus     `json:"status"`
-	ProtocolID      string       `json:"protocolId"`
-	TransactionHash string       `json:"transactionHash,omitempty"`
+	Headers          ReplyHeaders     `json:"headers"`
+	Status           TxStatus         `json:"status"`
+	ProtocolID       string           `json:"protocolId"`
+	TransactionHash  string           `json:"transactionHash,omitempty"`
+	ContractLocation *fftypes.JSONAny `json:"contractLocation,omitempty"`
 }
