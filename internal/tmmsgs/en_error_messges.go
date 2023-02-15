@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -35,8 +35,8 @@ var (
 	MsgInvalidConfirmationRequest    = ffe("FF21016", "Invalid confirmation request %+v")
 	MsgCoreError                     = ffe("FF21017", "Error from core status=%d: %s")
 	MsgConfigParamNotSet             = ffe("FF21018", "Configuration parameter '%s' must be set")
-	MsgPolicyEngineNotRegistered     = ffe("FF21019", "No policy engine registered with name '%s'")
-	MsgNoGasConfigSetForPolicyEngine = ffe("FF21020", "A fixed gas price must be set when not using a gas oracle")
+	MsgPolicyEngineNotRegistered     = ffe("FF21019", "(Deprecated) No policy engine registered with name '%s'")                // deprecated
+	MsgNoGasConfigSetForPolicyEngine = ffe("FF21020", "(Deprecated) A fixed gas price must be set when not using a gas oracle") // deprecated
 	MsgErrorQueryingGasOracleAPI     = ffe("FF21021", "Error from gas station API [%d]: %s")
 	MsgInvalidRequestErr             = ffe("FF21022", "Invalid '%s' request: %s", http.StatusBadRequest)
 	MsgUnsupportedRequestType        = ffe("FF21023", "Unsupported request type: %s", http.StatusBadRequest)
@@ -83,6 +83,11 @@ var (
 	MsgDuplicateID                   = ffe("FF21065", "ID '%s' is not unique", http.StatusConflict)
 	MsgTransactionFailed             = ffe("FF21066", "Transaction execution failed")
 	MsgTransactionNotFound           = ffe("FF21067", "Transaction '%s' not found", http.StatusNotFound)
-	MsgPolicyEngineRequestTimeout    = ffe("FF21068", "The policy engine did not acknowledge the request after %.2fs", 408)
-	MsgPolicyEngineRequestInvalid    = ffe("FF21069", "Invalid policy engine request type '%d'")
+	MsgPolicyEngineRequestTimeout    = ffe("FF21068", "(Deprecated) The policy engine did not acknowledge the request after %.2fs", 408) // deprecated
+	MsgPolicyEngineRequestInvalid    = ffe("FF21069", "(Deprecated) Invalid policy engine request type '%d'")                            // deprecated
+
+	MsgTransactionHandlerNotRegistered     = ffe("FF21070", "No transaction handler registered with name '%s'")
+	MsgNoGasConfigSetForTransactionHandler = ffe("FF21071", "A fixed gas price must be set when not using a gas oracle")
+	MsgTransactionHandlerRequestTimeout    = ffe("FF21072", "The transaction handler did not acknowledge the request after %.2fs", 408)
+	MsgTransactionHandlerRequestInvalid    = ffe("FF21073", "Invalid transaction handler request type '%d'")
 )

@@ -18,6 +18,7 @@ package simple
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"net/http"
@@ -30,18 +31,19 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhistorymocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func newTestPolicyEngineFactory(t *testing.T) (*PolicyEngineFactory, *policyengine.ToolkitAPI, *ffcapimocks.API, *txhistorymocks.Manager, config.Section) {
+func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory, *txhandler.ToolkitAPI, *ffcapimocks.API, *txhistorymocks.Manager, config.Section) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
-	f := &PolicyEngineFactory{}
+	f := &TransactionHandlerFactory{}
 	f.InitConfig(conf)
 	assert.Equal(t, "simple", f.Name())
 
@@ -51,27 +53,27 @@ func newTestPolicyEngineFactory(t *testing.T) (*PolicyEngineFactory, *policyengi
 
 	mockFFCAPI := &ffcapimocks.API{}
 
-	return f, &policyengine.ToolkitAPI{
+	return f, &txhandler.ToolkitAPI{
 		Connector: mockFFCAPI,
 		TXHistory: mockHistory,
 	}, mockFFCAPI, mockHistory, conf
 }
 
 func TestMissingGasConfig(t *testing.T) {
-	f, _, _, _, conf := newTestPolicyEngineFactory(t)
+	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
-	_, err := f.NewPolicyEngine(context.Background(), conf)
+	_, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.Regexp(t, "FF21020", err)
 }
 
 func TestFixedGasPriceOK(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	conf.Set(FixedGasPrice, `{
 		"maxPriorityFee":32.146027800733336,
 		"maxFee":32.14602781673334
 	}`)
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -92,9 +94,9 @@ func TestFixedGasPriceOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, tk, mtx)
+	updated, reason, err := p.execute(ctx, tk, mtx)
 	assert.NoError(t, err)
-	assert.Equal(t, policyengine.UpdateYes, updated)
+	assert.Equal(t, txhandler.UpdateYes, updated)
 	assert.Empty(t, reason)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
@@ -130,14 +132,14 @@ func TestGasOracleSendOK(t *testing.T) {
 		  }`))
 	}))
 
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, `{
 		"maxPriorityFeePerGas": {{.standard.maxPriorityFee | mulf 1000000000.0 | int }},
 		"maxFeePerGas": {{ .standard.maxFee | mulf 1000000000.0 | int }}
 	}`)
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -158,10 +160,10 @@ func TestGasOracleSendOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, tk, mtx)
+	updated, reason, err := p.execute(ctx, tk, mtx)
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
-	assert.Equal(t, policyengine.UpdateYes, updated)
+	assert.Equal(t, txhandler.UpdateYes, updated)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
 	assert.Equal(t, `{
@@ -173,16 +175,16 @@ func TestGasOracleSendOK(t *testing.T) {
 
 	// Check cache after we close the gas station server
 	server.Close()
-	gasPrice, err := p.(*simplePolicyEngine).getGasPrice(ctx, mockFFCAPI)
+	gasPrice, err := p.(*simpleTransactionHandler).getGasPrice(ctx, mockFFCAPI)
 	assert.NoError(t, err)
 	assert.NotNil(t, gasPrice)
 }
 
 func TestConnectorGasOracleSendOK(t *testing.T) {
 
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -204,10 +206,10 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, tk, mtx)
+	updated, reason, err := p.execute(ctx, tk, mtx)
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
-	assert.Equal(t, policyengine.UpdateYes, updated)
+	assert.Equal(t, txhandler.UpdateYes, updated)
 	assert.NotNil(t, mtx.FirstSubmit)
 	assert.NotNil(t, mtx.LastSubmit)
 	assert.Equal(t, `"12345"`, mtx.GasPrice.String())
@@ -215,16 +217,16 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 	mockFFCAPI.AssertExpectations(t)
 
 	// Check cache after we close the gas station server
-	gasPrice, err := p.(*simplePolicyEngine).getGasPrice(ctx, mockFFCAPI)
+	gasPrice, err := p.(*simpleTransactionHandler).getGasPrice(ctx, mockFFCAPI)
 	assert.NoError(t, err)
 	assert.NotNil(t, gasPrice)
 }
 
 func TestConnectorGasOracleFail(t *testing.T) {
 
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -240,7 +242,7 @@ func TestConnectorGasOracleFail(t *testing.T) {
 	}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
-	_, reason, err := p.Execute(ctx, tk, mtx)
+	_, reason, err := p.execute(ctx, tk, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
 
@@ -250,9 +252,9 @@ func TestConnectorGasOracleFail(t *testing.T) {
 
 func TestConnectorGasOracleFailStale(t *testing.T) {
 
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	longAgo := time.Now().Add(-1000 * time.Hour)
@@ -271,7 +273,7 @@ func TestConnectorGasOracleFailStale(t *testing.T) {
 	}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
-	_, reason, err := p.Execute(ctx, tk, mtx)
+	_, reason, err := p.execute(ctx, tk, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
 
@@ -287,11 +289,11 @@ func TestGasOracleSendFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, tk, _, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -302,7 +304,7 @@ func TestGasOracleSendFail(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, _, err = p.Execute(ctx, tk, mtx)
+	_, _, err = p.execute(ctx, tk, mtx)
 	assert.Regexp(t, "FF21021", err)
 
 }
@@ -312,10 +314,10 @@ func TestGasOracleMissingTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, _, _, _, conf := newTestPolicyEngineFactory(t)
+	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	_, err := f.NewPolicyEngine(context.Background(), conf)
+	_, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.Regexp(t, "FF21024", err)
 
 }
@@ -325,11 +327,11 @@ func TestGasOracleBadTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, _, _, _, conf := newTestPolicyEngineFactory(t)
+	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ !!! wrong")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	_, err := f.NewPolicyEngine(context.Background(), conf)
+	_, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.Regexp(t, "FF21025", err)
 
 }
@@ -342,11 +344,11 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, tk, _, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ .wrong.thing | len }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -357,7 +359,7 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, _, err = p.Execute(ctx, tk, mtx)
+	_, _, err = p.execute(ctx, tk, mtx)
 	assert.Regexp(t, "FF21026", err)
 
 }
@@ -367,11 +369,11 @@ func TestGasOracleNonJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, tk, _, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -382,7 +384,7 @@ func TestGasOracleNonJSON(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, _, err = p.Execute(ctx, tk, mtx)
+	_, _, err = p.execute(ctx, tk, mtx)
 	assert.Regexp(t, "FF21021", err)
 
 }
@@ -395,11 +397,11 @@ func TestTXSendFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -411,15 +413,15 @@ func TestTXSendFail(t *testing.T) {
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonInvalidInputs, fmt.Errorf("pop"))
 	ctx := context.Background()
-	_, _, err = p.Execute(ctx, tk, mtx)
+	_, _, err = p.execute(ctx, tk, mtx)
 	assert.Regexp(t, "pop", err)
 
 }
 
 func TestWarnStaleWarningCannotParse(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
@@ -439,19 +441,19 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
 
 	ctx := context.Background()
-	updated, _, err := p.Execute(ctx, tk, mtx)
+	updated, _, err := p.execute(ctx, tk, mtx)
 	assert.NoError(t, err)
-	assert.Equal(t, policyengine.UpdateYes, updated)
+	assert.Equal(t, txhandler.UpdateYes, updated)
 	assert.NotEmpty(t, mtx.PolicyInfo.JSONObject().GetString("lastWarnTime"))
 
 	mockFFCAPI.AssertExpectations(t)
 }
 
 func TestKnownTransactionHashKnown(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -467,17 +469,17 @@ func TestKnownTransactionHashKnown(t *testing.T) {
 		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
 
 	ctx := context.Background()
-	updated, _, err := p.Execute(ctx, tk, mtx)
+	updated, _, err := p.execute(ctx, tk, mtx)
 	assert.NoError(t, err)
-	assert.Equal(t, policyengine.UpdateYes, updated)
+	assert.Equal(t, txhandler.UpdateYes, updated)
 
 	mockFFCAPI.AssertExpectations(t)
 }
 
 func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
@@ -498,20 +500,20 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 		Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, tk, mtx)
+	updated, reason, err := p.execute(ctx, tk, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
-	assert.Equal(t, policyengine.UpdateYes, updated)
+	assert.Equal(t, txhandler.UpdateYes, updated)
 	assert.NotEmpty(t, mtx.PolicyInfo.JSONObject().GetString("lastWarnTime"))
 
 	mockFFCAPI.AssertExpectations(t)
 }
 
 func TestWarnStaleNoWarning(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	submitTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
@@ -526,19 +528,19 @@ func TestWarnStaleNoWarning(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, tk, mtx)
+	updated, reason, err := p.execute(ctx, tk, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
-	assert.Equal(t, policyengine.UpdateNo, updated)
+	assert.Equal(t, txhandler.UpdateNo, updated)
 
 	mockFFCAPI.AssertExpectations(t)
 }
 
 func TestNoOpWithReceipt(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	submitTime := fftypes.Now()
@@ -554,19 +556,19 @@ func TestNoOpWithReceipt(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, tk, mtx)
+	updated, reason, err := p.execute(ctx, tk, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
-	assert.Equal(t, policyengine.UpdateNo, updated)
+	assert.Equal(t, txhandler.UpdateNo, updated)
 
 	mockFFCAPI.AssertExpectations(t)
 }
 
 func TestAllowsDeleteRequest(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestPolicyEngineFactory(t)
+	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
-	p, err := f.NewPolicyEngine(context.Background(), conf)
+	p, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
 	mtx := &apitypes.ManagedTX{
@@ -574,10 +576,31 @@ func TestAllowsDeleteRequest(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	updated, reason, err := p.Execute(ctx, tk, mtx)
+	updated, reason, err := p.execute(ctx, tk, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
-	assert.Equal(t, policyengine.UpdateDelete, updated)
+	assert.Equal(t, txhandler.UpdateDelete, updated)
 
 	mockFFCAPI.AssertExpectations(t)
+}
+
+func TestSendTXPersistFail(t *testing.T) {
+
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return([]*apitypes.ManagedTX{
+			{ID: "id12345", Created: fftypes.Now(), Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
+		}, nil)
+	mp.On("WriteTransaction", m.ctx, mock.Anything, true).Return(fmt.Errorf("pop"))
+
+	var txReq *ffcapi.TransactionSendRequest
+	err := json.Unmarshal([]byte(sampleSendTX), &txReq)
+	assert.NoError(t, err)
+
+	_, err = m.createManagedTx(m.ctx, "id1", &txReq.TransactionHeaders, fftypes.NewFFBigInt(12345), "0x123456")
+	assert.Regexp(t, "pop", err)
+
 }

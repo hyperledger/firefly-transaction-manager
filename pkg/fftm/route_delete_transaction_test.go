@@ -21,10 +21,10 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -34,9 +34,9 @@ func TestDeleteTransaction(t *testing.T) {
 	url, m, done := newTestManager(t)
 	defer done()
 
-	mpe := &policyenginemocks.PolicyEngine{}
-	m.policyEngine = mpe
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(policyengine.UpdateDelete, ffcapi.ErrorReason(""), nil).Maybe()
+	mth := &txhandlermocks.TransactionHandler{}
+	m.txHandler = mth
+	mth.On("execute", mock.Anything, mock.Anything, mock.Anything).Return(txhandler.UpdateDelete, ffcapi.ErrorReason(""), nil).Maybe()
 
 	err := m.Start()
 	assert.NoError(t, err)

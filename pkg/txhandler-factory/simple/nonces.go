@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fftm
+package simple
 
 import (
 	"context"
@@ -27,7 +27,7 @@ import (
 )
 
 type lockedNonce struct {
-	m        *manager
+	th       *simpleTransactionHandler
 	nsOpID   string
 	signer   string
 	unlocked chan struct{}
@@ -42,30 +42,30 @@ func (ln *lockedNonce) complete(ctx context.Context) {
 	} else {
 		log.L(ctx).Debugf("Returning next nonce %d for signer %s unspent", ln.nonce, ln.signer)
 	}
-	ln.m.mux.Lock()
-	delete(ln.m.lockedNonces, ln.signer)
+	ln.th.mux.Lock()
+	delete(ln.th.lockedNonces, ln.signer)
 	close(ln.unlocked)
-	ln.m.mux.Unlock()
+	ln.th.mux.Unlock()
 }
 
-func (m *manager) assignAndLockNonce(ctx context.Context, nsOpID, signer string) (*lockedNonce, error) {
+func (t *simpleTransactionHandler) assignAndLockNonce(ctx context.Context, nsOpID, signer string) (*lockedNonce, error) {
 
 	for {
 		// Take the lock to query our nonce cache, and check if we are already locked
-		m.mux.Lock()
+		t.mux.Lock()
 		doLookup := false
-		locked, isLocked := m.lockedNonces[signer]
+		locked, isLocked := t.lockedNonces[signer]
 		if !isLocked {
 			locked = &lockedNonce{
-				m:        m,
+				th:       t,
 				nsOpID:   nsOpID,
 				signer:   signer,
 				unlocked: make(chan struct{}),
 			}
-			m.lockedNonces[signer] = locked
+			t.lockedNonces[signer] = locked
 			doLookup = true
 		}
-		m.mux.Unlock()
+		t.mux.Unlock()
 
 		// If we're locked, then wait
 		if isLocked {
@@ -74,7 +74,7 @@ func (m *manager) assignAndLockNonce(ctx context.Context, nsOpID, signer string)
 		} else if doLookup {
 			// We have to ensure we either successfully return a nonce,
 			// or otherwise we unlock when we send the error
-			nextNonce, err := m.calcNextNonce(ctx, signer)
+			nextNonce, err := t.calcNextNonce(ctx, signer)
 			if err != nil {
 				locked.complete(ctx)
 				return nil, err
@@ -86,19 +86,19 @@ func (m *manager) assignAndLockNonce(ctx context.Context, nsOpID, signer string)
 
 }
 
-func (m *manager) calcNextNonce(ctx context.Context, signer string) (uint64, error) {
+func (t *simpleTransactionHandler) calcNextNonce(ctx context.Context, signer string) (uint64, error) {
 
 	// First we check our DB to find the last nonce we used for this address.
 	// Note we are within the nonce-lock in assignAndLockNonce for this signer, so we can be sure we're the
 	// only routine attempting this right now.
 	var lastTxn *apitypes.ManagedTX
-	txns, err := m.persistence.ListTransactionsByNonce(ctx, signer, nil, 1, persistence.SortDirectionDescending)
+	txns, err := t.tkAPI.Persistence.ListTransactionsByNonce(ctx, signer, nil, 1, persistence.SortDirectionDescending)
 	if err != nil {
 		return 0, err
 	}
 	if len(txns) > 0 {
 		lastTxn = txns[0]
-		if time.Since(*lastTxn.Created.Time()) < m.nonceStateTimeout {
+		if time.Since(*lastTxn.Created.Time()) < t.nonceStateTimeout {
 			nextNonce := lastTxn.Nonce.Uint64() + 1
 			log.L(ctx).Debugf("Allocating next nonce '%s' / '%d' after TX '%s' (status=%s)", signer, nextNonce, lastTxn.ID, lastTxn.Status)
 			return nextNonce, nil
@@ -106,7 +106,7 @@ func (m *manager) calcNextNonce(ctx context.Context, signer string) (uint64, err
 	}
 
 	// If we don't have a fresh answer in our state store, then ask the node.
-	nextNonceRes, _, err := m.connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
+	nextNonceRes, _, err := t.tkAPI.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
 		Signer: signer,
 	})
 	if err != nil {

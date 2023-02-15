@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fftm
+package simple
 
 import (
 	"context"
@@ -29,16 +29,16 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
-	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func sendSampleTX(t *testing.T, m *manager, signer string, nonce int64) *apitypes.ManagedTX {
+func sendSampleTX(t *testing.T, t *simpleTransactionHandler, signer string, nonce int64) *apitypes.ManagedTX {
 
 	txInput := ffcapi.TransactionInput{
 		TransactionHeaders: ffcapi.TransactionHeaders{
@@ -46,20 +46,20 @@ func sendSampleTX(t *testing.T, m *manager, signer string, nonce int64) *apitype
 		},
 	}
 
-	mfc := m.connector.(*ffcapimocks.API)
-	mfc.On("NextNonceForSigner", m.ctx, &ffcapi.NextNonceForSignerRequest{
+	mfc := t.connector.(*ffcapimocks.API)
+	mfc.On("NextNonceForSigner", t.ctx, &ffcapi.NextNonceForSignerRequest{
 		Signer: signer,
 	}).Return(&ffcapi.NextNonceForSignerResponse{
 		Nonce: fftypes.NewFFBigInt(nonce),
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mfc.On("TransactionPrepare", m.ctx, &ffcapi.TransactionPrepareRequest{
+	mfc.On("TransactionPrepare", t.ctx, &ffcapi.TransactionPrepareRequest{
 		TransactionInput: txInput,
 	}).Return(&ffcapi.TransactionPrepareResponse{
 		Gas:             fftypes.NewFFBigInt(100000),
 		TransactionData: "0xabce1234",
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	mtx, err := m.sendManagedTransaction(m.ctx, &apitypes.TransactionRequest{
+	mtx, err := t.createManagedTransaction(t.ctx, &apitypes.TransactionRequest{
 		TransactionInput: txInput,
 	})
 	assert.NoError(t, err)
@@ -74,14 +74,14 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	mtx := sendSampleTX(t, m, "0xaaaaa", 12345)
 	txHash := "0x" + fftypes.NewRandB32().String()
 
-	mfc := m.connector.(*ffcapimocks.API)
-	mfc.On("TransactionSend", m.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
+	mfc := t.connector.(*ffcapimocks.API)
+	mfc.On("TransactionSend", t.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
 		return r.Nonce.Equals(fftypes.NewFFBigInt(12345))
 	})).Return(&ffcapi.TransactionSendResponse{
 		TransactionHash: txHash,
 	}, ffcapi.ErrorReason(""), nil)
 
-	mc := m.confirmations.(*confirmationsmocks.Manager)
+	mc := t.confirmations.(*confirmationsmocks.Manager)
 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
 		return n.NotificationType == confirmations.NewTransaction
 	})).Run(func(args mock.Arguments) {
@@ -98,20 +98,20 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	}).Return(nil)
 
 	// Run the policy once to do the send
-	<-m.inflightStale // from sending the TX
-	m.policyLoopCycle(m.ctx, true)
-	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
-	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
+	<-t.inflightStale // from sending the TX
+	t.policyLoopCycle(t.ctx, true)
+	assert.Equal(t, mtx.ID, t.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, t.inflight[0].mtx.Status)
 
 	// A second time will mark it complete for flush
-	m.policyLoopCycle(m.ctx, false)
+	t.policyLoopCycle(t.ctx, false)
 
-	<-m.inflightStale // policy loop should have marked us stale, to clean up the TX
-	m.policyLoopCycle(m.ctx, true)
-	assert.Empty(t, m.inflight)
+	<-t.inflightStale // policy loop should have marked us stale, to clean up the TX
+	t.policyLoopCycle(t.ctx, true)
+	assert.Empty(t, t.inflight)
 
 	// Check the update is persisted
-	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.ID)
+	rtx, err := t.persistence.GetTransactionByID(t.ctx, mtx.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, apitypes.TxStatusSucceeded, rtx.Status)
 
@@ -127,14 +127,14 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	mtx := sendSampleTX(t, m, "0xaaaaa", 12345)
 	txHash := "0x" + fftypes.NewRandB32().String()
 
-	mfc := m.connector.(*ffcapimocks.API)
-	mfc.On("TransactionSend", m.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
+	mfc := t.connector.(*ffcapimocks.API)
+	mfc.On("TransactionSend", t.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
 		return r.Nonce.Equals(fftypes.NewFFBigInt(12345))
 	})).Return(&ffcapi.TransactionSendResponse{
 		TransactionHash: txHash,
 	}, ffcapi.ErrorReason(""), nil)
 
-	mc := m.confirmations.(*confirmationsmocks.Manager)
+	mc := t.confirmations.(*confirmationsmocks.Manager)
 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
 		return n.NotificationType == confirmations.NewTransaction
 	})).Run(func(args mock.Arguments) {
@@ -150,20 +150,20 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	}).Return(nil)
 
 	// Run the policy once to do the send
-	<-m.inflightStale // from sending the TX
-	m.policyLoopCycle(m.ctx, true)
-	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
-	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
+	<-t.inflightStale // from sending the TX
+	t.policyLoopCycle(t.ctx, true)
+	assert.Equal(t, mtx.ID, t.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, t.inflight[0].mtx.Status)
 
 	// A second time will mark it complete for flush
-	m.policyLoopCycle(m.ctx, false)
+	t.policyLoopCycle(t.ctx, false)
 
-	<-m.inflightStale // policy loop should have marked us stale, to clean up the TX
-	m.policyLoopCycle(m.ctx, true)
-	assert.Empty(t, m.inflight)
+	<-t.inflightStale // policy loop should have marked us stale, to clean up the TX
+	t.policyLoopCycle(t.ctx, true)
+	assert.Empty(t, t.inflight)
 
 	// Check the update is persisted
-	rtx, err := m.persistence.GetTransactionByID(m.ctx, mtx.ID)
+	rtx, err := t.persistence.GetTransactionByID(t.ctx, mtx.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, apitypes.TxStatusFailed, rtx.Status)
 
@@ -180,7 +180,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	txHash1 := "0x" + fftypes.NewRandB32().String()
 	txHash2 := "0x" + fftypes.NewRandB32().String()
 
-	mfc := m.connector.(*ffcapimocks.API)
+	mfc := t.connector.(*ffcapimocks.API)
 
 	mfc.On("TransactionPrepare", mock.Anything, mock.Anything).Return(&ffcapi.TransactionPrepareResponse{
 		Gas:             fftypes.NewFFBigInt(12345),
@@ -194,7 +194,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 		TransactionHash: txHash2,
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	mc := m.confirmations.(*confirmationsmocks.Manager)
+	mc := t.confirmations.(*confirmationsmocks.Manager)
 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
 		// First we get notified to add the old TX hash
 		return n.NotificationType == confirmations.NewTransaction &&
@@ -222,23 +222,23 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	}).Return(nil)
 
 	// Run the policy once to do the send with the first hash
-	<-m.inflightStale // from sending the TX
-	m.policyLoopCycle(m.ctx, true)
-	assert.Len(t, m.inflight, 1)
-	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
-	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
+	<-t.inflightStale // from sending the TX
+	t.policyLoopCycle(t.ctx, true)
+	assert.Len(t, t.inflight, 1)
+	assert.Equal(t, mtx.ID, t.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, t.inflight[0].mtx.Status)
 
 	// Run again to confirm it does not change anything, when the state is the same
-	m.policyLoopCycle(m.ctx, true)
-	assert.Len(t, m.inflight, 1)
-	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
-	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
+	t.policyLoopCycle(t.ctx, true)
+	assert.Len(t, t.inflight, 1)
+	assert.Equal(t, mtx.ID, t.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, t.inflight[0].mtx.Status)
 
 	// Reset the transaction so the policy manager resubmits it
-	m.inflight[0].mtx.FirstSubmit = nil
-	m.policyLoopCycle(m.ctx, false)
-	assert.Equal(t, mtx.ID, m.inflight[0].mtx.ID)
-	assert.Equal(t, apitypes.TxStatusPending, m.inflight[0].mtx.Status)
+	t.inflight[0].mtx.FirstSubmit = nil
+	t.policyLoopCycle(t.ctx, false)
+	assert.Equal(t, mtx.ID, t.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, t.inflight[0].mtx.Status)
 
 	mc.AssertExpectations(t)
 	mfc.AssertExpectations(t)
@@ -252,15 +252,15 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 	_ = sendSampleTX(t, m, "0xaaaaa", 12345)
 	txHash := "0x" + fftypes.NewRandB32().String()
 
-	mfc := m.connector.(*ffcapimocks.API)
+	mfc := t.connector.(*ffcapimocks.API)
 	mfc.On("TransactionSend", mock.Anything, mock.Anything).Return(&ffcapi.TransactionSendResponse{
 		TransactionHash: txHash,
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	mc := m.confirmations.(*confirmationsmocks.Manager)
+	mc := t.confirmations.(*confirmationsmocks.Manager)
 	mc.On("Notify", mock.Anything).Return(fmt.Errorf("pop"))
 
-	m.policyLoopCycle(m.ctx, true)
+	t.policyLoopCycle(t.ctx, true)
 
 	mc.AssertExpectations(t)
 	mfc.AssertExpectations(t)
@@ -272,11 +272,11 @@ func TestInflightSetListFailCancel(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	close()
 
-	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListTransactionsPending", m.ctx, (*fftypes.UUID)(nil), m.maxInFlight, persistence.SortDirectionAscending).
+	mp := t.persistence.(*persistencemocks.Persistence)
+	mp.On("ListTransactionsPending", t.ctx, (*fftypes.UUID)(nil), t.maxInFlight, persistence.SortDirectionAscending).
 		Return(nil, fmt.Errorf("pop"))
 
-	m.policyLoopCycle(m.ctx, true)
+	t.policyLoopCycle(t.ctx, true)
 
 	mp.AssertExpectations(t)
 
@@ -287,7 +287,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	m.inflight = []*pendingState{
+	t.inflight = []*pendingState{
 		{
 			confirmed: true,
 			mtx: &apitypes.ManagedTX{
@@ -305,18 +305,18 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 		},
 	}
 
-	h := txhistory.NewTxHistoryManager(m.ctx)
-	h.SetSubStatus(m.ctx, m.inflight[0].mtx, apitypes.TxSubStatusReceived)
-	mpe := &policyenginemocks.PolicyEngine{}
-	m.policyEngine = mpe
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).
-		Return(policyengine.UpdateYes, ffcapi.ErrorReason(""), nil)
+	h := txhistory.NewTxHistoryManager(t.ctx)
+	h.SetSubStatus(t.ctx, t.inflight[0].mtx, apitypes.TxSubStatusReceived)
+	mth := &txhandlermocks.TransactionHandler{}
+	t.txHandler = mth
+	mth.On("execute", mock.Anything, mock.Anything, mock.Anything).
+		Return(txhandler.UpdateYes, ffcapi.ErrorReason(""), nil)
 
-	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("WriteTransaction", m.ctx, mock.Anything, false).Return(fmt.Errorf("pop"))
+	mp := t.persistence.(*persistencemocks.Persistence)
+	mp.On("WriteTransaction", t.ctx, mock.Anything, false).Return(fmt.Errorf("pop"))
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
-	m.policyLoopCycle(m.ctx, false)
+	t.policyLoopCycle(t.ctx, false)
 
 	mp.AssertExpectations(t)
 
@@ -326,22 +326,22 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 
 	_, m, cancel := newTestManagerWithMetrics(t)
 	defer cancel()
-	m.policyLoopInterval = 1 * time.Hour
+	t.policyLoopInterval = 1 * time.Hour
 
-	mpe := &policyenginemocks.PolicyEngine{}
-	m.policyEngine = mpe
+	mth := &txhandlermocks.TransactionHandler{}
+	t.txHandler = mth
 	done1 := make(chan struct{})
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).
-		Return(policyengine.UpdateNo, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
+	mth.On("execute", mock.Anything, mock.Anything, mock.Anything).
+		Return(txhandler.UpdateNo, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
 		Once().
 		Run(func(args mock.Arguments) {
 			close(done1)
-			m.markInflightUpdate()
+			t.markInflightUpdate()
 		})
 
 	done2 := make(chan struct{})
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).
-		Return(policyengine.UpdateNo, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
+	mth.On("execute", mock.Anything, mock.Anything, mock.Anything).
+		Return(txhandler.UpdateNo, ffcapi.ErrorReason(""), fmt.Errorf("pop")).
 		Once().
 		Run(func(args mock.Arguments) {
 			close(done2)
@@ -349,15 +349,15 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 
 	_ = sendSampleTX(t, m, "0xaaaaa", 12345)
 
-	m.Start()
+	t.Start()
 
 	<-done1
 
 	<-done2
 
-	m.Close()
+	t.Close()
 
-	mpe.AssertExpectations(t)
+	mth.AssertExpectations(t)
 
 }
 
@@ -366,8 +366,8 @@ func TestMarkInflightStaleDoesNotBlock(t *testing.T) {
 	_, m, cancel := newTestManager(t)
 	defer cancel()
 
-	m.markInflightStale()
-	m.markInflightStale()
+	t.markInflightStale()
+	t.markInflightStale()
 
 }
 
@@ -376,8 +376,8 @@ func TestMarkInflightUpdateDoesNotBlock(t *testing.T) {
 	_, m, cancel := newTestManager(t)
 	defer cancel()
 
-	m.markInflightUpdate()
-	m.markInflightUpdate()
+	t.markInflightUpdate()
+	t.markInflightUpdate()
 
 }
 
@@ -386,24 +386,24 @@ func TestExecPolicyDeleteFail(t *testing.T) {
 	_, m, cancel := newTestManagerMockPersistence(t)
 	defer cancel()
 
-	mpe := &policyenginemocks.PolicyEngine{}
-	m.policyEngine = mpe
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(policyengine.UpdateDelete, ffcapi.ErrorReason(""), nil).Maybe()
+	mth := &txhandlermocks.TransactionHandler{}
+	t.txHandler = mth
+	mth.On("execute", mock.Anything, mock.Anything, mock.Anything).Return(txhandler.UpdateDelete, ffcapi.ErrorReason(""), nil).Maybe()
 
 	tx := genTestTxn("0xabcd1234", 12345, apitypes.TxStatusPending)
 
-	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("GetTransactionByID", m.ctx, tx.ID).Return(tx, nil)
-	mp.On("DeleteTransaction", m.ctx, tx.ID).Return(fmt.Errorf("pop"))
+	mp := t.persistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", t.ctx, tx.ID).Return(tx, nil)
+	mp.On("DeleteTransaction", t.ctx, tx.ID).Return(fmt.Errorf("pop"))
 
 	req := &policyEngineAPIRequest{
 		requestType: policyEngineAPIRequestTypeDelete,
 		txID:        tx.ID,
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
-	m.policyEngineAPIRequests = append(m.policyEngineAPIRequests, req)
+	t.policyEngineAPIRequests = append(t.policyEngineAPIRequests, req)
 
-	m.processPolicyAPIRequests(m.ctx)
+	t.processPolicyAPIRequests(t.ctx)
 
 	res := <-req.response
 	assert.Regexp(t, "pop", res.err)
@@ -417,29 +417,29 @@ func TestExecPolicyDeleteInflightSync(t *testing.T) {
 	_, m, cancel := newTestManagerMockPersistence(t)
 	defer cancel()
 
-	mpe := &policyenginemocks.PolicyEngine{}
-	m.policyEngine = mpe
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(policyengine.UpdateDelete, ffcapi.ErrorReason(""), nil).Maybe()
+	mth := &txhandlermocks.TransactionHandler{}
+	t.txHandler = mth
+	mth.On("execute", mock.Anything, mock.Anything, mock.Anything).Return(txhandler.UpdateDelete, ffcapi.ErrorReason(""), nil).Maybe()
 
 	tx := genTestTxn("0xabcd1234", 12345, apitypes.TxStatusPending)
-	m.inflight = []*pendingState{{mtx: tx}}
+	t.inflight = []*pendingState{{mtx: tx}}
 
-	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("DeleteTransaction", m.ctx, tx.ID).Return(nil)
+	mp := t.persistence.(*persistencemocks.Persistence)
+	mp.On("DeleteTransaction", t.ctx, tx.ID).Return(nil)
 
 	req := &policyEngineAPIRequest{
 		requestType: policyEngineAPIRequestTypeDelete,
 		txID:        tx.ID,
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
-	m.policyEngineAPIRequests = append(m.policyEngineAPIRequests, req)
+	t.policyEngineAPIRequests = append(t.policyEngineAPIRequests, req)
 
-	m.processPolicyAPIRequests(m.ctx)
+	t.processPolicyAPIRequests(t.ctx)
 
 	res := <-req.response
 	assert.NoError(t, res.err)
 	assert.Equal(t, http.StatusOK, res.status)
-	assert.True(t, m.inflight[0].remove)
+	assert.True(t, t.inflight[0].remove)
 
 	mp.AssertExpectations(t)
 
@@ -450,17 +450,17 @@ func TestExecPolicyDeleteNotFound(t *testing.T) {
 	_, m, cancel := newTestManagerMockPersistence(t)
 	defer cancel()
 
-	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("GetTransactionByID", m.ctx, "bad-id").Return(nil, nil)
+	mp := t.persistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", t.ctx, "bad-id").Return(nil, nil)
 
 	req := &policyEngineAPIRequest{
 		requestType: policyEngineAPIRequestTypeDelete,
 		txID:        "bad-id",
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
-	m.policyEngineAPIRequests = append(m.policyEngineAPIRequests, req)
+	t.policyEngineAPIRequests = append(t.policyEngineAPIRequests, req)
 
-	m.processPolicyAPIRequests(m.ctx)
+	t.processPolicyAPIRequests(t.ctx)
 
 	res := <-req.response
 	assert.Regexp(t, "FF21067", res.err)
@@ -475,17 +475,17 @@ func TestBadPolicyAPIRequest(t *testing.T) {
 	defer cancel()
 
 	tx := genTestTxn("0xabcd1234", 12345, apitypes.TxStatusPending)
-	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("GetTransactionByID", m.ctx, tx.ID).Return(tx, nil)
+	mp := t.persistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", t.ctx, tx.ID).Return(tx, nil)
 
 	req := &policyEngineAPIRequest{
 		requestType: policyEngineAPIRequestType(999),
 		txID:        tx.ID,
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
-	m.policyEngineAPIRequests = append(m.policyEngineAPIRequests, req)
+	t.policyEngineAPIRequests = append(t.policyEngineAPIRequests, req)
 
-	m.processPolicyAPIRequests(m.ctx)
+	t.processPolicyAPIRequests(t.ctx)
 
 	res := <-req.response
 	assert.Regexp(t, "FF21069", res.err)
@@ -502,7 +502,7 @@ func TestBadPolicyAPITimeout(t *testing.T) {
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	cancelCtx()
 
-	res := m.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{})
+	res := t.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{})
 	assert.Regexp(t, "FF21068", res.err)
 
 }
@@ -512,20 +512,20 @@ func TestExecPolicyUpdateNewInfo(t *testing.T) {
 	_, m, cancel := newTestManagerMockPersistence(t)
 	defer cancel()
 
-	mpe := &policyenginemocks.PolicyEngine{}
-	m.policyEngine = mpe
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(
-		policyengine.UpdateNo, // Even though we return no, our update gets passed through
+	mth := &txhandlermocks.TransactionHandler{}
+	t.txHandler = mth
+	mth.On("execute", mock.Anything, mock.Anything, mock.Anything).Return(
+		txhandler.UpdateNo, // Even though we return no, our update gets passed through
 		ffcapi.ErrorReason(""), nil).Maybe()
 
-	mp := m.persistence.(*persistencemocks.Persistence)
+	mp := t.persistence.(*persistencemocks.Persistence)
 	mp.On("WriteTransaction", mock.Anything, mock.Anything, false).Return(nil)
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	cancelCtx()
 
-	err := m.execPolicy(ctx, &pendingState{
+	err := t.execPolicy(ctx, &pendingState{
 		mtx: &apitypes.ManagedTX{
 			ID: "id1",
 		},

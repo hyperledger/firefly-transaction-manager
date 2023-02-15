@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -79,13 +79,13 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 				}
-				return m.sendManagedTransaction(r.Req.Context(), &tReq)
+				return m.txHandler.RegisterNewTransaction(r.Req.Context(), &tReq)
 			case apitypes.RequestTypeDeploy:
 				var tReq apitypes.ContractDeployRequest
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 				}
-				return m.sendManagedContractDeployment(r.Req.Context(), &tReq)
+				return m.txHandler.RegisterNewContractDeployment(r.Req.Context(), &tReq)
 			case apitypes.RequestTypeQuery:
 				var tReq apitypes.QueryRequest
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {

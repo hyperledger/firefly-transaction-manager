@@ -23,10 +23,10 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -52,9 +52,9 @@ func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status api
 }
 
 func noopPolicyEngine(m *manager) {
-	mpe := &policyenginemocks.PolicyEngine{}
-	m.policyEngine = mpe
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(policyengine.UpdateNo, ffcapi.ErrorReason(""), nil).Maybe()
+	mth := &txhandlermocks.TransactionHandler{}
+	m.txHandler = mth
+	mth.On("execute", mock.Anything, mock.Anything, mock.Anything).Return(txhandler.UpdateNo, ffcapi.ErrorReason(""), nil).Maybe()
 }
 
 func TestGetTransactions(t *testing.T) {

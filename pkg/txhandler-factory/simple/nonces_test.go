@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package fftm
+package simple
 
 import (
 	"context"
@@ -38,7 +38,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 
 	// Write a stale record to persistence
 	oldTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
-	err := m.persistence.WriteTransaction(m.ctx, &apitypes.ManagedTX{
+	err := t.persistence.WriteTransaction(t.ctx, &apitypes.ManagedTX{
 		ID:         "stale1",
 		Created:    &oldTime,
 		Status:     apitypes.TxStatusSucceeded,
@@ -50,7 +50,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 	}, true)
 	assert.NoError(t, err)
 
-	mFFC := m.connector.(*ffcapimocks.API)
+	mFFC := t.connector.(*ffcapimocks.API)
 
 	mFFC.On("NextNonceForSigner", mock.Anything, mock.MatchedBy(func(nonceReq *ffcapi.NextNonceForSignerRequest) bool {
 		return "0x12345" == nonceReq.Signer
@@ -65,7 +65,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 	go func() {
 		defer close(done1)
 
-		ln, err := m.assignAndLockNonce(context.Background(), "ns1:"+fftypes.NewUUID().String(), "0x12345")
+		ln, err := t.assignAndLockNonce(context.Background(), "ns1:"+fftypes.NewUUID().String(), "0x12345")
 		assert.NoError(t, err)
 		assert.Equal(t, uint64(1111), ln.nonce)
 		close(locked1)
@@ -81,7 +81,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 				From: "0x12345",
 			},
 		}
-		err = m.persistence.WriteTransaction(m.ctx, ln.spent, true)
+		err = t.persistence.WriteTransaction(t.ctx, ln.spent, true)
 		assert.NoError(t, err)
 		ln.complete(context.Background())
 	}()
@@ -90,7 +90,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 		defer close(done2)
 
 		<-locked1
-		ln, err := m.assignAndLockNonce(context.Background(), "ns2:"+fftypes.NewUUID().String(), "0x12345")
+		ln, err := t.assignAndLockNonce(context.Background(), "ns2:"+fftypes.NewUUID().String(), "0x12345")
 		assert.NoError(t, err)
 
 		assert.Equal(t, uint64(1112), ln.nonce)
@@ -109,17 +109,17 @@ func TestNonceListError(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	mFFC := m.connector.(*ffcapimocks.API)
+	mFFC := t.connector.(*ffcapimocks.API)
 	mFFC.On("TransactionPrepare", mock.Anything, mock.Anything).Return(&ffcapi.TransactionPrepareResponse{
 		TransactionData: "RAW_UNSIGNED_BYTES",
 		Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
 	}, ffcapi.ErrorReason(""), nil)
 
-	mp := m.persistence.(*persistencemocks.Persistence)
+	mp := t.persistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("pop"))
 
-	_, err := m.sendManagedTransaction(context.Background(), &apitypes.TransactionRequest{
+	_, err := t.createManagedTransaction(context.Background(), &apitypes.TransactionRequest{
 		TransactionInput: ffcapi.TransactionInput{
 			TransactionHeaders: ffcapi.TransactionHeaders{
 				From: "0x12345",
@@ -138,21 +138,21 @@ func TestNonceListStaleThenQueryFail(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	mp := m.persistence.(*persistencemocks.Persistence)
+	mp := t.persistence.(*persistencemocks.Persistence)
 	old := fftypes.FFTime(time.Now().Add(-10000 * time.Hour))
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
 			{ID: "id12345", Created: &old, Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
 		}, nil)
 
-	mFFC := m.connector.(*ffcapimocks.API)
+	mFFC := t.connector.(*ffcapimocks.API)
 	mFFC.On("TransactionPrepare", mock.Anything, mock.Anything).Return(&ffcapi.TransactionPrepareResponse{
 		TransactionData: "RAW_UNSIGNED_BYTES",
 		Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
 	}, ffcapi.ErrorReason(""), nil)
 	mFFC.On("NextNonceForSigner", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
-	_, err := m.sendManagedTransaction(context.Background(), &apitypes.TransactionRequest{
+	_, err := t.createManagedTransaction(context.Background(), &apitypes.TransactionRequest{
 		TransactionInput: ffcapi.TransactionInput{
 			TransactionHeaders: ffcapi.TransactionHeaders{
 				From: "0x12345",
@@ -170,16 +170,16 @@ func TestNonceListNotStale(t *testing.T) {
 
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
-	m.nonceStateTimeout = 1 * time.Hour
+	t.nonceStateTimeout = 1 * time.Hour
 
-	mp := m.persistence.(*persistencemocks.Persistence)
+	mp := t.persistence.(*persistencemocks.Persistence)
 
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
 			{ID: "id12345", Created: fftypes.Now(), Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
 		}, nil)
 
-	n, err := m.calcNextNonce(context.Background(), "0x12345")
+	n, err := t.calcNextNonce(context.Background(), "0x12345")
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1001), n)
 

@@ -170,20 +170,31 @@
 |path|The path for the LevelDB persistence directory|`string`|`<nil>`
 |syncWrites|Whether to synchronously perform writes to the storage|`boolean`|`false`
 
-## policyengine
+
+## transactions
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|maxHistoryCount|The number of historical status updates to retain in the operation|`int`|`50`
+|maxInFlight|The maximum number of transactions to have in-flight with the policy engine / blockchain transaction pool|`int`|`100`
+
+
+## transactions.handler
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |name|The name of the policy engine to use|`string`|`simple`
 
-## policyengine.simple
+## transactions.handler.simple
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |fixedGasPrice|A fixed gasPrice value/structure to pass to the connector|Raw JSON|`<nil>`
 |resubmitInterval|The time between warning and re-sending a transaction (same nonce) when a blockchain transaction has not been allocated a receipt|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|nonceStateTimeout|How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1h`
 
-## policyengine.simple.gasOracle
+
+## transactions.handler.simple.gasOracle
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
@@ -201,20 +212,20 @@
 |tlsHandshakeTimeout|The maximum amount of time to wait for a successful TLS handshake|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |url|REST API Gas Oracle: The URL of a Gas Oracle REST API to call|`string`|`<nil>`
 
-## policyengine.simple.gasOracle.auth
+## transactions.handler.simple.gasOracle.auth
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |password|Password|`string`|`<nil>`
 |username|Username|`string`|`<nil>`
 
-## policyengine.simple.gasOracle.proxy
+## transactions.handler.simple.gasOracle.proxy
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |url|Optional HTTP proxy URL to use for the Gas Oracle REST API|`string`|`<nil>`
 
-## policyengine.simple.gasOracle.retry
+## transactions.handler.simple.gasOracle.retry
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
@@ -223,13 +234,13 @@
 |initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
-## policyloop
+## transactions.handler.simple.interval
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |interval|Interval at which to invoke the policy engine to evaluate outstanding transactions|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
 
-## policyloop.retry
+## .retry
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
@@ -237,13 +248,6 @@
 |initialDelay|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
 |maxDelay|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
 
-## transactions
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|maxHistoryCount|The number of historical status updates to retain in the operation|`int`|`50`
-|maxInFlight|The maximum number of transactions to have in-flight with the policy engine / blockchain transaction pool|`int`|`100`
-|nonceStateTimeout|How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1h`
 
 ## webhooks
 

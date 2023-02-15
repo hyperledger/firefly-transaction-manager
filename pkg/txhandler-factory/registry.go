@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengines
+package txhandlerfactory
 
 import (
 	"context"
@@ -23,28 +23,28 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
-var policyEngines = make(map[string]Factory)
+var txHandlers = make(map[string]Factory)
 
-func NewPolicyEngine(ctx context.Context, baseConfig config.Section, name string) (policyengine.PolicyEngine, error) {
-	factory, ok := policyEngines[name]
+func NewTransactionHandler(ctx context.Context, baseConfig config.Section, name string) (txhandler.TransactionHandler, error) {
+	factory, ok := txHandlers[name]
 	if !ok {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgPolicyEngineNotRegistered, name)
 	}
-	return factory.NewPolicyEngine(ctx, baseConfig.SubSection(name))
+	return factory.NewTransactionHandler(ctx, baseConfig.SubSection(name))
 }
 
 type Factory interface {
 	Name() string
 	InitConfig(conf config.Section)
-	NewPolicyEngine(ctx context.Context, conf config.Section) (policyengine.PolicyEngine, error)
+	NewTransactionHandler(ctx context.Context, conf config.Section) (txhandler.TransactionHandler, error)
 }
 
-func RegisterEngine(factory Factory) string {
+func RegisterHandler(factory Factory) string {
 	name := factory.Name()
-	policyEngines[name] = factory
-	factory.InitConfig(tmconfig.PolicyEngineBaseConfig.SubSection(name))
+	txHandlers[name] = factory
+	factory.InitConfig(tmconfig.TransactionHandlerBaseConfig.SubSection(name))
 	return name
 }

@@ -14,28 +14,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package policyengines
+package txhandlerfactory
 
 import (
 	"context"
 	"testing"
 
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines/simple"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler-factory/simple"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRegistry(t *testing.T) {
 
 	tmconfig.Reset()
-	RegisterEngine(&simple.PolicyEngineFactory{})
+	RegisterHandler(&simple.TransactionHandlerFactory{})
 
-	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "12345")
-	p, err := NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBaseConfig, "simple")
+	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "12345")
+	p, err := NewTransactionHandler(context.Background(), tmconfig.TransactionHandlerBaseConfig, "simple")
 	assert.NotNil(t, p)
 	assert.NoError(t, err)
 
-	p, err = NewPolicyEngine(context.Background(), tmconfig.PolicyEngineBaseConfig, "bob")
+	p, err = NewTransactionHandler(context.Background(), tmconfig.TransactionHandlerBaseConfig, "bob")
 	assert.Nil(t, p)
 	assert.Regexp(t, "FF21019", err)
 

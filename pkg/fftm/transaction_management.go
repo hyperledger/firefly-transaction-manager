@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,6 +18,7 @@ package fftm
 
 import (
 	"context"
+	"net/http"
 	"strings"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -85,9 +86,13 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 }
 
 func (m *manager) requestTransactionDeletion(ctx context.Context, txID string) (status int, transaction *apitypes.ManagedTX, err error) {
-	res := m.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
-		requestType: policyEngineAPIRequestTypeDelete,
-		txID:        txID,
-	})
-	return res.status, res.tx, res.err
+
+	canceledTx, err := m.txHandler.CancelTransaction(ctx, txID)
+
+	if err != nil {
+		return http.StatusInternalServerError, nil, err
+	}
+
+	return http.StatusAccepted, canceledTx, nil
+
 }
