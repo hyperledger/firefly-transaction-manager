@@ -325,6 +325,7 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			})
 		}
 		if err != nil {
+			log.L(ctx).Errorf("Failed to handle process event for transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
 			return err
 		}
 	case UpdateDelete:
@@ -335,10 +336,14 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 		}
 		pending.remove = true // for the next time round the loop
 		sth.markInflightStale()
-		sth.transactionEventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+		err = sth.transactionEventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 			Type: apitypes.ManagedTXDeleted,
 			Tx:   mtx,
 		})
+		if err != nil {
+			log.L(ctx).Errorf("Failed to handle delete event for transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
+			return err
+		}
 	}
 
 	return nil

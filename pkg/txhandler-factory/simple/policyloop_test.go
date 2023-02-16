@@ -62,12 +62,12 @@ func sendSampleTX(t *testing.T, sth *simpleTransactionHandler, signer string, no
 }
 
 func TestPolicyLoopE2EOk(t *testing.T) {
-
 	f, tk, _, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	defer cleanup()
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
@@ -131,138 +131,193 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	mfc.AssertExpectations(t)
 }
 
-// func TestPolicyLoopE2EReverted(t *testing.T) {
+func TestPolicyLoopE2EReverted(t *testing.T) {
 
-// 	_, m, cancel := newTestManager(t)
-// 	defer cancel()
+	f, tk, _, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
+	defer cleanup()
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(ResubmitInterval, "100s")
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
 
-// 	mtx := sendSampleTX(t, m, "0xaaaaa", 12345)
-// 	txHash := "0x" + fftypes.NewRandB32().String()
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
 
-// 	mfc := sth.connector.(*ffcapimocks.API)
-// 	mfc.On("TransactionSend", sth.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
-// 		return r.Nonce.Equals(fftypes.NewFFBigInt(12345))
-// 	})).Return(&ffcapi.TransactionSendResponse{
-// 		TransactionHash: txHash,
-// 	}, ffcapi.ErrorReason(""), nil)
+	txHash := "0x" + fftypes.NewRandB32().String()
 
-// 	mc := sth.confirmations.(*confirmationsmocks.Manager)
-// 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
-// 		return n.NotificationType == confirmations.NewTransaction
-// 	})).Run(func(args mock.Arguments) {
-// 		n := args[0].(*confirmations.Notification)
-// 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
-// 			BlockNumber:      fftypes.NewFFBigInt(12345),
-// 			TransactionIndex: fftypes.NewFFBigInt(10),
-// 			BlockHash:        fftypes.NewRandB32().String(),
-// 			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-// 			Success:          false,
-// 		})
-// 		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
-// 	}).Return(nil)
+	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+	mfc.On("TransactionSend", sth.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
+		return r.Nonce.Equals(fftypes.NewFFBigInt(12345))
+	})).Return(&ffcapi.TransactionSendResponse{
+		TransactionHash: txHash,
+	}, ffcapi.ErrorReason(""), nil)
 
-// 	// Run the policy once to do the send
-// 	<-sth.inflightStale // from sending the TX
-// 	sth.policyLoopCycle(sth.ctx, true)
-// 	assert.Equal(t, mtx.ID, sth.inflight[0].mtx.ID)
-// 	assert.Equal(t, apitypes.TxStatusPending, sth.inflight[0].mtx.Status)
+	eh := &fftm.ManagedTransactionEventHandler{
+		Ctx:       context.Background(),
+		TxHandler: sth,
+	}
+	mc := &confirmationsmocks.Manager{}
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		return n.NotificationType == confirmations.NewTransaction
+	})).Run(func(args mock.Arguments) {
+		n := args[0].(*confirmations.Notification)
+		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
+			BlockNumber:      fftypes.NewFFBigInt(12345),
+			TransactionIndex: fftypes.NewFFBigInt(10),
+			BlockHash:        fftypes.NewRandB32().String(),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+			Success:          false,
+		})
+		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
+	}).Return(nil)
+	eh.ConfirmationManager = mc
+	mws := &wsmocks.WebSocketServer{}
+	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
 
-// 	// A second time will mark it complete for flush
-// 	sth.policyLoopCycle(sth.ctx, false)
+	eh.WsServer = mws
+	sth.transactionEventHandler = eh
 
-// 	<-sth.inflightStale // policy loop should have marked us stale, to clean up the TX
-// 	sth.policyLoopCycle(sth.ctx, true)
-// 	assert.Empty(t, sth.inflight)
+	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345)
+	// Run the policy once to do the send
+	<-sth.inflightStale // from sending the TX
+	sth.policyLoopCycle(sth.ctx, true)
+	assert.Equal(t, mtx.ID, sth.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, sth.inflight[0].mtx.Status)
 
-// 	// Check the update is persisted
-// 	rtx, err := sth.persistence.GetTransactionByID(sth.ctx, mtx.ID)
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, apitypes.TxStatusFailed, rtx.Status)
+	// A second time will mark it complete for flush
+	sth.policyLoopCycle(sth.ctx, false)
 
-// 	mc.AssertExpectations(t)
-// 	mfc.AssertExpectations(t)
-// }
+	<-sth.inflightStale // policy loop should have marked us stale, to clean up the TX
+	sth.policyLoopCycle(sth.ctx, true)
+	assert.Empty(t, sth.inflight)
 
-// func TestPolicyLoopResubmitNewTXID(t *testing.T) {
+	// Check the update is persisted
+	rtx, err := sth.tkAPI.Persistence.GetTransactionByID(sth.ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, apitypes.TxStatusFailed, rtx.Status)
 
-// 	_, m, cancel := newTestManager(t)
-// 	defer cancel()
+	mc.AssertExpectations(t)
+	mfc.AssertExpectations(t)
+}
 
-// 	mtx := sendSampleTX(t, m, "0xaaaaa", 12345)
-// 	txHash1 := "0x" + fftypes.NewRandB32().String()
-// 	txHash2 := "0x" + fftypes.NewRandB32().String()
+func TestPolicyLoopResubmitNewTXID(t *testing.T) {
+	f, tk, _, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
+	defer cleanup()
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(ResubmitInterval, "100s")
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
 
-// 	mfc := sth.connector.(*ffcapimocks.API)
+	txHash1 := "0x" + fftypes.NewRandB32().String()
+	txHash2 := "0x" + fftypes.NewRandB32().String()
+	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
 
-// 	mfc.On("TransactionPrepare", mock.Anything, mock.Anything).Return(&ffcapi.TransactionPrepareResponse{
-// 		Gas:             fftypes.NewFFBigInt(12345),
-// 		TransactionData: "0x12345",
-// 	}, ffcapi.ErrorReason(""), nil)
+	mfc.On("TransactionSend", mock.Anything, mock.Anything).Return(&ffcapi.TransactionSendResponse{
+		TransactionHash: txHash1,
+	}, ffcapi.ErrorReason(""), nil).Once()
+	mfc.On("TransactionSend", mock.Anything, mock.Anything).Return(&ffcapi.TransactionSendResponse{
+		TransactionHash: txHash2,
+	}, ffcapi.ErrorReason(""), nil).Once()
+	eh := &fftm.ManagedTransactionEventHandler{
+		Ctx:       context.Background(),
+		TxHandler: sth,
+	}
 
-// 	mfc.On("TransactionSend", mock.Anything, mock.Anything).Return(&ffcapi.TransactionSendResponse{
-// 		TransactionHash: txHash1,
-// 	}, ffcapi.ErrorReason(""), nil).Once()
-// 	mfc.On("TransactionSend", mock.Anything, mock.Anything).Return(&ffcapi.TransactionSendResponse{
-// 		TransactionHash: txHash2,
-// 	}, ffcapi.ErrorReason(""), nil).Once()
+	mc := &confirmationsmocks.Manager{}
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		// First we get notified to add the old TX hash
+		return n.NotificationType == confirmations.NewTransaction &&
+			n.Transaction.TransactionHash == txHash1
+	})).Return(nil)
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		// Then we get notified to remove the old TX hash
+		return n.NotificationType == confirmations.RemovedTransaction &&
+			n.Transaction.TransactionHash == txHash1
+	})).Return(nil)
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		// Then we get the new TX hash, which we confirm
+		return n.NotificationType == confirmations.NewTransaction &&
+			n.Transaction.TransactionHash == txHash2
+	})).Run(func(args mock.Arguments) {
+		n := args[0].(*confirmations.Notification)
+		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
+			BlockNumber:      fftypes.NewFFBigInt(12345),
+			TransactionIndex: fftypes.NewFFBigInt(10),
+			BlockHash:        fftypes.NewRandB32().String(),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+			Success:          true,
+		})
+		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
+	}).Return(nil)
+	eh.ConfirmationManager = mc
+	mws := &wsmocks.WebSocketServer{}
+	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
 
-// 	mc := sth.confirmations.(*confirmationsmocks.Manager)
-// 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
-// 		// First we get notified to add the old TX hash
-// 		return n.NotificationType == confirmations.NewTransaction &&
-// 			n.Transaction.TransactionHash == txHash1
-// 	})).Return(nil)
-// 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
-// 		// Then we get notified to remove the old TX hash
-// 		return n.NotificationType == confirmations.RemovedTransaction &&
-// 			n.Transaction.TransactionHash == txHash1
-// 	})).Return(nil)
-// 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
-// 		// Then we get the new TX hash, which we confirm
-// 		return n.NotificationType == confirmations.NewTransaction &&
-// 			n.Transaction.TransactionHash == txHash2
-// 	})).Run(func(args mock.Arguments) {
-// 		n := args[0].(*confirmations.Notification)
-// 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
-// 			BlockNumber:      fftypes.NewFFBigInt(12345),
-// 			TransactionIndex: fftypes.NewFFBigInt(10),
-// 			BlockHash:        fftypes.NewRandB32().String(),
-// 			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-// 			Success:          true,
-// 		})
-// 		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
-// 	}).Return(nil)
+	eh.WsServer = mws
+	sth.transactionEventHandler = eh
 
-// 	// Run the policy once to do the send with the first hash
-// 	<-sth.inflightStale // from sending the TX
-// 	sth.policyLoopCycle(sth.ctx, true)
-// 	assert.Len(t, sth.inflight, 1)
-// 	assert.Equal(t, mtx.ID, sth.inflight[0].mtx.ID)
-// 	assert.Equal(t, apitypes.TxStatusPending, sth.inflight[0].mtx.Status)
+	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 
-// 	// Run again to confirm it does not change anything, when the state is the same
-// 	sth.policyLoopCycle(sth.ctx, true)
-// 	assert.Len(t, sth.inflight, 1)
-// 	assert.Equal(t, mtx.ID, sth.inflight[0].mtx.ID)
-// 	assert.Equal(t, apitypes.TxStatusPending, sth.inflight[0].mtx.Status)
+	// Run the policy once to do the send with the first hash
+	<-sth.inflightStale // from sending the TX
+	sth.policyLoopCycle(sth.ctx, true)
+	assert.Len(t, sth.inflight, 1)
+	assert.Equal(t, mtx.ID, sth.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, sth.inflight[0].mtx.Status)
 
-// 	// Reset the transaction so the policy manager resubmits it
-// 	sth.inflight[0].mtx.FirstSubmit = nil
-// 	sth.policyLoopCycle(sth.ctx, false)
-// 	assert.Equal(t, mtx.ID, sth.inflight[0].mtx.ID)
-// 	assert.Equal(t, apitypes.TxStatusPending, sth.inflight[0].mtx.Status)
+	// Run again to confirm it does not change anything, when the state is the same
+	sth.policyLoopCycle(sth.ctx, true)
+	assert.Len(t, sth.inflight, 1)
+	assert.Equal(t, mtx.ID, sth.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, sth.inflight[0].mtx.Status)
+	assert.Equal(t, txHash1, sth.inflight[0].mtx.TransactionHash)
 
-// 	mc.AssertExpectations(t)
-// 	mfc.AssertExpectations(t)
-// }
+	// Reset the transaction so the policy manager resubmits it
+	sth.inflight[0].mtx.FirstSubmit = nil
+	sth.policyLoopCycle(sth.ctx, false)
+	assert.Equal(t, mtx.ID, sth.inflight[0].mtx.ID)
+	assert.Equal(t, apitypes.TxStatusPending, sth.inflight[0].mtx.Status)
+	assert.Equal(t, txHash2, sth.inflight[0].mtx.TransactionHash)
+
+	mc.AssertExpectations(t)
+	mfc.AssertExpectations(t)
+}
 
 // func TestNotifyConfirmationMgrFail(t *testing.T) {
 
-// 	_, m, cancel := newTestManager(t)
-// 	defer cancel()
+// 	f, tk, _, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
+// 	defer cleanup()
+// 	conf.Set(FixedGasPrice, `12345`)
+// 	conf.Set(ResubmitInterval, "100s")
+// 	th, err := f.NewTransactionHandler(context.Background(), conf)
+// 	assert.NoError(t, err)
 
-// 	_ = sendSampleTX(t, m, "0xaaaaa", 12345)
+// 	sth := th.(*simpleTransactionHandler)
+// 	sth.ctx = context.Background()
+// 	sth.Init(sth.ctx, tk)
+
 // 	txHash := "0x" + fftypes.NewRandB32().String()
+
+// 	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+// 	//
+// 	eh := &fftm.ManagedTransactionEventHandler{
+// 		Ctx:       context.Background(),
+// 		TxHandler: sth,
+// 	}
+// 	mc := &confirmationsmocks.Manager{}
+// 	//
+// 	eh.ConfirmationManager = mc
+// 	mws := &wsmocks.WebSocketServer{}
+// 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+// 	eh.WsServer = mws
+// 	sth.transactionEventHandler = eh
+
+// 	_ = sendSampleTX(t, sth, "0xaaaaa", 12345)
 
 // 	mfc := sth.connector.(*ffcapimocks.API)
 // 	mfc.On("TransactionSend", mock.Anything, mock.Anything).Return(&ffcapi.TransactionSendResponse{
@@ -281,9 +336,32 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 // func TestInflightSetListFailCancel(t *testing.T) {
 
-// 	_, m, close := newTestManagerMockPersistence(t)
-// 	close()
+// 	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+// 	conf.Set(FixedGasPrice, `12345`)
+// 	conf.Set(ResubmitInterval, "100s")
+// 	th, err := f.NewTransactionHandler(context.Background(), conf)
+// 	assert.NoError(t, err)
 
+// 	sth := th.(*simpleTransactionHandler)
+// 	sth.ctx = context.Background()
+// 	sth.Init(sth.ctx, tk)
+
+// 	txHash := "0x" + fftypes.NewRandB32().String()
+
+// 	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+// 	//
+// 	eh := &fftm.ManagedTransactionEventHandler{
+// 		Ctx:       context.Background(),
+// 		TxHandler: sth,
+// 	}
+// 	mc := &confirmationsmocks.Manager{}
+// 	//
+// 	eh.ConfirmationManager = mc
+// 	mws := &wsmocks.WebSocketServer{}
+// 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+// 	eh.WsServer = mws
+// 	sth.transactionEventHandler = eh
 // 	mp := sth.persistence.(*persistencemocks.Persistence)
 // 	mp.On("ListTransactionsPending", sth.ctx, (*fftypes.UUID)(nil), sth.maxInFlight, persistence.SortDirectionAscending).
 // 		Return(nil, fmt.Errorf("pop"))
@@ -296,9 +374,32 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 // func TestPolicyLoopUpdateFail(t *testing.T) {
 
-// 	_, m, close := newTestManagerMockPersistence(t)
-// 	defer close()
+// 	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+// 	conf.Set(FixedGasPrice, `12345`)
+// 	conf.Set(ResubmitInterval, "100s")
+// 	th, err := f.NewTransactionHandler(context.Background(), conf)
+// 	assert.NoError(t, err)
 
+// 	sth := th.(*simpleTransactionHandler)
+// 	sth.ctx = context.Background()
+// 	sth.Init(sth.ctx, tk)
+
+// 	txHash := "0x" + fftypes.NewRandB32().String()
+
+// 	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+// 	//
+// 	eh := &fftm.ManagedTransactionEventHandler{
+// 		Ctx:       context.Background(),
+// 		TxHandler: sth,
+// 	}
+// 	mc := &confirmationsmocks.Manager{}
+// 	//
+// 	eh.ConfirmationManager = mc
+// 	mws := &wsmocks.WebSocketServer{}
+// 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+// 	eh.WsServer = mws
+// 	sth.transactionEventHandler = eh
 // 	sth.inflight = []*pendingState{
 // 		{
 // 			confirmed: true,
@@ -395,8 +496,32 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 // func TestExecPolicyDeleteFail(t *testing.T) {
 
-// 	_, m, cancel := newTestManagerMockPersistence(t)
-// 	defer cancel()
+// 	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+// 	conf.Set(FixedGasPrice, `12345`)
+// 	conf.Set(ResubmitInterval, "100s")
+// 	th, err := f.NewTransactionHandler(context.Background(), conf)
+// 	assert.NoError(t, err)
+
+// 	sth := th.(*simpleTransactionHandler)
+// 	sth.ctx = context.Background()
+// 	sth.Init(sth.ctx, tk)
+
+// 	txHash := "0x" + fftypes.NewRandB32().String()
+
+// 	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+// 	//
+// 	eh := &fftm.ManagedTransactionEventHandler{
+// 		Ctx:       context.Background(),
+// 		TxHandler: sth,
+// 	}
+// 	mc := &confirmationsmocks.Manager{}
+// 	//
+// 	eh.ConfirmationManager = mc
+// 	mws := &wsmocks.WebSocketServer{}
+// 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+// 	eh.WsServer = mws
+// 	sth.transactionEventHandler = eh
 
 // 	mth := &txhandlermocks.TransactionHandler{}
 // 	sth.txHandler = mth
@@ -426,8 +551,32 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 // func TestExecPolicyDeleteInflightSync(t *testing.T) {
 
-// 	_, m, cancel := newTestManagerMockPersistence(t)
-// 	defer cancel()
+// 	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+// 	conf.Set(FixedGasPrice, `12345`)
+// 	conf.Set(ResubmitInterval, "100s")
+// 	th, err := f.NewTransactionHandler(context.Background(), conf)
+// 	assert.NoError(t, err)
+
+// 	sth := th.(*simpleTransactionHandler)
+// 	sth.ctx = context.Background()
+// 	sth.Init(sth.ctx, tk)
+
+// 	txHash := "0x" + fftypes.NewRandB32().String()
+
+// 	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+// 	//
+// 	eh := &fftm.ManagedTransactionEventHandler{
+// 		Ctx:       context.Background(),
+// 		TxHandler: sth,
+// 	}
+// 	mc := &confirmationsmocks.Manager{}
+// 	//
+// 	eh.ConfirmationManager = mc
+// 	mws := &wsmocks.WebSocketServer{}
+// 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+// 	eh.WsServer = mws
+// 	sth.transactionEventHandler = eh
 
 // 	mth := &txhandlermocks.TransactionHandler{}
 // 	sth.txHandler = mth
@@ -459,8 +608,32 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 // func TestExecPolicyDeleteNotFound(t *testing.T) {
 
-// 	_, m, cancel := newTestManagerMockPersistence(t)
-// 	defer cancel()
+// f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+// 	conf.Set(FixedGasPrice, `12345`)
+// 	conf.Set(ResubmitInterval, "100s")
+// 	th, err := f.NewTransactionHandler(context.Background(), conf)
+// 	assert.NoError(t, err)
+
+// 	sth := th.(*simpleTransactionHandler)
+// 	sth.ctx = context.Background()
+// 	sth.Init(sth.ctx, tk)
+
+// 	txHash := "0x" + fftypes.NewRandB32().String()
+
+// 	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+// 	//
+// 	eh := &fftm.ManagedTransactionEventHandler{
+// 		Ctx:       context.Background(),
+// 		TxHandler: sth,
+// 	}
+// 	mc := &confirmationsmocks.Manager{}
+// 	//
+// 	eh.ConfirmationManager = mc
+// 	mws := &wsmocks.WebSocketServer{}
+// 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+// 	eh.WsServer = mws
+// 	sth.transactionEventHandler = eh
 
 // 	mp := sth.persistence.(*persistencemocks.Persistence)
 // 	mp.On("GetTransactionByID", sth.ctx, "bad-id").Return(nil, nil)
@@ -483,8 +656,32 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 // func TestBadPolicyAPIRequest(t *testing.T) {
 
-// 	_, m, cancel := newTestManagerMockPersistence(t)
-// 	defer cancel()
+// 	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+// 	conf.Set(FixedGasPrice, `12345`)
+// 	conf.Set(ResubmitInterval, "100s")
+// 	th, err := f.NewTransactionHandler(context.Background(), conf)
+// 	assert.NoError(t, err)
+
+// 	sth := th.(*simpleTransactionHandler)
+// 	sth.ctx = context.Background()
+// 	sth.Init(sth.ctx, tk)
+
+// 	txHash := "0x" + fftypes.NewRandB32().String()
+
+// 	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+// 	//
+// 	eh := &fftm.ManagedTransactionEventHandler{
+// 		Ctx:       context.Background(),
+// 		TxHandler: sth,
+// 	}
+// 	mc := &confirmationsmocks.Manager{}
+// 	//
+// 	eh.ConfirmationManager = mc
+// 	mws := &wsmocks.WebSocketServer{}
+// 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+// 	eh.WsServer = mws
+// 	sth.transactionEventHandler = eh
 
 // 	tx := genTestTxn("0xabcd1234", 12345, apitypes.TxStatusPending)
 // 	mp := sth.persistence.(*persistencemocks.Persistence)
@@ -508,8 +705,32 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 // func TestBadPolicyAPITimeout(t *testing.T) {
 
-// 	_, m, cancel := newTestManagerMockPersistence(t)
-// 	defer cancel()
+// 	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+// 	conf.Set(FixedGasPrice, `12345`)
+// 	conf.Set(ResubmitInterval, "100s")
+// 	th, err := f.NewTransactionHandler(context.Background(), conf)
+// 	assert.NoError(t, err)
+
+// 	sth := th.(*simpleTransactionHandler)
+// 	sth.ctx = context.Background()
+// 	sth.Init(sth.ctx, tk)
+
+// 	txHash := "0x" + fftypes.NewRandB32().String()
+
+// 	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+// 	//
+// 	eh := &fftm.ManagedTransactionEventHandler{
+// 		Ctx:       context.Background(),
+// 		TxHandler: sth,
+// 	}
+// 	mc := &confirmationsmocks.Manager{}
+// 	//
+// 	eh.ConfirmationManager = mc
+// 	mws := &wsmocks.WebSocketServer{}
+// 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+// 	eh.WsServer = mws
+// 	sth.transactionEventHandler = eh
 
 // 	ctx, cancelCtx := context.WithCancel(context.Background())
 // 	cancelCtx()
@@ -521,8 +742,32 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 // func TestExecPolicyUpdateNewInfo(t *testing.T) {
 
-// 	_, m, cancel := newTestManagerMockPersistence(t)
-// 	defer cancel()
+// 	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+// 	conf.Set(FixedGasPrice, `12345`)
+// 	conf.Set(ResubmitInterval, "100s")
+// 	th, err := f.NewTransactionHandler(context.Background(), conf)
+// 	assert.NoError(t, err)
+
+// 	sth := th.(*simpleTransactionHandler)
+// 	sth.ctx = context.Background()
+// 	sth.Init(sth.ctx, tk)
+
+// 	txHash := "0x" + fftypes.NewRandB32().String()
+
+// 	mfc := sth.tkAPI.Connector.(*ffcapimocks.API)
+// 	//
+// 	eh := &fftm.ManagedTransactionEventHandler{
+// 		Ctx:       context.Background(),
+// 		TxHandler: sth,
+// 	}
+// 	mc := &confirmationsmocks.Manager{}
+// 	//
+// 	eh.ConfirmationManager = mc
+// 	mws := &wsmocks.WebSocketServer{}
+// 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+// 	eh.WsServer = mws
+// 	sth.transactionEventHandler = eh
 
 // 	mth := &txhandlermocks.TransactionHandler{}
 // 	sth.txHandler = mth

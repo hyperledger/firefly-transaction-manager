@@ -497,6 +497,7 @@ func TestTXSendFail(t *testing.T) {
 func TestWarnStaleWarningCannotParse(t *testing.T) {
 	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
@@ -561,6 +562,7 @@ func TestKnownTransactionHashKnown(t *testing.T) {
 func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
