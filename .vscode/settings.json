@@ -65,6 +65,7 @@
     "optype",
     "persistencemocks",
     "pluggable",
+    "policyengine",
     "policyloop",
     "protocolid",
     "restapi",

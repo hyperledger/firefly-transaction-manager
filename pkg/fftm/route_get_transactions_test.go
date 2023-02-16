@@ -30,14 +30,16 @@ import (
 
 func genTestTxn(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	return &apitypes.ManagedTX{
-		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
-		Created:    fftypes.Now(),
-		SequenceID: apitypes.NewULID(),
-		Nonce:      fftypes.NewFFBigInt(nonce),
-		Status:     status,
+		ID:          fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+		Created:     fftypes.Now(),
+		SequenceID:  apitypes.NewULID(),
+		Nonce:       fftypes.NewFFBigInt(nonce),
+		Status:      status,
+		FirstSubmit: fftypes.Now(),
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: signer,
 		},
+		History: []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 }
 
