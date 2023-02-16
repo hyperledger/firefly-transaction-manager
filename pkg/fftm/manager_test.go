@@ -32,6 +32,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	txhandlerfactory "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler-factory"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler-factory/simple"
@@ -260,6 +261,17 @@ func TestStartListListenersFail(t *testing.T) {
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
 
+	err := m.Start()
+	assert.Regexp(t, "pop", err)
+
+}
+
+func TestStartTransactionHandlerFail(t *testing.T) {
+	_, m, close := newTestManager(t)
+	defer close()
+	mth := &txhandlermocks.TransactionHandler{}
+	mth.On("Start", m.ctx).Return(nil, fmt.Errorf("pop"))
+	m.txHandler = mth
 	err := m.Start()
 	assert.Regexp(t, "pop", err)
 
