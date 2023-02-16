@@ -19,7 +19,6 @@ package txhistory
 import (
 	"context"
 	"encoding/json"
-	"sync"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -36,7 +35,6 @@ type Manager interface {
 
 type manager struct {
 	maxHistoryCount int
-	mux             sync.Mutex
 }
 
 func NewTxHistoryManager(ctx context.Context) Manager {
@@ -46,8 +44,6 @@ func NewTxHistoryManager(ctx context.Context) Manager {
 }
 
 func (h *manager) CurrentSubStatus(ctx context.Context, mtx *apitypes.ManagedTX) *apitypes.TxHistoryStateTransitionEntry {
-	h.mux.Lock()
-	defer h.mux.Unlock()
 	if len(mtx.History) > 0 {
 		return mtx.History[len(mtx.History)-1]
 	}
@@ -63,8 +59,6 @@ func (h *manager) CurrentSubStatus(ctx context.Context, mtx *apitypes.ManagedTX)
 // might go through many sub-status changes before being confirmed on chain the list of
 // entries is capped at the configured number and FIFO approach used to keep within that cap.
 func (h *manager) SetSubStatus(ctx context.Context, mtx *apitypes.ManagedTX, subStatus apitypes.TxSubStatus) {
-	h.mux.Lock()
-	defer h.mux.Unlock()
 	// See if the status being transitioned to is the same as the current status.
 	// If so, there's nothing to do.
 	if len(mtx.History) > 0 {
@@ -131,13 +125,10 @@ func jsonOrString(value *fftypes.JSONAny) *fftypes.JSONAny {
 // HTTP 4xx return code from a gas oracle. There is also an information field to record
 // arbitrary data about the action, for example the gas price retrieved from an oracle.
 func (h *manager) AddSubStatusAction(ctx context.Context, mtx *apitypes.ManagedTX, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) {
+
 	// See if this action exists in the list already since we only want to update the single entry, not
 	// add a new one
-	h.mux.Lock()
-	defer h.mux.Unlock()
-
 	currentSubStatus := mtx.History[len(mtx.History)-1]
-
 	alreadyRecordedAction := false
 	for _, entry := range currentSubStatus.Actions {
 		if entry.Action == action {
