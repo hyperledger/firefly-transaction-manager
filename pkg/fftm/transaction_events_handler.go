@@ -19,6 +19,7 @@ package fftm
 import (
 	"context"
 
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -106,11 +107,15 @@ func (eh *ManagedTransactionEventHandler) trackSubmittedTransaction(mtx *apitype
 			Transaction: &confirmations.TransactionInfo{
 				TransactionHash: mtx.TransactionHash,
 				Receipt: func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse) {
-					eh.txHandler.HandleTransactionReceipt(ctx, mtx.ID, receipt)
-
+					if err := eh.txHandler.HandleTransactionReceipt(ctx, mtx.ID, receipt); err != nil {
+						log.L(ctx).Errorf("Receipt for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash, err.Error())
+					}
 				},
 				Confirmed: func(ctx context.Context, confirmations []confirmations.BlockInfo) {
-					eh.txHandler.HandleTransactionConfirmed(ctx, mtx.ID, confirmations)
+					if err := eh.txHandler.HandleTransactionConfirmed(ctx, mtx.ID, confirmations); err != nil {
+						log.L(ctx).Errorf("Confirmation for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash, err.Error())
+					}
+
 				},
 			},
 		})
