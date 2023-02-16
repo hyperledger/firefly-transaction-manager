@@ -140,7 +140,7 @@ func newTestManagerMockPersistence(t *testing.T) (string, *manager, func()) {
 	}
 }
 
-func TestNewManagerBadHttpConfig(t *testing.T) {
+func TestNewManagerBadPersistencePathConfig(t *testing.T) {
 
 	tmconfig.Reset()
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "::::")
@@ -149,6 +149,24 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background(), nil)
+	assert.Error(t, err)
+	assert.Regexp(t, "FF21050", err)
+
+}
+
+func TestNewManagerBadHttpConfig(t *testing.T) {
+
+	tmconfig.Reset()
+	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "::::")
+	dir, err := ioutil.TempDir("", "ldb_*")
+	defer os.RemoveAll(dir)
+	assert.NoError(t, err)
+	config.Set(tmconfig.PersistenceLevelDBPath, dir)
+
+	txhandlerfactory.RegisterHandler(&simple.TransactionHandlerFactory{})
+	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
+
+	_, err = NewManager(context.Background(), nil)
 	assert.Error(t, err)
 	assert.Regexp(t, "FF00151", err)
 
@@ -186,12 +204,16 @@ func TestNewManagerBadPersistenceConfig(t *testing.T) {
 
 }
 
-func TestNewManagerBadPolicyEngine(t *testing.T) {
+func TestNewManagerInvalidTransactionHandlerName(t *testing.T) {
 
 	tmconfig.Reset()
+	dir, err := ioutil.TempDir("", "ldb_*")
+	defer os.RemoveAll(dir)
+	assert.NoError(t, err)
+	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 	config.Set(tmconfig.TransactionHandlerName, "wrong")
 
-	_, err := NewManager(context.Background(), nil)
+	_, err = NewManager(context.Background(), nil)
 	assert.Regexp(t, "FF21019", err)
 
 }
@@ -218,11 +240,15 @@ func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 	tmconfig.Reset()
 	tmconfig.MetricsConfig.Set("enabled", true)
 	tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "::::")
+	dir, err := ioutil.TempDir("", "ldb_*")
+	defer os.RemoveAll(dir)
+	assert.NoError(t, err)
+	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
 	txhandlerfactory.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	_, err := NewManager(context.Background(), nil)
+	_, err = NewManager(context.Background(), nil)
 	assert.Error(t, err)
 	assert.Regexp(t, "FF00151", err)
 }

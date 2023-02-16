@@ -169,12 +169,12 @@ func (m *manager) Start() error {
 	if m.metricsEnabled {
 		go m.runMetricsServer()
 	}
+	go m.confirmations.Start()
+
 	m.txHandlerDone, err = m.txHandler.Start(m.ctx)
 	if err != nil {
 		return err
 	}
-	go m.confirmations.Start()
-
 	m.started = true
 	return nil
 }

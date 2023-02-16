@@ -26,7 +26,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -51,18 +50,15 @@ func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status api
 	return tx
 }
 
-func noopPolicyEngine(m *manager) {
-	mth := &txhandlermocks.TransactionHandler{}
-	m.txHandler = mth
-	mth.On("execute", mock.Anything, mock.Anything, mock.Anything).Return(txhandler.UpdateNo, ffcapi.ErrorReason(""), nil).Maybe()
-}
-
 func TestGetTransactions(t *testing.T) {
 
 	url, m, done := newTestManager(t)
 	defer done()
-	noopPolicyEngine(m)
-
+	mth := &txhandlermocks.TransactionHandler{}
+	transientChannel := make(chan struct{})
+	defer close(transientChannel)
+	mth.On("Start", mock.Anything).Return(transientChannel, nil).Maybe()
+	m.txHandler = mth
 	err := m.Start()
 	assert.NoError(t, err)
 

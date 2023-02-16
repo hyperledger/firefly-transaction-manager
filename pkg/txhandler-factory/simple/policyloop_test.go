@@ -38,7 +38,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func sendSampleTX(t *testing.T, t *simpleTransactionHandler, signer string, nonce int64) *apitypes.ManagedTX {
+func sendSampleTX(t *testing.T, th *simpleTransactionHandler, signer string, nonce int64) *apitypes.ManagedTX {
 
 	txInput := ffcapi.TransactionInput{
 		TransactionHeaders: ffcapi.TransactionHeaders{
@@ -46,20 +46,20 @@ func sendSampleTX(t *testing.T, t *simpleTransactionHandler, signer string, nonc
 		},
 	}
 
-	mfc := t.connector.(*ffcapimocks.API)
-	mfc.On("NextNonceForSigner", t.ctx, &ffcapi.NextNonceForSignerRequest{
+	mfc := th.connector.(*ffcapimocks.API)
+	mfc.On("NextNonceForSigner", th.ctx, &ffcapi.NextNonceForSignerRequest{
 		Signer: signer,
 	}).Return(&ffcapi.NextNonceForSignerResponse{
 		Nonce: fftypes.NewFFBigInt(nonce),
 	}, ffcapi.ErrorReason(""), nil).Once()
-	mfc.On("TransactionPrepare", t.ctx, &ffcapi.TransactionPrepareRequest{
+	mfc.On("TransactionPrepare", th.ctx, &ffcapi.TransactionPrepareRequest{
 		TransactionInput: txInput,
 	}).Return(&ffcapi.TransactionPrepareResponse{
 		Gas:             fftypes.NewFFBigInt(100000),
 		TransactionData: "0xabce1234",
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	mtx, err := t.createManagedTransaction(t.ctx, &apitypes.TransactionRequest{
+	mtx, err := th.createManagedTransaction(th.ctx, &apitypes.TransactionRequest{
 		TransactionInput: txInput,
 	})
 	assert.NoError(t, err)

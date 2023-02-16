@@ -69,10 +69,16 @@ func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, c
 		gasOracleMode:          gasOracleConfig.GetString(GasOracleMode),
 
 		lockedNonces:      make(map[string]*lockedNonce),
-		nonceStateTimeout: config.GetDuration(NonceStateTimeout),
+		nonceStateTimeout: conf.GetDuration(NonceStateTimeout),
 		maxInFlight:       config.GetInt(tmconfig.TransactionsMaxInFlight), // TODO: decide where to get this value from
 		inflightStale:     make(chan bool, 1),
 		inflightUpdate:    make(chan bool, 1),
+
+		retry: &retry.Retry{
+			InitialDelay: conf.GetDuration(RetryInitDelay),
+			MaximumDelay: conf.GetDuration(RetryMaxDelay),
+			Factor:       conf.GetFloat64(RetryFactor),
+		},
 	}
 	switch sth.gasOracleMode {
 	case GasOracleModeConnector:
@@ -158,9 +164,12 @@ func (t *simpleTransactionHandler) Init(ctx context.Context, tkAPI *txhandler.To
 }
 
 func (t *simpleTransactionHandler) Start(ctx context.Context) (done chan struct{}, err error) {
-	t.policyLoopDone = make(chan struct{})
-	t.markInflightStale()
-	go t.policyLoop()
+	if t.ctx == nil { // only start once
+		t.ctx = ctx // set the context for policy loop
+		t.policyLoopDone = make(chan struct{})
+		t.markInflightStale()
+		go t.policyLoop()
+	}
 	return t.policyLoopDone, nil
 }
 func (t *simpleTransactionHandler) RegisterNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error) {
@@ -294,7 +303,7 @@ func (t *simpleTransactionHandler) submitTX(ctx context.Context, tk *txhandler.T
 	return "", nil
 }
 
-func (t *simpleTransactionHandler) execute(ctx context.Context, tk *txhandler.ToolkitAPI, mtx *apitypes.ManagedTX) (update UpdateType, reason ffcapi.ErrorReason, err error) {
+func (t *simpleTransactionHandler) processTransaction(ctx context.Context, tk *txhandler.ToolkitAPI, mtx *apitypes.ManagedTX) (update UpdateType, reason ffcapi.ErrorReason, err error) {
 
 	// Simply policy engine allows deletion of the transaction without additional checks ( ensuring the TX has not been submitted / gap filling the nonce etc. )
 	if mtx.DeleteRequested != nil {

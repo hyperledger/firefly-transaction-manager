@@ -267,7 +267,7 @@ func (t *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pend
 			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 			// such as submitting for the first time, or raising the gas etc.
 
-			update, updateReason, updateErr = t.execute(ctx, t.tkAPI, pending.mtx)
+			update, updateReason, updateErr = t.processTransaction(ctx, t.tkAPI, pending.mtx)
 			if updateErr != nil {
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, updateReason, err)
 				update = UpdateYes
