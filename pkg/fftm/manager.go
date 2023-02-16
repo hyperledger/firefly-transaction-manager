@@ -58,18 +58,19 @@ type manager struct {
 	connector ffcapi.API
 	tkAPI     *txhandler.ToolkitAPI
 
-	mux               sync.Mutex
-	eventStreams      map[fftypes.UUID]events.Stream
-	streamsByName     map[string]*fftypes.UUID
-	blockListenerDone chan struct{}
-	txHandlerDone     chan struct{}
-	started           bool
-	apiServerDone     chan error
-	metricsServerDone chan error
-	metricsEnabled    bool
-	metricsManager    metrics.Manager
-	debugServer       *http.Server
-	debugServerDone   chan struct{}
+	mux                     sync.Mutex
+	eventStreams            map[fftypes.UUID]events.Stream
+	streamsByName           map[string]*fftypes.UUID
+	blockListenerDone       chan struct{}
+	txHandlerDone           <-chan struct{}
+	started                 bool
+	apiServerDone           chan error
+	metricsServerDone       chan error
+	metricsEnabled          bool
+	metricsManager          metrics.Manager
+	debugServer             *http.Server
+	debugServerDone         chan struct{}
+	transactionEventHandler txhandler.ManagedTxEventHandler
 }
 
 func InitConfig() {
@@ -111,9 +112,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 
 func (m *manager) initServices(ctx context.Context) (err error) {
 	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts")
-	m.tkAPI.ConfirmationManager = m.confirmations
 	m.wsServer = ws.NewWebSocketServer(ctx)
-	m.tkAPI.WsServer = m.wsServer
 	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
 	if err != nil {
 		return err
@@ -130,6 +129,7 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	m.transactionEventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
 	err = m.txHandler.Init(ctx, m.tkAPI)
 	if err != nil {
 		return err
@@ -171,7 +171,7 @@ func (m *manager) Start() error {
 	}
 	go m.confirmations.Start()
 
-	m.txHandlerDone, err = m.txHandler.Start(m.ctx)
+	m.txHandlerDone, err = m.txHandler.Start(m.ctx, m.transactionEventHandler)
 	if err != nil {
 		return err
 	}

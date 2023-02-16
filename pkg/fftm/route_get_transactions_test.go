@@ -23,11 +23,9 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func genTestTxn(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
@@ -54,11 +52,6 @@ func TestGetTransactions(t *testing.T) {
 
 	url, m, done := newTestManager(t)
 	defer done()
-	mth := &txhandlermocks.TransactionHandler{}
-	transientChannel := make(chan struct{})
-	defer close(transientChannel)
-	mth.On("Start", mock.Anything).Return(transientChannel, nil).Maybe()
-	m.txHandler = mth
 	err := m.Start()
 	assert.NoError(t, err)
 

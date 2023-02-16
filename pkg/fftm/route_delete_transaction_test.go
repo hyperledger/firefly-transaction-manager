@@ -21,10 +21,8 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func TestDeleteTransaction(t *testing.T) {
@@ -33,12 +31,6 @@ func TestDeleteTransaction(t *testing.T) {
 	defer done()
 	tx := newTestTxn(t, m, "0x0aaaaa", 10001, apitypes.TxStatusSucceeded)
 	txID := tx.ID
-	mth := &txhandlermocks.TransactionHandler{}
-	transientChannel := make(chan struct{})
-	defer close(transientChannel)
-	mth.On("Start", mock.Anything).Return(transientChannel, nil).Maybe()
-	mth.On("CancelTransaction", mock.Anything, mock.Anything, mock.Anything).Return(tx, nil).Maybe()
-	m.txHandler = mth
 
 	err := m.Start()
 	assert.NoError(t, err)

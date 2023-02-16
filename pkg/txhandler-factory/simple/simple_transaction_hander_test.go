@@ -51,11 +51,14 @@ func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory,
 	mockHistory.On("SetSubStatus", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	mockHistory.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe()
 
+	mockPersistence := &persistencemocks.Persistence{}
+
 	mockFFCAPI := &ffcapimocks.API{}
 
 	return f, &txhandler.ToolkitAPI{
-		Connector: mockFFCAPI,
-		TXHistory: mockHistory,
+		Connector:   mockFFCAPI,
+		TXHistory:   mockHistory,
+		Persistence: mockPersistence,
 	}, mockFFCAPI, mockHistory, conf
 }
 
@@ -603,5 +606,54 @@ func TestSendTXPersistFail(t *testing.T) {
 
 	_, err = m.createManagedTx(m.ctx, "id1", &txReq.TransactionHeaders, fftypes.NewFFBigInt(12345), "0x123456")
 	assert.Regexp(t, "pop", err)
+
+}
+
+func TestGetTransactionErrors(t *testing.T) {
+
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
+	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, nil).Once()
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
+
+	_, err := m.getTransactionByID(m.ctx, "id")
+	assert.Regexp(t, "pop", err)
+
+	_, err = m.getTransactionByID(m.ctx, "id")
+	assert.Regexp(t, "FF21067", err)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestGetTransactionsErrors(t *testing.T) {
+
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
+	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, nil).Once()
+	mp.On("Close", mock.Anything).Return(nil).Maybe()
+
+	_, err := m.getTransactions(m.ctx, "", "bad limit", "", false, "")
+	assert.Regexp(t, "FF21044", err)
+
+	_, err = m.getTransactions(m.ctx, "", "", "", false, "wrong")
+	assert.Regexp(t, "FF21064", err)
+
+	_, err = m.getTransactions(m.ctx, "", "", "cannot be specified with pending", true, "")
+	assert.Regexp(t, "FF21063", err)
+
+	_, err = m.getTransactions(m.ctx, "after-causes-failure", "", "", false, "")
+	assert.Regexp(t, "pop", err)
+
+	_, err = m.getTransactions(m.ctx, "after-not-found", "", "", false, "")
+	assert.Regexp(t, "FF21062", err)
+
+	mp.AssertExpectations(t)
 
 }

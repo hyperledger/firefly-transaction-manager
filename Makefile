@@ -33,6 +33,7 @@ endef
 
 $(eval $(call makemock, pkg/ffcapi,             API,                    ffcapimocks))
 $(eval $(call makemock, pkg/txhandler,          TransactionHandler,     txhandlermocks))
+$(eval $(call makemock, pkg/txhandler,          ManagedTxEventHandler,  txhandlermocks))
 $(eval $(call makemock, pkg/txhistory,          Manager,                txhistorymocks))
 $(eval $(call makemock, internal/confirmations, Manager,                confirmationsmocks))
 $(eval $(call makemock, internal/persistence,   Persistence,            persistencemocks))

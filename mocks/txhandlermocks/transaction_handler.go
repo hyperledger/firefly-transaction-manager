@@ -3,11 +3,16 @@
 package txhandlermocks
 
 import (
-	context "context"
-
+	confirmations "github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	apitypes "github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 
+	context "context"
+
+	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+
 	mock "github.com/stretchr/testify/mock"
+
+	persistence "github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 
 	txhandler "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
@@ -41,6 +46,86 @@ func (_m *TransactionHandler) CancelTransaction(ctx context.Context, txID string
 	}
 
 	return r0, r1
+}
+
+// GetTransactionByID provides a mock function with given fields: ctx, txID
+func (_m *TransactionHandler) GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 *apitypes.ManagedTX
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.ManagedTX, error)); ok {
+		return rf(ctx, txID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.ManagedTX); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.ManagedTX)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetTransactions provides a mock function with given fields: ctx, afterStr, signer, pending, limit, direction
+func (_m *TransactionHandler) GetTransactions(ctx context.Context, afterStr string, signer string, pending bool, limit int, direction persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, afterStr, signer, pending, limit, direction)
+
+	var r0 []*apitypes.ManagedTX
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool, int, persistence.SortDirection) ([]*apitypes.ManagedTX, error)); ok {
+		return rf(ctx, afterStr, signer, pending, limit, direction)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool, int, persistence.SortDirection) []*apitypes.ManagedTX); ok {
+		r0 = rf(ctx, afterStr, signer, pending, limit, direction)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.ManagedTX)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, bool, int, persistence.SortDirection) error); ok {
+		r1 = rf(ctx, afterStr, signer, pending, limit, direction)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// HandleTransactionConfirmed provides a mock function with given fields: ctx, txID, _a2
+func (_m *TransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, _a2 []confirmations.BlockInfo) error {
+	ret := _m.Called(ctx, txID, _a2)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []confirmations.BlockInfo) error); ok {
+		r0 = rf(ctx, txID, _a2)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// HandleTransactionReceipt provides a mock function with given fields: ctx, txID, receipt
+func (_m *TransactionHandler) HandleTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error {
+	ret := _m.Called(ctx, txID, receipt)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.TransactionReceiptResponse) error); ok {
+		r0 = rf(ctx, txID, receipt)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // Init provides a mock function with given fields: ctx, tkAPI
@@ -109,25 +194,25 @@ func (_m *TransactionHandler) RegisterNewTransaction(ctx context.Context, txReq 
 	return r0, r1
 }
 
-// Start provides a mock function with given fields: ctx
-func (_m *TransactionHandler) Start(ctx context.Context) (chan struct{}, error) {
-	ret := _m.Called(ctx)
+// Start provides a mock function with given fields: ctx, eh
+func (_m *TransactionHandler) Start(ctx context.Context, eh txhandler.ManagedTxEventHandler) (<-chan struct{}, error) {
+	ret := _m.Called(ctx, eh)
 
-	var r0 chan struct{}
+	var r0 <-chan struct{}
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) (chan struct{}, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, txhandler.ManagedTxEventHandler) (<-chan struct{}, error)); ok {
+		return rf(ctx, eh)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) chan struct{}); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, txhandler.ManagedTxEventHandler) <-chan struct{}); ok {
+		r0 = rf(ctx, eh)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(chan struct{})
+			r0 = ret.Get(0).(<-chan struct{})
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, txhandler.ManagedTxEventHandler) error); ok {
+		r1 = rf(ctx, eh)
 	} else {
 		r1 = ret.Error(1)
 	}

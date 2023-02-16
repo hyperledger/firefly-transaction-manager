@@ -48,24 +48,24 @@ func (ln *lockedNonce) complete(ctx context.Context) {
 	ln.th.mux.Unlock()
 }
 
-func (t *simpleTransactionHandler) assignAndLockNonce(ctx context.Context, nsOpID, signer string) (*lockedNonce, error) {
+func (sth *simpleTransactionHandler) assignAndLockNonce(ctx context.Context, nsOpID, signer string) (*lockedNonce, error) {
 
 	for {
 		// Take the lock to query our nonce cache, and check if we are already locked
-		t.mux.Lock()
+		sth.mux.Lock()
 		doLookup := false
-		locked, isLocked := t.lockedNonces[signer]
+		locked, isLocked := sth.lockedNonces[signer]
 		if !isLocked {
 			locked = &lockedNonce{
-				th:       t,
+				th:       sth,
 				nsOpID:   nsOpID,
 				signer:   signer,
 				unlocked: make(chan struct{}),
 			}
-			t.lockedNonces[signer] = locked
+			sth.lockedNonces[signer] = locked
 			doLookup = true
 		}
-		t.mux.Unlock()
+		sth.mux.Unlock()
 
 		// If we're locked, then wait
 		if isLocked {
@@ -74,7 +74,7 @@ func (t *simpleTransactionHandler) assignAndLockNonce(ctx context.Context, nsOpI
 		} else if doLookup {
 			// We have to ensure we either successfully return a nonce,
 			// or otherwise we unlock when we send the error
-			nextNonce, err := t.calcNextNonce(ctx, signer)
+			nextNonce, err := sth.calcNextNonce(ctx, signer)
 			if err != nil {
 				locked.complete(ctx)
 				return nil, err
@@ -86,19 +86,19 @@ func (t *simpleTransactionHandler) assignAndLockNonce(ctx context.Context, nsOpI
 
 }
 
-func (t *simpleTransactionHandler) calcNextNonce(ctx context.Context, signer string) (uint64, error) {
+func (sth *simpleTransactionHandler) calcNextNonce(ctx context.Context, signer string) (uint64, error) {
 
 	// First we check our DB to find the last nonce we used for this address.
 	// Note we are within the nonce-lock in assignAndLockNonce for this signer, so we can be sure we're the
 	// only routine attempting this right now.
 	var lastTxn *apitypes.ManagedTX
-	txns, err := t.tkAPI.Persistence.ListTransactionsByNonce(ctx, signer, nil, 1, persistence.SortDirectionDescending)
+	txns, err := sth.tkAPI.Persistence.ListTransactionsByNonce(ctx, signer, nil, 1, persistence.SortDirectionDescending)
 	if err != nil {
 		return 0, err
 	}
 	if len(txns) > 0 {
 		lastTxn = txns[0]
-		if time.Since(*lastTxn.Created.Time()) < t.nonceStateTimeout {
+		if time.Since(*lastTxn.Created.Time()) < sth.nonceStateTimeout {
 			nextNonce := lastTxn.Nonce.Uint64() + 1
 			log.L(ctx).Debugf("Allocating next nonce '%s' / '%d' after TX '%s' (status=%s)", signer, nextNonce, lastTxn.ID, lastTxn.Status)
 			return nextNonce, nil
@@ -106,7 +106,7 @@ func (t *simpleTransactionHandler) calcNextNonce(ctx context.Context, signer str
 	}
 
 	// If we don't have a fresh answer in our state store, then ask the node.
-	nextNonceRes, _, err := t.tkAPI.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
+	nextNonceRes, _, err := sth.tkAPI.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
 		Signer: signer,
 	})
 	if err != nil {

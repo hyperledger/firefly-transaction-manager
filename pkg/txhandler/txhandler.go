@@ -22,19 +22,22 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
-	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
 type ToolkitAPI struct {
-	Connector           ffcapi.API
-	TXHistory           txhistory.Manager
-	Persistence         persistence.Persistence
-	MetricsManager      metrics.Manager
-	ConfirmationManager confirmations.Manager
-	WsServer            ws.WebSocketServer
+	Connector      ffcapi.API
+	TXHistory      txhistory.Manager
+	Persistence    persistence.Persistence
+	MetricsManager metrics.Manager
+}
+
+// Handler checks received transaction process events and dispatch them to an event
+// manager accordingly.
+type ManagedTxEventHandler interface {
+	HandleEvent(ctx context.Context, e apitypes.ManagedTransactionEvent) error
 }
 
 // Transaction handler owns the lifecycle of ManagedTransaction records
@@ -43,11 +46,14 @@ type ToolkitAPI struct {
 type TransactionHandler interface {
 	Init(ctx context.Context, tkAPI *ToolkitAPI) error
 
-	Start(ctx context.Context) (done chan struct{}, err error)
+	Start(ctx context.Context, eh ManagedTxEventHandler) (done <-chan struct{}, err error)
 
 	RegisterNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error)
 	RegisterNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error)
 	CancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
-	// TransactionConfirmed(ctx context.Context, cAPI *ToolkitAPI, mtx *apitypes.ManagedTX) (err error) // ?? Delete transaction once it's confirmed could be the intention
-	// TransactionReceipt(ctx context.Context, cAPI *ToolkitAPI, mtx *apitypes.ManagedTX) (err error)   // ?? Delete transaction once it's confirmed could be the intention
+	GetTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error)
+	GetTransactions(ctx context.Context, afterStr, signer string, pending bool, limit int, direction persistence.SortDirection) (transactions []*apitypes.ManagedTX, err error)
+
+	HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []confirmations.BlockInfo) (err error)
+	HandleTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
 }
