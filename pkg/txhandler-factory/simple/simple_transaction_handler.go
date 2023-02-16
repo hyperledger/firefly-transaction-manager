@@ -292,10 +292,10 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 	sth.tkAPI.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
 	sth.tkAPI.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
 
-	if err = sth.tkAPI.Persistence.WriteTransaction(sth.ctx, mtx, true); err != nil {
+	if err = sth.tkAPI.Persistence.WriteTransaction(ctx, mtx, true); err != nil {
 		return nil, err
 	}
-	log.L(sth.ctx).Infof("Tracking transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
+	log.L(ctx).Infof("Tracking transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
 	sth.markInflightStale()
 
 	// Ok - we've spent it. The rest of the processing will be triggered off of lockedNonce

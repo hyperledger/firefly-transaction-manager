@@ -55,6 +55,7 @@ func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory,
 
 	mockHistory := &txhistorymocks.Manager{}
 	mockHistory.On("SetSubStatus", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	mockHistory.On("CurrentSubStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
 	mockHistory.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe()
 
 	mockPersistence := &persistencemocks.Persistence{}

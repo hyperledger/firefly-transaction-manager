@@ -383,7 +383,7 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Cont
 	pending.confirmed = true
 	pending.mtx.Confirmations = confirmations
 	sth.mux.Unlock()
-	log.L(sth.ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
+	log.L(ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 	sth.tkAPI.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionConfirmTransaction, nil, nil)
 	sth.tkAPI.TXHistory.SetSubStatus(ctx, pending.mtx, apitypes.TxSubStatusConfirmed)
 	sth.markInflightUpdate()
@@ -405,7 +405,7 @@ func (sth *simpleTransactionHandler) HandleTransactionReceipt(ctx context.Contex
 	sth.mux.Lock()
 	pending.mtx.Receipt = receipt
 	sth.mux.Unlock()
-	log.L(sth.ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
+	log.L(ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 	sth.tkAPI.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
 	sth.markInflightUpdate()
 	return
