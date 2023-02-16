@@ -119,10 +119,5 @@ func (eh *ManagedTransactionEventHandler) trackSubmittedTransaction(mtx *apitype
 			},
 		})
 	}
-	if err != nil {
-		log.L(context.Background()).Infof("Error detected notifying confirmation manager: %s", err)
-	} else {
-		mtx.PreviousTransactionHash = mtx.TransactionHash
-	}
 	return err
 }
