@@ -32,6 +32,7 @@ type ToolkitAPI struct {
 	TXHistory      txhistory.Manager
 	Persistence    persistence.Persistence
 	MetricsManager metrics.Manager
+	EventHandler   ManagedTxEventHandler
 }
 
 // Handler checks received transaction process events and dispatch them to an event
@@ -44,9 +45,9 @@ type ManagedTxEventHandler interface {
 // Transaction manager delegates all transaction specific operations to transaction apart from the triggers (REST API call for actions, Event stream for events) of those operations
 // This design allows the Transaction handler to apply customized logic at different stage of transaction life cycles listed below.
 type TransactionHandler interface {
-	Init(ctx context.Context, tkAPI *ToolkitAPI) error
+	Init(ctx context.Context, tkAPI *ToolkitAPI)
 
-	Start(ctx context.Context, eh ManagedTxEventHandler) (done <-chan struct{}, err error)
+	Start(ctx context.Context) (done <-chan struct{}, err error)
 
 	RegisterNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error)
 	RegisterNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error)

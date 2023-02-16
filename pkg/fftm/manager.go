@@ -58,19 +58,18 @@ type manager struct {
 	connector ffcapi.API
 	tkAPI     *txhandler.ToolkitAPI
 
-	mux                     sync.Mutex
-	eventStreams            map[fftypes.UUID]events.Stream
-	streamsByName           map[string]*fftypes.UUID
-	blockListenerDone       chan struct{}
-	txHandlerDone           <-chan struct{}
-	started                 bool
-	apiServerDone           chan error
-	metricsServerDone       chan error
-	metricsEnabled          bool
-	metricsManager          metrics.Manager
-	debugServer             *http.Server
-	debugServerDone         chan struct{}
-	transactionEventHandler txhandler.ManagedTxEventHandler
+	mux               sync.Mutex
+	eventStreams      map[fftypes.UUID]events.Stream
+	streamsByName     map[string]*fftypes.UUID
+	blockListenerDone chan struct{}
+	txHandlerDone     <-chan struct{}
+	started           bool
+	apiServerDone     chan error
+	metricsServerDone chan error
+	metricsEnabled    bool
+	metricsManager    metrics.Manager
+	debugServer       *http.Server
+	debugServerDone   chan struct{}
 }
 
 func InitConfig() {
@@ -129,11 +128,8 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	m.transactionEventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
-	err = m.txHandler.Init(ctx, m.tkAPI)
-	if err != nil {
-		return err
-	}
+	m.tkAPI.EventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
+	m.txHandler.Init(ctx, m.tkAPI)
 	return nil
 }
 
@@ -171,7 +167,7 @@ func (m *manager) Start() error {
 	}
 	go m.confirmations.Start()
 
-	m.txHandlerDone, err = m.txHandler.Start(m.ctx, m.transactionEventHandler)
+	m.txHandlerDone, err = m.txHandler.Start(m.ctx)
 	if err != nil {
 		return err
 	}

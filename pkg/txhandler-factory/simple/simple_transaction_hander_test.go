@@ -36,6 +36,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhistorymocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -89,6 +90,8 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 	filePersistence, err := persistence.NewLevelDBPersistence(context.Background())
 	assert.NoError(t, err)
 
+	mockEventHandler := &txhandlermocks.ManagedTxEventHandler{}
+
 	mockFFCAPI := &ffcapimocks.API{}
 
 	return f, &txhandler.ToolkitAPI{
@@ -96,6 +99,7 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 			TXHistory:      mockHistory,
 			Persistence:    filePersistence,
 			MetricsManager: metrics.NewMetricsManager(context.Background()),
+			EventHandler:   mockEventHandler,
 		}, mockFFCAPI, mockHistory, conf,
 		func() {
 			os.RemoveAll(dir)

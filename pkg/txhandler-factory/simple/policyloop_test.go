@@ -111,7 +111,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
 
 	eh.WsServer = mws
-	sth.transactionEventHandler = eh
+	sth.tkAPI.EventHandler = eh
 
 	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	// Run the policy once to do the send
@@ -181,7 +181,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
 
 	eh.WsServer = mws
-	sth.transactionEventHandler = eh
+	sth.tkAPI.EventHandler = eh
 
 	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	// Run the policy once to do the send
@@ -264,7 +264,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
 
 	eh.WsServer = mws
-	sth.transactionEventHandler = eh
+	sth.tkAPI.EventHandler = eh
 
 	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 
@@ -325,7 +325,7 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
 
 	eh.WsServer = mws
-	sth.transactionEventHandler = eh
+	sth.tkAPI.EventHandler = eh
 
 	_ = sendSampleTX(t, sth, "0xaaaaa", 12345)
 
@@ -404,7 +404,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
 
 	eh.WsServer = mws
-	sth.transactionEventHandler = eh
+	sth.tkAPI.EventHandler = eh
 	sth.inflight = []*pendingState{
 		{
 			confirmed: true,
@@ -461,14 +461,9 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 		Run(func(args mock.Arguments) {
 			close(done2)
 		})
-
-	eh := &fftm.ManagedTransactionEventHandler{
-		Ctx: context.Background(),
-	}
 	_ = sendSampleTX(t, sth, "0xaaaaa", 12345)
-	sth.transactionEventHandler = eh
 	sth.policyLoopInterval = 1 * time.Hour
-	sth.Start(ctx, eh)
+	sth.Start(ctx)
 
 	<-done1
 
@@ -562,7 +557,7 @@ func TestExecPolicyDeleteInflightSync(t *testing.T) {
 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
 
 	eh.WsServer = mws
-	sth.transactionEventHandler = eh
+	sth.tkAPI.EventHandler = eh
 	mp := sth.tkAPI.Persistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
 	mp.On("WriteTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()

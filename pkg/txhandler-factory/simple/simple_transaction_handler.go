@@ -129,7 +129,6 @@ type simpleTransactionHandler struct {
 	policyEngineAPIRequests []*policyEngineAPIRequest
 	maxInFlight             int
 	retry                   *retry.Retry
-	transactionEventHandler txhandler.ManagedTxEventHandler
 }
 type pendingState struct {
 	mtx             *apitypes.ManagedTX
@@ -160,15 +159,13 @@ func (sth *simpleTransactionHandler) withPolicyInfo(ctx context.Context, mtx *ap
 	return update, reason, err
 }
 
-func (sth *simpleTransactionHandler) Init(ctx context.Context, tkAPI *txhandler.ToolkitAPI) error {
+func (sth *simpleTransactionHandler) Init(ctx context.Context, tkAPI *txhandler.ToolkitAPI) {
 	sth.tkAPI = tkAPI
-	return nil
 }
 
-func (sth *simpleTransactionHandler) Start(ctx context.Context, eh txhandler.ManagedTxEventHandler) (done <-chan struct{}, err error) {
+func (sth *simpleTransactionHandler) Start(ctx context.Context) (done <-chan struct{}, err error) {
 	if sth.ctx == nil { // only start once
 		sth.ctx = ctx // set the context for policy loop
-		sth.transactionEventHandler = eh
 		sth.policyLoopDone = make(chan struct{})
 		sth.markInflightStale()
 		go sth.policyLoop()

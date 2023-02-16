@@ -278,7 +278,7 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil && mtx.PreviousTransactionHash != mtx.TransactionHash {
 					// If now submitted, add to confirmations manager for receipt checking
-					err = sth.transactionEventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+					err = sth.tkAPI.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 						Type: apitypes.ManagedTXTransactionHashUpdated,
 						Tx:   mtx,
 					}) // Only reason for error here should be a cancelled context
@@ -314,12 +314,12 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 		}
 		// if and only if the transaction is now resolved send web a socket update
 		if mtx.Status == apitypes.TxStatusSucceeded {
-			err = sth.transactionEventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+			err = sth.tkAPI.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 				Type: apitypes.ManagedTXProcessSucceeded,
 				Tx:   mtx,
 			})
 		} else if mtx.Status == apitypes.TxStatusFailed {
-			err = sth.transactionEventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+			err = sth.tkAPI.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 				Type: apitypes.ManagedTXProcessFailed,
 				Tx:   mtx,
 			})
@@ -336,7 +336,7 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 		}
 		pending.remove = true // for the next time round the loop
 		sth.markInflightStale()
-		err = sth.transactionEventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+		err = sth.tkAPI.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 			Type: apitypes.ManagedTXDeleted,
 			Tx:   mtx,
 		})

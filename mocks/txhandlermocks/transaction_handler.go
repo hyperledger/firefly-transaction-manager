@@ -129,17 +129,8 @@ func (_m *TransactionHandler) HandleTransactionReceipt(ctx context.Context, txID
 }
 
 // Init provides a mock function with given fields: ctx, tkAPI
-func (_m *TransactionHandler) Init(ctx context.Context, tkAPI *txhandler.ToolkitAPI) error {
-	ret := _m.Called(ctx, tkAPI)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *txhandler.ToolkitAPI) error); ok {
-		r0 = rf(ctx, tkAPI)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
+func (_m *TransactionHandler) Init(ctx context.Context, tkAPI *txhandler.ToolkitAPI) {
+	_m.Called(ctx, tkAPI)
 }
 
 // RegisterNewContractDeployment provides a mock function with given fields: ctx, txReq
@@ -194,25 +185,25 @@ func (_m *TransactionHandler) RegisterNewTransaction(ctx context.Context, txReq 
 	return r0, r1
 }
 
-// Start provides a mock function with given fields: ctx, eh
-func (_m *TransactionHandler) Start(ctx context.Context, eh txhandler.ManagedTxEventHandler) (<-chan struct{}, error) {
-	ret := _m.Called(ctx, eh)
+// Start provides a mock function with given fields: ctx
+func (_m *TransactionHandler) Start(ctx context.Context) (<-chan struct{}, error) {
+	ret := _m.Called(ctx)
 
 	var r0 <-chan struct{}
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, txhandler.ManagedTxEventHandler) (<-chan struct{}, error)); ok {
-		return rf(ctx, eh)
+	if rf, ok := ret.Get(0).(func(context.Context) (<-chan struct{}, error)); ok {
+		return rf(ctx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, txhandler.ManagedTxEventHandler) <-chan struct{}); ok {
-		r0 = rf(ctx, eh)
+	if rf, ok := ret.Get(0).(func(context.Context) <-chan struct{}); ok {
+		r0 = rf(ctx)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(<-chan struct{})
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, txhandler.ManagedTxEventHandler) error); ok {
-		r1 = rf(ctx, eh)
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}
