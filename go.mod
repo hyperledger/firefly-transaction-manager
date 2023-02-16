@@ -1,6 +1,6 @@
 module github.com/hyperledger/firefly-transaction-manager
 
-go 1.19
+go 1.17
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.2
