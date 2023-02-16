@@ -18,6 +18,7 @@ package fftm
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
@@ -58,6 +59,23 @@ func TestGetTransactionsErrors(t *testing.T) {
 	assert.Regexp(t, "FF21064", err)
 
 	_, err = m.getTransactions(m.ctx, "after-causes-failure", "", "", false, "")
+	assert.Regexp(t, "pop", err)
+
+	mth.AssertExpectations(t)
+
+}
+
+func TestDeleteTransactionError(t *testing.T) {
+	_, m, done := newTestManager(t)
+	defer done()
+	mth := &txhandlermocks.TransactionHandler{}
+	transientChannel := make(chan struct{})
+	defer close(transientChannel)
+	mth.On("CancelTransaction", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
+	m.txHandler = mth
+
+	status, _, err := m.requestTransactionDeletion(m.ctx, "")
+	assert.Equal(t, http.StatusInternalServerError, status)
 	assert.Regexp(t, "pop", err)
 
 	mth.AssertExpectations(t)
