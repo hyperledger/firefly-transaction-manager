@@ -216,6 +216,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
 	sth.Init(sth.ctx, tk)
+	sth.policyLoopInterval = 0
 
 	txHash1 := "0x" + fftypes.NewRandB32().String()
 	txHash2 := "0x" + fftypes.NewRandB32().String()
@@ -273,6 +274,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	assert.Len(t, sth.inflight, 1)
 	assert.Equal(t, mtx.ID, sth.inflight[0].mtx.ID)
 	assert.Equal(t, apitypes.TxStatusPending, sth.inflight[0].mtx.Status)
+	assert.Equal(t, txHash1, sth.inflight[0].mtx.TransactionHash)
 
 	// Run again to confirm it does not change anything, when the state is the same
 	sth.policyLoopCycle(sth.ctx, true)

@@ -115,10 +115,14 @@ func (eh *ManagedTransactionEventHandler) trackSubmittedTransaction(mtx *apitype
 					if err := eh.TxHandler.HandleTransactionConfirmed(ctx, mtx.ID, confirmations); err != nil {
 						log.L(ctx).Errorf("Confirmation for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash, err.Error())
 					}
-
 				},
 			},
 		})
+	}
+	if err != nil {
+		log.L(context.Background()).Infof("Error detected notifying confirmation manager: %s", err)
+	} else {
+		mtx.PreviousTransactionHash = mtx.TransactionHash
 	}
 	return err
 }

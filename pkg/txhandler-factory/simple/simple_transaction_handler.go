@@ -70,15 +70,16 @@ func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, c
 		gasOracleMode:          gasOracleConfig.GetString(GasOracleMode),
 
 		lockedNonces:      make(map[string]*lockedNonce),
-		nonceStateTimeout: conf.GetDuration(NonceStateTimeout),
-		maxInFlight:       config.GetInt(tmconfig.TransactionsMaxInFlight), // TODO: decide where to get this value from
+		nonceStateTimeout: config.GetDuration(tmconfig.TransactionsNonceStateTimeout),
+		maxInFlight:       config.GetInt(tmconfig.TransactionsMaxInFlight),
 		inflightStale:     make(chan bool, 1),
 		inflightUpdate:    make(chan bool, 1),
 
+		policyLoopInterval: config.GetDuration(tmconfig.PolicyLoopInterval),
 		retry: &retry.Retry{
-			InitialDelay: conf.GetDuration(RetryInitDelay),
-			MaximumDelay: conf.GetDuration(RetryMaxDelay),
-			Factor:       conf.GetFloat64(RetryFactor),
+			InitialDelay: config.GetDuration(tmconfig.PolicyLoopRetryInitDelay),
+			MaximumDelay: config.GetDuration(tmconfig.PolicyLoopRetryMaxDelay),
+			Factor:       config.GetFloat64(tmconfig.PolicyLoopRetryFactor),
 		},
 	}
 	switch sth.gasOracleMode {

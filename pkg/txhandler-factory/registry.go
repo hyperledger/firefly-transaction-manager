@@ -45,6 +45,6 @@ type Factory interface {
 func RegisterHandler(factory Factory) string {
 	name := factory.Name()
 	txHandlers[name] = factory
-	factory.InitConfig(tmconfig.TransactionHandlerBaseConfig.SubSection(name))
+	factory.InitConfig(tmconfig.PolicyEngineBaseConfig.SubSection(name))
 	return name
 }

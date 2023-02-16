@@ -30,12 +30,12 @@ func TestRegistry(t *testing.T) {
 	tmconfig.Reset()
 	RegisterHandler(&simple.TransactionHandlerFactory{})
 
-	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "12345")
-	p, err := NewTransactionHandler(context.Background(), tmconfig.TransactionHandlerBaseConfig, "simple")
+	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "12345")
+	p, err := NewTransactionHandler(context.Background(), tmconfig.PolicyEngineBaseConfig, "simple")
 	assert.NotNil(t, p)
 	assert.NoError(t, err)
 
-	p, err = NewTransactionHandler(context.Background(), tmconfig.TransactionHandlerBaseConfig, "bob")
+	p, err = NewTransactionHandler(context.Background(), tmconfig.PolicyEngineBaseConfig, "bob")
 	assert.Nil(t, p)
 	assert.Regexp(t, "FF21019", err)
 

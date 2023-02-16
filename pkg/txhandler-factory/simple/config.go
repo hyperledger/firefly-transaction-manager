@@ -31,12 +31,6 @@ const (
 	GasOracleMethod        = "method"
 	GasOracleTemplate      = "template"
 	GasOracleQueryInterval = "queryInterval"
-	NonceStateTimeout      = "nonceStateTimeout"
-
-	Interval       = "interval"
-	RetryInitDelay = "retry.initialDelay"
-	RetryMaxDelay  = "retry.maxDelay"
-	RetryFactor    = "retry.factor"
 )
 
 const (
@@ -50,23 +44,11 @@ const (
 	defaultGasOracleQueryInterval = "5m"
 	defaultGasOracleMethod        = http.MethodGet
 	defaultGasOracleMode          = GasOracleModeConnector
-
-	defaultInterval          = "10s"
-	defaultRetryInitDelay    = "250ms"
-	defaultRetryMaxDelay     = "30s"
-	defaultRetryFactor       = 2.0
-	defaultNonceStateTimeout = "1h"
 )
 
 func (f *TransactionHandlerFactory) InitConfig(conf config.Section) {
 	conf.AddKnownKey(FixedGasPrice)
 	conf.AddKnownKey(ResubmitInterval, defaultResubmitInterval)
-
-	conf.AddKnownKey(Interval, defaultInterval)
-	conf.AddKnownKey(RetryInitDelay, defaultRetryInitDelay)
-	conf.AddKnownKey(RetryMaxDelay, defaultRetryMaxDelay)
-	conf.AddKnownKey(RetryFactor, defaultRetryFactor)
-	conf.AddKnownKey(NonceStateTimeout, defaultNonceStateTimeout)
 
 	gasOracleConfig := conf.SubSection(GasOracleConfig)
 	ffresty.InitConfig(gasOracleConfig)

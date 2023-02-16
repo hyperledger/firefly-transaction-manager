@@ -125,7 +125,7 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 		}
 	}
 
-	m.txHandler, err = txhandlerfactory.NewTransactionHandler(ctx, tmconfig.TransactionHandlerBaseConfig, config.GetString(tmconfig.TransactionHandlerName))
+	m.txHandler, err = txhandlerfactory.NewTransactionHandler(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
 	if err != nil {
 		return err
 	}

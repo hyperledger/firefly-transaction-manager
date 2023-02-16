@@ -32,7 +32,12 @@ var (
 	ConfirmationsNotificationQueueLength          = ffc("confirmations.notificationQueueLength")
 	TransactionsMaxHistoryCount                   = ffc("transactions.maxHistoryCount")
 	TransactionsMaxInFlight                       = ffc("transactions.maxInFlight")
-	TransactionHandlerName                        = ffc("transactions.handler.name")
+	TransactionsNonceStateTimeout                 = ffc("transactions.nonceStateTimeout")
+	PolicyLoopInterval                            = ffc("policyloop.interval")
+	PolicyLoopRetryInitDelay                      = ffc("policyloop.retry.initialDelay")
+	PolicyLoopRetryMaxDelay                       = ffc("policyloop.retry.maxDelay")
+	PolicyLoopRetryFactor                         = ffc("policyloop.retry.factor")
+	PolicyEngineName                              = ffc("policyengine.name")
 	EventStreamsDefaultsBatchSize                 = ffc("eventstreams.defaults.batchSize")
 	EventStreamsDefaultsBatchTimeout              = ffc("eventstreams.defaults.batchTimeout")
 	EventStreamsDefaultsErrorHandling             = ffc("eventstreams.defaults.errorHandling")
@@ -61,7 +66,7 @@ var APIConfig config.Section
 
 var CorsConfig config.Section
 
-var TransactionHandlerBaseConfig config.Section
+var PolicyEngineBaseConfig config.Section
 
 var WebhookPrefix config.Section
 
@@ -70,11 +75,13 @@ var MetricsConfig config.Section
 func setDefaults() {
 	viper.SetDefault(string(TransactionsMaxInFlight), 100)
 	viper.SetDefault(string(TransactionsMaxHistoryCount), 50)
+	viper.SetDefault(string(TransactionsNonceStateTimeout), "1h")
 	viper.SetDefault(string(ConfirmationsRequired), 20)
 	viper.SetDefault(string(ConfirmationsBlockQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsStaleReceiptTimeout), "1m")
-	viper.SetDefault(string(TransactionHandlerName), "simple")
+	viper.SetDefault(string(PolicyLoopInterval), "10s")
+	viper.SetDefault(string(PolicyEngineName), "simple")
 
 	viper.SetDefault(string(EventStreamsDefaultsBatchSize), 50)
 	viper.SetDefault(string(EventStreamsDefaultsBatchTimeout), "5s")
@@ -92,6 +99,11 @@ func setDefaults() {
 
 	viper.SetDefault(string(APIDefaultRequestTimeout), "30s")
 	viper.SetDefault(string(APIMaxRequestTimeout), "10m")
+
+	viper.SetDefault(string(PolicyLoopRetryInitDelay), "250ms")
+	viper.SetDefault(string(PolicyLoopRetryMaxDelay), "30s")
+	viper.SetDefault(string(PolicyLoopRetryFactor), 2.0)
+	viper.SetDefault(string(EventStreamsRetryInitDelay), "250ms")
 	viper.SetDefault(string(EventStreamsRetryMaxDelay), "30s")
 	viper.SetDefault(string(EventStreamsRetryFactor), 2.0)
 	viper.SetDefault(string(DebugPort), -1)
@@ -113,8 +125,8 @@ func Reset() {
 	WebhookPrefix = config.RootSection("webhooks")
 	ffresty.InitConfig(WebhookPrefix)
 
-	TransactionHandlerBaseConfig = config.RootSection("transactions.handler")
-	// Transaction handler must be registered outside of this package
+	PolicyEngineBaseConfig = config.RootSection("policyengine")
+	// policy engines must be registered outside of this package
 
 	MetricsConfig = config.RootSection("metrics")
 	httpserver.InitHTTPConfig(MetricsConfig, 6000)
