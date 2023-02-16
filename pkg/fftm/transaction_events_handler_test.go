@@ -29,18 +29,18 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func newTstManagedTransactionEventHandler() *ManagedTransactionEventHandler {
+func newTestManagedTransactionEventHandler() *ManagedTransactionEventHandler {
 	eh := &ManagedTransactionEventHandler{
-		ctx: context.Background(),
+		Ctx: context.Background(),
 	}
 	return eh
 }
 
 func TestHandleTransactionProcessSuccessEvent(t *testing.T) {
-	eh := newTstManagedTransactionEventHandler()
+	eh := newTestManagedTransactionEventHandler()
 	mws := &wsmocks.WebSocketServer{}
 	mws.On("SendReply", mock.Anything).Return(nil).Once()
-	eh.wsServer = mws
+	eh.WsServer = mws
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
@@ -62,10 +62,10 @@ func TestHandleTransactionProcessSuccessEvent(t *testing.T) {
 }
 
 func TestHandleTransactionHashUpdateEventNewHash(t *testing.T) {
-	eh := newTstManagedTransactionEventHandler()
+	eh := newTestManagedTransactionEventHandler()
 	mcm := &confirmationsmocks.Manager{}
 	mcm.On("Notify", mock.Anything).Return(nil).Once()
-	eh.confirmationManager = mcm
+	eh.ConfirmationManager = mcm
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
@@ -88,10 +88,10 @@ func TestHandleTransactionHashUpdateEventNewHash(t *testing.T) {
 }
 
 func TestHandleTransactionHashUpdateEventOldHash(t *testing.T) {
-	eh := newTstManagedTransactionEventHandler()
+	eh := newTestManagedTransactionEventHandler()
 	mcm := &confirmationsmocks.Manager{}
 	mcm.On("Notify", mock.Anything).Return(nil).Twice()
-	eh.confirmationManager = mcm
+	eh.ConfirmationManager = mcm
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),

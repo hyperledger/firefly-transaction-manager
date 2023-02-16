@@ -28,18 +28,18 @@ import (
 )
 
 type ManagedTransactionEventHandler struct {
-	ctx                 context.Context
-	confirmationManager confirmations.Manager
-	wsServer            ws.WebSocketServer
-	txHandler           txhandler.TransactionHandler
+	Ctx                 context.Context
+	ConfirmationManager confirmations.Manager
+	WsServer            ws.WebSocketServer
+	TxHandler           txhandler.TransactionHandler
 }
 
 func NewManagedTransactionEventHandler(ctx context.Context, cm confirmations.Manager, ws ws.WebSocketServer, th txhandler.TransactionHandler) txhandler.ManagedTxEventHandler {
 	eh := &ManagedTransactionEventHandler{
-		ctx:                 ctx,
-		confirmationManager: cm,
-		wsServer:            ws,
-		txHandler:           th,
+		Ctx:                 ctx,
+		ConfirmationManager: cm,
+		WsServer:            ws,
+		TxHandler:           th,
 	}
 	return eh
 }
@@ -84,7 +84,7 @@ func (eh *ManagedTransactionEventHandler) sendWSReply(mtx *apitypes.ManagedTX) {
 		wsr.Headers.Type = apitypes.TransactionUpdateFailure
 	}
 	// Notify on the websocket - this is best-effort (there is no subscription/acknowledgement)
-	eh.wsServer.SendReply(wsr)
+	eh.WsServer.SendReply(wsr)
 }
 
 func (eh *ManagedTransactionEventHandler) trackSubmittedTransaction(mtx *apitypes.ManagedTX) error {
@@ -92,7 +92,7 @@ func (eh *ManagedTransactionEventHandler) trackSubmittedTransaction(mtx *apitype
 
 	// Clear any old transaction hash
 	if mtx.PreviousTransactionHash != "" {
-		err = eh.confirmationManager.Notify(&confirmations.Notification{
+		err = eh.ConfirmationManager.Notify(&confirmations.Notification{
 			NotificationType: confirmations.RemovedTransaction,
 			Transaction: &confirmations.TransactionInfo{
 				TransactionHash: mtx.PreviousTransactionHash,
@@ -102,17 +102,17 @@ func (eh *ManagedTransactionEventHandler) trackSubmittedTransaction(mtx *apitype
 
 	// Notify of the new
 	if err == nil {
-		err = eh.confirmationManager.Notify(&confirmations.Notification{
+		err = eh.ConfirmationManager.Notify(&confirmations.Notification{
 			NotificationType: confirmations.NewTransaction,
 			Transaction: &confirmations.TransactionInfo{
 				TransactionHash: mtx.TransactionHash,
 				Receipt: func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse) {
-					if err := eh.txHandler.HandleTransactionReceipt(ctx, mtx.ID, receipt); err != nil {
+					if err := eh.TxHandler.HandleTransactionReceipt(ctx, mtx.ID, receipt); err != nil {
 						log.L(ctx).Errorf("Receipt for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash, err.Error())
 					}
 				},
 				Confirmed: func(ctx context.Context, confirmations []confirmations.BlockInfo) {
-					if err := eh.txHandler.HandleTransactionConfirmed(ctx, mtx.ID, confirmations); err != nil {
+					if err := eh.TxHandler.HandleTransactionConfirmed(ctx, mtx.ID, confirmations); err != nil {
 						log.L(ctx).Errorf("Confirmation for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash, err.Error())
 					}
 
