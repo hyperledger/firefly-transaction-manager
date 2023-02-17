@@ -56,5 +56,4 @@ func (f *TransactionHandlerFactory) InitConfig(conf config.Section) {
 	gasOracleConfig.AddKnownKey(GasOracleMode, defaultGasOracleMode)
 	gasOracleConfig.AddKnownKey(GasOracleQueryInterval, defaultGasOracleQueryInterval)
 	gasOracleConfig.AddKnownKey(GasOracleTemplate)
-	gasOracleConfig.AddKnownKey(GasOracleTemplate)
 }
