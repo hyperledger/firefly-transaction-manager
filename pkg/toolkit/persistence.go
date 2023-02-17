@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package persistence
+package toolkit
 
 import (
 	"context"
@@ -49,3 +49,10 @@ type Persistence interface {
 
 	Close(ctx context.Context)
 }
+
+type SortDirection int
+
+const (
+	SortDirectionAscending SortDirection = iota
+	SortDirectionDescending
+)

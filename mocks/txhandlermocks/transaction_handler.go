@@ -3,16 +3,15 @@
 package txhandlermocks
 
 import (
-	confirmations "github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
-	apitypes "github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
-
 	context "context"
+
+	apitypes "github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 
 	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 
 	mock "github.com/stretchr/testify/mock"
 
-	persistence "github.com/hyperledger/firefly-transaction-manager/internal/persistence"
+	toolkit "github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 
 	txhandler "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
@@ -75,15 +74,15 @@ func (_m *TransactionHandler) GetTransactionByID(ctx context.Context, txID strin
 }
 
 // GetTransactions provides a mock function with given fields: ctx, afterStr, signer, pending, limit, direction
-func (_m *TransactionHandler) GetTransactions(ctx context.Context, afterStr string, signer string, pending bool, limit int, direction persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
+func (_m *TransactionHandler) GetTransactions(ctx context.Context, afterStr string, signer string, pending bool, limit int, direction toolkit.SortDirection) ([]*apitypes.ManagedTX, error) {
 	ret := _m.Called(ctx, afterStr, signer, pending, limit, direction)
 
 	var r0 []*apitypes.ManagedTX
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool, int, persistence.SortDirection) ([]*apitypes.ManagedTX, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool, int, toolkit.SortDirection) ([]*apitypes.ManagedTX, error)); ok {
 		return rf(ctx, afterStr, signer, pending, limit, direction)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool, int, persistence.SortDirection) []*apitypes.ManagedTX); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, bool, int, toolkit.SortDirection) []*apitypes.ManagedTX); ok {
 		r0 = rf(ctx, afterStr, signer, pending, limit, direction)
 	} else {
 		if ret.Get(0) != nil {
@@ -91,7 +90,7 @@ func (_m *TransactionHandler) GetTransactions(ctx context.Context, afterStr stri
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string, bool, int, persistence.SortDirection) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, bool, int, toolkit.SortDirection) error); ok {
 		r1 = rf(ctx, afterStr, signer, pending, limit, direction)
 	} else {
 		r1 = ret.Error(1)
@@ -100,13 +99,13 @@ func (_m *TransactionHandler) GetTransactions(ctx context.Context, afterStr stri
 	return r0, r1
 }
 
-// HandleTransactionConfirmed provides a mock function with given fields: ctx, txID, _a2
-func (_m *TransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, _a2 []confirmations.BlockInfo) error {
-	ret := _m.Called(ctx, txID, _a2)
+// HandleTransactionConfirmed provides a mock function with given fields: ctx, txID, confirmations
+func (_m *TransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) error {
+	ret := _m.Called(ctx, txID, confirmations)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []confirmations.BlockInfo) error); ok {
-		r0 = rf(ctx, txID, _a2)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []apitypes.BlockInfo) error); ok {
+		r0 = rf(ctx, txID, confirmations)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -128,9 +127,9 @@ func (_m *TransactionHandler) HandleTransactionReceipt(ctx context.Context, txID
 	return r0
 }
 
-// Init provides a mock function with given fields: ctx, toolkit
-func (_m *TransactionHandler) Init(ctx context.Context, toolkit *txhandler.Toolkit) {
-	_m.Called(ctx, toolkit)
+// Init provides a mock function with given fields: ctx, _a1
+func (_m *TransactionHandler) Init(ctx context.Context, _a1 *txhandler.Toolkit) {
+	_m.Called(ctx, _a1)
 }
 
 // RegisterNewContractDeployment provides a mock function with given fields: ctx, txReq

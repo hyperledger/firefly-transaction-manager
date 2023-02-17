@@ -111,7 +111,7 @@ func (eh *ManagedTransactionEventHandler) trackSubmittedTransaction(mtx *apitype
 						log.L(ctx).Errorf("Receipt for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash, err.Error())
 					}
 				},
-				Confirmed: func(ctx context.Context, confirmations []confirmations.BlockInfo) {
+				Confirmed: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
 					if err := eh.TxHandler.HandleTransactionConfirmed(ctx, mtx.ID, confirmations); err != nil {
 						log.L(ctx).Errorf("Confirmation for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash, err.Error())
 					}

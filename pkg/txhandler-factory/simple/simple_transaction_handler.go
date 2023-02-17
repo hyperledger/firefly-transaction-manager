@@ -32,11 +32,11 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-common/pkg/retry"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
@@ -216,7 +216,7 @@ func (sth *simpleTransactionHandler) GetTransactionByID(ctx context.Context, txI
 	}
 	return tx, nil
 }
-func (sth *simpleTransactionHandler) GetTransactions(ctx context.Context, afterStr, signer string, pending bool, limit int, direction persistence.SortDirection) (transactions []*apitypes.ManagedTX, err error) {
+func (sth *simpleTransactionHandler) GetTransactions(ctx context.Context, afterStr, signer string, pending bool, limit int, direction toolkit.SortDirection) (transactions []*apitypes.ManagedTX, err error) {
 	var afterTx *apitypes.ManagedTX
 	if afterStr != "" {
 		// Get the transaction, as we need this to exist to pick the right field depending on the index that's been chosen

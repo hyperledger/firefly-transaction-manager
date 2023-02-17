@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -22,13 +22,8 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 )
-
-type Manager interface {
-	TransactionSubmissionError()
-	TransactionsInFlightSet(count float64)
-	IsMetricsEnabled() bool
-}
 
 type metricsManager struct {
 	ctx            context.Context
@@ -36,7 +31,7 @@ type metricsManager struct {
 	timeMap        map[string]time.Time
 }
 
-func NewMetricsManager(ctx context.Context) Manager {
+func NewMetricsManager(ctx context.Context) toolkit.Metrics {
 	mm := &metricsManager{
 		ctx:            ctx,
 		metricsEnabled: config.GetBool(tmconfig.MetricsEnabled),

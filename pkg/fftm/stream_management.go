@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -25,10 +25,10 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 )
 
 const (
@@ -38,7 +38,7 @@ const (
 func (m *manager) restoreStreams() error {
 	var lastInPage *fftypes.UUID
 	for {
-		streamDefs, err := m.persistence.ListStreams(m.ctx, lastInPage, startupPaginationLimit, persistence.SortDirectionAscending)
+		streamDefs, err := m.persistence.ListStreams(m.ctx, lastInPage, startupPaginationLimit, toolkit.SortDirectionAscending)
 		if err != nil {
 			return err
 		}
@@ -47,7 +47,7 @@ func (m *manager) restoreStreams() error {
 		}
 		for _, def := range streamDefs {
 			lastInPage = def.ID
-			streamListeners, err := m.persistence.ListStreamListeners(m.ctx, nil, 0, persistence.SortDirectionAscending, def.ID)
+			streamListeners, err := m.persistence.ListStreamListeners(m.ctx, nil, 0, toolkit.SortDirectionAscending, def.ID)
 			if err != nil {
 				return err
 			}
@@ -74,7 +74,7 @@ func (m *manager) restoreStreams() error {
 func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftypes.UUID) error {
 	var lastInPage *fftypes.UUID
 	for {
-		listenerDefs, err := m.persistence.ListStreamListeners(ctx, lastInPage, startupPaginationLimit, persistence.SortDirectionAscending, streamID)
+		listenerDefs, err := m.persistence.ListStreamListeners(ctx, lastInPage, startupPaginationLimit, toolkit.SortDirectionAscending, streamID)
 		if err != nil {
 			return err
 		}
@@ -340,7 +340,7 @@ func (m *manager) getStreams(ctx context.Context, afterStr, limitStr string) (st
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListStreams(ctx, after, limit, persistence.SortDirectionDescending)
+	return m.persistence.ListStreams(ctx, after, limit, toolkit.SortDirectionDescending)
 }
 
 func (m *manager) getListenerSpec(ctx context.Context, streamIDStr, listenerIDStr string) (spec *apitypes.Listener, err error) {
@@ -390,7 +390,7 @@ func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListListeners(ctx, after, limit, persistence.SortDirectionDescending)
+	return m.persistence.ListListeners(ctx, after, limit, toolkit.SortDirectionDescending)
 }
 
 func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
@@ -402,7 +402,7 @@ func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, id
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListStreamListeners(ctx, after, limit, persistence.SortDirectionDescending, id)
+	return m.persistence.ListStreamListeners(ctx, after, limit, toolkit.SortDirectionDescending, id)
 }
 
 func mergeEthCompatMethods(ctx context.Context, listener *apitypes.Listener) error {

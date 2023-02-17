@@ -93,7 +93,7 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 	mcm.On("Notify", mock.Anything).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		if n.Event != nil {
-			go n.Event.Confirmed(context.Background(), []confirmations.BlockInfo{})
+			go n.Event.Confirmed(context.Background(), []apitypes.BlockInfo{})
 		}
 	}).Return(nil).Maybe()
 	return es, err

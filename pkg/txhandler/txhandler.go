@@ -19,19 +19,17 @@ package txhandler
 import (
 	"context"
 
-	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
-	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
 type Toolkit struct {
 	Connector      ffcapi.API
 	TXHistory      txhistory.Manager
-	Persistence    persistence.Persistence
-	MetricsManager metrics.Manager
+	Persistence    toolkit.Persistence
+	MetricsManager toolkit.Metrics
 	EventHandler   ManagedTxEventHandler
 }
 
@@ -53,8 +51,8 @@ type TransactionHandler interface {
 	RegisterNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error)
 	CancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
 	GetTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error)
-	GetTransactions(ctx context.Context, afterStr, signer string, pending bool, limit int, direction persistence.SortDirection) (transactions []*apitypes.ManagedTX, err error)
+	GetTransactions(ctx context.Context, afterStr, signer string, pending bool, limit int, direction toolkit.SortDirection) (transactions []*apitypes.ManagedTX, err error)
 
-	HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []confirmations.BlockInfo) (err error)
+	HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) (err error)
 	HandleTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
 }

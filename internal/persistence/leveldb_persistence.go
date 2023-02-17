@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -30,6 +30,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -42,7 +43,7 @@ type leveldbPersistence struct {
 	txMux      sync.RWMutex // allows us to draw conclusions on the cleanup of indexes
 }
 
-func NewLevelDBPersistence(ctx context.Context) (Persistence, error) {
+func NewLevelDBPersistence(ctx context.Context) (toolkit.Persistence, error) {
 	dbPath := config.GetString(tmconfig.PersistenceLevelDBPath)
 	if dbPath == "" {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgLevelDBPathMissing)
@@ -58,13 +59,6 @@ func NewLevelDBPersistence(ctx context.Context) (Persistence, error) {
 		syncWrites: config.GetBool(tmconfig.PersistenceLevelDBSyncWrites),
 	}, nil
 }
-
-type SortDirection int
-
-const (
-	SortDirectionAscending SortDirection = iota
-	SortDirectionDescending
-)
 
 const checkpointsPrefix = "checkpoints_0/"
 const eventstreamsPrefix = "eventstreams_0/"
@@ -156,7 +150,7 @@ func (p *leveldbPersistence) readJSON(ctx context.Context, key []byte, target in
 }
 
 func (p *leveldbPersistence) listJSON(ctx context.Context, collectionPrefix, collectionEnd, after string, limit int,
-	dir SortDirection,
+	dir toolkit.SortDirection,
 	val func() interface{}, // return a pointer to a pointer variable, of the type to unmarshal
 	add func(interface{}), // passes back the val() for adding to the list, if the filters match
 	indexResolver func(ctx context.Context, k []byte) ([]byte, error), // if non-nil then the initial lookup will be passed to this, to lookup the target bytes. Nil skips item
@@ -168,7 +162,7 @@ func (p *leveldbPersistence) listJSON(ctx context.Context, collectionPrefix, col
 	}
 	var it iterator.Iterator
 	switch dir {
-	case SortDirectionAscending:
+	case toolkit.SortDirectionAscending:
 		afterKey := collectionPrefix + after
 		if after != "" {
 			collectionRange.Start = []byte(afterKey)
@@ -190,16 +184,16 @@ func (p *leveldbPersistence) listJSON(ctx context.Context, collectionPrefix, col
 }
 
 func (p *leveldbPersistence) iterateJSON(ctx context.Context, it iterator.Iterator, limit int,
-	dir SortDirection, val func() interface{}, add func(interface{}), indexResolver func(ctx context.Context, k []byte) ([]byte, error), filters ...func(interface{}) bool,
+	dir toolkit.SortDirection, val func() interface{}, add func(interface{}), indexResolver func(ctx context.Context, k []byte) ([]byte, error), filters ...func(interface{}) bool,
 ) (orphanedIdxKeys [][]byte, err error) {
 	count := 0
 	next := it.Next // forwards we enter this function before the first key
-	if dir == SortDirectionDescending {
+	if dir == toolkit.SortDirectionDescending {
 		next = it.Last // reverse we enter this function
 	}
 itLoop:
 	for next() {
-		if dir == SortDirectionDescending {
+		if dir == toolkit.SortDirectionDescending {
 			next = it.Prev
 		} else {
 			next = it.Next
@@ -261,7 +255,7 @@ func (p *leveldbPersistence) DeleteCheckpoint(ctx context.Context, streamID *fft
 	return p.deleteKeys(ctx, prefixedKey(checkpointsPrefix, streamID))
 }
 
-func (p *leveldbPersistence) ListStreams(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.EventStream, error) {
+func (p *leveldbPersistence) ListStreams(ctx context.Context, after *fftypes.UUID, limit int, dir toolkit.SortDirection) ([]*apitypes.EventStream, error) {
 	streams := make([]*apitypes.EventStream, 0)
 	if _, err := p.listJSON(ctx, eventstreamsPrefix, eventstreamsEnd, after.String(), limit, dir,
 		func() interface{} { var v *apitypes.EventStream; return &v },
@@ -286,7 +280,7 @@ func (p *leveldbPersistence) DeleteStream(ctx context.Context, streamID *fftypes
 	return p.deleteKeys(ctx, prefixedKey(eventstreamsPrefix, streamID))
 }
 
-func (p *leveldbPersistence) ListListeners(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.Listener, error) {
+func (p *leveldbPersistence) ListListeners(ctx context.Context, after *fftypes.UUID, limit int, dir toolkit.SortDirection) ([]*apitypes.Listener, error) {
 	listeners := make([]*apitypes.Listener, 0)
 	if _, err := p.listJSON(ctx, listenersPrefix, listenersEnd, after.String(), limit, dir,
 		func() interface{} { var v *apitypes.Listener; return &v },
@@ -298,7 +292,7 @@ func (p *leveldbPersistence) ListListeners(ctx context.Context, after *fftypes.U
 	return listeners, nil
 }
 
-func (p *leveldbPersistence) ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error) {
+func (p *leveldbPersistence) ListStreamListeners(ctx context.Context, after *fftypes.UUID, limit int, dir toolkit.SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error) {
 	listeners := make([]*apitypes.Listener, 0)
 	if _, err := p.listJSON(ctx, listenersPrefix, listenersEnd, after.String(), limit, dir,
 		func() interface{} { var v *apitypes.Listener; return &v },
@@ -344,7 +338,7 @@ func (p *leveldbPersistence) cleanupOrphanedTXIdxKeys(ctx context.Context, orpha
 	}
 }
 
-func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collectionPrefix, collectionEnd, afterStr string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) {
+func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collectionPrefix, collectionEnd, afterStr string, limit int, dir toolkit.SortDirection) ([]*apitypes.ManagedTX, error) {
 
 	p.txMux.RLock()
 	transactions := make([]*apitypes.ManagedTX, 0)
@@ -364,7 +358,7 @@ func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collec
 	return transactions, nil
 }
 
-func (p *leveldbPersistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) {
+func (p *leveldbPersistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir toolkit.SortDirection) ([]*apitypes.ManagedTX, error) {
 	afterStr := ""
 	if after != nil {
 		afterStr = fmt.Sprintf("%.19d/%s", after.Created.UnixNano(), after.SequenceID)
@@ -372,7 +366,7 @@ func (p *leveldbPersistence) ListTransactionsByCreateTime(ctx context.Context, a
 	return p.listTransactionsByIndex(ctx, txCreatedIndexPrefix, txCreatedIndexEnd, afterStr, limit, dir)
 }
 
-func (p *leveldbPersistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) {
+func (p *leveldbPersistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir toolkit.SortDirection) ([]*apitypes.ManagedTX, error) {
 	afterStr := ""
 	if after != nil {
 		afterStr = fmt.Sprintf("%.24d", after.Int())
@@ -380,7 +374,7 @@ func (p *leveldbPersistence) ListTransactionsByNonce(ctx context.Context, signer
 	return p.listTransactionsByIndex(ctx, signerNoncePrefix(signer), signerNonceEnd(signer), afterStr, limit, dir)
 }
 
-func (p *leveldbPersistence) ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) {
+func (p *leveldbPersistence) ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int, dir toolkit.SortDirection) ([]*apitypes.ManagedTX, error) {
 	return p.listTransactionsByIndex(ctx, txPendingIndexPrefix, txPendingIndexEnd, after.String(), limit, dir)
 }
 

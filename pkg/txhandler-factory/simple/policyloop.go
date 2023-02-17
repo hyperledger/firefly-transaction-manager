@@ -24,11 +24,10 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
-	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 )
 
 type policyEngineAPIRequestType int
@@ -115,7 +114,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 		var additional []*apitypes.ManagedTX
 		// We retry the get from persistence indefinitely (until the context cancels)
 		err := sth.retry.Do(ctx, "get pending transactions", func(attempt int) (retry bool, err error) {
-			additional, err = sth.toolkit.Persistence.ListTransactionsPending(ctx, after, spaces, persistence.SortDirectionAscending)
+			additional, err = sth.toolkit.Persistence.ListTransactionsPending(ctx, after, spaces, toolkit.SortDirectionAscending)
 			return true, err
 		})
 		if err != nil {
@@ -366,7 +365,7 @@ func (sth *simpleTransactionHandler) policyEngineAPIRequest(ctx context.Context,
 	}
 }
 
-func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []confirmations.BlockInfo) (err error) {
+func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) (err error) {
 	// Will be picked up on the next policy loop cycle
 	var pending *pendingState
 	for _, p := range sth.inflight {

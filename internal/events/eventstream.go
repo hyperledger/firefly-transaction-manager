@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -29,12 +29,12 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/retry"
 	"github.com/hyperledger/firefly-transaction-manager/internal/blocklistener"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 )
 
 type Stream interface {
@@ -104,7 +104,7 @@ type eventStream struct {
 	mux                sync.Mutex
 	status             apitypes.EventStreamStatus
 	connector          ffcapi.API
-	persistence        persistence.Persistence
+	persistence        toolkit.Persistence
 	confirmations      confirmations.Manager
 	listeners          map[fftypes.UUID]*listener
 	wsChannels         ws.WebSocketChannels
@@ -118,7 +118,7 @@ func NewEventStream(
 	bgCtx context.Context,
 	persistedSpec *apitypes.EventStream,
 	connector ffcapi.API,
-	persistence persistence.Persistence,
+	persistence toolkit.Persistence,
 	wsChannels ws.WebSocketChannels,
 	initialListeners []*apitypes.Listener,
 ) (ees Stream, err error) {
@@ -620,7 +620,7 @@ func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.Listener
 				NotificationType: confirmations.NewEventLog,
 				Event: &confirmations.EventInfo{
 					ID: &event.ID,
-					Confirmed: func(ctx context.Context, confirmations []confirmations.BlockInfo) {
+					Confirmed: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
 						// Push it to the batch when confirmed
 						// - Note this will block the confirmation manager when the event stream is blocked
 						es.batchChannel <- fev

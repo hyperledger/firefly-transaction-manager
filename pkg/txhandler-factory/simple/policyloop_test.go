@@ -25,7 +25,6 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
@@ -33,6 +32,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -104,7 +104,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 			Success:          true,
 			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
 		})
-		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
+		n.Transaction.Confirmed(context.Background(), []apitypes.BlockInfo{})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
@@ -174,7 +174,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 			Success:          false,
 		})
-		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
+		n.Transaction.Confirmed(context.Background(), []apitypes.BlockInfo{})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
@@ -257,7 +257,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
 			Success:          true,
 		})
-		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
+		n.Transaction.Confirmed(context.Background(), []apitypes.BlockInfo{})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
@@ -350,7 +350,7 @@ func TestInflightSetListFailCancel(t *testing.T) {
 	sth.Init(sth.ctx, tk)
 	cancel()
 	mp := sth.toolkit.Persistence.(*persistencemocks.Persistence)
-	mp.On("ListTransactionsPending", sth.ctx, (*fftypes.UUID)(nil), sth.maxInFlight, persistence.SortDirectionAscending).
+	mp.On("ListTransactionsPending", sth.ctx, (*fftypes.UUID)(nil), sth.maxInFlight, toolkit.SortDirectionAscending).
 		Return(nil, fmt.Errorf("pop"))
 
 	sth.policyLoopCycle(sth.ctx, true)
@@ -397,7 +397,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 			Success:          true,
 			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
 		})
-		n.Transaction.Confirmed(context.Background(), []confirmations.BlockInfo{})
+		n.Transaction.Confirmed(context.Background(), []apitypes.BlockInfo{})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}

@@ -29,6 +29,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
@@ -62,25 +63,18 @@ type Notification struct {
 
 type EventInfo struct {
 	ID        *ffcapi.EventID
-	Confirmed func(ctx context.Context, confirmations []BlockInfo)
+	Confirmed func(ctx context.Context, confirmations []apitypes.BlockInfo)
 }
 
 type TransactionInfo struct {
 	TransactionHash string
 	Receipt         func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse)
-	Confirmed       func(ctx context.Context, confirmations []BlockInfo)
+	Confirmed       func(ctx context.Context, confirmations []apitypes.BlockInfo)
 }
 
 type RemovedListenerInfo struct {
 	ListenerID *fftypes.UUID
 	Completed  chan struct{}
-}
-
-type BlockInfo struct {
-	BlockNumber       fftypes.FFuint64 `json:"blockNumber"`
-	BlockHash         string           `json:"blockHash"`
-	ParentHash        string           `json:"parentHash"`
-	TransactionHashes []string         `json:"transactionHashes,omitempty"`
 }
 
 type blockConfirmationManager struct {
@@ -130,10 +124,10 @@ const (
 type pendingItem struct {
 	pType             pendingType
 	added             time.Time
-	confirmations     []*BlockInfo
+	confirmations     []*apitypes.BlockInfo
 	lastReceiptCheck  time.Time
 	receiptCallback   func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse)
-	confirmedCallback func(ctx context.Context, confirmations []BlockInfo)
+	confirmedCallback func(ctx context.Context, confirmations []apitypes.BlockInfo)
 	transactionHash   string
 	blockHash         string        // can be notified of changes to this for receipts
 	blockNumber       uint64        // known at creation time for event logs
@@ -160,10 +154,10 @@ func (pi *pendingItem) getKey() string {
 	}
 }
 
-func (pi *pendingItem) copyConfirmations() []BlockInfo {
-	copy := make([]BlockInfo, len(pi.confirmations))
+func (pi *pendingItem) copyConfirmations() []apitypes.BlockInfo {
+	copy := make([]apitypes.BlockInfo, len(pi.confirmations))
 	for i, c := range pi.confirmations {
-		copy[i] = BlockInfo{
+		copy[i] = apitypes.BlockInfo{
 			BlockNumber: c.BlockNumber,
 			BlockHash:   c.BlockHash,
 			ParentHash:  c.ParentHash,
@@ -212,7 +206,7 @@ func (pi pendingItems) Less(i, j int) bool {
 
 type blockState struct {
 	bcm       *blockConfirmationManager
-	blocks    map[uint64]*BlockInfo
+	blocks    map[uint64]*apitypes.BlockInfo
 	lowestNil uint64
 }
 
@@ -271,7 +265,7 @@ func (bcm *blockConfirmationManager) CheckInFlight(listenerID *fftypes.UUID) boo
 	return false
 }
 
-func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*BlockInfo, error) {
+func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*apitypes.BlockInfo, error) {
 	res, reason, err := bcm.connector.BlockInfoByHash(bcm.ctx, &ffcapi.BlockInfoByHashRequest{
 		BlockHash: blockHash,
 	})
@@ -287,7 +281,7 @@ func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*BlockInf
 	return blockInfo, nil
 }
 
-func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expectedParentHash string) (*BlockInfo, error) {
+func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expectedParentHash string) (*apitypes.BlockInfo, error) {
 	res, reason, err := bcm.connector.BlockInfoByNumber(bcm.ctx, &ffcapi.BlockInfoByNumberRequest{
 		BlockNumber:        fftypes.NewFFBigInt(int64(blockNumber)),
 		ExpectedParentHash: expectedParentHash,
@@ -303,8 +297,8 @@ func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expect
 	return blockInfo, nil
 }
 
-func transformBlockInfo(res *ffcapi.BlockInfo) *BlockInfo {
-	return &BlockInfo{
+func transformBlockInfo(res *ffcapi.BlockInfo) *apitypes.BlockInfo {
+	return &apitypes.BlockInfo{
 		BlockNumber:       fftypes.FFuint64(res.BlockNumber.Uint64()),
 		BlockHash:         res.BlockHash,
 		ParentHash:        res.ParentHash,
@@ -469,7 +463,7 @@ func (bcm *blockConfirmationManager) addOrReplaceItem(pending *pendingItem) {
 	bcm.pendingMux.Lock()
 	defer bcm.pendingMux.Unlock()
 	pending.added = time.Now()
-	pending.confirmations = make([]*BlockInfo, 0, bcm.requiredConfirmations)
+	pending.confirmations = make([]*apitypes.BlockInfo, 0, bcm.requiredConfirmations)
 	pendingKey := pending.getKey()
 	bcm.pending[pendingKey] = pending
 	log.L(bcm.ctx).Infof("Added pending item %s", pendingKey)
@@ -507,7 +501,7 @@ func (bcm *blockConfirmationManager) processBlockHashes(blockHashes []string) {
 	}
 }
 
-func (bcm *blockConfirmationManager) processBlock(block *BlockInfo) {
+func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 
 	// For any transactions in the block that are known to us, we need to mark them
 	// stale to go query the receipt
@@ -605,11 +599,11 @@ func (bcm *blockConfirmationManager) walkChain(blocks *blockState) error {
 func (bcm *blockConfirmationManager) newBlockState() *blockState {
 	return &blockState{
 		bcm:    bcm,
-		blocks: make(map[uint64]*BlockInfo),
+		blocks: make(map[uint64]*apitypes.BlockInfo),
 	}
 }
 
-func (bs *blockState) getByNumber(blockNumber uint64, expectedParentHash string) (*BlockInfo, error) {
+func (bs *blockState) getByNumber(blockNumber uint64, expectedParentHash string) (*apitypes.BlockInfo, error) {
 	// blockState gives a consistent view of the chain throughout a cycle, where we perform a carefully ordered
 	// set of actions against our pending items.
 	// - We never return newer blocks after a query has been made that found a nil result at a lower block number

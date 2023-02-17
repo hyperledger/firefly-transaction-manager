@@ -40,6 +40,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhistorymocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -788,10 +789,10 @@ func TestGetTransactionsErrors(t *testing.T) {
 	mp.On("GetTransactionByID", sth.ctx, mock.Anything).Return(nil, nil).Once()
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 	sth.Init(sth.ctx, tk)
-	_, err = sth.GetTransactions(sth.ctx, "", "cannot provide signer for pending transaction", true, 0, persistence.SortDirectionAscending)
+	_, err = sth.GetTransactions(sth.ctx, "", "cannot provide signer for pending transaction", true, 0, toolkit.SortDirectionAscending)
 	assert.Regexp(t, "FF21063", err)
 
-	_, err = sth.GetTransactions(sth.ctx, "after-not-found", "", false, 0, persistence.SortDirectionAscending)
+	_, err = sth.GetTransactions(sth.ctx, "after-not-found", "", false, 0, toolkit.SortDirectionAscending)
 	assert.Regexp(t, "FF21062", err)
 
 	mp.AssertExpectations(t)

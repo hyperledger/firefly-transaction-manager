@@ -18,7 +18,6 @@ package apitypes
 
 import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
@@ -140,7 +139,14 @@ type ManagedTX struct {
 	ErrorMessage            string                             `json:"errorMessage,omitempty"`
 	History                 []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
 	HistorySummary          []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`
-	Confirmations           []confirmations.BlockInfo          `json:"confirmations,omitempty"`
+	Confirmations           []BlockInfo                        `json:"confirmations,omitempty"`
+}
+
+type BlockInfo struct {
+	BlockNumber       fftypes.FFuint64 `json:"blockNumber"`
+	BlockHash         string           `json:"blockHash"`
+	ParentHash        string           `json:"parentHash"`
+	TransactionHashes []string         `json:"transactionHashes,omitempty"`
 }
 
 type ReplyType string
