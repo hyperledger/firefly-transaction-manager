@@ -130,7 +130,7 @@ type ManagedTX struct {
 	TransactionHeaders      ffcapi.TransactionHeaders          `json:"transactionHeaders"`
 	TransactionData         string                             `json:"transactionData"`
 	TransactionHash         string                             `json:"transactionHash,omitempty"`
-	PreviousTransactionHash string                             `json:"-"`  // used internally by FFTM to track when a previous hash no longer needs to be confirmed, and can be removed from the confirmation manager
+	PreviousTransactionHash string                             `json:"-"` // used internally by FFTM to track when a previous hash no longer needs to be confirmed, and can be removed from the confirmation manager
 	GasPrice                *fftypes.JSONAny                   `json:"gasPrice"`
 	PolicyInfo              *fftypes.JSONAny                   `json:"policyInfo"`
 	FirstSubmit             *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
