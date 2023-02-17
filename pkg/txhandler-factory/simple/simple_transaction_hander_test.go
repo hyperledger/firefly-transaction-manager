@@ -45,7 +45,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory, *txhandler.ToolkitAPI, *ffcapimocks.API, *txhistorymocks.Manager, config.Section) {
+func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, *txhistorymocks.Manager, config.Section) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
 
@@ -63,7 +63,7 @@ func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory,
 
 	mockFFCAPI := &ffcapimocks.API{}
 
-	return f, &txhandler.ToolkitAPI{
+	return f, &txhandler.Toolkit{
 		Connector:      mockFFCAPI,
 		TXHistory:      mockHistory,
 		Persistence:    mockPersistence,
@@ -71,7 +71,7 @@ func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory,
 	}, mockFFCAPI, mockHistory, conf
 }
 
-func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*TransactionHandlerFactory, *txhandler.ToolkitAPI, *ffcapimocks.API, *txhistorymocks.Manager, config.Section, func()) {
+func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, *txhistorymocks.Manager, config.Section, func()) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
 
@@ -94,7 +94,7 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 
 	mockFFCAPI := &ffcapimocks.API{}
 
-	return f, &txhandler.ToolkitAPI{
+	return f, &txhandler.Toolkit{
 			Connector:      mockFFCAPI,
 			TXHistory:      mockHistory,
 			Persistence:    filePersistence,
@@ -148,10 +148,11 @@ func TestFixedGasPriceOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	updated, reason, err := sth.processTransaction(ctx, tk, mtx)
+	updated, reason, err := sth.processTransaction(ctx, mtx)
 	assert.NoError(t, err)
 	assert.Equal(t, UpdateYes, updated)
 	assert.Empty(t, reason)
@@ -217,10 +218,10 @@ func TestGasOracleSendOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-
+	th.Init(ctx, tk)
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	updated, reason, err := sth.processTransaction(ctx, tk, mtx)
+	updated, reason, err := sth.processTransaction(ctx, mtx)
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
 	assert.Equal(t, UpdateYes, updated)
@@ -266,10 +267,10 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
-
+	th.Init(ctx, tk)
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	updated, reason, err := sth.processTransaction(ctx, tk, mtx)
+	updated, reason, err := sth.processTransaction(ctx, mtx)
 	assert.NoError(t, err)
 	assert.Empty(t, reason)
 	assert.Equal(t, UpdateYes, updated)
@@ -305,10 +306,10 @@ func TestConnectorGasOracleFail(t *testing.T) {
 	}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
-
+	th.Init(ctx, tk)
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	_, reason, err := sth.processTransaction(ctx, tk, mtx)
+	_, reason, err := sth.processTransaction(ctx, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
 
@@ -339,10 +340,11 @@ func TestConnectorGasOracleFailStale(t *testing.T) {
 	}, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	_, reason, err := sth.processTransaction(ctx, tk, mtx)
+	_, reason, err := sth.processTransaction(ctx, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
 
@@ -373,10 +375,11 @@ func TestGasOracleSendFail(t *testing.T) {
 	}
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	_, _, err = sth.processTransaction(ctx, tk, mtx)
+	_, _, err = sth.processTransaction(ctx, mtx)
 	assert.Regexp(t, "FF21021", err)
 
 }
@@ -431,10 +434,11 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 	}
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	_, _, err = sth.processTransaction(ctx, tk, mtx)
+	_, _, err = sth.processTransaction(ctx, mtx)
 	assert.Regexp(t, "FF21026", err)
 
 }
@@ -459,10 +463,11 @@ func TestGasOracleNonJSON(t *testing.T) {
 	}
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	_, _, err = sth.processTransaction(ctx, tk, mtx)
+	_, _, err = sth.processTransaction(ctx, mtx)
 	assert.Regexp(t, "FF21021", err)
 
 }
@@ -491,10 +496,11 @@ func TestTXSendFail(t *testing.T) {
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonInvalidInputs, fmt.Errorf("pop"))
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	_, _, err = sth.processTransaction(ctx, tk, mtx)
+	_, _, err = sth.processTransaction(ctx, mtx)
 	assert.Regexp(t, "pop", err)
 
 }
@@ -523,10 +529,11 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	updated, _, err := sth.processTransaction(ctx, tk, mtx)
+	updated, _, err := sth.processTransaction(ctx, mtx)
 	assert.NoError(t, err)
 	assert.Equal(t, UpdateYes, updated)
 	assert.NotEmpty(t, mtx.PolicyInfo.JSONObject().GetString("lastWarnTime"))
@@ -554,10 +561,11 @@ func TestKnownTransactionHashKnown(t *testing.T) {
 		Return(nil, ffcapi.ErrorKnownTransaction, fmt.Errorf("Known transaction"))
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	updated, _, err := sth.processTransaction(ctx, tk, mtx)
+	updated, _, err := sth.processTransaction(ctx, mtx)
 	assert.NoError(t, err)
 	assert.Equal(t, UpdateYes, updated)
 
@@ -589,10 +597,11 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 		Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	updated, reason, err := sth.processTransaction(ctx, tk, mtx)
+	updated, reason, err := sth.processTransaction(ctx, mtx)
 	assert.Regexp(t, "pop", err)
 	assert.Empty(t, reason)
 	assert.Equal(t, UpdateYes, updated)
@@ -620,10 +629,11 @@ func TestWarnStaleNoWarning(t *testing.T) {
 	}
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	updated, reason, err := sth.processTransaction(ctx, tk, mtx)
+	updated, reason, err := sth.processTransaction(ctx, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
 	assert.Equal(t, UpdateNo, updated)
@@ -632,7 +642,7 @@ func TestWarnStaleNoWarning(t *testing.T) {
 }
 
 func TestNoOpWithReceipt(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, _, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -654,7 +664,7 @@ func TestNoOpWithReceipt(t *testing.T) {
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	updated, reason, err := sth.processTransaction(ctx, tk, mtx)
+	updated, reason, err := sth.processTransaction(ctx, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
 	assert.Equal(t, UpdateNo, updated)
@@ -674,10 +684,11 @@ func TestAllowsDeleteRequest(t *testing.T) {
 	}
 
 	ctx := context.Background()
+	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	updated, reason, err := sth.processTransaction(ctx, tk, mtx)
+	updated, reason, err := sth.processTransaction(ctx, mtx)
 	assert.Empty(t, reason)
 	assert.NoError(t, err)
 	assert.Equal(t, UpdateDelete, updated)

@@ -106,7 +106,7 @@ func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, c
 
 type simpleTransactionHandler struct {
 	ctx              context.Context
-	tkAPI            *txhandler.ToolkitAPI
+	toolkit          *txhandler.Toolkit
 	fixedGasPrice    *fftypes.JSONAny
 	resubmitInterval time.Duration
 
@@ -159,8 +159,8 @@ func (sth *simpleTransactionHandler) withPolicyInfo(ctx context.Context, mtx *ap
 	return update, reason, err
 }
 
-func (sth *simpleTransactionHandler) Init(ctx context.Context, tkAPI *txhandler.ToolkitAPI) {
-	sth.tkAPI = tkAPI
+func (sth *simpleTransactionHandler) Init(ctx context.Context, toolkit *txhandler.Toolkit) {
+	sth.toolkit = toolkit
 }
 
 func (sth *simpleTransactionHandler) Start(ctx context.Context) (done <-chan struct{}, err error) {
@@ -177,7 +177,7 @@ func (sth *simpleTransactionHandler) RegisterNewTransaction(ctx context.Context,
 	// Prepare the transaction, which will mean we have a transaction that should be submittable.
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
 	// anything to the blockchain itself.
-	prepared, _, err := sth.tkAPI.Connector.TransactionPrepare(ctx, &ffcapi.TransactionPrepareRequest{
+	prepared, _, err := sth.toolkit.Connector.TransactionPrepare(ctx, &ffcapi.TransactionPrepareRequest{
 		TransactionInput: txReq.TransactionInput,
 	})
 	if err != nil {
@@ -191,7 +191,7 @@ func (sth *simpleTransactionHandler) RegisterNewContractDeployment(ctx context.C
 	// Prepare the transaction, which will mean we have a transaction that should be submittable.
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
 	// anything to the blockchain itself.
-	prepared, _, err := sth.tkAPI.Connector.DeployContractPrepare(ctx, &txReq.ContractDeployPrepareRequest)
+	prepared, _, err := sth.toolkit.Connector.DeployContractPrepare(ctx, &txReq.ContractDeployPrepareRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +207,7 @@ func (sth *simpleTransactionHandler) CancelTransaction(ctx context.Context, txID
 }
 
 func (sth *simpleTransactionHandler) GetTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error) {
-	tx, err := sth.tkAPI.Persistence.GetTransactionByID(ctx, txID)
+	tx, err := sth.toolkit.Persistence.GetTransactionByID(ctx, txID)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func (sth *simpleTransactionHandler) GetTransactions(ctx context.Context, afterS
 	var afterTx *apitypes.ManagedTX
 	if afterStr != "" {
 		// Get the transaction, as we need this to exist to pick the right field depending on the index that's been chosen
-		afterTx, err = sth.tkAPI.Persistence.GetTransactionByID(ctx, afterStr)
+		afterTx, err = sth.toolkit.Persistence.GetTransactionByID(ctx, afterStr)
 		if err != nil {
 			return nil, err
 		}
@@ -236,15 +236,15 @@ func (sth *simpleTransactionHandler) GetTransactions(ctx context.Context, afterS
 		if afterTx != nil {
 			afterNonce = afterTx.Nonce
 		}
-		return sth.tkAPI.Persistence.ListTransactionsByNonce(ctx, signer, afterNonce, limit, direction)
+		return sth.toolkit.Persistence.ListTransactionsByNonce(ctx, signer, afterNonce, limit, direction)
 	case pending:
 		var afterSequence *fftypes.UUID
 		if afterTx != nil {
 			afterSequence = afterTx.SequenceID
 		}
-		return sth.tkAPI.Persistence.ListTransactionsPending(ctx, afterSequence, limit, direction)
+		return sth.toolkit.Persistence.ListTransactionsPending(ctx, afterSequence, limit, direction)
 	default:
-		return sth.tkAPI.Persistence.ListTransactionsByCreateTime(ctx, afterTx, limit, direction)
+		return sth.toolkit.Persistence.ListTransactionsByCreateTime(ctx, afterTx, limit, direction)
 	}
 }
 
@@ -287,10 +287,10 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 		Status:             apitypes.TxStatusPending,
 	}
 
-	sth.tkAPI.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
-	sth.tkAPI.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
+	sth.toolkit.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
+	sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
 
-	if err = sth.tkAPI.Persistence.WriteTransaction(ctx, mtx, true); err != nil {
+	if err = sth.toolkit.Persistence.WriteTransaction(ctx, mtx, true); err != nil {
 		return nil, err
 	}
 	log.L(ctx).Infof("Tracking transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
@@ -303,7 +303,7 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 	return mtx, nil
 }
 
-func (sth *simpleTransactionHandler) submitTX(ctx context.Context, tk *txhandler.ToolkitAPI, mtx *apitypes.ManagedTX) (reason ffcapi.ErrorReason, err error) {
+func (sth *simpleTransactionHandler) submitTX(ctx context.Context, mtx *apitypes.ManagedTX) (reason ffcapi.ErrorReason, err error) {
 	sendTX := &ffcapi.TransactionSendRequest{
 		TransactionHeaders: mtx.TransactionHeaders,
 		GasPrice:           mtx.GasPrice,
@@ -312,13 +312,13 @@ func (sth *simpleTransactionHandler) submitTX(ctx context.Context, tk *txhandler
 	sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
 	sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
 	log.L(ctx).Debugf("Sending transaction %s at nonce %s / %d (lastSubmit=%s)", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.LastSubmit)
-	res, reason, err := tk.Connector.TransactionSend(ctx, sendTX)
+	res, reason, err := sth.toolkit.Connector.TransactionSend(ctx, sendTX)
 	if err == nil {
-		tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), nil)
+		sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), nil)
 		mtx.TransactionHash = res.TransactionHash
 		mtx.LastSubmit = fftypes.Now()
 	} else {
-		tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
+		sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
 		// We have some simple rules for handling reasons from the connector, which could be enhanced by extending the connector.
 		switch reason {
 		case ffcapi.ErrorKnownTransaction, ffcapi.ErrorReasonNonceTooLow:
@@ -337,11 +337,11 @@ func (sth *simpleTransactionHandler) submitTX(ctx context.Context, tk *txhandler
 		}
 	}
 	log.L(ctx).Infof("Transaction %s at nonce %s / %d submitted. Hash: %s", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.TransactionHash)
-	tk.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusTracking)
+	sth.toolkit.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusTracking)
 	return "", nil
 }
 
-func (sth *simpleTransactionHandler) processTransaction(ctx context.Context, tk *txhandler.ToolkitAPI, mtx *apitypes.ManagedTX) (update UpdateType, reason ffcapi.ErrorReason, err error) {
+func (sth *simpleTransactionHandler) processTransaction(ctx context.Context, mtx *apitypes.ManagedTX) (update UpdateType, reason ffcapi.ErrorReason, err error) {
 
 	// Simply policy engine allows deletion of the transaction without additional checks ( ensuring the TX has not been submitted / gap filling the nonce etc. )
 	if mtx.DeleteRequested != nil {
@@ -351,14 +351,14 @@ func (sth *simpleTransactionHandler) processTransaction(ctx context.Context, tk 
 	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
 		// Only calculate gas price here in the simple policy engine
-		mtx.GasPrice, err = sth.getGasPrice(ctx, tk.Connector)
+		mtx.GasPrice, err = sth.getGasPrice(ctx, sth.toolkit.Connector)
 		if err != nil {
-			tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
+			sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
 			return UpdateNo, "", err
 		}
-		tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
+		sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
 		// Submit the first time
-		if reason, err := sth.submitTX(ctx, tk, mtx); err != nil {
+		if reason, err := sth.submitTX(ctx, mtx); err != nil {
 			return UpdateYes, reason, err
 		}
 		mtx.FirstSubmit = mtx.LastSubmit
@@ -380,20 +380,20 @@ func (sth *simpleTransactionHandler) processTransaction(ctx context.Context, tk 
 				log.L(ctx).Infof("Transaction %s at nonce %s / %d has not been mined after %.2fs", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), secsSinceSubmit)
 				info.LastWarnTime = now
 				// We do a resubmit at this point - as it might no longer be in the TX pool
-				tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionTimeout, nil, nil)
-				tk.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusStale)
-				mtx.GasPrice, err = sth.getGasPrice(ctx, tk.Connector)
+				sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionTimeout, nil, nil)
+				sth.toolkit.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusStale)
+				mtx.GasPrice, err = sth.getGasPrice(ctx, sth.toolkit.Connector)
 				if err != nil {
-					tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
+					sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
 					return UpdateNo, "", err
 				}
-				tk.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
-				if reason, err := sth.submitTX(ctx, tk, mtx); err != nil {
+				sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
+				if reason, err := sth.submitTX(ctx, mtx); err != nil {
 					if reason != ffcapi.ErrorKnownTransaction {
 						return UpdateYes, reason, err
 					}
 				}
-				tk.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusTracking)
+				sth.toolkit.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusTracking)
 				return UpdateYes, "", nil
 			}
 			return UpdateNo, "", nil

@@ -87,7 +87,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 				From: "0x12345",
 			},
 		}
-		err = sth.tkAPI.Persistence.WriteTransaction(sth.ctx, ln.spent, true)
+		err = sth.toolkit.Persistence.WriteTransaction(sth.ctx, ln.spent, true)
 		assert.NoError(t, err)
 		ln.complete(context.Background())
 	}()

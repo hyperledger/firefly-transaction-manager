@@ -92,7 +92,7 @@ func (sth *simpleTransactionHandler) calcNextNonce(ctx context.Context, signer s
 	// Note we are within the nonce-lock in assignAndLockNonce for this signer, so we can be sure we're the
 	// only routine attempting this right now.
 	var lastTxn *apitypes.ManagedTX
-	txns, err := sth.tkAPI.Persistence.ListTransactionsByNonce(ctx, signer, nil, 1, persistence.SortDirectionDescending)
+	txns, err := sth.toolkit.Persistence.ListTransactionsByNonce(ctx, signer, nil, 1, persistence.SortDirectionDescending)
 	if err != nil {
 		return 0, err
 	}
@@ -106,7 +106,7 @@ func (sth *simpleTransactionHandler) calcNextNonce(ctx context.Context, signer s
 	}
 
 	// If we don't have a fresh answer in our state store, then ask the node.
-	nextNonceRes, _, err := sth.tkAPI.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
+	nextNonceRes, _, err := sth.toolkit.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
 		Signer: signer,
 	})
 	if err != nil {

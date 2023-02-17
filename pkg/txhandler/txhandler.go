@@ -27,7 +27,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
-type ToolkitAPI struct {
+type Toolkit struct {
 	Connector      ffcapi.API
 	TXHistory      txhistory.Manager
 	Persistence    persistence.Persistence
@@ -45,7 +45,7 @@ type ManagedTxEventHandler interface {
 // Transaction manager delegates all transaction specific operations to transaction apart from the triggers (REST API call for actions, Event stream for events) of those operations
 // This design allows the Transaction handler to apply customized logic at different stage of transaction life cycles listed below.
 type TransactionHandler interface {
-	Init(ctx context.Context, tkAPI *ToolkitAPI)
+	Init(ctx context.Context, toolkit *Toolkit)
 
 	Start(ctx context.Context) (done <-chan struct{}, err error)
 

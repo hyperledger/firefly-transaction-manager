@@ -128,9 +128,9 @@ func (_m *TransactionHandler) HandleTransactionReceipt(ctx context.Context, txID
 	return r0
 }
 
-// Init provides a mock function with given fields: ctx, tkAPI
-func (_m *TransactionHandler) Init(ctx context.Context, tkAPI *txhandler.ToolkitAPI) {
-	_m.Called(ctx, tkAPI)
+// Init provides a mock function with given fields: ctx, toolkit
+func (_m *TransactionHandler) Init(ctx context.Context, toolkit *txhandler.Toolkit) {
+	_m.Called(ctx, toolkit)
 }
 
 // RegisterNewContractDeployment provides a mock function with given fields: ctx, txReq

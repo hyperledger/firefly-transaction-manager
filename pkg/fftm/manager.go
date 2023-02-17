@@ -56,7 +56,7 @@ type manager struct {
 
 	txhistory txhistory.Manager
 	connector ffcapi.API
-	tkAPI     *txhandler.ToolkitAPI
+	toolkit   *txhandler.Toolkit
 
 	mux               sync.Mutex
 	eventStreams      map[fftypes.UUID]events.Stream
@@ -100,7 +100,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 		metricsManager:    metrics.NewMetricsManager(ctx),
 		txhistory:         txhistory.NewTxHistoryManager(ctx),
 	}
-	m.tkAPI = &txhandler.ToolkitAPI{
+	m.toolkit = &txhandler.Toolkit{
 		Connector:      m.connector,
 		TXHistory:      m.txhistory,
 		MetricsManager: m.metricsManager,
@@ -128,8 +128,8 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	m.tkAPI.EventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
-	m.txHandler.Init(ctx, m.tkAPI)
+	m.toolkit.EventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
+	m.txHandler.Init(ctx, m.toolkit)
 	return nil
 }
 
@@ -140,7 +140,7 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 		if m.persistence, err = persistence.NewLevelDBPersistence(ctx); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
-		m.tkAPI.Persistence = m.persistence
+		m.toolkit.Persistence = m.persistence
 		return nil
 	default:
 		return i18n.NewError(ctx, tmmsgs.MsgUnknownPersistence, pType)

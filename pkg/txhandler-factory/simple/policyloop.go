@@ -115,7 +115,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 		var additional []*apitypes.ManagedTX
 		// We retry the get from persistence indefinitely (until the context cancels)
 		err := sth.retry.Do(ctx, "get pending transactions", func(attempt int) (retry bool, err error) {
-			additional, err = sth.tkAPI.Persistence.ListTransactionsPending(ctx, after, spaces, persistence.SortDirectionAscending)
+			additional, err = sth.toolkit.Persistence.ListTransactionsPending(ctx, after, spaces, persistence.SortDirectionAscending)
 			return true, err
 		})
 		if err != nil {
@@ -146,8 +146,8 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 	}
 
 	// Go through executing the policy engine against them
-	if sth.tkAPI.MetricsManager.IsMetricsEnabled() {
-		sth.tkAPI.MetricsManager.TransactionsInFlightSet(float64(len(sth.inflight)))
+	if sth.toolkit.MetricsManager.IsMetricsEnabled() {
+		sth.toolkit.MetricsManager.TransactionsInFlightSet(float64(len(sth.inflight)))
 	}
 
 	for _, pending := range sth.inflight {
@@ -160,7 +160,7 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 }
 
 func (sth *simpleTransactionHandler) getTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error) {
-	tx, err := sth.tkAPI.Persistence.GetTransactionByID(ctx, txID)
+	tx, err := sth.toolkit.Persistence.GetTransactionByID(ctx, txID)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 	completed := false
 	var receiptProtocolID string
 	var lastStatusChange *fftypes.FFTime
-	currentSubStatus := sth.tkAPI.TXHistory.CurrentSubStatus(ctx, pending.mtx)
+	currentSubStatus := sth.toolkit.TXHistory.CurrentSubStatus(ctx, pending.mtx)
 
 	if currentSubStatus != nil {
 		lastStatusChange = currentSubStatus.Time
@@ -267,18 +267,18 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 			// such as submitting for the first time, or raising the gas etc.
 
-			update, updateReason, updateErr = sth.processTransaction(ctx, sth.tkAPI, pending.mtx)
+			update, updateReason, updateErr = sth.processTransaction(ctx, pending.mtx)
 			if updateErr != nil {
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, updateReason, err)
 				update = UpdateYes
-				if sth.tkAPI.MetricsManager.IsMetricsEnabled() {
-					sth.tkAPI.MetricsManager.TransactionSubmissionError()
+				if sth.toolkit.MetricsManager.IsMetricsEnabled() {
+					sth.toolkit.MetricsManager.TransactionSubmissionError()
 				}
 			} else {
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil && mtx.PreviousTransactionHash != mtx.TransactionHash {
 					// If now submitted, add to confirmations manager for receipt checking
-					err = sth.tkAPI.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+					err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 						Type: apitypes.ManagedTXTransactionHashUpdated,
 						Tx:   mtx,
 					}) // Only reason for error here should be a cancelled context
@@ -294,15 +294,15 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 		}
 	}
 
-	if sth.tkAPI.TXHistory.CurrentSubStatus(ctx, mtx) != nil {
-		if !sth.tkAPI.TXHistory.CurrentSubStatus(ctx, mtx).Time.Equal(lastStatusChange) {
+	if sth.toolkit.TXHistory.CurrentSubStatus(ctx, mtx) != nil {
+		if !sth.toolkit.TXHistory.CurrentSubStatus(ctx, mtx).Time.Equal(lastStatusChange) {
 			update = UpdateYes
 		}
 	}
 
 	switch update {
 	case UpdateYes:
-		err := sth.tkAPI.Persistence.WriteTransaction(ctx, mtx, false)
+		err := sth.toolkit.Persistence.WriteTransaction(ctx, mtx, false)
 		if err != nil {
 			log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
 			return err
@@ -314,12 +314,12 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 		}
 		// if and only if the transaction is now resolved send web a socket update
 		if mtx.Status == apitypes.TxStatusSucceeded {
-			err = sth.tkAPI.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+			err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 				Type: apitypes.ManagedTXProcessSucceeded,
 				Tx:   mtx,
 			})
 		} else if mtx.Status == apitypes.TxStatusFailed {
-			err = sth.tkAPI.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+			err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 				Type: apitypes.ManagedTXProcessFailed,
 				Tx:   mtx,
 			})
@@ -329,14 +329,14 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			return err
 		}
 	case UpdateDelete:
-		err := sth.tkAPI.Persistence.DeleteTransaction(ctx, mtx.ID)
+		err := sth.toolkit.Persistence.DeleteTransaction(ctx, mtx.ID)
 		if err != nil {
 			log.L(ctx).Errorf("Failed to delete transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
 			return err
 		}
 		pending.remove = true // for the next time round the loop
 		sth.markInflightStale()
-		err = sth.tkAPI.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+		err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 			Type: apitypes.ManagedTXDeleted,
 			Tx:   mtx,
 		})
@@ -384,8 +384,8 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Cont
 	pending.mtx.Confirmations = confirmations
 	sth.mux.Unlock()
 	log.L(ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
-	sth.tkAPI.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionConfirmTransaction, nil, nil)
-	sth.tkAPI.TXHistory.SetSubStatus(ctx, pending.mtx, apitypes.TxSubStatusConfirmed)
+	sth.toolkit.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionConfirmTransaction, nil, nil)
+	sth.toolkit.TXHistory.SetSubStatus(ctx, pending.mtx, apitypes.TxSubStatusConfirmed)
 	sth.markInflightUpdate()
 	return
 }
@@ -406,7 +406,7 @@ func (sth *simpleTransactionHandler) HandleTransactionReceipt(ctx context.Contex
 	pending.mtx.Receipt = receipt
 	sth.mux.Unlock()
 	log.L(ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
-	sth.tkAPI.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
+	sth.toolkit.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
 	sth.markInflightUpdate()
 	return
 }
