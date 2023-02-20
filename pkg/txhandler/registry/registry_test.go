@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler-factory/simple"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/simple"
 	"github.com/stretchr/testify/assert"
 )
 

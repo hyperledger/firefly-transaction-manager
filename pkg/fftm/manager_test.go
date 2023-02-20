@@ -34,8 +34,8 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
-	txhandlerfactory "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler-factory"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler-factory/simple"
+	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/simple"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -47,7 +47,7 @@ func strPtr(s string) *string { return &s }
 func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 
 	InitConfig()
-	txhandlerfactory.RegisterHandler(&simple.TransactionHandlerFactory{})
+	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").SubSection(simple.GasOracleConfig).Set(simple.GasOracleMode, simple.GasOracleModeDisabled)
 
 	if withMetrics {
@@ -146,7 +146,7 @@ func TestNewManagerBadPersistencePathConfig(t *testing.T) {
 	tmconfig.Reset()
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "::::")
 
-	txhandlerfactory.RegisterHandler(&simple.TransactionHandlerFactory{})
+	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background(), nil)
@@ -164,7 +164,7 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
-	txhandlerfactory.RegisterHandler(&simple.TransactionHandlerFactory{})
+	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err = NewManager(context.Background(), nil)
@@ -183,7 +183,7 @@ func TestNewManagerBadLevelDBConfig(t *testing.T) {
 	config.Set(tmconfig.PersistenceLevelDBPath, tmpFile.Name)
 	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, "0")
 
-	txhandlerfactory.RegisterHandler(&simple.TransactionHandlerFactory{})
+	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err = NewManager(context.Background(), nil)
@@ -197,7 +197,7 @@ func TestNewManagerBadPersistenceConfig(t *testing.T) {
 	config.Set(tmconfig.PersistenceType, "wrong")
 	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, "0")
 
-	txhandlerfactory.RegisterHandler(&simple.TransactionHandlerFactory{})
+	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err := NewManager(context.Background(), nil)
@@ -246,7 +246,7 @@ func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
-	txhandlerfactory.RegisterHandler(&simple.TransactionHandlerFactory{})
+	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.PolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
 	_, err = NewManager(context.Background(), nil)

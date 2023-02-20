@@ -36,7 +36,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
-	txhandlerfactory "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler-factory"
+	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
@@ -125,7 +125,7 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 		}
 	}
 
-	m.txHandler, err = txhandlerfactory.NewTransactionHandler(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
+	m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
 	if err != nil {
 		return err
 	}
