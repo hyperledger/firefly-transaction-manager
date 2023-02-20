@@ -45,9 +45,7 @@ var (
 	ConfigConfirmationsRequired                 = ffc("config.confirmations.required", "Number of confirmations required to consider a transaction/event final", i18n.IntType)
 	ConfigConfirmationsStaleReceiptTimeout      = ffc("config.confirmations.staleReceiptTimeout", "Duration after which to force a receipt check for a pending transaction", i18n.TimeDurationType)
 
-	ConfigTransactionsMaxHistoryCount        = ffc("config.transactions.maxHistoryCount", "The number of historical status updates to retain in the operation", i18n.IntType)
-	ConfigTransactionsMaxHistorySummaryCount = ffc("config.transactions.maxHistorySummaryCount", "The number of historical status summary records to retain in the operation", i18n.IntType)
-	ConfigTransactionsMaxHistoryActions      = ffc("config.transactions.maxHistoryActions", "The number of actions to store per historical status updates", i18n.IntType)
+	ConfigTransactionsMaxHistoryCount = ffc("config.transactions.maxHistoryCount", "The number of historical status updates to retain in the operation", i18n.IntType)
 
 	DeprecatedConfigTransactionsMaxInflight                  = ffc("config.transactions.maxInFlight", "Deprecated: Please use 'transactions.handler.simple.maxInFlight' instead", i18n.IntType)
 	DeprecatedConfigTransactionsNonceStateTimeout            = ffc("config.transactions.nonceStateTimeout", "Deprecated: Please use 'transactions.handler.simple.nonceStateTimeout' instead", i18n.TimeDurationType)
