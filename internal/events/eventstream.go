@@ -29,12 +29,12 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/retry"
 	"github.com/hyperledger/firefly-transaction-manager/internal/blocklistener"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 )
 
 type Stream interface {
@@ -104,7 +104,7 @@ type eventStream struct {
 	mux                sync.Mutex
 	status             apitypes.EventStreamStatus
 	connector          ffcapi.API
-	persistence        toolkit.Persistence
+	persistence        persistence.EventStreamPersistence
 	confirmations      confirmations.Manager
 	listeners          map[fftypes.UUID]*listener
 	wsChannels         ws.WebSocketChannels
@@ -118,7 +118,7 @@ func NewEventStream(
 	bgCtx context.Context,
 	persistedSpec *apitypes.EventStream,
 	connector ffcapi.API,
-	persistence toolkit.Persistence,
+	persistence persistence.Persistence,
 	wsChannels ws.WebSocketChannels,
 	initialListeners []*apitypes.Listener,
 ) (ees Stream, err error) {

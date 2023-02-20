@@ -53,7 +53,7 @@ type manager struct {
 	apiServer     httpserver.HTTPServer
 	metricsServer httpserver.HTTPServer
 	wsServer      ws.WebSocketServer
-	persistence   toolkit.Persistence
+	persistence   persistence.Persistence
 
 	txhistory txhistory.Manager
 	connector ffcapi.API

@@ -43,7 +43,7 @@ type leveldbPersistence struct {
 	txMux      sync.RWMutex // allows us to draw conclusions on the cleanup of indexes
 }
 
-func NewLevelDBPersistence(ctx context.Context) (toolkit.Persistence, error) {
+func NewLevelDBPersistence(ctx context.Context) (Persistence, error) {
 	dbPath := config.GetString(tmconfig.PersistenceLevelDBPath)
 	if dbPath == "" {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgLevelDBPathMissing)
