@@ -22,7 +22,9 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -37,10 +39,6 @@ func newTestManagedTransactionEventHandler() *ManagedTransactionEventHandler {
 }
 
 func TestHandleTransactionProcessSuccessEvent(t *testing.T) {
-	eh := newTestManagedTransactionEventHandler()
-	mws := &wsmocks.WebSocketServer{}
-	mws.On("SendReply", mock.Anything).Return(nil).Once()
-	eh.WsServer = mws
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
@@ -52,6 +50,15 @@ func TestHandleTransactionProcessSuccessEvent(t *testing.T) {
 		},
 		TransactionHash: "0x1111",
 	}
+	eh := newTestManagedTransactionEventHandler()
+	mws := &wsmocks.WebSocketServer{}
+	mws.On("SendReply", mock.MatchedBy(func(r *apitypes.TransactionUpdateReply) bool {
+		return r.Headers.RequestID == testTx.ID &&
+			r.Headers.Type == apitypes.TransactionUpdateSuccess &&
+			r.Status == testTx.Status &&
+			r.ProtocolID == ""
+	})).Return(nil).Once()
+	eh.WsServer = mws
 
 	eh.HandleEvent(context.Background(), apitypes.ManagedTransactionEvent{
 		Type: apitypes.ManagedTXProcessSucceeded,
@@ -62,21 +69,32 @@ func TestHandleTransactionProcessSuccessEvent(t *testing.T) {
 }
 
 func TestHandleTransactionProcessFailEvent(t *testing.T) {
-	eh := newTestManagedTransactionEventHandler()
-	mws := &wsmocks.WebSocketServer{}
-	mws.On("SendReply", mock.Anything).Return(nil).Once()
-	eh.WsServer = mws
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
 		SequenceID: apitypes.NewULID(),
 		Nonce:      fftypes.NewFFBigInt(1),
-		Status:     apitypes.TxStatusSucceeded,
+		Status:     apitypes.TxStatusFailed,
+		Receipt: &ffcapi.TransactionReceiptResponse{
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+		},
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: "0x0000",
 		},
 		TransactionHash: "0x1111",
 	}
+	eh := newTestManagedTransactionEventHandler()
+	mws := &wsmocks.WebSocketServer{}
+	mws.On("SendReply", mock.MatchedBy(func(r *apitypes.TransactionUpdateReply) bool {
+		return r.Headers.RequestID == testTx.ID &&
+			r.Headers.Type == apitypes.TransactionUpdateFailure &&
+			r.Status == testTx.Status &&
+			r.TransactionHash == testTx.TransactionHash &&
+			r.ContractLocation == testTx.Receipt.ContractLocation &&
+			r.ProtocolID == testTx.Receipt.ProtocolID
+	})).Return(nil).Once()
+	eh.WsServer = mws
 
 	eh.HandleEvent(context.Background(), apitypes.ManagedTransactionEvent{
 		Type: apitypes.ManagedTXProcessFailed,
@@ -136,4 +154,44 @@ func TestHandleTransactionHashUpdateEventOldHash(t *testing.T) {
 	})
 
 	mcm.AssertExpectations(t)
+}
+
+func TestHandleTransactionHashUpdateEventSwallowErrors(t *testing.T) {
+	testTx := &apitypes.ManagedTX{
+		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+		Created:    fftypes.Now(),
+		SequenceID: apitypes.NewULID(),
+		Nonce:      fftypes.NewFFBigInt(1),
+		Status:     apitypes.TxStatusPending,
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x0000",
+		},
+		PreviousTransactionHash: "0x1111",
+		TransactionHash:         "0x2222",
+	}
+	eh := newTestManagedTransactionEventHandler()
+	mth := txhandlermocks.TransactionHandler{}
+	mth.On("HandleTransactionReceipt", mock.Anything, testTx.ID, mock.Anything).Return(fmt.Errorf("boo")).Once()
+	mth.On("HandleTransactionConfirmed", mock.Anything, testTx.ID, mock.Anything).Return(fmt.Errorf("boo")).Once()
+	eh.TxHandler = &mth
+	mc := &confirmationsmocks.Manager{}
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		return n.NotificationType == confirmations.RemovedTransaction
+	})).Return(nil).Once()
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		return n.NotificationType == confirmations.NewTransaction
+	})).Run(func(args mock.Arguments) {
+		n := args[0].(*confirmations.Notification)
+		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{})
+		n.Transaction.Confirmed(context.Background(), []apitypes.BlockInfo{})
+	}).Return(nil)
+	eh.ConfirmationManager = mc
+
+	eh.HandleEvent(context.Background(), apitypes.ManagedTransactionEvent{
+		Type: apitypes.ManagedTXTransactionHashUpdated,
+		Tx:   testTx,
+	})
+
+	mc.AssertExpectations(t)
+	mth.AssertExpectations(t)
 }
