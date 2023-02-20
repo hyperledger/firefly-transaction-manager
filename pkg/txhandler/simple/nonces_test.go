@@ -130,7 +130,7 @@ func TestNonceListError(t *testing.T) {
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("pop"))
 	sth.Init(sth.ctx, tk)
-	_, err = sth.RegisterNewTransaction(context.Background(), &apitypes.TransactionRequest{
+	_, err = sth.HandleNewTransaction(context.Background(), &apitypes.TransactionRequest{
 		TransactionInput: ffcapi.TransactionInput{
 			TransactionHeaders: ffcapi.TransactionHeaders{
 				From: "0x12345",
@@ -168,7 +168,7 @@ func TestNonceListStaleThenQueryFail(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 	mFFC.On("NextNonceForSigner", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 	sth.Init(sth.ctx, tk)
-	_, err = sth.RegisterNewTransaction(context.Background(), &apitypes.TransactionRequest{
+	_, err = sth.HandleNewTransaction(context.Background(), &apitypes.TransactionRequest{
 		TransactionInput: ffcapi.TransactionInput{
 			TransactionHeaders: ffcapi.TransactionHeaders{
 				From: "0x12345",

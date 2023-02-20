@@ -50,7 +50,7 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 
 func (m *manager) requestTransactionDeletion(ctx context.Context, txID string) (status int, transaction *apitypes.ManagedTX, err error) {
 
-	canceledTx, err := m.txHandler.CancelTransaction(ctx, txID)
+	canceledTx, err := m.txHandler.HandleCancelTransaction(ctx, txID)
 
 	if err != nil {
 		return http.StatusInternalServerError, nil, err

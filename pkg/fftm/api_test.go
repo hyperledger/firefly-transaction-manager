@@ -152,19 +152,17 @@ func TestSendTransactionE2E(t *testing.T) {
 }
 
 func TestNewTransactionMissingSequenceID(t *testing.T) {
-
 	fakeTXDone := make(chan struct{})
 	close(fakeTXDone)
-
 	url, m, cancel := newTestManager(t)
 	defer cancel()
 
 	mth := &txhandlermocks.TransactionHandler{}
 	mth.On("Start", mock.Anything).Return((<-chan struct{})(fakeTXDone), nil).Once()
-	mth.On("RegisterNewTransaction", mock.Anything, mock.Anything).Return(&apitypes.ManagedTX{
+	mth.On("HandleNewTransaction", mock.Anything, mock.Anything).Return(&apitypes.ManagedTX{
 		ID: fftypes.NewUUID().String(),
 	}, nil).Once()
-	mth.On("RegisterNewContractDeployment", mock.Anything, mock.Anything).Return(&apitypes.ManagedTX{
+	mth.On("HandleNewContractDeployment", mock.Anything, mock.Anything).Return(&apitypes.ManagedTX{
 		ID: fftypes.NewUUID().String(),
 	}, nil).Once()
 	m.txHandler = mth

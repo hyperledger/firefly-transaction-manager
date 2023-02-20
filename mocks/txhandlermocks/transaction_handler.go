@@ -21,32 +21,6 @@ type TransactionHandler struct {
 	mock.Mock
 }
 
-// CancelTransaction provides a mock function with given fields: ctx, txID
-func (_m *TransactionHandler) CancelTransaction(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
-	ret := _m.Called(ctx, txID)
-
-	var r0 *apitypes.ManagedTX
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.ManagedTX, error)); ok {
-		return rf(ctx, txID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.ManagedTX); ok {
-		r0 = rf(ctx, txID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*apitypes.ManagedTX)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, txID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetTransactionByID provides a mock function with given fields: ctx, txID
 func (_m *TransactionHandler) GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
 	ret := _m.Called(ctx, txID)
@@ -99,41 +73,34 @@ func (_m *TransactionHandler) GetTransactions(ctx context.Context, afterStr stri
 	return r0, r1
 }
 
-// HandleTransactionConfirmed provides a mock function with given fields: ctx, txID, confirmations
-func (_m *TransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) error {
-	ret := _m.Called(ctx, txID, confirmations)
+// HandleCancelTransaction provides a mock function with given fields: ctx, txID
+func (_m *TransactionHandler) HandleCancelTransaction(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, txID)
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []apitypes.BlockInfo) error); ok {
-		r0 = rf(ctx, txID, confirmations)
+	var r0 *apitypes.ManagedTX
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.ManagedTX, error)); ok {
+		return rf(ctx, txID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.ManagedTX); ok {
+		r0 = rf(ctx, txID)
 	} else {
-		r0 = ret.Error(0)
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.ManagedTX)
+		}
 	}
 
-	return r0
-}
-
-// HandleTransactionReceipt provides a mock function with given fields: ctx, txID, receipt
-func (_m *TransactionHandler) HandleTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error {
-	ret := _m.Called(ctx, txID, receipt)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.TransactionReceiptResponse) error); ok {
-		r0 = rf(ctx, txID, receipt)
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
 	} else {
-		r0 = ret.Error(0)
+		r1 = ret.Error(1)
 	}
 
-	return r0
+	return r0, r1
 }
 
-// Init provides a mock function with given fields: ctx, _a1
-func (_m *TransactionHandler) Init(ctx context.Context, _a1 *txhandler.Toolkit) {
-	_m.Called(ctx, _a1)
-}
-
-// RegisterNewContractDeployment provides a mock function with given fields: ctx, txReq
-func (_m *TransactionHandler) RegisterNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (*apitypes.ManagedTX, error) {
+// HandleNewContractDeployment provides a mock function with given fields: ctx, txReq
+func (_m *TransactionHandler) HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (*apitypes.ManagedTX, error) {
 	ret := _m.Called(ctx, txReq)
 
 	var r0 *apitypes.ManagedTX
@@ -158,8 +125,8 @@ func (_m *TransactionHandler) RegisterNewContractDeployment(ctx context.Context,
 	return r0, r1
 }
 
-// RegisterNewTransaction provides a mock function with given fields: ctx, txReq
-func (_m *TransactionHandler) RegisterNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (*apitypes.ManagedTX, error) {
+// HandleNewTransaction provides a mock function with given fields: ctx, txReq
+func (_m *TransactionHandler) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (*apitypes.ManagedTX, error) {
 	ret := _m.Called(ctx, txReq)
 
 	var r0 *apitypes.ManagedTX
@@ -182,6 +149,39 @@ func (_m *TransactionHandler) RegisterNewTransaction(ctx context.Context, txReq 
 	}
 
 	return r0, r1
+}
+
+// HandleTransactionConfirmed provides a mock function with given fields: ctx, txID, confirmations
+func (_m *TransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) error {
+	ret := _m.Called(ctx, txID, confirmations)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []apitypes.BlockInfo) error); ok {
+		r0 = rf(ctx, txID, confirmations)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// HandleTransactionReceiptReceived provides a mock function with given fields: ctx, txID, receipt
+func (_m *TransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error {
+	ret := _m.Called(ctx, txID, receipt)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.TransactionReceiptResponse) error); ok {
+		r0 = rf(ctx, txID, receipt)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// Init provides a mock function with given fields: ctx, _a1
+func (_m *TransactionHandler) Init(ctx context.Context, _a1 *txhandler.Toolkit) {
+	_m.Called(ctx, _a1)
 }
 
 // Start provides a mock function with given fields: ctx

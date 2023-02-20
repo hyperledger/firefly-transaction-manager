@@ -79,7 +79,7 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 				}
-				mtx, err := m.txHandler.RegisterNewTransaction(r.Req.Context(), &tReq)
+				mtx, err := m.txHandler.HandleNewTransaction(r.Req.Context(), &tReq)
 				if err != nil {
 					return nil, err
 				}
@@ -92,7 +92,7 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 				}
-				mtx, err := m.txHandler.RegisterNewContractDeployment(r.Req.Context(), &tReq)
+				mtx, err := m.txHandler.HandleNewContractDeployment(r.Req.Context(), &tReq)
 				if err != nil {
 					return nil, err
 				}

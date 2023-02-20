@@ -26,11 +26,20 @@ import (
 )
 
 type Toolkit struct {
-	Connector      ffcapi.API
-	TXHistory      txhistory.Manager
-	Persistence    toolkit.Persistence
+	// Connector toolkit contains methods to interact with the plugged-in JSON-RPC endpoint of a Blockchain network
+	Connector ffcapi.API
+
+	// Transaction History toolkit contains methods to easily manage and set historical status of a Managed Transaction
+	TXHistory txhistory.Manager
+
+	// Persistence toolkit contains methods to persist Managed Transaction objects into the plugged-in persistence service
+	Persistence toolkit.Persistence
+
+	// Metric toolkit contains methods to emit Managed Transaction specific metrics using the plugged-in metrics service
 	MetricsManager toolkit.Metrics
-	EventHandler   ManagedTxEventHandler
+
+	// Event Handler toolkit contains methods to handle a defined set of events when processing managed transactions
+	EventHandler ManagedTxEventHandler
 }
 
 // Handler checks received transaction process events and dispatch them to an event
@@ -39,20 +48,64 @@ type ManagedTxEventHandler interface {
 	HandleEvent(ctx context.Context, e apitypes.ManagedTransactionEvent) error
 }
 
-// Transaction handler owns the lifecycle of ManagedTransaction records
-// Transaction manager delegates all transaction specific operations to transaction apart from the triggers (REST API call for actions, Event stream for events) of those operations
-// This design allows the Transaction handler to apply customized logic at different stage of transaction life cycles listed below.
+// Transaction Handler owns the lifecycle of ManagedTransaction records
+// Transaction Manager delegates all transaction specific operations to transaction apart from the triggers (REST API call for actions,
+// Event stream for events) of those operations. This design allows the Transaction Handler to apply customized logic at different stages
+// of transaction life cycles.
+// The Transaction Handler interface consists of x important responsibilities:
+// 1. Functions for handling its own lifecycle. (e.g. Init, Start)
+//
+//  2. Functions for handling events:
+//     When implementing functions in this category, developers need to keep concurrency in mind. Because multiple invocations of a single
+//     function can be process in parallel in any given time, it's recommended to use channels to ensure they are not blocking each other.
+//     - inbound events: these events are received by transaction handler
+//     a. instructional events: transaction handler need to implement the logic to make those event happen on blockchain. (e.g. creating
+//     a new transaction)
+//     b. informational events: transaction handler need to update its own record when an event has already happened to a related
+//     blockchain transaction of its managed transaction
+//     - outbound events: these events are emitted by transaction handler. apitypes.ManagedTransactionEventType contains a list of
+//     managed transaction events that can be emitted by transaction handler.
+//
+// 3. Query functions: functions for querying the current processing status of managed transactions.
 type TransactionHandler interface {
+	// Lifecycle functions
+
+	// Init - setting a set of initialized toolkit plugins in the constructed transaction handler object. Safe checks & initialization
+	//        can take place inside this function as well. It also enables toolkit plugins to be able to embed a reference to its parent
+	//        transaction handler instance.
 	Init(ctx context.Context, toolkit *Toolkit)
 
+	// Start - starting the transaction handler to handle inbound events.
+	// It takes in a context, of which upon cancellation will stop the transaction handler.
+	// It returns a read-only channel. When this channel gets closed, it indicates transaction handler has been stopped gracefully.
+	// It returns an error when failed to start.
 	Start(ctx context.Context) (done <-chan struct{}, err error)
 
-	RegisterNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error)
-	RegisterNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error)
-	CancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
-	GetTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error)
-	GetTransactions(ctx context.Context, afterStr, signer string, pending bool, limit int, direction toolkit.SortDirection) (transactions []*apitypes.ManagedTX, err error)
+	// Event handling functions
+	// Instructional events:
+	// HandleNewTransaction - handles event of adding new transactions onto blockchain
+	HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error)
+	// HandleNewContractDeployment - handles event of adding new smart contract deployment onto blockchain
+	HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error)
+	// HandleCancelTransaction - handles event of cancelling a managed transaction
+	HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
 
+	// Informational events:
+	// HandleTransactionConfirmed - handles confirmations of blockchain transactions for a managed transaction
 	HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) (err error)
-	HandleTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
+	// HandleTransactionReceiptReceived - handles receipt of blockchain transactions for a managed transaction
+	HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
+
+	// Query functions
+	// Get a single transaction by ID
+	GetTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error)
+	// Get a list of transactions with pagination support
+	// It takes in a `signer` address, when set to a non-empty string, it should return transactions that are signed,
+	// ordered by their nonces.
+	// It takes in a `pending` boolean, when set to true, it should return transactions that are pending / haven't been signed,
+	// ordered by their sequence ids.
+	// It takes in `afterStr` which is an ID of transaction to start counting from,
+	// and `limit` which indicates how many transactions in maximum should be returned after that transaction,
+	// and `direction` which indicating the sorting order.
+	GetTransactions(ctx context.Context, afterStr, signer string, pending bool, limit int, direction toolkit.SortDirection) (transactions []*apitypes.ManagedTX, err error)
 }

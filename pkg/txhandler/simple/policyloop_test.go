@@ -59,7 +59,7 @@ func sendSampleTX(t *testing.T, sth *simpleTransactionHandler, signer string, no
 		TransactionData: "0xabce1234",
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	mtx, err := sth.RegisterNewTransaction(ctx, &apitypes.TransactionRequest{
+	mtx, err := sth.HandleNewTransaction(ctx, &apitypes.TransactionRequest{
 		TransactionInput: txInput,
 	})
 	assert.NoError(t, err)

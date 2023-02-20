@@ -71,7 +71,7 @@ func TestDeleteTransactionError(t *testing.T) {
 	mth := &txhandlermocks.TransactionHandler{}
 	transientChannel := make(chan struct{})
 	defer close(transientChannel)
-	mth.On("CancelTransaction", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
+	mth.On("HandleCancelTransaction", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
 	m.txHandler = mth
 
 	status, _, err := m.requestTransactionDeletion(m.ctx, "")

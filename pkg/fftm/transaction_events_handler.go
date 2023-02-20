@@ -58,7 +58,7 @@ func (eh *ManagedTransactionEventHandler) HandleEvent(ctx context.Context, e api
 			Transaction: &confirmations.TransactionInfo{
 				TransactionHash: e.Tx.TransactionHash,
 				Receipt: func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse) {
-					if err := eh.TxHandler.HandleTransactionReceipt(ctx, e.Tx.ID, receipt); err != nil {
+					if err := eh.TxHandler.HandleTransactionReceiptReceived(ctx, e.Tx.ID, receipt); err != nil {
 						log.L(ctx).Errorf("Receipt for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", e.Tx.ID, e.Tx.TransactionHeaders.From, e.Tx.Nonce.Int64(), e.Tx.TransactionHash, err.Error())
 					}
 				},

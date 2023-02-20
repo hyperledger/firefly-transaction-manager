@@ -188,7 +188,7 @@ func (sth *simpleTransactionHandler) Start(ctx context.Context) (done <-chan str
 	}
 	return sth.policyLoopDone, nil
 }
-func (sth *simpleTransactionHandler) RegisterNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error) {
+func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error) {
 
 	// Prepare the transaction, which will mean we have a transaction that should be submittable.
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
@@ -202,7 +202,7 @@ func (sth *simpleTransactionHandler) RegisterNewTransaction(ctx context.Context,
 
 	return sth.createManagedTx(ctx, txReq.Headers.ID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
 }
-func (sth *simpleTransactionHandler) RegisterNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error) {
+func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error) {
 
 	// Prepare the transaction, which will mean we have a transaction that should be submittable.
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
@@ -214,7 +214,7 @@ func (sth *simpleTransactionHandler) RegisterNewContractDeployment(ctx context.C
 
 	return sth.createManagedTx(ctx, txReq.Headers.ID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
 }
-func (sth *simpleTransactionHandler) CancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
+func (sth *simpleTransactionHandler) HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
 	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
 		requestType: policyEngineAPIRequestTypeDelete,
 		txID:        txID,

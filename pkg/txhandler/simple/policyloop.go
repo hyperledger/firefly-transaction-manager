@@ -418,7 +418,7 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Cont
 	sth.markInflightUpdate()
 	return
 }
-func (sth *simpleTransactionHandler) HandleTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error) {
+func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error) {
 	var pending *pendingState
 	for _, p := range sth.inflight {
 		if p.mtx.ID == txID {
