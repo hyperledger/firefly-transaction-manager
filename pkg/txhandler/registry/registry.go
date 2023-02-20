@@ -31,7 +31,7 @@ var txHandlers = make(map[string]Factory)
 func NewTransactionHandler(ctx context.Context, baseConfig config.Section, name string) (txhandler.TransactionHandler, error) {
 	factory, ok := txHandlers[name]
 	if !ok {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgPolicyEngineNotRegistered, name)
+		return nil, i18n.NewError(ctx, tmmsgs.MsgTransactionHandlerNotRegistered, name)
 	}
 	return factory.NewTransactionHandler(ctx, baseConfig.SubSection(name))
 }
@@ -45,6 +45,14 @@ type Factory interface {
 func RegisterHandler(factory Factory) string {
 	name := factory.Name()
 	txHandlers[name] = factory
-	factory.InitConfig(tmconfig.PolicyEngineBaseConfig.SubSection(name))
+
+	// check whether a policy engine name is provided
+	if config.GetString(tmconfig.DeprecatedPolicyEngineName) != "" {
+		factory.InitConfig(tmconfig.DeprecatedPolicyEngineBaseConfig.SubSection(name))
+	} else {
+		// if not, use the new transaction handler configuraitons
+		factory.InitConfig(tmconfig.TransactionHandlerBaseConfig.SubSection(name))
+
+	}
 	return name
 }

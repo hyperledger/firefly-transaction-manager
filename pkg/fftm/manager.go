@@ -25,6 +25,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/blocklistener"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
@@ -125,7 +126,15 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 		}
 	}
 
-	m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
+	// check whether a policy engine name is provided
+	if config.GetString(tmconfig.DeprecatedPolicyEngineName) != "" {
+		log.L(ctx).Warnf("The 'policyengine.name' config key has been deprecated. Please use 'transactions.handler.name' instead")
+		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.DeprecatedPolicyEngineBaseConfig, config.GetString(tmconfig.DeprecatedPolicyEngineName))
+	} else {
+		// if not, fall back to use the deprecated policy engine
+		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.TransactionHandlerBaseConfig, config.GetString(tmconfig.TransactionHandlerName))
+	}
+
 	if err != nil {
 		return err
 	}

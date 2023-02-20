@@ -617,7 +617,7 @@ func TestExecPolicyDeleteNotFound(t *testing.T) {
 
 }
 
-func TestBadPolicyAPIRequest(t *testing.T) {
+func TestBadTransactionAPIRequest(t *testing.T) {
 	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 
@@ -643,13 +643,13 @@ func TestBadPolicyAPIRequest(t *testing.T) {
 	sth.processPolicyAPIRequests(sth.ctx)
 
 	res := <-req.response
-	assert.Regexp(t, "FF21069", res.err)
+	assert.Regexp(t, "FF21073", res.err)
 
 	mp.AssertExpectations(t)
 
 }
 
-func TestBadPolicyAPITimeout(t *testing.T) {
+func TestBadTranasctionAPITimeout(t *testing.T) {
 
 	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
@@ -663,7 +663,7 @@ func TestBadPolicyAPITimeout(t *testing.T) {
 	cancelCtx()
 
 	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{})
-	assert.Regexp(t, "FF21068", res.err)
+	assert.Regexp(t, "FF21072", res.err)
 
 }
 

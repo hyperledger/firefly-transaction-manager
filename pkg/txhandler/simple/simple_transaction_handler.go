@@ -69,19 +69,34 @@ func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, c
 		gasOracleQueryInterval: gasOracleConfig.GetDuration(GasOracleQueryInterval),
 		gasOracleMode:          gasOracleConfig.GetString(GasOracleMode),
 
-		lockedNonces:      make(map[string]*lockedNonce),
-		nonceStateTimeout: config.GetDuration(tmconfig.TransactionsNonceStateTimeout),
-		maxInFlight:       config.GetInt(tmconfig.TransactionsMaxInFlight),
-		inflightStale:     make(chan bool, 1),
-		inflightUpdate:    make(chan bool, 1),
-
-		policyLoopInterval: config.GetDuration(tmconfig.PolicyLoopInterval),
-		retry: &retry.Retry{
-			InitialDelay: config.GetDuration(tmconfig.PolicyLoopRetryInitDelay),
-			MaximumDelay: config.GetDuration(tmconfig.PolicyLoopRetryMaxDelay),
-			Factor:       config.GetFloat64(tmconfig.PolicyLoopRetryFactor),
-		},
+		lockedNonces:   make(map[string]*lockedNonce),
+		inflightStale:  make(chan bool, 1),
+		inflightUpdate: make(chan bool, 1),
 	}
+
+	// check whether a policy engine name is provided
+	if config.GetString(tmconfig.DeprecatedPolicyEngineName) != "" {
+		log.L(ctx).Warnf("Initializing transaction handler with deprecated configurations. Please use 'transactions.handler' instead")
+		sth.nonceStateTimeout = config.GetDuration(tmconfig.DeprecatedTransactionsNonceStateTimeout)
+		sth.maxInFlight = config.GetInt(tmconfig.DeprecatedTransactionsMaxInFlight)
+		sth.policyLoopInterval = config.GetDuration(tmconfig.DeprecatedPolicyLoopInterval)
+		sth.retry = &retry.Retry{
+			InitialDelay: config.GetDuration(tmconfig.DeprecatedPolicyLoopRetryInitDelay),
+			MaximumDelay: config.GetDuration(tmconfig.DeprecatedPolicyLoopRetryMaxDelay),
+			Factor:       config.GetFloat64(tmconfig.DeprecatedPolicyLoopRetryFactor),
+		}
+	} else {
+		// if not, use the new transaction handler configuraitons
+		sth.nonceStateTimeout = conf.GetDuration(NonceStateTimeout)
+		sth.maxInFlight = conf.GetInt(MaxInFlight)
+		sth.policyLoopInterval = conf.GetDuration(Interval)
+		sth.retry = &retry.Retry{
+			InitialDelay: conf.GetDuration(RetryInitDelay),
+			MaximumDelay: conf.GetDuration(RetryMaxDelay),
+			Factor:       conf.GetFloat64(RetryFactor),
+		}
+	}
+
 	switch sth.gasOracleMode {
 	case GasOracleModeConnector:
 		// No initialization required

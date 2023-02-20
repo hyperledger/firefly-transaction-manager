@@ -61,6 +61,31 @@ func TestHandleTransactionProcessSuccessEvent(t *testing.T) {
 	mws.AssertExpectations(t)
 }
 
+func TestHandleTransactionProcessFailEvent(t *testing.T) {
+	eh := newTestManagedTransactionEventHandler()
+	mws := &wsmocks.WebSocketServer{}
+	mws.On("SendReply", mock.Anything).Return(nil).Once()
+	eh.WsServer = mws
+	testTx := &apitypes.ManagedTX{
+		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+		Created:    fftypes.Now(),
+		SequenceID: apitypes.NewULID(),
+		Nonce:      fftypes.NewFFBigInt(1),
+		Status:     apitypes.TxStatusSucceeded,
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x0000",
+		},
+		TransactionHash: "0x1111",
+	}
+
+	eh.HandleEvent(context.Background(), apitypes.ManagedTransactionEvent{
+		Type: apitypes.ManagedTXProcessFailed,
+		Tx:   testTx,
+	})
+
+	mws.AssertExpectations(t)
+}
+
 func TestHandleTransactionHashUpdateEventNewHash(t *testing.T) {
 	eh := newTestManagedTransactionEventHandler()
 	mcm := &confirmationsmocks.Manager{}

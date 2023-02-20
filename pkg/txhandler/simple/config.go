@@ -24,6 +24,14 @@ import (
 )
 
 const (
+	MaxInFlight       = "maxInFlight"
+	NonceStateTimeout = "nonceStateTimeout"
+
+	Interval       = "interval"
+	RetryInitDelay = "retry.initialDelay"
+	RetryMaxDelay  = "retry.maxDelay"
+	RetryFactor    = "retry.factor"
+
 	FixedGasPrice          = "fixedGasPrice"    // when not using a gas station - will be treated as a raw JSON string, so can be numeric 123, or string "123", or object {"maxPriorityFeePerGas":123})
 	ResubmitInterval       = "resubmitInterval" // warnings will be written to the log at this interval if mining has not occurred, and the TX will be resubmitted
 	GasOracleConfig        = "gasOracle"
@@ -37,6 +45,13 @@ const (
 	GasOracleModeDisabled  = "disabled"
 	GasOracleModeRESTAPI   = "restapi"
 	GasOracleModeConnector = "connector"
+
+	defaultMaxInFlight       = 100
+	defaultNonceStateTimeout = "1h"
+	defaultInterval          = "10s"
+	defaultRetryInitDelay    = "250ms"
+	defaultRetryMaxDelay     = "30s"
+	defaultRetryFactor       = 2.0
 )
 
 const (
@@ -49,6 +64,13 @@ const (
 func (f *TransactionHandlerFactory) InitConfig(conf config.Section) {
 	conf.AddKnownKey(FixedGasPrice)
 	conf.AddKnownKey(ResubmitInterval, defaultResubmitInterval)
+
+	conf.AddKnownKey(MaxInFlight, defaultMaxInFlight)
+	conf.AddKnownKey(NonceStateTimeout, defaultNonceStateTimeout)
+	conf.AddKnownKey(Interval, defaultInterval)
+	conf.AddKnownKey(RetryInitDelay, defaultRetryInitDelay)
+	conf.AddKnownKey(RetryMaxDelay, defaultRetryMaxDelay)
+	conf.AddKnownKey(RetryFactor, defaultRetryFactor)
 
 	gasOracleConfig := conf.SubSection(GasOracleConfig)
 	ffresty.InitConfig(gasOracleConfig)

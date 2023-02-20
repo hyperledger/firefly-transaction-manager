@@ -212,7 +212,7 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 			}
 		default:
 			request.response <- policyEngineAPIResponse{
-				err: i18n.NewError(ctx, tmmsgs.MsgPolicyEngineRequestInvalid, request.requestType),
+				err: i18n.NewError(ctx, tmmsgs.MsgTransactionHandlerRequestInvalid, request.requestType),
 			}
 		}
 	}
@@ -360,7 +360,7 @@ func (sth *simpleTransactionHandler) policyEngineAPIRequest(ctx context.Context,
 		return res
 	case <-ctx.Done():
 		return policyEngineAPIResponse{
-			err: i18n.NewError(ctx, tmmsgs.MsgPolicyEngineRequestTimeout, time.Since(req.startTime).Seconds()),
+			err: i18n.NewError(ctx, tmmsgs.MsgTransactionHandlerRequestTimeout, time.Since(req.startTime).Seconds()),
 		}
 	}
 }
