@@ -146,10 +146,11 @@ type simpleTransactionHandler struct {
 	retry                   *retry.Retry
 }
 type pendingState struct {
-	mtx             *apitypes.ManagedTX
-	lastPolicyCycle time.Time
-	confirmed       bool
-	remove          bool
+	mtx                     *apitypes.ManagedTX
+	trackingTransactionHash string
+	lastPolicyCycle         time.Time
+	confirmed               bool
+	remove                  bool
 }
 
 type simplePolicyInfo struct {

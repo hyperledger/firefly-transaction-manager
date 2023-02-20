@@ -275,18 +275,48 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 				}
 			} else {
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
-				if mtx.FirstSubmit != nil && mtx.PreviousTransactionHash != mtx.TransactionHash {
-					// If now submitted, add to confirmations manager for receipt checking
-					err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
-						Type: apitypes.ManagedTXTransactionHashUpdated,
-						Tx:   mtx,
-					}) // Only reason for error here should be a cancelled context
-					if err != nil {
-						log.L(ctx).Infof("Error detected notifying confirmation manager: %s", err)
-					} else {
-						pending.mtx.PreviousTransactionHash = pending.mtx.TransactionHash
-						update = UpdateYes
+				if mtx.FirstSubmit != nil &&
+					pending.trackingTransactionHash != mtx.TransactionHash {
+
+					if pending.trackingTransactionHash != "" {
+						// if had a previous transaction hash, emit an event to for transaction hash removal
+						if err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+							Type: apitypes.ManagedTXTransactionHashRemoved,
+							Tx: &apitypes.ManagedTX{
+								ID:                 mtx.ID,
+								Created:            mtx.Created,
+								Updated:            mtx.Updated,
+								Status:             mtx.Status,
+								DeleteRequested:    mtx.DeleteRequested,
+								SequenceID:         mtx.SequenceID,
+								Nonce:              mtx.Nonce,
+								Gas:                mtx.Gas,
+								TransactionHeaders: mtx.TransactionHeaders,
+								TransactionData:    mtx.TransactionData,
+								TransactionHash:    pending.trackingTransactionHash, // using the previous hash
+								GasPrice:           mtx.GasPrice,
+								PolicyInfo:         mtx.PolicyInfo,
+								FirstSubmit:        mtx.FirstSubmit,
+								LastSubmit:         mtx.LastSubmit,
+								Receipt:            mtx.Receipt,
+								ErrorMessage:       mtx.ErrorMessage,
+								Confirmations:      mtx.Confirmations,
+								History:            mtx.History,
+								HistorySummary:     mtx.HistorySummary,
+							},
+						}); err != nil {
+							log.L(ctx).Infof("Error detected notifying confirmation manager to remove old transaction hash: %s", err.Error())
+						}
 					}
+
+					// If now submitted, add to confirmations manager for receipt checking
+					if err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+						Type: apitypes.ManagedTXTransactionHashAdded,
+						Tx:   mtx,
+					}); err != nil {
+						log.L(ctx).Infof("Error detected notifying confirmation manager to add new transaction hash: %s", err.Error())
+					}
+					pending.trackingTransactionHash = mtx.TransactionHash
 				}
 				pending.lastPolicyCycle = time.Now()
 			}

@@ -119,27 +119,28 @@ type TxHistoryActionEntry struct {
 //   - When listing back entries, the persistence layer will automatically clean up indexes if the underlying
 //     TX they refer to is not available. For this reason the index records are written first.
 type ManagedTX struct {
-	ID                      string                             `json:"id"`
-	Created                 *fftypes.FFTime                    `json:"created"`
-	Updated                 *fftypes.FFTime                    `json:"updated"`
-	Status                  TxStatus                           `json:"status"`
-	DeleteRequested         *fftypes.FFTime                    `json:"deleteRequested,omitempty"`
-	SequenceID              *fftypes.UUID                      `json:"sequenceId"`
-	Nonce                   *fftypes.FFBigInt                  `json:"nonce"`
-	Gas                     *fftypes.FFBigInt                  `json:"gas"`
-	TransactionHeaders      ffcapi.TransactionHeaders          `json:"transactionHeaders"`
-	TransactionData         string                             `json:"transactionData"`
-	TransactionHash         string                             `json:"transactionHash,omitempty"`
-	PreviousTransactionHash string                             `json:"-"` // used internally by FFTM to track when a previous hash no longer needs to be confirmed, and can be removed from the confirmation manager
-	GasPrice                *fftypes.JSONAny                   `json:"gasPrice"`
-	PolicyInfo              *fftypes.JSONAny                   `json:"policyInfo"`
-	FirstSubmit             *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
-	LastSubmit              *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
-	Receipt                 *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
-	ErrorMessage            string                             `json:"errorMessage,omitempty"`
-	History                 []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
-	HistorySummary          []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`
-	Confirmations           []BlockInfo                        `json:"confirmations,omitempty"`
+	ID                 string                    `json:"id"`
+	Created            *fftypes.FFTime           `json:"created"`
+	Updated            *fftypes.FFTime           `json:"updated"`
+	Status             TxStatus                  `json:"status"`
+	DeleteRequested    *fftypes.FFTime           `json:"deleteRequested,omitempty"`
+	SequenceID         *fftypes.UUID             `json:"sequenceId"`
+	Nonce              *fftypes.FFBigInt         `json:"nonce"`
+	Gas                *fftypes.FFBigInt         `json:"gas"`
+	TransactionHeaders ffcapi.TransactionHeaders `json:"transactionHeaders"`
+	TransactionData    string                    `json:"transactionData"`
+	TransactionHash    string                    `json:"transactionHash,omitempty"`
+	GasPrice           *fftypes.JSONAny          `json:"gasPrice"`
+	PolicyInfo         *fftypes.JSONAny          `json:"policyInfo"`
+	FirstSubmit        *fftypes.FFTime           `json:"firstSubmit,omitempty"`
+	LastSubmit         *fftypes.FFTime           `json:"lastSubmit,omitempty"`
+	ErrorMessage       string                    `json:"errorMessage,omitempty"`
+
+	Receipt       *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
+	Confirmations []BlockInfo                        `json:"confirmations,omitempty"`
+
+	History        []*TxHistoryStateTransitionEntry `json:"history,omitempty"`
+	HistorySummary []*TxHistorySummaryEntry         `json:"historySummary,omitempty"`
 }
 
 type BlockInfo struct {
@@ -183,7 +184,8 @@ const (
 	ManagedTXProcessSucceeded ManagedTransactionEventType = iota
 	ManagedTXProcessFailed
 	ManagedTXDeleted
-	ManagedTXTransactionHashUpdated
+	ManagedTXTransactionHashAdded
+	ManagedTXTransactionHashRemoved
 )
 
 type ManagedTransactionEvent struct {

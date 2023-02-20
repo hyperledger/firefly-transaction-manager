@@ -104,10 +104,12 @@ func TestHandleTransactionProcessFailEvent(t *testing.T) {
 	mws.AssertExpectations(t)
 }
 
-func TestHandleTransactionHashUpdateEventNewHash(t *testing.T) {
+func TestHandleTransactionHashUpdateEventAddHash(t *testing.T) {
 	eh := newTestManagedTransactionEventHandler()
 	mcm := &confirmationsmocks.Manager{}
-	mcm.On("Notify", mock.Anything).Return(nil).Once()
+	mcm.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		return n.NotificationType == confirmations.NewTransaction
+	})).Return(nil).Once()
 	eh.ConfirmationManager = mcm
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
@@ -118,22 +120,23 @@ func TestHandleTransactionHashUpdateEventNewHash(t *testing.T) {
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: "0x0000",
 		},
-		PreviousTransactionHash: "",
-		TransactionHash:         "0x1111",
+		TransactionHash: "0x1111",
 	}
 
 	eh.HandleEvent(context.Background(), apitypes.ManagedTransactionEvent{
-		Type: apitypes.ManagedTXTransactionHashUpdated,
+		Type: apitypes.ManagedTXTransactionHashAdded,
 		Tx:   testTx,
 	})
 
 	mcm.AssertExpectations(t)
 }
 
-func TestHandleTransactionHashUpdateEventOldHash(t *testing.T) {
+func TestHandleTransactionHashUpdateEventRemoveHash(t *testing.T) {
 	eh := newTestManagedTransactionEventHandler()
 	mcm := &confirmationsmocks.Manager{}
-	mcm.On("Notify", mock.Anything).Return(nil).Twice()
+	mcm.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		return n.NotificationType == confirmations.RemovedTransaction
+	})).Return(nil).Once()
 	eh.ConfirmationManager = mcm
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
@@ -144,12 +147,11 @@ func TestHandleTransactionHashUpdateEventOldHash(t *testing.T) {
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: "0x0000",
 		},
-		PreviousTransactionHash: "0x1111",
-		TransactionHash:         "0x2222",
+		TransactionHash: "0x1111",
 	}
 
 	eh.HandleEvent(context.Background(), apitypes.ManagedTransactionEvent{
-		Type: apitypes.ManagedTXTransactionHashUpdated,
+		Type: apitypes.ManagedTXTransactionHashRemoved,
 		Tx:   testTx,
 	})
 
@@ -166,8 +168,7 @@ func TestHandleTransactionHashUpdateEventSwallowErrors(t *testing.T) {
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: "0x0000",
 		},
-		PreviousTransactionHash: "0x1111",
-		TransactionHash:         "0x2222",
+		TransactionHash: "0x2222",
 	}
 	eh := newTestManagedTransactionEventHandler()
 	mth := txhandlermocks.TransactionHandler{}
@@ -175,9 +176,6 @@ func TestHandleTransactionHashUpdateEventSwallowErrors(t *testing.T) {
 	mth.On("HandleTransactionConfirmed", mock.Anything, testTx.ID, mock.Anything).Return(fmt.Errorf("boo")).Once()
 	eh.TxHandler = &mth
 	mc := &confirmationsmocks.Manager{}
-	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
-		return n.NotificationType == confirmations.RemovedTransaction
-	})).Return(nil).Once()
 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
 		return n.NotificationType == confirmations.NewTransaction
 	})).Run(func(args mock.Arguments) {
@@ -188,7 +186,7 @@ func TestHandleTransactionHashUpdateEventSwallowErrors(t *testing.T) {
 	eh.ConfirmationManager = mc
 
 	eh.HandleEvent(context.Background(), apitypes.ManagedTransactionEvent{
-		Type: apitypes.ManagedTXTransactionHashUpdated,
+		Type: apitypes.ManagedTXTransactionHashAdded,
 		Tx:   testTx,
 	})
 
