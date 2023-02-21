@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -28,7 +29,14 @@ import (
 )
 
 func (m *manager) getTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error) {
-	return m.txHandler.GetTransactionByID(ctx, txID)
+	tx, err := m.persistence.GetTransactionByID(ctx, txID)
+	if err != nil {
+		return nil, err
+	}
+	if tx == nil {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
+	}
+	return tx, nil
 }
 
 func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signer string, pending bool, dirString string) (transactions []*apitypes.ManagedTX, err error) {
@@ -45,7 +53,36 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 	default:
 		return nil, i18n.NewError(ctx, tmmsgs.MsgInvalidSortDirection, dirString)
 	}
-	return m.txHandler.GetTransactions(ctx, afterStr, signer, pending, limit, dir)
+	var afterTx *apitypes.ManagedTX
+	if afterStr != "" {
+		// Get the transaction, as we need this to exist to pick the right field depending on the index that's been chosen
+		afterTx, err = m.persistence.GetTransactionByID(ctx, afterStr)
+		if err != nil {
+			return nil, err
+		}
+		if afterTx == nil {
+			return nil, i18n.NewError(ctx, tmmsgs.MsgPaginationErrTxNotFound, afterStr)
+		}
+	}
+	switch {
+	case signer != "" && pending:
+		return nil, i18n.NewError(ctx, tmmsgs.MsgTXConflictSignerPending)
+	case signer != "":
+		var afterNonce *fftypes.FFBigInt
+		if afterTx != nil {
+			afterNonce = afterTx.Nonce
+		}
+		return m.persistence.ListTransactionsByNonce(ctx, signer, afterNonce, limit, dir)
+	case pending:
+		var afterSequence *fftypes.UUID
+		if afterTx != nil {
+			afterSequence = afterTx.SequenceID
+		}
+		return m.persistence.ListTransactionsPending(ctx, afterSequence, limit, dir)
+	default:
+		return m.persistence.ListTransactionsByCreateTime(ctx, afterTx, limit, dir)
+	}
+
 }
 
 func (m *manager) requestTransactionDeletion(ctx context.Context, txID string) (status int, transaction *apitypes.ManagedTX, err error) {

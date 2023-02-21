@@ -36,7 +36,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
@@ -220,49 +219,6 @@ func (sth *simpleTransactionHandler) HandleCancelTransaction(ctx context.Context
 	})
 	return res.tx, nil
 }
-
-func (sth *simpleTransactionHandler) GetTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error) {
-	tx, err := sth.toolkit.Persistence.GetTransactionByID(ctx, txID)
-	if err != nil {
-		return nil, err
-	}
-	if tx == nil {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
-	}
-	return tx, nil
-}
-func (sth *simpleTransactionHandler) GetTransactions(ctx context.Context, afterStr, signer string, pending bool, limit int, direction toolkit.SortDirection) (transactions []*apitypes.ManagedTX, err error) {
-	var afterTx *apitypes.ManagedTX
-	if afterStr != "" {
-		// Get the transaction, as we need this to exist to pick the right field depending on the index that's been chosen
-		afterTx, err = sth.toolkit.Persistence.GetTransactionByID(ctx, afterStr)
-		if err != nil {
-			return nil, err
-		}
-		if afterTx == nil {
-			return nil, i18n.NewError(ctx, tmmsgs.MsgPaginationErrTxNotFound, afterStr)
-		}
-	}
-	switch {
-	case signer != "" && pending:
-		return nil, i18n.NewError(ctx, tmmsgs.MsgTXConflictSignerPending)
-	case signer != "":
-		var afterNonce *fftypes.FFBigInt
-		if afterTx != nil {
-			afterNonce = afterTx.Nonce
-		}
-		return sth.toolkit.Persistence.ListTransactionsByNonce(ctx, signer, afterNonce, limit, direction)
-	case pending:
-		var afterSequence *fftypes.UUID
-		if afterTx != nil {
-			afterSequence = afterTx.SequenceID
-		}
-		return sth.toolkit.Persistence.ListTransactionsPending(ctx, afterSequence, limit, direction)
-	default:
-		return sth.toolkit.Persistence.ListTransactionsByCreateTime(ctx, afterTx, limit, direction)
-	}
-}
-
 func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) (*apitypes.ManagedTX, error) {
 
 	// The request ID is the primary ID, and should be supplied by the user for idempotence

@@ -39,7 +39,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 	"github.com/stretchr/testify/assert"
@@ -754,53 +753,5 @@ func TestSendTXPersistFail(t *testing.T) {
 
 	_, err = sth.createManagedTx(sth.ctx, "id1", &txReq.TransactionHeaders, fftypes.NewFFBigInt(12345), "0x123456")
 	assert.Regexp(t, "pop", err)
-
-}
-
-func TestGetTransactionErrors(t *testing.T) {
-	f, tk, _, conf := newTestTransactionHandlerFactory(t)
-	conf.Set(FixedGasPrice, `12345`)
-	conf.Set(ResubmitInterval, "100s")
-	th, err := f.NewTransactionHandler(context.Background(), conf)
-
-	sth := th.(*simpleTransactionHandler)
-	sth.ctx = context.Background()
-
-	mp := tk.Persistence.(*persistencemocks.Persistence)
-	mp.On("GetTransactionByID", sth.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
-	mp.On("GetTransactionByID", sth.ctx, mock.Anything).Return(nil, nil).Once()
-	mp.On("Close", mock.Anything).Return(nil).Maybe()
-	sth.Init(sth.ctx, tk)
-	_, err = sth.getTransactionByID(sth.ctx, "id")
-	assert.Regexp(t, "pop", err)
-
-	_, err = sth.getTransactionByID(sth.ctx, "id")
-	assert.Regexp(t, "FF21067", err)
-
-	mp.AssertExpectations(t)
-
-}
-
-func TestGetTransactionsErrors(t *testing.T) {
-
-	f, tk, _, conf := newTestTransactionHandlerFactory(t)
-	conf.Set(FixedGasPrice, `12345`)
-	conf.Set(ResubmitInterval, "100s")
-	th, err := f.NewTransactionHandler(context.Background(), conf)
-
-	sth := th.(*simpleTransactionHandler)
-	sth.ctx = context.Background()
-
-	mp := tk.Persistence.(*persistencemocks.Persistence)
-	mp.On("GetTransactionByID", sth.ctx, mock.Anything).Return(nil, nil).Once()
-	mp.On("Close", mock.Anything).Return(nil).Maybe()
-	sth.Init(sth.ctx, tk)
-	_, err = sth.GetTransactions(sth.ctx, "", "cannot provide signer for pending transaction", true, 0, toolkit.SortDirectionAscending)
-	assert.Regexp(t, "FF21063", err)
-
-	_, err = sth.GetTransactions(sth.ctx, "after-not-found", "", false, 0, toolkit.SortDirectionAscending)
-	assert.Regexp(t, "FF21062", err)
-
-	mp.AssertExpectations(t)
 
 }

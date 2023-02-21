@@ -65,8 +65,6 @@ type ManagedTxEventHandler interface {
 //     blockchain transaction of its managed transaction
 //     - outbound events: these events are emitted by transaction handler. apitypes.ManagedTransactionEventType contains a list of
 //     managed transaction events that can be emitted by transaction handler.
-//
-// 3. Query functions: functions for querying the current processing status of managed transactions.
 type TransactionHandler interface {
 	// Lifecycle functions
 
@@ -95,17 +93,4 @@ type TransactionHandler interface {
 	HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) (err error)
 	// HandleTransactionReceiptReceived - handles receipt of blockchain transactions for a managed transaction
 	HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
-
-	// Query functions
-	// Get a single transaction by ID
-	GetTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error)
-	// Get a list of transactions with pagination support
-	// It takes in a `signer` address, when set to a non-empty string, it should return transactions that are signed,
-	// ordered by their nonces.
-	// It takes in a `pending` boolean, when set to true, it should return transactions that are pending / haven't been signed,
-	// ordered by their sequence ids.
-	// It takes in `afterStr` which is an ID of transaction to start counting from,
-	// and `limit` which indicates how many transactions in maximum should be returned after that transaction,
-	// and `direction` which indicating the sorting order.
-	GetTransactions(ctx context.Context, afterStr, signer string, pending bool, limit int, direction toolkit.SortDirection) (transactions []*apitypes.ManagedTX, err error)
 }
