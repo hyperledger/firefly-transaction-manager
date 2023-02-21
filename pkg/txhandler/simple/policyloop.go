@@ -310,13 +310,15 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 					}
 
 					// If now submitted, add to confirmations manager for receipt checking
-					if err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+					err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 						Type: apitypes.ManagedTXTransactionHashAdded,
 						Tx:   mtx,
-					}); err != nil {
+					})
+					if err != nil {
 						log.L(ctx).Infof("Error detected notifying confirmation manager to add new transaction hash: %s", err.Error())
+					} else {
+						pending.trackingTransactionHash = mtx.TransactionHash
 					}
-					pending.trackingTransactionHash = mtx.TransactionHash
 				}
 				pending.lastPolicyCycle = time.Now()
 			}

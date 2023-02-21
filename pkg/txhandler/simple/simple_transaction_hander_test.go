@@ -37,16 +37,16 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
-	"github.com/hyperledger/firefly-transaction-manager/mocks/txhistorymocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, *txhistorymocks.Manager, config.Section) {
+func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, config.Section) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
 
@@ -54,11 +54,6 @@ func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory,
 	f.InitConfig(conf)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	assert.Equal(t, "simple", f.Name())
-
-	mockHistory := &txhistorymocks.Manager{}
-	mockHistory.On("SetSubStatus", mock.Anything, mock.Anything, mock.Anything).Maybe()
-	mockHistory.On("CurrentSubStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
-	mockHistory.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe()
 
 	mockPersistence := &persistencemocks.Persistence{}
 
@@ -66,13 +61,13 @@ func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory,
 
 	return f, &txhandler.Toolkit{
 		Connector:      mockFFCAPI,
-		TXHistory:      mockHistory,
+		TXHistory:      txhistory.NewTxHistoryManager(context.Background()),
 		Persistence:    mockPersistence,
 		MetricsManager: metrics.NewMetricsManager(context.Background()),
-	}, mockFFCAPI, mockHistory, conf
+	}, mockFFCAPI, conf
 }
 
-func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, *txhistorymocks.Manager, config.Section, func()) {
+func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, config.Section, func()) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
 
@@ -81,10 +76,6 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	assert.Equal(t, "simple", f.Name())
 
-	mockHistory := &txhistorymocks.Manager{}
-	mockHistory.On("SetSubStatus", mock.Anything, mock.Anything, mock.Anything).Maybe()
-	mockHistory.On("CurrentSubStatus", mock.Anything, mock.Anything).Return(nil).Maybe()
-	mockHistory.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Maybe()
 	dir, err := ioutil.TempDir("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
@@ -97,32 +88,32 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 
 	return f, &txhandler.Toolkit{
 			Connector:      mockFFCAPI,
-			TXHistory:      mockHistory,
+			TXHistory:      txhistory.NewTxHistoryManager(context.Background()),
 			Persistence:    filePersistence,
 			MetricsManager: metrics.NewMetricsManager(context.Background()),
 			EventHandler:   mockEventHandler,
-		}, mockFFCAPI, mockHistory, conf,
+		}, mockFFCAPI, conf,
 		func() {
 			os.RemoveAll(dir)
 		}
 }
 
 func newTestTransactionHandler(t *testing.T) txhandler.TransactionHandler {
-	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, _, _, conf := newTestTransactionHandlerFactory(t)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 	return th
 }
 
 func TestMissingGasConfig(t *testing.T) {
-	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	_, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.Regexp(t, "FF21071", err)
 }
 
 func TestFixedGasPriceOK(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	conf.Set(FixedGasPrice, `{
 		"maxPriorityFee":32.146027800733336,
@@ -137,6 +128,7 @@ func TestFixedGasPriceOK(t *testing.T) {
 		},
 		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.MatchedBy(func(req *ffcapi.TransactionSendRequest) bool {
@@ -191,7 +183,7 @@ func TestGasOracleSendOK(t *testing.T) {
 		  }`))
 	}))
 
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, `{
@@ -207,6 +199,7 @@ func TestGasOracleSendOK(t *testing.T) {
 		},
 		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.MatchedBy(func(req *ffcapi.TransactionSendRequest) bool {
@@ -244,7 +237,7 @@ func TestGasOracleSendOK(t *testing.T) {
 
 func TestConnectorGasOracleSendOK(t *testing.T) {
 
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
@@ -255,6 +248,7 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 		},
 		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -289,7 +283,7 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 
 func TestConnectorGasOracleFail(t *testing.T) {
 
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
@@ -300,6 +294,7 @@ func TestConnectorGasOracleFail(t *testing.T) {
 		},
 		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -320,7 +315,7 @@ func TestConnectorGasOracleFail(t *testing.T) {
 
 func TestConnectorGasOracleFailStale(t *testing.T) {
 
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
@@ -334,6 +329,7 @@ func TestConnectorGasOracleFailStale(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 		FirstSubmit:     (*fftypes.FFTime)(&longAgo),
 		LastSubmit:      (*fftypes.FFTime)(&longAgo),
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -361,7 +357,7 @@ func TestGasOracleSendFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -373,6 +369,7 @@ func TestGasOracleSendFail(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionData: "SOME_RAW_TX_BYTES",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -390,7 +387,7 @@ func TestGasOracleMissingTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
 	_, err := f.NewTransactionHandler(context.Background(), conf)
@@ -403,7 +400,7 @@ func TestGasOracleBadTemplate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ !!! wrong")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -420,7 +417,7 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ .wrong.thing | len }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -432,6 +429,7 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionData: "SOME_RAW_TX_BYTES",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -449,7 +447,7 @@ func TestGasOracleNonJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -461,6 +459,7 @@ func TestGasOracleNonJSON(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionData: "SOME_RAW_TX_BYTES",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -481,7 +480,7 @@ func TestTXSendFail(t *testing.T) {
 	}))
 	defer server.Close()
 
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
 	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
@@ -493,6 +492,7 @@ func TestTXSendFail(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionData: "SOME_RAW_TX_BYTES",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonInvalidInputs, fmt.Errorf("pop"))
@@ -507,7 +507,7 @@ func TestTXSendFail(t *testing.T) {
 }
 
 func TestWarnStaleWarningCannotParse(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -521,6 +521,7 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
+		History: []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -543,7 +544,7 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 }
 
 func TestKnownTransactionHashKnown(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -556,6 +557,7 @@ func TestKnownTransactionHashKnown(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionHash: "0x01020304",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
@@ -574,7 +576,7 @@ func TestKnownTransactionHashKnown(t *testing.T) {
 }
 
 func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -589,6 +591,7 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 		FirstSubmit:     &submitTime,
 		PolicyInfo:      fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -612,7 +615,7 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 }
 
 func TestWarnStaleNoWarning(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -627,6 +630,7 @@ func TestWarnStaleNoWarning(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 		FirstSubmit:     &submitTime,
 		PolicyInfo:      fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -643,7 +647,7 @@ func TestWarnStaleNoWarning(t *testing.T) {
 }
 
 func TestNoOpWithReceipt(t *testing.T) {
-	f, _, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, _, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -659,6 +663,7 @@ func TestNoOpWithReceipt(t *testing.T) {
 		Receipt: &ffcapi.TransactionReceiptResponse{
 			BlockHash: "0x39e2664effa5ad0651c35f1fe3b4c4b90492b1955fee731c2e9fb4d6518de114",
 		},
+		History: []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -674,7 +679,7 @@ func TestNoOpWithReceipt(t *testing.T) {
 }
 
 func TestAllowsDeleteRequest(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -682,6 +687,7 @@ func TestAllowsDeleteRequest(t *testing.T) {
 
 	mtx := &apitypes.ManagedTX{
 		DeleteRequested: fftypes.Now(),
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -728,7 +734,7 @@ const sampleSendTX = `{
 
 func TestSendTXPersistFail(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -752,7 +758,7 @@ func TestSendTXPersistFail(t *testing.T) {
 }
 
 func TestGetTransactionErrors(t *testing.T) {
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -777,7 +783,7 @@ func TestGetTransactionErrors(t *testing.T) {
 
 func TestGetTransactionsErrors(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)

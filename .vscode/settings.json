@@ -1,7 +1,5 @@
 {
-  "go.formatFlags": [
-    "-s"
-  ],
+  "go.formatFlags": ["-s"],
   "go.lintTool": "golangci-lint",
   "cSpell.words": [
     "APIID",
@@ -79,6 +77,7 @@
     "tekuri",
     "tmconfig",
     "tmmsgs",
+    "toolkitmetricsmocks",
     "Tracef",
     "txcommon",
     "txcommonmocks",

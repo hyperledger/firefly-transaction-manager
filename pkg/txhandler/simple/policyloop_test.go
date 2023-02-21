@@ -28,6 +28,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/toolkitmetricsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -67,7 +68,7 @@ func sendSampleTX(t *testing.T, sth *simpleTransactionHandler, signer string, no
 }
 
 func TestPolicyLoopE2EOk(t *testing.T) {
-	f, tk, _, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
+	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	defer cleanup()
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
@@ -138,12 +139,20 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 
 func TestPolicyLoopE2EReverted(t *testing.T) {
 
-	f, tk, _, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
+	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	defer cleanup()
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
+
+	mmm := &toolkitmetricsmocks.Metrics{}
+
+	mmm.On("IsMetricsEnabled").Return(true).Maybe()
+	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
+	mmm.On("TransactionSubmissionError").Return().Once()
+
+	tk.MetricsManager = mmm
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
@@ -207,7 +216,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 }
 
 func TestPolicyLoopResubmitNewTXID(t *testing.T) {
-	f, tk, _, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
+	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	defer cleanup()
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
@@ -296,18 +305,28 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 
 func TestNotifyConfirmationMgrFail(t *testing.T) {
 
-	f, tk, _, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
+	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	defer cleanup()
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
+	mmm := &toolkitmetricsmocks.Metrics{}
+
+	mmm.On("IsMetricsEnabled").Return(true).Maybe()
+	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
+	mmm.On("TransactionSubmissionError").Return().Once()
+
+	tk.MetricsManager = mmm
 	sth := th.(*simpleTransactionHandler)
+	sth.policyLoopInterval = 0
 	sth.ctx = context.Background()
 	sth.Init(sth.ctx, tk)
 
 	txHash := "0x" + fftypes.NewRandB32().String()
+
+	removedTxHash := "0x" + fftypes.NewRandB32().String()
 
 	mfc := sth.toolkit.Connector.(*ffcapimocks.API)
 	mfc.On("TransactionSend", mock.Anything, mock.Anything).Return(&ffcapi.TransactionSendResponse{
@@ -318,8 +337,26 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 		Ctx:       context.Background(),
 		TxHandler: sth,
 	}
+	confirmation1Complete := make(chan struct{})
+	confirmation2Complete := make(chan struct{})
 	mc := &confirmationsmocks.Manager{}
-	mc.On("Notify", mock.Anything).Return(fmt.Errorf("pop"))
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		close(confirmation1Complete)
+		// Then we get the new TX hash, which we confirm
+		return n.NotificationType == confirmations.NewTransaction &&
+			n.Transaction.TransactionHash == txHash
+	})).Return(fmt.Errorf("pop")).Once()
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		// Then we get notified to remove the old TX hash
+		return n.NotificationType == confirmations.RemovedTransaction &&
+			n.Transaction.TransactionHash == removedTxHash
+	})).Return(fmt.Errorf("pop")).Once()
+	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
+		close(confirmation2Complete)
+		// Then we get the new TX hash, which we confirm
+		return n.NotificationType == confirmations.NewTransaction &&
+			n.Transaction.TransactionHash == txHash
+	})).Return(fmt.Errorf("pop")).Once()
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
 	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
@@ -329,7 +366,17 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 
 	_ = sendSampleTX(t, sth, "0xaaaaa", 12345)
 
+	// should emit 1 event to confirmation manager
 	sth.policyLoopCycle(sth.ctx, true)
+
+	<-confirmation1Complete
+
+	// set a tracking transaction hash to test removal
+	sth.inflight[0].trackingTransactionHash = removedTxHash
+
+	// should emit 2 events to confirmation manager
+	sth.policyLoopCycle(sth.ctx, false)
+	<-confirmation2Complete
 
 	mc.AssertExpectations(t)
 	mfc.AssertExpectations(t)
@@ -338,7 +385,7 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 
 func TestInflightSetListFailCancel(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
@@ -361,7 +408,7 @@ func TestInflightSetListFailCancel(t *testing.T) {
 
 func TestPolicyLoopUpdateFail(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -437,7 +484,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 }
 
 func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
-	f, tk, mockFFCAPI, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
+	f, tk, mockFFCAPI, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	defer cleanup()
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -445,7 +492,7 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 
 	sth := th.(*simpleTransactionHandler)
 
-	ctx := context.Background()
+	ctx, cancelContext := context.WithCancel(context.Background())
 
 	sth.Init(ctx, tk)
 
@@ -463,19 +510,22 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 		})
 	_ = sendSampleTX(t, sth, "0xaaaaa", 12345)
 	sth.policyLoopInterval = 1 * time.Hour
-	sth.Start(ctx)
+	policyLoopComplete, err := sth.Start(ctx)
 
+	assert.Nil(t, err)
 	<-done1
 
 	<-done2
+	cancelContext()
 
+	<-policyLoopComplete
 	mockFFCAPI.AssertExpectations(t)
 
 }
 
 func TestMarkInflightStaleDoesNotBlock(t *testing.T) {
 
-	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -489,7 +539,7 @@ func TestMarkInflightStaleDoesNotBlock(t *testing.T) {
 
 func TestMarkInflightUpdateDoesNotBlock(t *testing.T) {
 
-	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -503,7 +553,7 @@ func TestMarkInflightUpdateDoesNotBlock(t *testing.T) {
 
 func TestExecPolicyDeleteFail(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -537,7 +587,7 @@ func TestExecPolicyDeleteFail(t *testing.T) {
 }
 
 func TestExecPolicyDeleteInflightSync(t *testing.T) {
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -585,7 +635,7 @@ func TestExecPolicyDeleteInflightSync(t *testing.T) {
 
 func TestExecPolicyDeleteNotFound(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -618,7 +668,7 @@ func TestExecPolicyDeleteNotFound(t *testing.T) {
 }
 
 func TestBadTransactionAPIRequest(t *testing.T) {
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -651,7 +701,7 @@ func TestBadTransactionAPIRequest(t *testing.T) {
 
 func TestBadTransactionAPITimeout(t *testing.T) {
 
-	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -669,7 +719,7 @@ func TestBadTransactionAPITimeout(t *testing.T) {
 
 func TestExecPolicyUpdateNewInfo(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)

@@ -33,7 +33,7 @@ import (
 
 func TestNonceStaleStateContention(t *testing.T) {
 
-	f, tk, _, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
+	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	defer cleanup()
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
@@ -112,7 +112,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 
 func TestNonceListError(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -146,7 +146,7 @@ func TestNonceListError(t *testing.T) {
 
 func TestNonceListStaleThenQueryFail(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -184,7 +184,7 @@ func TestNonceListStaleThenQueryFail(t *testing.T) {
 
 func TestNonceListNotStale(t *testing.T) {
 
-	f, tk, _, _, conf := newTestTransactionHandlerFactory(t)
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
