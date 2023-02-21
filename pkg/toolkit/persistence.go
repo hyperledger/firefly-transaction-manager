@@ -26,7 +26,7 @@ import (
 type Persistence interface {
 	ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)         // reverse create time order
 	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
-	ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                    // reverse UUIDv1 order, only those in pending state
+	ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                 // reverse UUIDv1 order, only those in pending state
 	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
 	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
 	WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, new bool) error // must reject if new is true, and the request ID is no

@@ -79,27 +79,13 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 				}
-				mtx, err := m.txHandler.HandleNewTransaction(r.Req.Context(), &tReq)
-				if err != nil {
-					return nil, err
-				}
-				if mtx.SequenceID == nil {
-					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgTransactionHandlerResponseNoSequenceID, mtx.ID)
-				}
-				return mtx, err
+				return m.txHandler.HandleNewTransaction(r.Req.Context(), &tReq)
 			case apitypes.RequestTypeDeploy:
 				var tReq apitypes.ContractDeployRequest
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 				}
-				mtx, err := m.txHandler.HandleNewContractDeployment(r.Req.Context(), &tReq)
-				if err != nil {
-					return nil, err
-				}
-				if mtx.SequenceID == nil {
-					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgTransactionHandlerResponseNoSequenceID, mtx.ID)
-				}
-				return mtx, err
+				return m.txHandler.HandleNewContractDeployment(r.Req.Context(), &tReq)
 			case apitypes.RequestTypeQuery:
 				var tReq apitypes.QueryRequest
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {

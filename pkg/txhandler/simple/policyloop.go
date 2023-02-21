@@ -107,7 +107,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 	// If we are not at maximum, then query if there are more candidates now
 	spaces := sth.maxInFlight - len(sth.inflight)
 	if spaces > 0 {
-		var after *fftypes.UUID
+		var after string
 		if len(sth.inflight) > 0 {
 			after = sth.inflight[len(sth.inflight)-1].mtx.SequenceID
 		}
