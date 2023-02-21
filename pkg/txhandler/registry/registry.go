@@ -50,7 +50,7 @@ func RegisterHandler(factory Factory) string {
 	if config.GetString(tmconfig.DeprecatedPolicyEngineName) != "" {
 		factory.InitConfig(tmconfig.DeprecatedPolicyEngineBaseConfig.SubSection(name))
 	} else {
-		// if not, use the new transaction handler configuraitons
+		// if not, use the new transaction handler configurations
 		factory.InitConfig(tmconfig.TransactionHandlerBaseConfig.SubSection(name))
 
 	}

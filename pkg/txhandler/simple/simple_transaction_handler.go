@@ -56,9 +56,8 @@ func (f *TransactionHandlerFactory) Name() string {
 }
 
 // simpleTransactionHandler is a base transaction handler forming an example for extension:
-// - It uses a public gas estimation
-// - It submits the transaction once
-// - It logs errors transactions breach certain configured thresholds of staleness
+// - It offers three ways of calculating gas price: use a fixed number, use the built-in API of a ethereum connector, use a RESTful gas oracle
+// - It resubmits the transaction based on a configured interval until it succeed or fail
 func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, conf config.Section) (txhandler.TransactionHandler, error) {
 	gasOracleConfig := conf.SubSection(GasOracleConfig)
 	sth := &simpleTransactionHandler{
@@ -86,7 +85,7 @@ func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, c
 			Factor:       config.GetFloat64(tmconfig.DeprecatedPolicyLoopRetryFactor),
 		}
 	} else {
-		// if not, use the new transaction handler configuraitons
+		// if not, use the new transaction handler configurations
 		sth.nonceStateTimeout = conf.GetDuration(NonceStateTimeout)
 		sth.maxInFlight = conf.GetInt(MaxInFlight)
 		sth.policyLoopInterval = conf.GetDuration(Interval)
@@ -364,7 +363,6 @@ func (sth *simpleTransactionHandler) processTransaction(ctx context.Context, mtx
 		return UpdateDelete, "", nil
 	}
 
-	// Simple policy engine only submits once.
 	if mtx.FirstSubmit == nil {
 		// Only calculate gas price here in the simple policy engine
 		mtx.GasPrice, err = sth.getGasPrice(ctx, sth.toolkit.Connector)

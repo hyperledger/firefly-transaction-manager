@@ -649,7 +649,7 @@ func TestBadTransactionAPIRequest(t *testing.T) {
 
 }
 
-func TestBadTranasctionAPITimeout(t *testing.T) {
+func TestBadTransactionAPITimeout(t *testing.T) {
 
 	f, _, _, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
