@@ -343,21 +343,18 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
 			sth.markInflightStale()
 		}
-		// if and only if the transaction is now resolved send web a socket update
+		// if and only if the transaction is now resolved dispatch an event to event handler
+		// and discard any handling errors
 		if mtx.Status == apitypes.TxStatusSucceeded {
-			err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+			_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 				Type: apitypes.ManagedTXProcessSucceeded,
 				Tx:   mtx,
 			})
 		} else if mtx.Status == apitypes.TxStatusFailed {
-			err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+			_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 				Type: apitypes.ManagedTXProcessFailed,
 				Tx:   mtx,
 			})
-		}
-		if err != nil {
-			log.L(ctx).Errorf("Failed to handle process event for transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
-			return err
 		}
 	case UpdateDelete:
 		err := sth.toolkit.Persistence.DeleteTransaction(ctx, mtx.ID)
@@ -367,14 +364,12 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 		}
 		pending.remove = true // for the next time round the loop
 		sth.markInflightStale()
-		err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+		// dispatch an event to event handler
+		// and discard any handling errors
+		_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 			Type: apitypes.ManagedTXDeleted,
 			Tx:   mtx,
 		})
-		if err != nil {
-			log.L(ctx).Errorf("Failed to handle delete event for transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
-			return err
-		}
 	}
 
 	return nil

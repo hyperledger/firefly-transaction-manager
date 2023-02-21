@@ -41,6 +41,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -102,6 +103,20 @@ func newTestTransactionHandler(t *testing.T) txhandler.TransactionHandler {
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 	return th
+}
+
+func TestSupportDeprecatedPolicyEngineConfiguration(t *testing.T) {
+	f, _, _, conf := newTestTransactionHandlerFactory(t)
+	viper.SetDefault(string(tmconfig.DeprecatedPolicyEngineName), "simple")
+	viper.SetDefault(string(tmconfig.DeprecatedTransactionsMaxInFlight), 23412412)
+
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+
+	sth := th.(*simpleTransactionHandler)
+	assert.Equal(t, 23412412, sth.maxInFlight)
+	assert.NoError(t, err)
 }
 
 func TestMissingGasConfig(t *testing.T) {
