@@ -29,7 +29,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
@@ -117,7 +116,7 @@ func TestReadWriteStreams(t *testing.T) {
 	}
 	p.WriteStream(ctx, s3)
 
-	streams, err := p.ListStreams(ctx, nil, 0, toolkit.SortDirectionDescending)
+	streams, err := p.ListStreams(ctx, nil, 0, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, streams, 3)
 
@@ -127,13 +126,13 @@ func TestReadWriteStreams(t *testing.T) {
 
 	// Test pagination
 
-	streams, err = p.ListStreams(ctx, nil, 2, toolkit.SortDirectionDescending)
+	streams, err = p.ListStreams(ctx, nil, 2, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, streams, 2)
 	assert.Equal(t, s3.ID, streams[0].ID)
 	assert.Equal(t, s2.ID, streams[1].ID)
 
-	streams, err = p.ListStreams(ctx, streams[1].ID, 2, toolkit.SortDirectionDescending)
+	streams, err = p.ListStreams(ctx, streams[1].ID, 2, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, streams, 1)
 	assert.Equal(t, s1.ID, streams[0].ID)
@@ -142,7 +141,7 @@ func TestReadWriteStreams(t *testing.T) {
 
 	err = p.DeleteStream(ctx, s2.ID)
 	assert.NoError(t, err)
-	streams, err = p.ListStreams(ctx, nil, 2, toolkit.SortDirectionDescending)
+	streams, err = p.ListStreams(ctx, nil, 2, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, streams, 2)
 	assert.Equal(t, s3.ID, streams[0].ID)
@@ -191,7 +190,7 @@ func TestReadWriteListeners(t *testing.T) {
 	err = p.WriteListener(ctx, s1l2)
 	assert.NoError(t, err)
 
-	listeners, err := p.ListListeners(ctx, nil, 0, toolkit.SortDirectionDescending)
+	listeners, err := p.ListListeners(ctx, nil, 0, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, listeners, 3)
 
@@ -201,7 +200,7 @@ func TestReadWriteListeners(t *testing.T) {
 
 	// Test stream filter
 
-	listeners, err = p.ListStreamListeners(ctx, nil, 0, toolkit.SortDirectionDescending, sID1)
+	listeners, err = p.ListStreamListeners(ctx, nil, 0, SortDirectionDescending, sID1)
 	assert.NoError(t, err)
 	assert.Len(t, listeners, 2)
 	assert.Equal(t, s1l2.ID, listeners[0].ID)
@@ -211,7 +210,7 @@ func TestReadWriteListeners(t *testing.T) {
 
 	err = p.DeleteListener(ctx, s2l1.ID)
 	assert.NoError(t, err)
-	listeners, err = p.ListStreamListeners(ctx, nil, 0, toolkit.SortDirectionDescending, sID2)
+	listeners, err = p.ListStreamListeners(ctx, nil, 0, SortDirectionDescending, sID2)
 	assert.NoError(t, err)
 	assert.Len(t, listeners, 0)
 
@@ -295,7 +294,7 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	err := p.WriteTransaction(ctx, s1t1, true)
 	assert.Regexp(t, "FF21065", err)
 
-	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, toolkit.SortDirectionDescending)
+	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 4)
 
@@ -306,7 +305,7 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 
 	// Only list pending
 
-	txns, err = p.ListTransactionsPending(ctx, nil, 0, toolkit.SortDirectionDescending)
+	txns, err = p.ListTransactionsPending(ctx, nil, 0, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
 
@@ -315,7 +314,7 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 
 	// List with time range
 
-	txns, err = p.ListTransactionsByCreateTime(ctx, s1t2, 0, toolkit.SortDirectionDescending)
+	txns, err = p.ListTransactionsByCreateTime(ctx, s1t2, 0, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
 	assert.Equal(t, s2t1.ID, txns[0].ID)
@@ -325,13 +324,13 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 
 	err = p.DeleteTransaction(ctx, s1t2.ID)
 	assert.NoError(t, err)
-	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t1.Nonce, 0, toolkit.SortDirectionAscending)
+	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t1.Nonce, 0, SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 1)
 	assert.Equal(t, s1t3.ID, txns[0].ID)
 
 	// Check we can use after with the deleted nonce, and not skip the one after
-	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t2.Nonce, 0, toolkit.SortDirectionAscending)
+	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t2.Nonce, 0, SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 1)
 	assert.Equal(t, s1t3.ID, txns[0].ID)
@@ -361,7 +360,7 @@ func TestListStreamsBadJSON(t *testing.T) {
 	err := p.db.Put(prefixedKey(eventstreamsPrefix, sID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListStreams(context.Background(), nil, 0, toolkit.SortDirectionDescending)
+	_, err = p.ListStreams(context.Background(), nil, 0, SortDirectionDescending)
 	assert.Error(t, err)
 
 }
@@ -374,10 +373,10 @@ func TestListListenersBadJSON(t *testing.T) {
 	err := p.db.Put(prefixedKey(listenersPrefix, lID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListListeners(context.Background(), nil, 0, toolkit.SortDirectionDescending)
+	_, err = p.ListListeners(context.Background(), nil, 0, SortDirectionDescending)
 	assert.Error(t, err)
 
-	_, err = p.ListStreamListeners(context.Background(), nil, 0, toolkit.SortDirectionDescending, apitypes.NewULID())
+	_, err = p.ListStreamListeners(context.Background(), nil, 0, SortDirectionDescending, apitypes.NewULID())
 	assert.Error(t, err)
 
 }
@@ -476,7 +475,7 @@ func TestListManagedTransactionFail(t *testing.T) {
 	err = p.db.Put(txDataKey(tx.ID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsByCreateTime(context.Background(), nil, 0, toolkit.SortDirectionDescending)
+	_, err = p.ListTransactionsByCreateTime(context.Background(), nil, 0, SortDirectionDescending)
 	assert.Error(t, err)
 
 }
@@ -493,7 +492,7 @@ func TestListManagedTransactionCleanupOrphans(t *testing.T) {
 	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
 
-	txns, err := p.ListTransactionsByCreateTime(context.Background(), nil, 0, toolkit.SortDirectionDescending)
+	txns, err := p.ListTransactionsByCreateTime(context.Background(), nil, 0, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Empty(t, txns)
 
@@ -513,7 +512,7 @@ func TestListNonceAllocationsFail(t *testing.T) {
 	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsByNonce(context.Background(), "0xaaa", nil, 0, toolkit.SortDirectionDescending)
+	_, err = p.ListTransactionsByNonce(context.Background(), "0xaaa", nil, 0, SortDirectionDescending)
 	assert.Error(t, err)
 
 }
@@ -528,7 +527,7 @@ func TestListInflightTransactionFail(t *testing.T) {
 	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsPending(context.Background(), nil, 0, toolkit.SortDirectionDescending)
+	_, err = p.ListTransactionsPending(context.Background(), nil, 0, SortDirectionDescending)
 	assert.Error(t, err)
 
 }
@@ -574,7 +573,7 @@ func TestIterateReverseJSONFailIdxResolve(t *testing.T) {
 		"test_1",
 		"",
 		0,
-		toolkit.SortDirectionAscending,
+		SortDirectionAscending,
 		func() interface{} { return make(map[string]interface{}) },
 		func(i interface{}) {},
 		func(ctx context.Context, k []byte) ([]byte, error) {
@@ -596,7 +595,7 @@ func TestIterateReverseJSONSkipIdxResolve(t *testing.T) {
 		"test_1",
 		"",
 		0,
-		toolkit.SortDirectionAscending,
+		SortDirectionAscending,
 		func() interface{} { return make(map[string]interface{}) },
 		func(_ interface{}) {
 			assert.Fail(t, "Should not be called")

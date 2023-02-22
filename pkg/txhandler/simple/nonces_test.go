@@ -44,7 +44,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 
 	// Write a stale record to persistence
 	oldTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
-	err = tk.Persistence.WriteTransaction(sth.ctx, &apitypes.ManagedTX{
+	err = tk.TXPersistence.WriteTransaction(sth.ctx, &apitypes.ManagedTX{
 		ID:         "stale1",
 		Created:    &oldTime,
 		Status:     apitypes.TxStatusSucceeded,
@@ -87,7 +87,7 @@ func TestNonceStaleStateContention(t *testing.T) {
 				From: "0x12345",
 			},
 		}
-		err = sth.toolkit.Persistence.WriteTransaction(sth.ctx, ln.spent, true)
+		err = sth.toolkit.TXPersistence.WriteTransaction(sth.ctx, ln.spent, true)
 		assert.NoError(t, err)
 		ln.complete(context.Background())
 	}()
@@ -126,7 +126,7 @@ func TestNonceListError(t *testing.T) {
 		Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
 	}, ffcapi.ErrorReason(""), nil)
 
-	mp := tk.Persistence.(*persistencemocks.Persistence)
+	mp := tk.TXPersistence.(*persistencemocks.TransactionPersistence)
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("pop"))
 	sth.Init(sth.ctx, tk)
@@ -154,7 +154,7 @@ func TestNonceListStaleThenQueryFail(t *testing.T) {
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
 
-	mp := tk.Persistence.(*persistencemocks.Persistence)
+	mp := tk.TXPersistence.(*persistencemocks.TransactionPersistence)
 	old := fftypes.FFTime(time.Now().Add(-10000 * time.Hour))
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
@@ -194,7 +194,7 @@ func TestNonceListNotStale(t *testing.T) {
 
 	sth.nonceStateTimeout = 1 * time.Hour
 
-	mp := tk.Persistence.(*persistencemocks.Persistence)
+	mp := tk.TXPersistence.(*persistencemocks.TransactionPersistence)
 
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{

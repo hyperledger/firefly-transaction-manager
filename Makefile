@@ -38,8 +38,9 @@ $(eval $(call makemock, pkg/toolkit,            Metrics,                toolkitm
 $(eval $(call makemock, pkg/txhistory,          Manager,                txhistorymocks))
 $(eval $(call makemock, internal/confirmations, Manager,                confirmationsmocks))
 $(eval $(call makemock, internal/persistence,   Persistence,            persistencemocks))
+$(eval $(call makemock, internal/persistence,   TransactionPersistence, persistencemocks))
 $(eval $(call makemock, internal/ws,            WebSocketChannels,      wsmocks))
-$(eval $(call makemock, internal/ws,            WebSocketServer,      wsmocks))
+$(eval $(call makemock, internal/ws,            WebSocketServer,        wsmocks))
 $(eval $(call makemock, internal/events,        Stream,                 eventsmocks))
 
 go-mod-tidy: .ALWAYS

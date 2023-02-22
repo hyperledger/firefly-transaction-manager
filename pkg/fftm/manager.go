@@ -150,7 +150,7 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 		if m.persistence, err = persistence.NewLevelDBPersistence(ctx); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
-		m.toolkit.Persistence = m.persistence
+		m.toolkit.TXPersistence = m.persistence
 		return nil
 	default:
 		return i18n.NewError(ctx, tmmsgs.MsgUnknownPersistence, pType)

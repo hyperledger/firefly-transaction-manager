@@ -55,14 +55,14 @@ func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory,
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	assert.Equal(t, "simple", f.Name())
 
-	mockPersistence := &persistencemocks.Persistence{}
+	mockPersistence := &persistencemocks.TransactionPersistence{}
 
 	mockFFCAPI := &ffcapimocks.API{}
 
 	return f, &txhandler.Toolkit{
 		Connector:      mockFFCAPI,
 		TXHistory:      txhistory.NewTxHistoryManager(context.Background()),
-		Persistence:    mockPersistence,
+		TXPersistence:  mockPersistence,
 		MetricsManager: metrics.NewMetricsManager(context.Background()),
 	}, mockFFCAPI, conf
 }
@@ -89,7 +89,7 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 	return f, &txhandler.Toolkit{
 			Connector:      mockFFCAPI,
 			TXHistory:      txhistory.NewTxHistoryManager(context.Background()),
-			Persistence:    filePersistence,
+			TXPersistence:  filePersistence,
 			MetricsManager: metrics.NewMetricsManager(context.Background()),
 			EventHandler:   mockEventHandler,
 		}, mockFFCAPI, conf,
@@ -755,7 +755,7 @@ func TestSendTXPersistFail(t *testing.T) {
 
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
-	mp := tk.Persistence.(*persistencemocks.Persistence)
+	mp := tk.TXPersistence.(*persistencemocks.TransactionPersistence)
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
 			{ID: "id12345", Created: fftypes.Now(), Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
