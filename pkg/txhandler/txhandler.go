@@ -26,6 +26,10 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
+type TransactionPersistence interface {
+	persistence.TransactionPersistence
+}
+
 type Toolkit struct {
 	// Connector toolkit contains methods to interact with the plugged-in JSON-RPC endpoint of a Blockchain network
 	Connector ffcapi.API
@@ -34,7 +38,7 @@ type Toolkit struct {
 	TXHistory txhistory.Manager
 
 	// TransactionPersistence toolkit contains methods to persist Managed Transaction objects into the plugged-in persistence service
-	TXPersistence persistence.TransactionPersistence
+	TXPersistence TransactionPersistence
 
 	// Metric toolkit contains methods to emit Managed Transaction specific metrics using the plugged-in metrics service
 	MetricsManager toolkit.Metrics
