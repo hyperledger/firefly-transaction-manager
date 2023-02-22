@@ -23,9 +23,9 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 )
 
 func (m *manager) getTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error) {
@@ -44,12 +44,12 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 	if err != nil {
 		return nil, err
 	}
-	var dir toolkit.SortDirection
+	var dir persistence.SortDirection
 	switch strings.ToLower(dirString) {
 	case "", "desc", "descending":
-		dir = toolkit.SortDirectionDescending // descending is default
+		dir = persistence.SortDirectionDescending // descending is default
 	case "asc", "ascending":
-		dir = toolkit.SortDirectionAscending
+		dir = persistence.SortDirectionAscending
 	default:
 		return nil, i18n.NewError(ctx, tmmsgs.MsgInvalidSortDirection, dirString)
 	}

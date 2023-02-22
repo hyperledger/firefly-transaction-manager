@@ -19,11 +19,16 @@ package txhandler
 import (
 	"context"
 
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
+
+type TransactionPersistence interface {
+	persistence.TransactionPersistence
+}
 
 type Toolkit struct {
 	// Connector toolkit contains methods to interact with the plugged-in JSON-RPC endpoint of a Blockchain network
@@ -32,8 +37,8 @@ type Toolkit struct {
 	// Transaction History toolkit contains methods to easily manage and set historical status of a Managed Transaction
 	TXHistory txhistory.Manager
 
-	// Persistence toolkit contains methods to persist Managed Transaction objects into the plugged-in persistence service
-	Persistence toolkit.Persistence
+	// TransactionPersistence toolkit contains methods to persist Managed Transaction objects into the plugged-in persistence service
+	TXPersistence TransactionPersistence
 
 	// Metric toolkit contains methods to emit Managed Transaction specific metrics using the plugged-in metrics service
 	MetricsManager toolkit.Metrics

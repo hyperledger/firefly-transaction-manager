@@ -261,7 +261,7 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 	sth.toolkit.TXHistory.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
 	sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
 
-	if err = sth.toolkit.Persistence.WriteTransaction(ctx, mtx, true); err != nil {
+	if err = sth.toolkit.TXPersistence.WriteTransaction(ctx, mtx, true); err != nil {
 		return nil, err
 	}
 	log.L(ctx).Infof("Tracking transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
