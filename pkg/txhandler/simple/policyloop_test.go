@@ -925,6 +925,65 @@ func TestExecPolicyIdempotentCancellation(t *testing.T) {
 
 }
 
+func TestPendingTransactionGetsRemoved(t *testing.T) {
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	interval := 1 * time.Second
+	conf.Set(Interval, interval.String())
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	ctx, cancelContext := context.WithCancel(context.Background())
+	sth.ctx = ctx
+	sth.Init(ctx, tk)
+	eh := &fftm.ManagedTransactionEventHandler{
+		Ctx:       context.Background(),
+		TxHandler: sth,
+	}
+	mc := &confirmationsmocks.Manager{}
+	mc.On("Notify", mock.Anything).Return(nil)
+	eh.ConfirmationManager = mc
+	mws := &wsmocks.WebSocketServer{}
+	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+	testTxID := fftypes.NewUUID()
+	eh.WsServer = mws
+	sth.toolkit.EventHandler = eh
+	deleteCalled := make(chan struct{})
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp.On("ListTransactionsPending", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil)
+	mp.On("DeleteTransaction", mock.Anything, testTxID.String()).Return(nil).Once().Run(func(args mock.Arguments) {
+		close(deleteCalled)
+	})
+	mp.On("GetTransactionByID", mock.Anything, testTxID.String()).Return(&apitypes.ManagedTX{
+		ID: testTxID.String(),
+	}, nil)
+
+	sth.ctx = nil
+	txHandlerComplete, err := sth.Start(ctx)
+	assert.Nil(t, err)
+	// sleep for 1 second for the initial loop cycle to complete
+	time.Sleep(interval)
+
+	// add a delete request
+	req := &policyEngineAPIRequest{
+		requestType: policyEngineAPIRequestTypeDelete,
+		txID:        testTxID.String(),
+		response:    make(chan policyEngineAPIResponse, 1),
+	}
+	sth.policyEngineAPIRequests = append(sth.policyEngineAPIRequests, req)
+
+	// wait for the next timed loop cycle to process the delete request
+	<-deleteCalled
+
+	cancelContext()
+	<-txHandlerComplete
+
+	mp.AssertExpectations(t)
+
+}
+
 func TestExecPolicyDeleteNotFound(t *testing.T) {
 
 	f, tk, _, conf := newTestTransactionHandlerFactory(t)
