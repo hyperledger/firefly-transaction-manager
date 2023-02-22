@@ -91,4 +91,5 @@ var (
 	MsgTransactionHandlerRequestTimeout       = ffe("FF21072", "The transaction handler did not acknowledge the request after %.2fs", 408)
 	MsgTransactionHandlerRequestInvalid       = ffe("FF21073", "Invalid transaction handler request type '%d'")
 	MsgTransactionHandlerResponseNoSequenceID = ffe("FF21074", "Transaction handler failed to allocate a sequence ID for request '%s'", http.StatusInternalServerError)
+	MsgPersistenceSequenceIDNotAllowed        = ffe("FF21075", "New transaction should not have sequence ID")
 )

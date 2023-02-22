@@ -124,7 +124,7 @@ type ManagedTX struct {
 	Updated            *fftypes.FFTime           `json:"updated"`
 	Status             TxStatus                  `json:"status"`
 	DeleteRequested    *fftypes.FFTime           `json:"deleteRequested,omitempty"`
-	SequenceID         *fftypes.UUID             `json:"sequenceId"`
+	SequenceID         string                    `json:"sequenceId"`
 	Nonce              *fftypes.FFBigInt         `json:"nonce"`
 	Gas                *fftypes.FFBigInt         `json:"gas"`
 	TransactionHeaders ffcapi.TransactionHeaders `json:"transactionHeaders"`

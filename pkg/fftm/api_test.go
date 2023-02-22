@@ -28,7 +28,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
-	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
@@ -149,48 +148,6 @@ func TestSendTransactionE2E(t *testing.T) {
 
 	<-txSent
 
-}
-
-func TestNewTransactionMissingSequenceID(t *testing.T) {
-	fakeTXDone := make(chan struct{})
-	close(fakeTXDone)
-	url, m, cancel := newTestManager(t)
-	defer cancel()
-
-	mth := &txhandlermocks.TransactionHandler{}
-	mth.On("Start", mock.Anything).Return((<-chan struct{})(fakeTXDone), nil).Once()
-	mth.On("HandleNewTransaction", mock.Anything, mock.Anything).Return(&apitypes.ManagedTX{
-		ID: fftypes.NewUUID().String(),
-	}, nil).Once()
-	mth.On("HandleNewContractDeployment", mock.Anything, mock.Anything).Return(&apitypes.ManagedTX{
-		ID: fftypes.NewUUID().String(),
-	}, nil).Once()
-	m.txHandler = mth
-	mc := m.confirmations.(*confirmationsmocks.Manager)
-	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
-		return n.NotificationType == confirmations.NewTransaction
-	})).Return(nil)
-
-	m.Start()
-	var errRes fftypes.RESTError
-
-	req := strings.NewReader(sampleSendTX)
-	res, err := resty.New().R().
-		SetBody(req).
-		SetError(errRes).
-		Post(url)
-	assert.NoError(t, err)
-	assert.Equal(t, 500, res.StatusCode())
-
-	req = strings.NewReader(sampleDeployTX)
-	res, err = resty.New().R().
-		SetBody(req).
-		SetError(errRes).
-		Post(url)
-	assert.NoError(t, err)
-	assert.Equal(t, 500, res.StatusCode())
-
-	mth.AssertExpectations(t)
 }
 
 func TestDeployTransactionE2EWithDebugServer(t *testing.T) {

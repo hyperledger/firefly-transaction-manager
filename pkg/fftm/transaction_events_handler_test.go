@@ -42,7 +42,7 @@ func TestHandleTransactionProcessSuccessEvent(t *testing.T) {
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.NewULID(),
+		SequenceID: apitypes.NewULID().String(),
 		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusSucceeded,
 		TransactionHeaders: ffcapi.TransactionHeaders{
@@ -72,7 +72,7 @@ func TestHandleTransactionProcessFailEvent(t *testing.T) {
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.NewULID(),
+		SequenceID: apitypes.NewULID().String(),
 		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusFailed,
 		Receipt: &ffcapi.TransactionReceiptResponse{
@@ -114,7 +114,7 @@ func TestHandleTransactionHashUpdateEventAddHash(t *testing.T) {
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.NewULID(),
+		SequenceID: apitypes.NewULID().String(),
 		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusPending,
 		TransactionHeaders: ffcapi.TransactionHeaders{
@@ -141,7 +141,7 @@ func TestHandleTransactionHashUpdateEventRemoveHash(t *testing.T) {
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.NewULID(),
+		SequenceID: apitypes.NewULID().String(),
 		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusPending,
 		TransactionHeaders: ffcapi.TransactionHeaders{
@@ -162,7 +162,7 @@ func TestHandleTransactionHashUpdateEventSwallowErrors(t *testing.T) {
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.NewULID(),
+		SequenceID: apitypes.NewULID().String(),
 		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusPending,
 		TransactionHeaders: ffcapi.TransactionHeaders{

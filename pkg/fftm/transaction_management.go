@@ -74,7 +74,7 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 		}
 		return m.persistence.ListTransactionsByNonce(ctx, signer, afterNonce, limit, dir)
 	case pending:
-		var afterSequence *fftypes.UUID
+		var afterSequence string
 		if afterTx != nil {
 			afterSequence = afterTx.SequenceID
 		}

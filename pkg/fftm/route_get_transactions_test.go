@@ -32,7 +32,6 @@ func genTestTxn(signer string, nonce int64, status apitypes.TxStatus) *apitypes.
 	return &apitypes.ManagedTX{
 		ID:          fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:     fftypes.Now(),
-		SequenceID:  apitypes.NewULID(),
 		Nonce:       fftypes.NewFFBigInt(nonce),
 		Status:      status,
 		FirstSubmit: fftypes.Now(),

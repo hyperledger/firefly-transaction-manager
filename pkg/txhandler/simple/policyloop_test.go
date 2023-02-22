@@ -526,7 +526,7 @@ func TestInflightSetListFailCancel(t *testing.T) {
 	sth.Init(sth.ctx, tk)
 	cancel()
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
-	mp.On("ListTransactionsPending", sth.ctx, (*fftypes.UUID)(nil), sth.maxInFlight, persistence.SortDirectionAscending).
+	mp.On("ListTransactionsPending", sth.ctx, "", sth.maxInFlight, persistence.SortDirectionAscending).
 		Return(nil, fmt.Errorf("pop"))
 
 	sth.policyLoopCycle(sth.ctx, true)
@@ -587,7 +587,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 			mtx: &apitypes.ManagedTX{
 				ID:          fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
 				Created:     fftypes.Now(),
-				SequenceID:  apitypes.NewULID(),
+				SequenceID:  apitypes.NewULID().String(),
 				Nonce:       fftypes.NewFFBigInt(1000),
 				Status:      apitypes.TxStatusSucceeded,
 				FirstSubmit: nil,
@@ -664,7 +664,7 @@ func TestPolicyLoopUpdateEventHandlerError(t *testing.T) {
 			mtx: &apitypes.ManagedTX{
 				ID:          fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
 				Created:     fftypes.Now(),
-				SequenceID:  apitypes.NewULID(),
+				SequenceID:  apitypes.NewULID().String(),
 				Nonce:       fftypes.NewFFBigInt(1000),
 				Status:      apitypes.TxStatusSucceeded,
 				FirstSubmit: nil,

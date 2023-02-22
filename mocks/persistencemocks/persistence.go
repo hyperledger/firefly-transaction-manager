@@ -340,25 +340,25 @@ func (_m *Persistence) ListTransactionsByNonce(ctx context.Context, signer strin
 	return r0, r1
 }
 
-// ListTransactionsPending provides a mock function with given fields: ctx, after, limit, dir
-func (_m *Persistence) ListTransactionsPending(ctx context.Context, after *fftypes.UUID, limit int, dir persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
-	ret := _m.Called(ctx, after, limit, dir)
+// ListTransactionsPending provides a mock function with given fields: ctx, afterSequenceID, limit, dir
+func (_m *Persistence) ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, afterSequenceID, limit, dir)
 
 	var r0 []*apitypes.ManagedTX
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, int, persistence.SortDirection) ([]*apitypes.ManagedTX, error)); ok {
-		return rf(ctx, after, limit, dir)
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, persistence.SortDirection) ([]*apitypes.ManagedTX, error)); ok {
+		return rf(ctx, afterSequenceID, limit, dir)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, int, persistence.SortDirection) []*apitypes.ManagedTX); ok {
-		r0 = rf(ctx, after, limit, dir)
+	if rf, ok := ret.Get(0).(func(context.Context, string, int, persistence.SortDirection) []*apitypes.ManagedTX); ok {
+		r0 = rf(ctx, afterSequenceID, limit, dir)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]*apitypes.ManagedTX)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID, int, persistence.SortDirection) error); ok {
-		r1 = rf(ctx, after, limit, dir)
+	if rf, ok := ret.Get(1).(func(context.Context, string, int, persistence.SortDirection) error); ok {
+		r1 = rf(ctx, afterSequenceID, limit, dir)
 	} else {
 		r1 = ret.Error(1)
 	}
