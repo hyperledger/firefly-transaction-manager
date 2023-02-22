@@ -24,8 +24,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
-	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs" // replace with your own messages if you are developing a customized transaction handler
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
@@ -114,7 +113,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 		var additional []*apitypes.ManagedTX
 		// We retry the get from persistence indefinitely (until the context cancels)
 		err := sth.retry.Do(ctx, "get pending transactions", func(attempt int) (retry bool, err error) {
-			additional, err = sth.toolkit.TXPersistence.ListTransactionsPending(ctx, after, spaces, persistence.SortDirectionAscending)
+			additional, err = sth.toolkit.TXPersistence.ListTransactionsPending(ctx, after, spaces, 0)
 			return true, err
 		})
 		if err != nil {

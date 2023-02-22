@@ -22,7 +22,6 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 )
 
 type metricsManager struct {
@@ -31,7 +30,7 @@ type metricsManager struct {
 	timeMap        map[string]time.Time
 }
 
-func NewMetricsManager(ctx context.Context) toolkit.Metrics {
+func NewMetricsManager(ctx context.Context) Metrics {
 	mm := &metricsManager{
 		ctx:            ctx,
 		metricsEnabled: config.GetBool(tmconfig.MetricsEnabled),
@@ -50,4 +49,10 @@ func (mm *metricsManager) TransactionsInFlightSet(count float64) {
 
 func (mm *metricsManager) IsMetricsEnabled() bool {
 	return mm.metricsEnabled
+}
+
+type Metrics interface {
+	TransactionSubmissionError()
+	TransactionsInFlightSet(count float64)
+	IsMetricsEnabled() bool
 }

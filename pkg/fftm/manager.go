@@ -35,7 +35,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
@@ -69,7 +68,7 @@ type manager struct {
 	apiServerDone     chan error
 	metricsServerDone chan error
 	metricsEnabled    bool
-	metricsManager    toolkit.Metrics
+	metricsManager    metrics.Metrics
 	debugServer       *http.Server
 	debugServerDone   chan struct{}
 }

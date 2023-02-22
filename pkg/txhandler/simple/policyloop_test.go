@@ -24,12 +24,14 @@ import (
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	// Internal packages are used in the tests for e2e tests with more coverage
+	// If you are developing a customized transaction handler, you'll need to mock the toolkit APIs instead
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/metricsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
-	"github.com/hyperledger/firefly-transaction-manager/mocks/toolkitmetricsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -273,7 +275,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mmm := &toolkitmetricsmocks.Metrics{}
+	mmm := &metricsmocks.Metrics{}
 
 	mmm.On("IsMetricsEnabled").Return(true).Maybe()
 	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
@@ -347,12 +349,12 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	defer cleanup()
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
+	conf.Set(Interval, "0")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
 	sth.Init(sth.ctx, tk)
-	sth.policyLoopInterval = 0
 
 	txHash1 := "0x" + fftypes.NewRandB32().String()
 	txHash2 := "0x" + fftypes.NewRandB32().String()
@@ -439,7 +441,7 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mmm := &toolkitmetricsmocks.Metrics{}
+	mmm := &metricsmocks.Metrics{}
 
 	mmm.On("IsMetricsEnabled").Return(true).Maybe()
 	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
@@ -693,7 +695,7 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
-	mmm := &toolkitmetricsmocks.Metrics{}
+	mmm := &metricsmocks.Metrics{}
 
 	mmm.On("IsMetricsEnabled").Return(true).Maybe()
 	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()

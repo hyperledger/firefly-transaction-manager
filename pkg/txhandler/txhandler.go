@@ -19,15 +19,19 @@ package txhandler
 import (
 	"context"
 
+	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/toolkit"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
 type TransactionPersistence interface {
 	persistence.TransactionPersistence
+}
+
+type TransactionMetrics interface {
+	metrics.Metrics
 }
 
 type Toolkit struct {
@@ -41,7 +45,7 @@ type Toolkit struct {
 	TXPersistence TransactionPersistence
 
 	// Metric toolkit contains methods to emit Managed Transaction specific metrics using the plugged-in metrics service
-	MetricsManager toolkit.Metrics
+	MetricsManager TransactionMetrics
 
 	// Event Handler toolkit contains methods to handle a defined set of events when processing managed transactions
 	EventHandler ManagedTxEventHandler

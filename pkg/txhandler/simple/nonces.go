@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/log"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
@@ -92,7 +91,7 @@ func (sth *simpleTransactionHandler) calcNextNonce(ctx context.Context, signer s
 	// Note we are within the nonce-lock in assignAndLockNonce for this signer, so we can be sure we're the
 	// only routine attempting this right now.
 	var lastTxn *apitypes.ManagedTX
-	txns, err := sth.toolkit.TXPersistence.ListTransactionsByNonce(ctx, signer, nil, 1, persistence.SortDirectionDescending)
+	txns, err := sth.toolkit.TXPersistence.ListTransactionsByNonce(ctx, signer, nil, 1, 1)
 	if err != nil {
 		return 0, err
 	}
