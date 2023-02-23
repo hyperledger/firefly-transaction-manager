@@ -52,14 +52,15 @@ type policyEngineAPIResponse struct {
 func (sth *simpleTransactionHandler) policyLoop() {
 	defer close(sth.policyLoopDone)
 	ctx := log.WithLogField(sth.ctx, "role", "policyloop")
+	ticker := time.NewTicker(sth.policyLoopInterval)
 
 	for {
 		// Wait to be notified, or timeout to run
-		timer := time.NewTimer(sth.policyLoopInterval)
 		select {
 		case <-sth.inflightUpdate:
-		case <-timer.C:
+		case <-ticker.C:
 		case <-ctx.Done():
+			ticker.Stop()
 			log.L(ctx).Infof("Receipt poller exiting")
 			return
 		}

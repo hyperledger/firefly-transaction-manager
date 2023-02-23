@@ -963,8 +963,6 @@ func TestPendingTransactionGetsRemoved(t *testing.T) {
 	sth.ctx = nil
 	txHandlerComplete, err := sth.Start(ctx)
 	assert.Nil(t, err)
-	// sleep for 1 second for the initial loop cycle to complete
-	time.Sleep(interval)
 
 	// add a delete request
 	req := &policyEngineAPIRequest{
