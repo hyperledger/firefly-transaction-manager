@@ -29,8 +29,6 @@ func TestGetTransaction(t *testing.T) {
 
 	url, m, done := newTestManager(t)
 	defer done()
-	noopPolicyEngine(m)
-
 	err := m.Start()
 	assert.NoError(t, err)
 

@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -104,7 +104,7 @@ type eventStream struct {
 	mux                sync.Mutex
 	status             apitypes.EventStreamStatus
 	connector          ffcapi.API
-	persistence        persistence.Persistence
+	persistence        persistence.EventStreamPersistence
 	confirmations      confirmations.Manager
 	listeners          map[fftypes.UUID]*listener
 	wsChannels         ws.WebSocketChannels
@@ -620,7 +620,7 @@ func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.Listener
 				NotificationType: confirmations.NewEventLog,
 				Event: &confirmations.EventInfo{
 					ID: &event.ID,
-					Confirmed: func(ctx context.Context, confirmations []confirmations.BlockInfo) {
+					Confirmed: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
 						// Push it to the batch when confirmed
 						// - Note this will block the confirmation manager when the event stream is blocked
 						es.batchChannel <- fev

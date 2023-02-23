@@ -23,24 +23,22 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/mocks/policyenginemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
 func genTestTxn(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	return &apitypes.ManagedTX{
-		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
-		Created:    fftypes.Now(),
-		SequenceID: apitypes.NewULID(),
-		Nonce:      fftypes.NewFFBigInt(nonce),
-		Status:     status,
+		ID:          fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+		Created:     fftypes.Now(),
+		Nonce:       fftypes.NewFFBigInt(nonce),
+		Status:      status,
+		FirstSubmit: fftypes.Now(),
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: signer,
 		},
+		History: []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 }
 
@@ -51,18 +49,10 @@ func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status api
 	return tx
 }
 
-func noopPolicyEngine(m *manager) {
-	mpe := &policyenginemocks.PolicyEngine{}
-	m.policyEngine = mpe
-	mpe.On("Execute", mock.Anything, mock.Anything, mock.Anything).Return(policyengine.UpdateNo, ffcapi.ErrorReason(""), nil).Maybe()
-}
-
 func TestGetTransactions(t *testing.T) {
 
 	url, m, done := newTestManager(t)
 	defer done()
-	noopPolicyEngine(m)
-
 	err := m.Start()
 	assert.NoError(t, err)
 

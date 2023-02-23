@@ -1,7 +1,5 @@
 {
-  "go.formatFlags": [
-    "-s"
-  ],
+  "go.formatFlags": ["-s"],
   "go.lintTool": "golangci-lint",
   "cSpell.words": [
     "APIID",
@@ -66,8 +64,6 @@
     "persistencemocks",
     "pluggable",
     "policyengine",
-    "policyenginemocks",
-    "policyengines",
     "policyloop",
     "protocolid",
     "restapi",
@@ -81,9 +77,13 @@
     "tekuri",
     "tmconfig",
     "tmmsgs",
+    "metricsmocks",
     "Tracef",
     "txcommon",
     "txcommonmocks",
+    "txhandler",
+    "txhandlerfactory",
+    "txhandlermocks",
     "txhistory",
     "txid",
     "txns",

@@ -266,9 +266,8 @@ func newTestTX(signer string, nonce int64, status apitypes.TxStatus) *apitypes.M
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: signer,
 		},
-		SequenceID: apitypes.NewULID(),
-		Nonce:      fftypes.NewFFBigInt(nonce),
-		Status:     status,
+		Nonce:  fftypes.NewFFBigInt(nonce),
+		Status: status,
 	}
 }
 
@@ -290,8 +289,13 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	s1t2 := submitNewTX("0xaaaaa", 10002, apitypes.TxStatusPending)
 	s1t3 := submitNewTX("0xaaaaa", 10003, apitypes.TxStatusPending)
 
-	// Check dup
+	// Check new transaction should not have a sequenceID
 	err := p.WriteTransaction(ctx, s1t1, true)
+	assert.Regexp(t, "FF21075", err)
+
+	// Check dup
+	s1t1.SequenceID = ""
+	err = p.WriteTransaction(ctx, s1t1, true)
 	assert.Regexp(t, "FF21065", err)
 
 	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, SortDirectionDescending)
@@ -305,7 +309,7 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 
 	// Only list pending
 
-	txns, err = p.ListTransactionsPending(ctx, nil, 0, SortDirectionDescending)
+	txns, err = p.ListTransactionsPending(ctx, "", 0, SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
 
@@ -468,7 +472,7 @@ func TestListManagedTransactionFail(t *testing.T) {
 	tx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", apitypes.NewULID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.NewULID(),
+		SequenceID: apitypes.NewULID().String(),
 	}
 	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
@@ -487,7 +491,7 @@ func TestListManagedTransactionCleanupOrphans(t *testing.T) {
 	tx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", apitypes.NewULID()),
 		Created:    fftypes.Now(),
-		SequenceID: apitypes.NewULID(),
+		SequenceID: apitypes.NewULID().String(),
 	}
 	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
@@ -522,12 +526,12 @@ func TestListInflightTransactionFail(t *testing.T) {
 	defer done()
 
 	txID := fmt.Sprintf("ns1:%s", apitypes.NewULID())
-	err := p.writeKeyValue(context.Background(), txPendingIndexKey(apitypes.NewULID()), txDataKey(txID))
+	err := p.writeKeyValue(context.Background(), txPendingIndexKey(apitypes.NewULID().String()), txDataKey(txID))
 	assert.NoError(t, err)
 	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsPending(context.Background(), nil, 0, SortDirectionDescending)
+	_, err = p.ListTransactionsPending(context.Background(), "", 0, SortDirectionDescending)
 	assert.Error(t, err)
 
 }

@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -52,7 +52,7 @@ func (m *manager) restoreStreams() error {
 				return err
 			}
 			// check to see if it's already started
-			if m.eventStreams[*def.ID] == nil {
+			if _, ok := m.eventStreams[*def.ID]; !ok {
 				closeoutName, err := m.reserveStreamName(m.ctx, *def.Name, def.ID)
 				var s events.Stream
 				if err == nil {

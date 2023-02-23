@@ -174,16 +174,47 @@
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|name|The name of the policy engine to use|`string`|`simple`
+|name|Deprecated: Please use 'transactions.handler.name' instead|`string`|`<nil>`
 
-## policyengine.simple
+## policyloop
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|interval|Deprecated: Please use 'transactions.handler.simple.interval' instead|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
+
+## policyloop.retry
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|factor|Deprecated: Please use 'transactions.handler.simple.interval' instead|[`time.Duration`](https://pkg.go.dev/time#Duration)|`2`
+|initialDelay|Deprecated: Please use 'transactions.handler.simple.interval' instead|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
+|maxDelay|Deprecated: Please use 'transactions.handler.simple.interval' instead|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
+
+## transactions
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|maxHistoryCount|The number of historical status updates to retain in the operation|`int`|`50`
+|maxInFlight|Deprecated: Please use 'transactions.handler.simple.maxInFlight' instead|`int`|`100`
+|nonceStateTimeout|Deprecated: Please use 'transactions.handler.simple.nonceStateTimeout' instead|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1h`
+
+## transactions.handler
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|name|The name of the transaction handler to use|`string`|`simple`
+
+## transactions.handler.simple
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |fixedGasPrice|A fixed gasPrice value/structure to pass to the connector|Raw JSON|`<nil>`
+|interval|Interval at which to invoke the transaction handler loop to evaluate outstanding transactions|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxInFlight|The maximum number of transactions to have in-flight with the transaction handler / blockchain transaction pool|`int`|`<nil>`
+|nonceStateTimeout|How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |resubmitInterval|The time between warning and re-sending a transaction (same nonce) when a blockchain transaction has not been allocated a receipt|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
-## policyengine.simple.gasOracle
+## transactions.handler.simple.gasOracle
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
@@ -201,20 +232,20 @@
 |tlsHandshakeTimeout|The maximum amount of time to wait for a successful TLS handshake|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |url|REST API Gas Oracle: The URL of a Gas Oracle REST API to call|`string`|`<nil>`
 
-## policyengine.simple.gasOracle.auth
+## transactions.handler.simple.gasOracle.auth
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |password|Password|`string`|`<nil>`
 |username|Username|`string`|`<nil>`
 
-## policyengine.simple.gasOracle.proxy
+## transactions.handler.simple.gasOracle.proxy
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |url|Optional HTTP proxy URL to use for the Gas Oracle REST API|`string`|`<nil>`
 
-## policyengine.simple.gasOracle.retry
+## transactions.handler.simple.gasOracle.retry
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
@@ -223,27 +254,13 @@
 |initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
-## policyloop
+## transactions.handler.simple.retry
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|interval|Interval at which to invoke the policy engine to evaluate outstanding transactions|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
-
-## policyloop.retry
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|factor|The retry backoff factor|`float32`|`2`
-|initialDelay|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
-|maxDelay|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
-
-## transactions
-
-|Key|Description|Type|Default Value|
-|---|-----------|----|-------------|
-|maxHistoryCount|The number of historical status updates to retain in the operation|`int`|`50`
-|maxInFlight|The maximum number of transactions to have in-flight with the policy engine / blockchain transaction pool|`int`|`100`
-|nonceStateTimeout|How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1h`
+|factor|Factor to increase the delay by, between each retry for retrieving transactions from the persistence|`float32`|`<nil>`
+|initialDelay|Initial retry delay for retrieving transactions from the persistence|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxDelay|Maximum delay between retries for retrieving transactions from the persistence|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
 ## webhooks
 

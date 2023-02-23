@@ -32,11 +32,15 @@ mocks-$(strip $(1))-$(strip $(2)): ${MOCKERY}
 endef
 
 $(eval $(call makemock, pkg/ffcapi,             API,                    ffcapimocks))
-$(eval $(call makemock, pkg/policyengine,       PolicyEngine,           policyenginemocks))
+$(eval $(call makemock, pkg/txhandler,          TransactionHandler,     txhandlermocks))
+$(eval $(call makemock, pkg/txhandler,          ManagedTxEventHandler,  txhandlermocks))
+$(eval $(call makemock, internal/metrics,       Metrics,                metricsmocks))
 $(eval $(call makemock, pkg/txhistory,          Manager,                txhistorymocks))
 $(eval $(call makemock, internal/confirmations, Manager,                confirmationsmocks))
 $(eval $(call makemock, internal/persistence,   Persistence,            persistencemocks))
+$(eval $(call makemock, internal/persistence,   TransactionPersistence, persistencemocks))
 $(eval $(call makemock, internal/ws,            WebSocketChannels,      wsmocks))
+$(eval $(call makemock, internal/ws,            WebSocketServer,        wsmocks))
 $(eval $(call makemock, internal/events,        Stream,                 eventsmocks))
 
 go-mod-tidy: .ALWAYS

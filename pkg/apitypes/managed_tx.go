@@ -18,7 +18,6 @@ package apitypes
 
 import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
@@ -120,26 +119,35 @@ type TxHistoryActionEntry struct {
 //   - When listing back entries, the persistence layer will automatically clean up indexes if the underlying
 //     TX they refer to is not available. For this reason the index records are written first.
 type ManagedTX struct {
-	ID                 string                             `json:"id"`
-	Created            *fftypes.FFTime                    `json:"created"`
-	Updated            *fftypes.FFTime                    `json:"updated"`
-	Status             TxStatus                           `json:"status"`
-	DeleteRequested    *fftypes.FFTime                    `json:"deleteRequested,omitempty"`
-	SequenceID         *fftypes.UUID                      `json:"sequenceId"`
-	Nonce              *fftypes.FFBigInt                  `json:"nonce"`
-	Gas                *fftypes.FFBigInt                  `json:"gas"`
-	TransactionHeaders ffcapi.TransactionHeaders          `json:"transactionHeaders"`
-	TransactionData    string                             `json:"transactionData"`
-	TransactionHash    string                             `json:"transactionHash,omitempty"`
-	GasPrice           *fftypes.JSONAny                   `json:"gasPrice"`
-	PolicyInfo         *fftypes.JSONAny                   `json:"policyInfo"`
-	FirstSubmit        *fftypes.FFTime                    `json:"firstSubmit,omitempty"`
-	LastSubmit         *fftypes.FFTime                    `json:"lastSubmit,omitempty"`
-	Receipt            *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
-	ErrorMessage       string                             `json:"errorMessage,omitempty"`
-	History            []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
-	HistorySummary     []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`
-	Confirmations      []confirmations.BlockInfo          `json:"confirmations,omitempty"`
+	ID                 string                    `json:"id"`
+	Created            *fftypes.FFTime           `json:"created"`
+	Updated            *fftypes.FFTime           `json:"updated"`
+	Status             TxStatus                  `json:"status"`
+	DeleteRequested    *fftypes.FFTime           `json:"deleteRequested,omitempty"`
+	SequenceID         string                    `json:"sequenceId"`
+	Nonce              *fftypes.FFBigInt         `json:"nonce"`
+	Gas                *fftypes.FFBigInt         `json:"gas"`
+	TransactionHeaders ffcapi.TransactionHeaders `json:"transactionHeaders"`
+	TransactionData    string                    `json:"transactionData"`
+	TransactionHash    string                    `json:"transactionHash,omitempty"`
+	GasPrice           *fftypes.JSONAny          `json:"gasPrice"`
+	PolicyInfo         *fftypes.JSONAny          `json:"policyInfo"`
+	FirstSubmit        *fftypes.FFTime           `json:"firstSubmit,omitempty"`
+	LastSubmit         *fftypes.FFTime           `json:"lastSubmit,omitempty"`
+	ErrorMessage       string                    `json:"errorMessage,omitempty"`
+
+	Receipt       *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
+	Confirmations []BlockInfo                        `json:"confirmations,omitempty"`
+
+	History        []*TxHistoryStateTransitionEntry `json:"history,omitempty"`
+	HistorySummary []*TxHistorySummaryEntry         `json:"historySummary,omitempty"`
+}
+
+type BlockInfo struct {
+	BlockNumber       fftypes.FFuint64 `json:"blockNumber"`
+	BlockHash         string           `json:"blockHash"`
+	ParentHash        string           `json:"parentHash"`
+	TransactionHashes []string         `json:"transactionHashes,omitempty"`
 }
 
 type ReplyType string
@@ -166,4 +174,21 @@ type TransactionUpdateReply struct {
 	ProtocolID       string           `json:"protocolId"`
 	TransactionHash  string           `json:"transactionHash,omitempty"`
 	ContractLocation *fftypes.JSONAny `json:"contractLocation,omitempty"`
+}
+
+// ManagedTransactionEventType is a enum type that contains all types of transaction process events
+// that a transaction handler emits.
+type ManagedTransactionEventType int
+
+const (
+	ManagedTXProcessSucceeded ManagedTransactionEventType = iota
+	ManagedTXProcessFailed
+	ManagedTXDeleted
+	ManagedTXTransactionHashAdded
+	ManagedTXTransactionHashRemoved
+)
+
+type ManagedTransactionEvent struct {
+	Type ManagedTransactionEventType `json:"type"`
+	Tx   *ManagedTX                  `json:"transaction"`
 }

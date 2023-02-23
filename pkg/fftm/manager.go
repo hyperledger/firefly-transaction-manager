@@ -20,13 +20,12 @@ import (
 	"context"
 	"net/http"
 	"sync"
-	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
-	"github.com/hyperledger/firefly-common/pkg/retry"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/blocklistener"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
@@ -35,10 +34,9 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengine"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/policyengines"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
+	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
@@ -47,62 +45,32 @@ type Manager interface {
 	Close()
 }
 
-type policyEngineAPIRequestType int
-
-const (
-	policyEngineAPIRequestTypeDelete policyEngineAPIRequestType = iota
-)
-
-// policyEngineAPIRequest requests are queued to the policy engine thread for processing against a given Transaction
-type policyEngineAPIRequest struct {
-	requestType policyEngineAPIRequestType
-	txID        string
-	startTime   time.Time
-	response    chan policyEngineAPIResponse
-}
-
-type policyEngineAPIResponse struct {
-	tx     *apitypes.ManagedTX
-	err    error
-	status int // http status code (200 Ok vs. 202 Accepted) - only set for success cases
-}
-
 type manager struct {
-	ctx            context.Context
-	cancelCtx      func()
-	retry          *retry.Retry
-	confirmations  confirmations.Manager
-	policyEngine   policyengine.PolicyEngine
-	apiServer      httpserver.HTTPServer
-	metricsServer  httpserver.HTTPServer
-	wsServer       ws.WebSocketServer
-	persistence    persistence.Persistence
-	inflightStale  chan bool
-	inflightUpdate chan bool
-	inflight       []*pendingState
+	ctx           context.Context
+	cancelCtx     func()
+	confirmations confirmations.Manager
+	txHandler     txhandler.TransactionHandler
+	apiServer     httpserver.HTTPServer
+	metricsServer httpserver.HTTPServer
+	wsServer      ws.WebSocketServer
+	persistence   persistence.Persistence
 
 	txhistory txhistory.Manager
 	connector ffcapi.API
-	tkAPI     *policyengine.ToolkitAPI
+	toolkit   *txhandler.Toolkit
 
-	mux                     sync.Mutex
-	policyEngineAPIRequests []*policyEngineAPIRequest
-	lockedNonces            map[string]*lockedNonce
-	eventStreams            map[fftypes.UUID]events.Stream
-	streamsByName           map[string]*fftypes.UUID
-	policyLoopDone          chan struct{}
-	blockListenerDone       chan struct{}
-	started                 bool
-	apiServerDone           chan error
-	metricsServerDone       chan error
-	metricsEnabled          bool
-	metricsManager          metrics.Manager
-	debugServer             *http.Server
-	debugServerDone         chan struct{}
-
-	policyLoopInterval time.Duration
-	nonceStateTimeout  time.Duration
-	maxInFlight        int
+	mux               sync.Mutex
+	eventStreams      map[fftypes.UUID]events.Stream
+	streamsByName     map[string]*fftypes.UUID
+	blockListenerDone chan struct{}
+	txHandlerDone     <-chan struct{}
+	started           bool
+	apiServerDone     chan error
+	metricsServerDone chan error
+	metricsEnabled    bool
+	metricsManager    metrics.Metrics
+	debugServer       *http.Server
+	debugServerDone   chan struct{}
 }
 
 func InitConfig() {
@@ -113,10 +81,10 @@ func InitConfig() {
 func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	var err error
 	m := newManager(ctx, connector)
-	if err = m.initServices(ctx); err != nil {
+	if err = m.initPersistence(ctx); err != nil {
 		return nil, err
 	}
-	if err = m.initPersistence(ctx); err != nil {
+	if err = m.initServices(ctx); err != nil {
 		return nil, err
 	}
 	return m, nil
@@ -124,48 +92,26 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 
 func newManager(ctx context.Context, connector ffcapi.API) *manager {
 	m := &manager{
-		connector:          connector,
-		lockedNonces:       make(map[string]*lockedNonce),
-		apiServerDone:      make(chan error),
-		metricsServerDone:  make(chan error),
-		metricsEnabled:     config.GetBool(tmconfig.MetricsEnabled),
-		eventStreams:       make(map[fftypes.UUID]events.Stream),
-		streamsByName:      make(map[string]*fftypes.UUID),
-		metricsManager:     metrics.NewMetricsManager(ctx),
-		policyLoopInterval: config.GetDuration(tmconfig.PolicyLoopInterval),
-		maxInFlight:        config.GetInt(tmconfig.TransactionsMaxInFlight),
-		nonceStateTimeout:  config.GetDuration(tmconfig.TransactionsNonceStateTimeout),
-		inflightStale:      make(chan bool, 1),
-		inflightUpdate:     make(chan bool, 1),
-		retry: &retry.Retry{
-			InitialDelay: config.GetDuration(tmconfig.PolicyLoopRetryInitDelay),
-			MaximumDelay: config.GetDuration(tmconfig.PolicyLoopRetryMaxDelay),
-			Factor:       config.GetFloat64(tmconfig.PolicyLoopRetryFactor),
-		},
-		txhistory: txhistory.NewTxHistoryManager(ctx),
+		connector:         connector,
+		apiServerDone:     make(chan error),
+		metricsServerDone: make(chan error),
+		metricsEnabled:    config.GetBool(tmconfig.MetricsEnabled),
+		eventStreams:      make(map[fftypes.UUID]events.Stream),
+		streamsByName:     make(map[string]*fftypes.UUID),
+		metricsManager:    metrics.NewMetricsManager(ctx),
+		txhistory:         txhistory.NewTxHistoryManager(ctx),
 	}
-	m.tkAPI = &policyengine.ToolkitAPI{
-		Connector: m.connector,
-		TXHistory: m.txhistory,
+	m.toolkit = &txhandler.Toolkit{
+		Connector:      m.connector,
+		TXHistory:      m.txhistory,
+		MetricsManager: m.metricsManager,
 	}
 	m.ctx, m.cancelCtx = context.WithCancel(ctx)
 	return m
 }
 
-type pendingState struct {
-	mtx                     *apitypes.ManagedTX
-	lastPolicyCycle         time.Time
-	confirmed               bool
-	remove                  bool
-	trackingTransactionHash string
-}
-
 func (m *manager) initServices(ctx context.Context) (err error) {
 	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts")
-	m.policyEngine, err = policyengines.NewPolicyEngine(ctx, tmconfig.PolicyEngineBaseConfig, config.GetString(tmconfig.PolicyEngineName))
-	if err != nil {
-		return err
-	}
 	m.wsServer = ws.NewWebSocketServer(ctx)
 	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
 	if err != nil {
@@ -178,6 +124,21 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 			return err
 		}
 	}
+
+	// check whether a policy engine name is provided
+	if config.GetString(tmconfig.DeprecatedPolicyEngineName) != "" {
+		log.L(ctx).Warnf("The 'policyengine.name' config key has been deprecated. Please use 'transactions.handler.name' instead")
+		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.DeprecatedPolicyEngineBaseConfig, config.GetString(tmconfig.DeprecatedPolicyEngineName))
+	} else {
+		// if not, fall back to use the deprecated policy engine
+		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.TransactionHandlerBaseConfig, config.GetString(tmconfig.TransactionHandlerName))
+	}
+
+	if err != nil {
+		return err
+	}
+	m.toolkit.EventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
+	m.txHandler.Init(ctx, m.toolkit)
 	return nil
 }
 
@@ -188,6 +149,7 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 		if m.persistence, err = persistence.NewLevelDBPersistence(ctx); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
+		m.toolkit.TXPersistence = m.persistence
 		return nil
 	default:
 		return i18n.NewError(ctx, tmmsgs.MsgUnknownPersistence, pType)
@@ -212,11 +174,12 @@ func (m *manager) Start() error {
 	if m.metricsEnabled {
 		go m.runMetricsServer()
 	}
-	m.policyLoopDone = make(chan struct{})
-	m.markInflightStale()
-	go m.policyLoop()
 	go m.confirmations.Start()
 
+	m.txHandlerDone, err = m.txHandler.Start(m.ctx)
+	if err != nil {
+		return err
+	}
 	m.started = true
 	return nil
 }
@@ -232,7 +195,7 @@ func (m *manager) Close() {
 		if m.metricsEnabled {
 			<-m.metricsServerDone
 		}
-		<-m.policyLoopDone
+		<-m.txHandlerDone
 		<-m.blockListenerDone
 		<-m.debugServerDone
 
