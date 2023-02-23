@@ -928,7 +928,7 @@ func TestExecPolicyIdempotentCancellation(t *testing.T) {
 func TestPendingTransactionGetsRemoved(t *testing.T) {
 	f, tk, _, conf := newTestTransactionHandlerFactory(t)
 	conf.Set(FixedGasPrice, `12345`)
-	interval := 1 * time.Second
+	interval := 1 * time.Millisecond
 	conf.Set(Interval, interval.String())
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
@@ -963,6 +963,9 @@ func TestPendingTransactionGetsRemoved(t *testing.T) {
 	sth.ctx = nil
 	txHandlerComplete, err := sth.Start(ctx)
 	assert.Nil(t, err)
+
+	// sleep to ensure inflightUpdate is drained
+	time.Sleep(2 * interval)
 
 	// add a delete request
 	req := &policyEngineAPIRequest{
