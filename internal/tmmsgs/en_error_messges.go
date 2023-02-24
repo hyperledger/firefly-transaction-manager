@@ -92,4 +92,5 @@ var (
 	MsgTransactionHandlerRequestInvalid       = ffe("FF21073", "Invalid transaction handler request type '%d'")
 	MsgTransactionHandlerResponseNoSequenceID = ffe("FF21074", "Transaction handler failed to allocate a sequence ID for request '%s'", http.StatusInternalServerError)
 	MsgPersistenceSequenceIDNotAllowed        = ffe("FF21075", "New transaction should not have sequence ID")
+	MsgInvalidJSONGasObject                   = ffe("FF21076", "Failed to parse response from Gas Oracle REST API as a JSON object")
 )

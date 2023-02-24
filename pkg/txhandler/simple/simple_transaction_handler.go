@@ -405,9 +405,7 @@ func (sth *simpleTransactionHandler) getGasPrice(ctx context.Context, cAPI ffcap
 }
 
 func (sth *simpleTransactionHandler) getGasPriceAPI(ctx context.Context) (gasPrice *fftypes.JSONAny, err error) {
-	var jsonResponse map[string]interface{}
 	res, err := sth.gasOracleClient.R().
-		SetResult(&jsonResponse).
 		Execute(sth.gasOracleMethod, "")
 	if err != nil {
 		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasOracleAPI, -1, err.Error())
@@ -415,8 +413,14 @@ func (sth *simpleTransactionHandler) getGasPriceAPI(ctx context.Context) (gasPri
 	if res.IsError() {
 		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgErrorQueryingGasOracleAPI, res.StatusCode(), res.RawResponse)
 	}
+	// Parse the response body as JSON
+	var data map[string]interface{}
+	err = json.Unmarshal(res.Body(), &data)
+	if err != nil {
+		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgInvalidJSONGasObject)
+	}
 	buff := new(bytes.Buffer)
-	err = sth.gasOracleTemplate.Execute(buff, jsonResponse)
+	err = sth.gasOracleTemplate.Execute(buff, data)
 	if err != nil {
 		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgGasOracleResultError)
 	}
