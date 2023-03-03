@@ -397,6 +397,8 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 }
 
 func (es *eventStream) resetListenerCheckpoint(ctx context.Context, l *listener) error {
+	l.checkpoint = nil
+	l.lastCheckpoint = nil
 	cp, err := es.persistence.GetCheckpoint(ctx, es.spec.ID)
 	if err != nil || cp == nil {
 		return err
