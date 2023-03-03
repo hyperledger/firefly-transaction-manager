@@ -560,7 +560,9 @@ func (es *eventStream) Stop(ctx context.Context) error {
 	}
 
 	// Stop the confirmations manager
-	es.confirmations.Stop()
+	if es.confirmations != nil {
+		es.confirmations.Stop()
+	}
 
 	// Wait for our event loop to stop
 	<-startedState.eventLoopDone
