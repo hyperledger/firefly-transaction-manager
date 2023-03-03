@@ -397,6 +397,8 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 }
 
 func (es *eventStream) resetListenerCheckpoint(ctx context.Context, l *listener) error {
+	l.checkpoint = nil
+	l.lastCheckpoint = nil
 	cp, err := es.persistence.GetCheckpoint(ctx, es.spec.ID)
 	if err != nil || cp == nil {
 		return err
@@ -560,7 +562,9 @@ func (es *eventStream) Stop(ctx context.Context) error {
 	}
 
 	// Stop the confirmations manager
-	es.confirmations.Stop()
+	if es.confirmations != nil {
+		es.confirmations.Stop()
+	}
 
 	// Wait for our event loop to stop
 	<-startedState.eventLoopDone
