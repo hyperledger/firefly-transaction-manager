@@ -399,6 +399,39 @@ func TestGasOracleSendFail(t *testing.T) {
 
 }
 
+func TestGasOracleInvalidJSON(t *testing.T) {
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		w.Write([]byte(`invalid JSON`))
+	}))
+	defer server.Close()
+
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
+	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	mtx := &apitypes.ManagedTX{
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+		},
+		TransactionData: "SOME_RAW_TX_BYTES",
+		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
+	}
+
+	ctx := context.Background()
+	th.Init(ctx, tk)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	_, _, err = sth.processTransaction(ctx, mtx)
+	assert.Regexp(t, "FF21076", err)
+
+}
+
 func TestGasOracleMissingTemplate(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
@@ -493,13 +526,13 @@ func TestTXSendFail(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
-		w.Write([]byte(`{}`))
+		w.Write([]byte(`{"gasPrice":32}`))
 	}))
 	defer server.Close()
 
 	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
-	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ . }}")
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, "{{ .gasPrice }}")
 	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, fmt.Sprintf("http://%s", server.Listener.Addr()))
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
