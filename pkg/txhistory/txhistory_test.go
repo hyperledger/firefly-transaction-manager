@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -201,6 +202,34 @@ func TestManagedTXSubStatusMaxEntries(t *testing.T) {
 
 }
 
+func TestMaxHistoryCountSetToZero(t *testing.T) {
+	tmconfig.Reset()
+	config.Set(tmconfig.TransactionsMaxHistoryCount, 0)
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	h := NewTxHistoryManager(ctx).(*manager)
+	defer cancelCtx()
+	mtx := &apitypes.ManagedTX{}
+
+	h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, nil, nil)
+	assert.Equal(t, 0, len(mtx.History))
+	assert.Equal(t, 0, len(mtx.HistorySummary))
+
+}
+
+func TestAddReceivedStatusWhenNothingSet(t *testing.T) {
+	ctx, h, done := newTestTxHistoryManager(t)
+
+	defer done()
+	mtx := &apitypes.ManagedTX{}
+
+	assert.Equal(t, 0, len(mtx.History))
+	h.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, nil, nil)
+	assert.Equal(t, 1, len(mtx.History))
+	assert.Equal(t, 1, len(mtx.History[0].Actions))
+	assert.Equal(t, apitypes.TxSubStatusReceived, mtx.History[0].Status)
+	assert.Equal(t, apitypes.TxActionSubmitTransaction, mtx.History[0].Actions[0].Action)
+}
 func TestJSONOrStringNull(t *testing.T) {
 	assert.Nil(t, jsonOrString(nil))
 }

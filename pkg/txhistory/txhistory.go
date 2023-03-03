@@ -59,6 +59,10 @@ func (h *manager) CurrentSubStatus(ctx context.Context, mtx *apitypes.ManagedTX)
 // might go through many sub-status changes before being confirmed on chain the list of
 // entries is capped at the configured number and FIFO approach used to keep within that cap.
 func (h *manager) SetSubStatus(ctx context.Context, mtx *apitypes.ManagedTX, subStatus apitypes.TxSubStatus) {
+	if h.maxHistoryCount <= 0 {
+		// if history is turned off, it's a no op
+		return
+	}
 	// See if the status being transitioned to is the same as the current status.
 	// If so, there's nothing to do.
 	if len(mtx.History) > 0 {
@@ -125,6 +129,17 @@ func jsonOrString(value *fftypes.JSONAny) *fftypes.JSONAny {
 // HTTP 4xx return code from a gas oracle. There is also an information field to record
 // arbitrary data about the action, for example the gas price retrieved from an oracle.
 func (h *manager) AddSubStatusAction(ctx context.Context, mtx *apitypes.ManagedTX, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) {
+	if h.maxHistoryCount <= 0 {
+		// if history is turned off, it's a no op
+		return
+	}
+
+	// check there is a parent sub status to add actions to
+	if len(mtx.History) == 0 {
+		// if there is no sub status, add a sub status with the first possible sub status: received
+		h.SetSubStatus(ctx, mtx, apitypes.TxSubStatusReceived)
+
+	}
 
 	// See if this action exists in the list already since we only want to update the single entry, not
 	// add a new one
@@ -179,4 +194,5 @@ func (h *manager) AddSubStatusAction(ctx context.Context, mtx *apitypes.ManagedT
 		}
 	}
 	mtx.HistorySummary = append(mtx.HistorySummary, &apitypes.TxHistorySummaryEntry{Action: action, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
+
 }
