@@ -5,7 +5,6 @@
 The core component of the FireFly Connector Framework for Blockchains, responsible for:
 
 - Submission of transactions to blockchains of all types
-  - Nonce management - idempotent submission of transactions, and assignment of nonces 
   - Protocol connectivity decoupled with additional lightweight API connector
   - Easy to add additional protocols that conform to normal patterns of TX submission / events
 
@@ -13,9 +12,11 @@ The core component of the FireFly Connector Framework for Blockchains, responsib
   - Receipts
   - Confirmations
 
-- Gas calculation and rescue of stalled transactions
-  - Extensible policy engine
-  - Gas station API integration
+- Extensible transaction handler with capabilities such as:
+  - Nonce management: idempotent submission of transactions, and assignment of nonces 
+  - Transaction management: pre-signing transactions, resubmission, customizable policy engine
+  - Gas management: Gas Gas station API integration
+  - Transaction process history
 
 - Event streaming
   - Protocol agnostic event polling/streaming support
@@ -45,7 +46,7 @@ The framework is currently constrained to blockchains that adhere to certain bas
 4. Has finality for transactions & events that can be expressed as a level of confidence over time
   - Confirmations: A number of sequential blocks in the canonical chain that contain the transaction
 
-## Nonce management
+## Nonce management in the simple transaction handler
 
 The nonces for transactions is assigned as early as possible in the flow:
 - Before the REST API for submission of the transaction occurs
@@ -94,11 +95,12 @@ However, "at target" comes with two compromises that mean FFTM chose the "at sou
 - In crash recovery scenarios the assurance is at-least-once delivery for "at target" ordering (rather than "exactly once"),
   although the window can be made very small through various optimizations included in the EthConnect codebase.
 
-## Policy Manager
+## Transaction Handler
 
-> TODO: Add more detail to describe the pluggability of the Policy Manager component, to perform transaction gas price
->       estimation, advanced monitoring of transactions, submission and re-submission of the transactions with updated
->       parameters (such as gas price) etc.
+A simple transaction handler can be found in [./pkg/txhandler/simple](./pkg/txhandler/simple). You can write your own transaction
+handler using [the transaction handler interface](./pkg/txhandler/txhandler.go).
+
+An example of how to plug in your handler, can be found [here](https://github.com/hyperledger/firefly-evmconnect/blob/a4b3b15dc4fa1ac93ad9f829d23e4574a4c71f01/cmd/evmconnect.go#L66)
 
 ## Event streaming
 
