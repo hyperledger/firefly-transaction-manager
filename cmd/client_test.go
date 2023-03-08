@@ -27,3 +27,8 @@ func TestClientCommand(t *testing.T) {
 	err := cmd.Execute()
 	assert.NoError(t, err)
 }
+
+func TestCreateDefaultClient(t *testing.T) {
+	client := createClient()
+	assert.NotNil(t, client)
+}
