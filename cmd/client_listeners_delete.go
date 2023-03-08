@@ -19,6 +19,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/hyperledger/firefly-transaction-manager/internal/apiclient"
 	"github.com/spf13/cobra"
@@ -43,7 +44,9 @@ func clientListenersDeleteCommand(clientFactory func() apiclient.FFTMClient) *co
 			if listenerID != "" {
 				err := client.DeleteListener(context.Background(), eventStreamID, listenerID)
 				if err != nil {
-					return err
+					if !(strings.Contains(err.Error(), "FF21046") && ignoreNotFound) {
+						return err
+					}
 				}
 			}
 			if nameRegex != "" {

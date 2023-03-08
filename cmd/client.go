@@ -29,6 +29,7 @@ import (
 
 var url string
 var nameRegex string
+var ignoreNotFound bool
 
 func ClientCommand(fftmClientFactory ...func() apiclient.FFTMClient) *cobra.Command {
 	clientCmd := &cobra.Command{
@@ -37,7 +38,7 @@ func ClientCommand(fftmClientFactory ...func() apiclient.FFTMClient) *cobra.Comm
 	}
 	defaultURL := fmt.Sprintf("http://%s:%s", tmconfig.APIConfig.GetString(httpserver.HTTPConfAddress), tmconfig.APIConfig.GetString(httpserver.HTTPConfPort))
 
-	// Flags need to be set before initializing the client below, because they change some of its options
+	clientCmd.PersistentFlags().BoolVarP(&ignoreNotFound, "ignore-not-found", "", false, "Does not return an error if the resource is not found. Useful for idempotent delete functions.")
 	clientCmd.PersistentFlags().StringVarP(&url, "url", "", defaultURL, "The URL of the blockchain connector")
 
 	var clientFactory func() apiclient.FFTMClient
