@@ -42,6 +42,7 @@ $(eval $(call makemock, internal/persistence,   TransactionPersistence, persiste
 $(eval $(call makemock, internal/ws,            WebSocketChannels,      wsmocks))
 $(eval $(call makemock, internal/ws,            WebSocketServer,        wsmocks))
 $(eval $(call makemock, internal/events,        Stream,                 eventsmocks))
+$(eval $(call makemock, internal/apiclient,     FFTMClient,             apiclientmocks))
 
 go-mod-tidy: .ALWAYS
 		$(VGO) mod tidy

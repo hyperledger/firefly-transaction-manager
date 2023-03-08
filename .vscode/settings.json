@@ -2,6 +2,7 @@
   "go.formatFlags": ["-s"],
   "go.lintTool": "golangci-lint",
   "cSpell.words": [
+    "apiclient",
     "APIID",
     "apitypes",
     "badurl",
@@ -54,6 +55,7 @@
     "leveldb",
     "loadbalanced",
     "logrus",
+    "metricsmocks",
     "mtxs",
     "NATS",
     "Nowarn",
@@ -77,7 +79,6 @@
     "tekuri",
     "tmconfig",
     "tmmsgs",
-    "metricsmocks",
     "Tracef",
     "txcommon",
     "txcommonmocks",
