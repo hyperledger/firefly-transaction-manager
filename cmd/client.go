@@ -31,7 +31,11 @@ var url string
 var nameRegex string
 var ignoreNotFound bool
 
-func ClientCommand(fftmClientFactory ...func() apiclient.FFTMClient) *cobra.Command {
+func ClientCommand() *cobra.Command {
+	return buildClientCommand(createClient)
+}
+
+func buildClientCommand(clientFactory func() apiclient.FFTMClient) *cobra.Command {
 	clientCmd := &cobra.Command{
 		Use:   "client <subcommand>",
 		Short: "Make API requests to a blockchain connector instance",
@@ -40,13 +44,6 @@ func ClientCommand(fftmClientFactory ...func() apiclient.FFTMClient) *cobra.Comm
 
 	clientCmd.PersistentFlags().BoolVarP(&ignoreNotFound, "ignore-not-found", "", false, "Does not return an error if the resource is not found. Useful for idempotent delete functions.")
 	clientCmd.PersistentFlags().StringVarP(&url, "url", "", defaultURL, "The URL of the blockchain connector")
-
-	var clientFactory func() apiclient.FFTMClient
-	if len(fftmClientFactory) > 0 && fftmClientFactory[0] != nil {
-		clientFactory = fftmClientFactory[0]
-	} else {
-		clientFactory = createClient
-	}
 
 	clientCmd.AddCommand(clientEventStreamsCommand(clientFactory))
 	clientCmd.AddCommand(clientListenersCommand(clientFactory))

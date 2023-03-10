@@ -28,7 +28,7 @@ import (
 
 func TestEventStreamsDeleteByID(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := ClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
 	cmd.SetArgs([]string{"eventstreams", "delete", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7"})
 	mc.On("DeleteEventStream", mock.Anything, "f9506df2-5473-4fd4-9cfb-f835656eaaa7").Return(nil)
 	err := cmd.Execute()
@@ -38,7 +38,7 @@ func TestEventStreamsDeleteByID(t *testing.T) {
 
 func TestEventStreamsDeleteByName(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := ClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
 	cmd.SetArgs([]string{"eventstreams", "delete", "--name", "foo"})
 	mc.On("DeleteEventStreamsByName", mock.Anything, "foo").Return(nil)
 	err := cmd.Execute()
@@ -48,7 +48,7 @@ func TestEventStreamsDeleteByName(t *testing.T) {
 
 func TestEventStreamsDeleteNoID(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := ClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
 	cmd.SetArgs([]string{"eventstreams", "delete"})
 	err := cmd.Execute()
 	assert.Regexp(t, "eventstream or name flag must be set", err)
@@ -56,7 +56,7 @@ func TestEventStreamsDeleteNoID(t *testing.T) {
 
 func TestEventStreamsDeleteIDandName(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := ClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
 	cmd.SetArgs([]string{"eventstreams", "delete", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "--name", "foo"})
 	err := cmd.Execute()
 	assert.Regexp(t, "eventstream and name flags cannot be combined", err)
@@ -64,7 +64,7 @@ func TestEventStreamsDeleteIDandName(t *testing.T) {
 
 func TestEventStreamsDeleteByNameError(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := ClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
 	cmd.SetArgs([]string{"eventstreams", "delete", "--name", "foo"})
 	mc.On("DeleteEventStreamsByName", mock.Anything, "foo").Return(fmt.Errorf("pop"))
 	err := cmd.Execute()
@@ -74,7 +74,7 @@ func TestEventStreamsDeleteByNameError(t *testing.T) {
 
 func TestEventStreamsDeleteByIDError(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := ClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
 	cmd.SetArgs([]string{"eventstreams", "delete", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7"})
 	mc.On("DeleteEventStream", mock.Anything, "f9506df2-5473-4fd4-9cfb-f835656eaaa7").Return(fmt.Errorf("pop"))
 	err := cmd.Execute()

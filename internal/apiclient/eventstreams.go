@@ -25,25 +25,27 @@ import (
 )
 
 func (c *fftmClient) GetEventStreams(ctx context.Context) ([]apitypes.EventStream, error) {
+	eventStreams := []apitypes.EventStream{}
 	resp, err := c.client.R().
 		SetContext(ctx).
-		SetResult([]apitypes.EventStream{}).
+		SetResult(&eventStreams).
 		Get("eventstreams")
 	if !resp.IsSuccess() {
 		return nil, fmt.Errorf(string(resp.Body()))
 	}
-	return *resp.Result().(*[]apitypes.EventStream), err
+	return eventStreams, err
 }
 
 func (c *fftmClient) GetListeners(ctx context.Context, eventStreamID string) ([]apitypes.Listener, error) {
+	listeners := []apitypes.Listener{}
 	resp, err := c.client.R().
 		SetContext(ctx).
-		SetResult([]apitypes.Listener{}).
+		SetResult(&listeners).
 		Get(fmt.Sprintf("eventstreams/%s/listeners", eventStreamID))
 	if !resp.IsSuccess() {
 		return nil, fmt.Errorf(string(resp.Body()))
 	}
-	return *resp.Result().(*[]apitypes.Listener), err
+	return listeners, err
 }
 
 func (c *fftmClient) DeleteEventStream(ctx context.Context, eventStreamID string) error {
