@@ -20,9 +20,9 @@ lint: ${LINT}
 		GOGC=20 $(LINT) run -v --timeout 5m
 
 ${MOCKERY}:
-		$(VGO) install github.com/vektra/mockery/cmd/mockery@latest
+		$(VGO) install github.com/vektra/mockery/v2@latest
 ${LINT}:
-		$(VGO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.47.0
+		$(VGO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.47.3
 
 
 define makemock
@@ -42,6 +42,7 @@ $(eval $(call makemock, internal/persistence,   TransactionPersistence, persiste
 $(eval $(call makemock, internal/ws,            WebSocketChannels,      wsmocks))
 $(eval $(call makemock, internal/ws,            WebSocketServer,        wsmocks))
 $(eval $(call makemock, internal/events,        Stream,                 eventsmocks))
+$(eval $(call makemock, internal/apiclient,     FFTMClient,             apiclientmocks))
 
 go-mod-tidy: .ALWAYS
 		$(VGO) mod tidy
