@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -187,6 +187,8 @@ const (
 	ErrorKnownTransaction ErrorReason = "known_transaction"
 	// ErrorReasonDownstreamDown if the downstream JSONRPC endpoint is down
 	ErrorReasonDownstreamDown = "downstream_down"
+	// ErrorReasonTempResourceLimit if there is a temporary resource constraint. This type of error indicates to the caller that the same call might succeed at a later point
+	ErrorReasonTempResourceLimit = "temp_resource_limit"
 )
 
 // TransactionInput is a standardized set of parameters that describe a transaction submission to a blockchain.
