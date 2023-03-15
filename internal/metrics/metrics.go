@@ -56,8 +56,10 @@ type Metrics interface {
 
 type TransactionManagerMetrics interface {
 	CountNewTransactionRequest(ctx context.Context, operationName string)
-	CountNewTransactionResponse(ctx context.Context, operationName string, status string)
-	RecordTransactionRequestDurationMs(ctx context.Context, operationName string, status string, ms time.Duration)
+	CountSuccessTransactionResponse(ctx context.Context, operationName string)
+	CountErrorTransactionResponse(ctx context.Context, operationName string)
+	RecordSuccessTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration)
+	RecordErrorTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration)
 }
 
 func (mm *metricsManager) CountNewTransactionRequest(ctx context.Context, operationName string) {
@@ -65,14 +67,25 @@ func (mm *metricsManager) CountNewTransactionRequest(ctx context.Context, operat
 		CountNewTransactionRequest(ctx, operationName)
 	}
 }
-func (mm *metricsManager) CountNewTransactionResponse(ctx context.Context, operationName string, status string) {
+func (mm *metricsManager) CountSuccessTransactionResponse(ctx context.Context, operationName string) {
 	if mm.metricsEnabled {
-		CountNewTransactionResponse(ctx, operationName, status)
+		CountSuccessTransactionResponse(ctx, operationName)
 	}
 }
-func (mm *metricsManager) RecordTransactionRequestDurationMs(ctx context.Context, operationName string, status string, ms time.Duration) {
+func (mm *metricsManager) CountErrorTransactionResponse(ctx context.Context, operationName string) {
 	if mm.metricsEnabled {
-		RecordTransactionRequestDurationMs(ctx, operationName, status, ms)
+		CountErrorTransactionResponse(ctx, operationName)
+	}
+}
+func (mm *metricsManager) RecordSuccessTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration) {
+	if mm.metricsEnabled {
+		RecordSuccessTransactionRequestDuration(ctx, operationName, ms)
+	}
+}
+
+func (mm *metricsManager) RecordErrorTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration) {
+	if mm.metricsEnabled {
+		RecordErrorTransactionRequestDuration(ctx, operationName, ms)
 	}
 }
 

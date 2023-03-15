@@ -101,6 +101,8 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 	for _, p := range oldInflight {
 		if !p.remove {
 			sth.inflight = append(sth.inflight, p)
+		} else {
+			sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessEventsTotal, map[string]string{metricsLabelNameEvent: "removed"})
 		}
 	}
 
@@ -122,6 +124,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 			return false
 		}
 		for _, mtx := range additional {
+			sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessEventsTotal, map[string]string{metricsLabelNameEvent: "polled"})
 			sth.inflight = append(sth.inflight, &pendingState{mtx: mtx})
 		}
 		newLen := len(sth.inflight)
@@ -269,7 +272,6 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			if updateErr != nil {
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, updateReason, err)
 				update = UpdateYes
-				sth.toolkit.MetricsManager.IncTxHandlerCounterMetric(ctx, metricsTransactionSubmissionErrorTotal)
 			} else {
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil &&
@@ -313,8 +315,10 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 					})
 					if err != nil {
 						log.L(ctx).Infof("Error detected notifying confirmation manager to add new transaction hash: %s", err.Error())
+						sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessEventsTotal, map[string]string{metricsLabelNameEvent: "tracking_failed"})
 					} else {
 						pending.trackingTransactionHash = mtx.TransactionHash
+						sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessEventsTotal, map[string]string{metricsLabelNameEvent: "tracking"})
 					}
 				}
 				pending.lastPolicyCycle = time.Now()
@@ -428,8 +432,10 @@ func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx contex
 	sth.mux.Lock()
 	pending.mtx.Receipt = receipt
 	sth.mux.Unlock()
+
 	log.L(ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 	sth.toolkit.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
 	sth.markInflightUpdate()
+	sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessEventsTotal, map[string]string{metricsLabelNameEvent: "received_receipt"})
 	return
 }

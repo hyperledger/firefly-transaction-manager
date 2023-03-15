@@ -43,3 +43,19 @@ func TestGetTransaction(t *testing.T) {
 	assert.Equal(t, *txIn, *txOut)
 
 }
+
+func TestGetTransactionError(t *testing.T) {
+
+	url, m, done := newTestManager(t)
+	defer done()
+	err := m.Start()
+	assert.NoError(t, err)
+
+	var txOut *apitypes.ManagedTX
+	res, err := resty.New().R().
+		SetResult(&txOut).
+		Get(fmt.Sprintf("%s/transactions/%s", url, "does not exist"))
+	assert.NoError(t, err)
+	assert.Equal(t, 404, res.StatusCode())
+
+}

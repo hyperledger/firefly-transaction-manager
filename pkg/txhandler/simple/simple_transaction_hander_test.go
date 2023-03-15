@@ -162,7 +162,11 @@ func TestFixedGasPriceOK(t *testing.T) {
 
 	mmm := &metricsmocks.TransactionHandlerMetrics{}
 	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(fmt.Errorf("fail")).Once()
-	mmm.On("InitTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal, metricsTransactionSubmissionErrorTotalDescription).Return(fmt.Errorf("fail")).Once()
+	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, metricsTransactionProcessEventsTotalDescription, []string{metricsLabelNameEvent}).Return(fmt.Errorf("fail")).Once()
+	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessDuration, metricsTransactionProcessDurationDescription, []float64{}, []string{metricsLabelNameEvent}).Return(fmt.Errorf("fail")).Once()
+	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
+
 	tk.MetricsManager = mmm
 
 	th.Init(ctx, tk)

@@ -277,9 +277,11 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 
 	mmm := &metricsmocks.TransactionHandlerMetrics{}
 	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(nil).Maybe()
-	mmm.On("InitTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal, metricsTransactionSubmissionErrorTotalDescription).Return(nil).Maybe()
+	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, metricsTransactionProcessEventsTotalDescription, []string{metricsLabelNameEvent}).Return(nil).Maybe()
+	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessDuration, metricsTransactionProcessDurationDescription, []float64{}, []string{metricsLabelNameEvent}).Return(nil).Maybe()
 	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, mock.Anything).Return().Maybe()
-	mmm.On("IncTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal).Return().Once()
+	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
 
 	tk.MetricsManager = mmm
 
@@ -443,9 +445,11 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 
 	mmm := &metricsmocks.TransactionHandlerMetrics{}
 	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(nil).Maybe()
-	mmm.On("InitTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal, metricsTransactionSubmissionErrorTotalDescription).Return(nil).Maybe()
+	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, metricsTransactionProcessEventsTotalDescription, []string{metricsLabelNameEvent}).Return(nil).Maybe()
+	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessDuration, metricsTransactionProcessDurationDescription, []float64{}, []string{metricsLabelNameEvent}).Return(nil).Maybe()
 	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, mock.Anything).Return().Maybe()
-	mmm.On("IncTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal).Return().Once()
+	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
 
 	tk.MetricsManager = mmm
 	sth := th.(*simpleTransactionHandler)
@@ -698,9 +702,11 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 
 	mmm := &metricsmocks.TransactionHandlerMetrics{}
 	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(nil).Maybe()
-	mmm.On("InitTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal, metricsTransactionSubmissionErrorTotalDescription).Return(nil).Maybe()
+	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, metricsTransactionProcessEventsTotalDescription, []string{metricsLabelNameEvent}).Return(nil).Maybe()
+	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessDuration, metricsTransactionProcessDurationDescription, []float64{}, []string{metricsLabelNameEvent}).Return(nil).Maybe()
 	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, mock.Anything).Return().Maybe()
-	mmm.On("IncTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal).Return().Twice()
+	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
 
 	tk.MetricsManager = mmm
 	sth := th.(*simpleTransactionHandler)

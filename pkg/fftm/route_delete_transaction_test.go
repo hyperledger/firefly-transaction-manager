@@ -21,8 +21,10 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestDeleteTransaction(t *testing.T) {
@@ -42,4 +44,22 @@ func TestDeleteTransaction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 202, res.StatusCode())
 	assert.Equal(t, txID, txOut.ID)
+}
+
+func TestDeleteTransactionFailed(t *testing.T) {
+	url, m, done := newTestManager(t)
+	defer done()
+
+	err := m.Start()
+	assert.NoError(t, err)
+	mth := txhandlermocks.TransactionHandler{}
+	mth.On("HandleCancelTransaction", mock.Anything, "1234").Return(nil, fmt.Errorf("error")).Once()
+	m.txHandler = &mth
+
+	var txOut *apitypes.ManagedTX
+	res, err := resty.New().R().
+		SetResult(&txOut).
+		Delete(fmt.Sprintf("%s/transactions/%s", url, "1234"))
+	assert.NoError(t, err)
+	assert.Equal(t, 500, res.StatusCode())
 }

@@ -103,3 +103,17 @@ func TestGetTransactions(t *testing.T) {
 	assert.Equal(t, s2t1.ID, transactions[0].ID)
 
 }
+
+func TestGetTransactionsError(t *testing.T) {
+
+	url, m, done := newTestManager(t)
+	defer done()
+	err := m.Start()
+	assert.NoError(t, err)
+
+	// Test invalid limit string returns error
+	res, err := resty.New().R().
+		Get(url + "/transactions?limit=invalidLimit")
+	assert.Equal(t, 500, res.StatusCode())
+
+}

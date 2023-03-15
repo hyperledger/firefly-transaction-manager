@@ -49,7 +49,8 @@ func TestTransactionAPIResponseTotal(t *testing.T) {
 	mm, cancel := newTestMetricsManager(t)
 	defer cancel()
 	mm.metricsEnabled = true
-	mm.CountNewTransactionResponse(ctx, "newTransaction", "200")
+	mm.CountSuccessTransactionResponse(ctx, "newTransaction")
+	mm.CountErrorTransactionResponse(ctx, "newTransaction")
 }
 
 func TestTransactionAPIRequestDuration(t *testing.T) {
@@ -57,7 +58,8 @@ func TestTransactionAPIRequestDuration(t *testing.T) {
 	mm, cancel := newTestMetricsManager(t)
 	defer cancel()
 	mm.metricsEnabled = true
-	mm.RecordTransactionRequestDurationMs(ctx, "newTransaction", "200", 1*time.Millisecond)
+	mm.RecordSuccessTransactionRequestDuration(ctx, "newTransaction", 1*time.Millisecond)
+	mm.RecordErrorTransactionRequestDuration(ctx, "newTransaction", 1*time.Millisecond)
 }
 
 func TestTransactionHandlerMetricsToolkit(t *testing.T) {

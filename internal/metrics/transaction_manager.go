@@ -25,11 +25,11 @@ import (
 
 var TransactionAPIRequestsTotal *prometheus.CounterVec
 var TransactionAPIResponsesTotal *prometheus.CounterVec
-var TransactionAPIRequestDurationMs *prometheus.HistogramVec
+var TransactionAPIRequestDurationSecond *prometheus.HistogramVec
 
 var MetricsTransactionRequestCount = "ff_tm_api_requests_total"
 var MetricsTransactionResponseCount = "ff_tm_api_responses_total"
-var MetricsTransactionRequestDurationMs = "ff_tm_api_request_duration_ms"
+var MetricsTransactionRequestDurationSecond = "ff_tm_api_request_duration"
 
 func InitTxManagementMetrics() {
 	TransactionAPIRequestsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -42,8 +42,8 @@ func InitTxManagementMetrics() {
 		Help: "Number of transaction API responses",
 	}, []string{"operation", "status"})
 
-	TransactionAPIRequestDurationMs = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name: MetricsTransactionRequestDurationMs,
+	TransactionAPIRequestDurationSecond = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name: MetricsTransactionRequestDurationSecond,
 		Help: "Time of processing transaction API requests",
 	}, []string{"operation", "status"})
 }
@@ -51,7 +51,7 @@ func InitTxManagementMetrics() {
 func RegisterTXManagerMetrics() {
 	registry.MustRegister(TransactionAPIRequestsTotal)
 	registry.MustRegister(TransactionAPIResponsesTotal)
-	registry.MustRegister(TransactionAPIRequestDurationMs)
+	registry.MustRegister(TransactionAPIRequestDurationSecond)
 }
 
 func CountNewTransactionRequest(ctx context.Context, operationName string) {
@@ -60,16 +60,30 @@ func CountNewTransactionRequest(ctx context.Context, operationName string) {
 	}).Inc()
 }
 
-func CountNewTransactionResponse(ctx context.Context, operationName string, status string) {
+func CountSuccessTransactionResponse(ctx context.Context, operationName string) {
 	TransactionAPIResponsesTotal.With(prometheus.Labels{
 		"operation": operationName,
-		"status":    status,
+		"status":    "success",
 	}).Inc()
 }
 
-func RecordTransactionRequestDurationMs(ctx context.Context, operationName string, status string, ms time.Duration) {
-	TransactionAPIRequestDurationMs.With(prometheus.Labels{
+func CountErrorTransactionResponse(ctx context.Context, operationName string) {
+	TransactionAPIResponsesTotal.With(prometheus.Labels{
 		"operation": operationName,
-		"status":    status,
-	}).Observe(float64(ms.Milliseconds()))
+		"status":    "error",
+	}).Inc()
+}
+
+func RecordSuccessTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration) {
+	TransactionAPIRequestDurationSecond.With(prometheus.Labels{
+		"operation": operationName,
+		"status":    "success",
+	}).Observe(ms.Seconds())
+}
+
+func RecordErrorTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration) {
+	TransactionAPIRequestDurationSecond.With(prometheus.Labels{
+		"operation": operationName,
+		"status":    "error",
+	}).Observe(ms.Seconds())
 }
