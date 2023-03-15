@@ -275,11 +275,11 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mmm := &metricsmocks.Metrics{}
-
-	mmm.On("IsMetricsEnabled").Return(true).Maybe()
-	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
-	mmm.On("TransactionSubmissionError").Return().Once()
+	mmm := &metricsmocks.TransactionHandlerMetrics{}
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(nil).Maybe()
+	mmm.On("InitTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal, metricsTransactionSubmissionErrorTotalDescription).Return(nil).Maybe()
+	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, mock.Anything).Return().Maybe()
+	mmm.On("IncTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal).Return().Once()
 
 	tk.MetricsManager = mmm
 
@@ -441,11 +441,11 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mmm := &metricsmocks.Metrics{}
-
-	mmm.On("IsMetricsEnabled").Return(true).Maybe()
-	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
-	mmm.On("TransactionSubmissionError").Return().Once()
+	mmm := &metricsmocks.TransactionHandlerMetrics{}
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(nil).Maybe()
+	mmm.On("InitTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal, metricsTransactionSubmissionErrorTotalDescription).Return(nil).Maybe()
+	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, mock.Anything).Return().Maybe()
+	mmm.On("IncTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal).Return().Once()
 
 	tk.MetricsManager = mmm
 	sth := th.(*simpleTransactionHandler)
@@ -695,11 +695,12 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
-	mmm := &metricsmocks.Metrics{}
 
-	mmm.On("IsMetricsEnabled").Return(true).Maybe()
-	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
-	mmm.On("TransactionSubmissionError").Return().Twice()
+	mmm := &metricsmocks.TransactionHandlerMetrics{}
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(nil).Maybe()
+	mmm.On("InitTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal, metricsTransactionSubmissionErrorTotalDescription).Return(nil).Maybe()
+	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, mock.Anything).Return().Maybe()
+	mmm.On("IncTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal).Return().Twice()
 
 	tk.MetricsManager = mmm
 	sth := th.(*simpleTransactionHandler)

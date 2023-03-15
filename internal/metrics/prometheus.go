@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -68,12 +68,14 @@ func Clear() {
 }
 
 func initMetricsCollectors() {
-	InitEvmMetrics()
+	InitTxManagementMetrics()
+	// transaction handler metrics are initialized outside this function
 }
 
 func registerMetricsCollectors() {
 	registry.MustRegister(collectors.NewGoCollector())
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
-	RegisterEvmMetrics()
+	RegisterTXManagerMetrics()
+	RegisterTxHandlerMetrics()
 }

@@ -39,6 +39,11 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
+const metricsTransactionsInflightCurrent = "tx_in_flight"
+const metricsTransactionsInflightCurrentDescription = "Number of transactions currently in flight"
+const metricsTransactionSubmissionErrorTotal = "tx_submission_error_total"
+const metricsTransactionSubmissionErrorTotalDescription = "Number of transaction submission errors"
+
 // UpdateType informs FFTM whether the transaction needs an update to be persisted after this execution of the policy engine
 type UpdateType int
 
@@ -175,6 +180,10 @@ func (sth *simpleTransactionHandler) withPolicyInfo(ctx context.Context, mtx *ap
 
 func (sth *simpleTransactionHandler) Init(ctx context.Context, toolkit *txhandler.Toolkit) {
 	sth.toolkit = toolkit
+
+	// init metrics
+	sth.toolkit.MetricsManager.InitTxHandlerCounterMetric(ctx, metricsTransactionSubmissionErrorTotal, metricsTransactionSubmissionErrorTotalDescription)
+	sth.toolkit.MetricsManager.InitTxHandlerGaugeMetric(ctx, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription)
 }
 
 func (sth *simpleTransactionHandler) Start(ctx context.Context) (done <-chan struct{}, err error) {

@@ -38,6 +38,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/metricsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -158,6 +159,12 @@ func TestFixedGasPriceOK(t *testing.T) {
 	}, ffcapi.ErrorReason(""), nil)
 
 	ctx := context.Background()
+
+	mmm := &metricsmocks.TransactionHandlerMetrics{}
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(fmt.Errorf("fail")).Once()
+	mmm.On("InitTxHandlerCounterMetric", mock.Anything, metricsTransactionSubmissionErrorTotal, metricsTransactionSubmissionErrorTotalDescription).Return(fmt.Errorf("fail")).Once()
+	tk.MetricsManager = mmm
+
 	th.Init(ctx, tk)
 
 	sth := th.(*simpleTransactionHandler)

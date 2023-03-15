@@ -144,10 +144,9 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 		}
 	}
 
+	sth.toolkit.MetricsManager.SetTxHandlerGaugeMetric(ctx, metricsTransactionsInflightCurrent, float64(len(sth.inflight)))
+
 	// Go through executing the policy engine against them
-	if sth.toolkit.MetricsManager.IsMetricsEnabled() {
-		sth.toolkit.MetricsManager.TransactionsInFlightSet(float64(len(sth.inflight)))
-	}
 
 	for _, pending := range sth.inflight {
 		err := sth.execPolicy(ctx, pending, false)
@@ -270,9 +269,7 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			if updateErr != nil {
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, updateReason, err)
 				update = UpdateYes
-				if sth.toolkit.MetricsManager.IsMetricsEnabled() {
-					sth.toolkit.MetricsManager.TransactionSubmissionError()
-				}
+				sth.toolkit.MetricsManager.IncTxHandlerCounterMetric(ctx, metricsTransactionSubmissionErrorTotal)
 			} else {
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil &&

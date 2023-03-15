@@ -118,13 +118,6 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 		return err
 	}
 
-	if m.metricsEnabled {
-		m.metricsServer, err = httpserver.NewHTTPServer(ctx, "metrics", m.createMetricsMuxRouter(), m.metricsServerDone, tmconfig.MetricsConfig, tmconfig.CorsConfig)
-		if err != nil {
-			return err
-		}
-	}
-
 	// check whether a policy engine name is provided
 	if config.GetString(tmconfig.DeprecatedPolicyEngineName) != "" {
 		log.L(ctx).Warnf("The 'policyengine.name' config key has been deprecated. Please use 'transactions.handler.name' instead")
@@ -139,6 +132,16 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	}
 	m.toolkit.EventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
 	m.txHandler.Init(ctx, m.toolkit)
+
+	// metrics service must be initialized after transaction handler
+	// in case the transaction handler has logic in the Init function
+	// to add more metrics
+	if m.metricsEnabled {
+		m.metricsServer, err = httpserver.NewHTTPServer(ctx, "metrics", m.createMetricsMuxRouter(), m.metricsServerDone, tmconfig.MetricsConfig, tmconfig.CorsConfig)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
