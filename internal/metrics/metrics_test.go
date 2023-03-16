@@ -19,7 +19,6 @@ package metrics
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/stretchr/testify/assert"
@@ -34,32 +33,6 @@ func newTestMetricsManager(t *testing.T) (*metricsManager, func()) {
 	mm := mmi.(*metricsManager)
 	assert.Equal(t, len(mm.timeMap), 0)
 	return mm, cancel
-}
-
-func TestTransactionAPIRequestsTotal(t *testing.T) {
-	ctx := context.Background()
-	mm, cancel := newTestMetricsManager(t)
-	defer cancel()
-	mm.metricsEnabled = true
-	mm.CountNewTransactionRequest(ctx, "newTransaction")
-}
-
-func TestTransactionAPIResponseTotal(t *testing.T) {
-	ctx := context.Background()
-	mm, cancel := newTestMetricsManager(t)
-	defer cancel()
-	mm.metricsEnabled = true
-	mm.CountSuccessTransactionResponse(ctx, "newTransaction")
-	mm.CountErrorTransactionResponse(ctx, "newTransaction")
-}
-
-func TestTransactionAPIRequestDuration(t *testing.T) {
-	ctx := context.Background()
-	mm, cancel := newTestMetricsManager(t)
-	defer cancel()
-	mm.metricsEnabled = true
-	mm.RecordSuccessTransactionRequestDuration(ctx, "newTransaction", 1*time.Millisecond)
-	mm.RecordErrorTransactionRequestDuration(ctx, "newTransaction", 1*time.Millisecond)
 }
 
 func TestTransactionHandlerMetricsToolkit(t *testing.T) {

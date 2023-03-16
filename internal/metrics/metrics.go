@@ -47,46 +47,8 @@ func (mm *metricsManager) IsMetricsEnabled() bool {
 type Metrics interface {
 	IsMetricsEnabled() bool
 
-	// functions for emitting predefined transaction requests management metrics
-	TransactionManagerMetrics
-
 	// functions for transaction handler to define and emit metrics
 	TransactionHandlerMetrics
-}
-
-type TransactionManagerMetrics interface {
-	CountNewTransactionRequest(ctx context.Context, operationName string)
-	CountSuccessTransactionResponse(ctx context.Context, operationName string)
-	CountErrorTransactionResponse(ctx context.Context, operationName string)
-	RecordSuccessTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration)
-	RecordErrorTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration)
-}
-
-func (mm *metricsManager) CountNewTransactionRequest(ctx context.Context, operationName string) {
-	if mm.metricsEnabled {
-		CountNewTransactionRequest(ctx, operationName)
-	}
-}
-func (mm *metricsManager) CountSuccessTransactionResponse(ctx context.Context, operationName string) {
-	if mm.metricsEnabled {
-		CountSuccessTransactionResponse(ctx, operationName)
-	}
-}
-func (mm *metricsManager) CountErrorTransactionResponse(ctx context.Context, operationName string) {
-	if mm.metricsEnabled {
-		CountErrorTransactionResponse(ctx, operationName)
-	}
-}
-func (mm *metricsManager) RecordSuccessTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration) {
-	if mm.metricsEnabled {
-		RecordSuccessTransactionRequestDuration(ctx, operationName, ms)
-	}
-}
-
-func (mm *metricsManager) RecordErrorTransactionRequestDuration(ctx context.Context, operationName string, ms time.Duration) {
-	if mm.metricsEnabled {
-		RecordErrorTransactionRequestDuration(ctx, operationName, ms)
-	}
 }
 
 // Transaction handler metrics are defined and emitted by transaction handlers

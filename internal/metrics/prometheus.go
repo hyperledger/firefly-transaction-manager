@@ -68,7 +68,6 @@ func Clear() {
 }
 
 func initMetricsCollectors() {
-	InitTxManagementMetrics()
 	// transaction handler metrics are initialized outside this function
 }
 
@@ -76,6 +75,5 @@ func registerMetricsCollectors() {
 	registry.MustRegister(collectors.NewGoCollector())
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
-	RegisterTXManagerMetrics()
 	RegisterTxHandlerMetrics()
 }
