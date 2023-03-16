@@ -41,11 +41,11 @@ func Registry() *prometheus.Registry {
 
 // GetAdminServerInstrumentation returns the admin server's Prometheus middleware, ensuring its metrics are never
 // registered twice
-func GetTransactionManagerServerInstrumentation() *muxprom.Instrumentation {
+func GetRESTServerInstrumentation() *muxprom.Instrumentation {
 	regMux.Lock()
 	defer regMux.Unlock()
 	if evmInstrumentation == nil {
-		evmInstrumentation = NewInstrumentation("fftm")
+		evmInstrumentation = NewInstrumentation("apiserver_rest")
 	}
 	return evmInstrumentation
 }
@@ -53,7 +53,7 @@ func GetTransactionManagerServerInstrumentation() *muxprom.Instrumentation {
 func NewInstrumentation(subsystem string) *muxprom.Instrumentation {
 	return muxprom.NewCustomInstrumentation(
 		true,
-		"ff_transaction_manager",
+		"ff_tm",
 		subsystem,
 		prometheus.DefBuckets,
 		map[string]string{},

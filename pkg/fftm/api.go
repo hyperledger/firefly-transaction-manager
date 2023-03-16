@@ -34,8 +34,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-func (m *manager) router() *mux.Router {
+func (m *manager) router(metricsEnabled bool) *mux.Router {
 	mux := mux.NewRouter()
+
+	if metricsEnabled {
+		mux.Use(metrics.GetRESTServerInstrumentation().Middleware)
+	}
 	hf := ffapi.HandlerFactory{
 		DefaultRequestTimeout: config.GetDuration(tmconfig.APIDefaultRequestTimeout),
 		MaxTimeout:            config.GetDuration(tmconfig.APIMaxRequestTimeout),

@@ -113,7 +113,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 func (m *manager) initServices(ctx context.Context) (err error) {
 	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts")
 	m.wsServer = ws.NewWebSocketServer(ctx)
-	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
+	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(m.metricsEnabled), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
 	if err != nil {
 		return err
 	}

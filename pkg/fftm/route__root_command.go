@@ -19,7 +19,6 @@ package fftm
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
@@ -73,38 +72,15 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 		},
 		JSONOutputCodes: []int{http.StatusAccepted},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			startTime := time.Now()
 			baseReq := r.Input.(*apitypes.BaseRequest)
 			switch baseReq.Headers.Type {
 			case apitypes.RequestTypeSendTransaction:
-				operationName := "create_transaction"
-				m.metricsManager.CountNewTransactionRequest(r.Req.Context(), operationName)
-				defer func() {
-					if err != nil {
-						m.metricsManager.RecordErrorTransactionRequestDuration(r.Req.Context(), operationName, time.Since(startTime))
-						m.metricsManager.CountErrorTransactionResponse(r.Req.Context(), operationName)
-					} else {
-						m.metricsManager.RecordSuccessTransactionRequestDuration(r.Req.Context(), operationName, time.Since(startTime))
-						m.metricsManager.CountSuccessTransactionResponse(r.Req.Context(), operationName)
-					}
-				}()
 				var tReq apitypes.TransactionRequest
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 				}
 				return m.txHandler.HandleNewTransaction(r.Req.Context(), &tReq)
 			case apitypes.RequestTypeDeploy:
-				operationName := "create_contract_deployment"
-				m.metricsManager.CountNewTransactionRequest(r.Req.Context(), operationName)
-				defer func() {
-					if err != nil {
-						m.metricsManager.RecordErrorTransactionRequestDuration(r.Req.Context(), operationName, time.Since(startTime))
-						m.metricsManager.CountErrorTransactionResponse(r.Req.Context(), operationName)
-					} else {
-						m.metricsManager.RecordSuccessTransactionRequestDuration(r.Req.Context(), operationName, time.Since(startTime))
-						m.metricsManager.CountSuccessTransactionResponse(r.Req.Context(), operationName)
-					}
-				}()
 				var tReq apitypes.ContractDeployRequest
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
 					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)

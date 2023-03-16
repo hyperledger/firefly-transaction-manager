@@ -18,7 +18,6 @@ package fftm
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
@@ -39,18 +38,6 @@ var deleteTransaction = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.ManagedTX{} },
 		JSONOutputCodes: []int{http.StatusOK, http.StatusAccepted},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			startTime := time.Now()
-			operationName := "delete"
-			m.metricsManager.CountNewTransactionRequest(r.Req.Context(), operationName)
-			defer func() {
-				if err != nil {
-					m.metricsManager.RecordErrorTransactionRequestDuration(r.Req.Context(), operationName, time.Since(startTime))
-					m.metricsManager.CountErrorTransactionResponse(r.Req.Context(), operationName)
-				} else {
-					m.metricsManager.RecordSuccessTransactionRequestDuration(r.Req.Context(), operationName, time.Since(startTime))
-					m.metricsManager.CountSuccessTransactionResponse(r.Req.Context(), operationName)
-				}
-			}()
 			r.SuccessStatus, output, err = m.requestTransactionDeletion(r.Req.Context(), r.PP["transactionId"])
 			return output, err
 		},
