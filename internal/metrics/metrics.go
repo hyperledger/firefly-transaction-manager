@@ -18,23 +18,47 @@ package metrics
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/metric"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+const metricsTransactionManagerPrefix = "tm"
+
+// REST api-server and transaction handler are sub-subsystem
+var metricsTransactionHandlerSubsystemName = fmt.Sprintf("%s_%s", metricsTransactionManagerPrefix, "th")
+var metricsRESTAPIServerSubSystemName = fmt.Sprintf("%s_%s", metricsTransactionManagerPrefix, "api_server_rest")
+
 type metricsManager struct {
-	ctx            context.Context
-	metricsEnabled bool
-	timeMap        map[string]time.Time
+	ctx                     context.Context
+	metricsEnabled          bool
+	metricsRegistry         metric.MetricsRegistry
+	txHandlerMetricsManager metric.MetricsManager
+	timeMap                 map[string]time.Time
 }
 
 func NewMetricsManager(ctx context.Context) Metrics {
+	metricsRegistry := metric.NewPrometheusMetricsRegistry()
+	txHandlerMetricsManager, _ := metricsRegistry.NewMetricsManagerForSubsystem(ctx, metricsTransactionHandlerSubsystemName)
+	_ = metricsRegistry.NewHTTPMetricsInstrumentationsForSubsystem(
+		ctx,
+		metricsRESTAPIServerSubSystemName,
+		true,
+		prometheus.DefBuckets,
+		map[string]string{},
+	)
 	mm := &metricsManager{
-		ctx:            ctx,
-		metricsEnabled: config.GetBool(tmconfig.MetricsEnabled),
-		timeMap:        make(map[string]time.Time),
+		ctx:                     ctx,
+		metricsEnabled:          config.GetBool(tmconfig.MetricsEnabled),
+		timeMap:                 make(map[string]time.Time),
+		metricsRegistry:         metricsRegistry,
+		txHandlerMetricsManager: txHandlerMetricsManager,
 	}
 
 	return mm
@@ -44,8 +68,23 @@ func (mm *metricsManager) IsMetricsEnabled() bool {
 	return mm.metricsEnabled
 }
 
+func (mm *metricsManager) HTTPHandler() http.Handler {
+	httpHandler, _ := mm.metricsRegistry.HTTPHandler(mm.ctx, promhttp.HandlerOpts{})
+	return httpHandler
+}
+
+func (mm *metricsManager) GetAPIServerRESTHTTPMiddleware() func(next http.Handler) http.Handler {
+	httpMiddleware, _ := mm.metricsRegistry.GetHTTPMetricsInstrumentationsMiddlewareForSubsystem(mm.ctx, metricsRESTAPIServerSubSystemName)
+	return httpMiddleware
+}
+
 type Metrics interface {
 	IsMetricsEnabled() bool
+
+	// HTTPHandler returns the HTTP handler of this metrics registry
+	HTTPHandler() http.Handler
+
+	GetAPIServerRESTHTTPMiddleware() func(next http.Handler) http.Handler
 
 	// functions for transaction handler to define and emit metrics
 	TransactionHandlerMetrics
@@ -60,6 +99,8 @@ type TransactionHandlerMetrics interface {
 	InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string)
 	InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64)
 	InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string)
+	InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string)
+	InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string)
 
 	// functions for use existing metrics
 	SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64)
@@ -68,68 +109,91 @@ type TransactionHandlerMetrics interface {
 	IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string)
 	ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64)
 	ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string)
+	ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64)
+	ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string)
 }
 
 func (mm *metricsManager) InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string) {
 	if mm.metricsEnabled {
-		InitTxHandlerCounterMetric(ctx, metricName, helpText)
+		mm.txHandlerMetricsManager.NewCounterMetric(ctx, metricName, helpText)
 	}
 }
 func (mm *metricsManager) InitTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
 	if mm.metricsEnabled {
-		InitTxHandlerCounterMetricWithLabels(ctx, metricName, helpText, labelNames)
+		mm.txHandlerMetricsManager.NewCounterMetricWithLabels(ctx, metricName, helpText, labelNames)
 	}
 }
 func (mm *metricsManager) InitTxHandlerGaugeMetric(ctx context.Context, metricName string, helpText string) {
 	if mm.metricsEnabled {
-		InitTxHandlerGaugeMetric(ctx, metricName, helpText)
+		mm.txHandlerMetricsManager.NewGaugeMetric(ctx, metricName, helpText)
 	}
 }
 func (mm *metricsManager) InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
 	if mm.metricsEnabled {
-		InitTxHandlerGaugeMetricWithLabels(ctx, metricName, helpText, labelNames)
+		mm.txHandlerMetricsManager.NewGaugeMetricWithLabels(ctx, metricName, helpText, labelNames)
 	}
 }
 func (mm *metricsManager) InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64) {
 	if mm.metricsEnabled {
-		InitTxHandlerHistogramMetric(ctx, metricName, helpText, buckets)
+		mm.txHandlerMetricsManager.NewHistogramMetric(ctx, metricName, helpText, buckets)
 	}
 }
 func (mm *metricsManager) InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string) {
 	if mm.metricsEnabled {
-		InitTxHandlerHistogramMetricWithLabels(ctx, metricName, helpText, buckets, labelNames)
+		mm.txHandlerMetricsManager.NewHistogramMetricWithLabels(ctx, metricName, helpText, buckets, labelNames)
+	}
+}
+func (mm *metricsManager) InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string) {
+	if mm.metricsEnabled {
+		mm.txHandlerMetricsManager.NewSummaryMetric(ctx, metricName, helpText)
+	}
+}
+func (mm *metricsManager) InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
+	if mm.metricsEnabled {
+		mm.txHandlerMetricsManager.NewSummaryMetricWithLabels(ctx, metricName, helpText, labelNames)
 	}
 }
 
 // functions for use existing metrics
 func (mm *metricsManager) SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64) {
 	if mm.metricsEnabled {
-		SetTxHandlerGaugeMetric(ctx, metricName, number)
+		mm.txHandlerMetricsManager.SetGaugeMetric(ctx, metricName, number)
 	}
 }
 func (mm *metricsManager) SetTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
 	if mm.metricsEnabled {
-		SetTxHandlerGaugeMetricWithLabels(ctx, metricName, number, labels)
+		mm.txHandlerMetricsManager.SetGaugeMetricWithLabels(ctx, metricName, number, labels)
 	}
 }
 
 func (mm *metricsManager) IncTxHandlerCounterMetric(ctx context.Context, metricName string) {
 	if mm.metricsEnabled {
-		IncTxHandlerCounterMetric(ctx, metricName)
+		mm.txHandlerMetricsManager.IncCounterMetric(ctx, metricName)
 	}
 }
 func (mm *metricsManager) IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string) {
 	if mm.metricsEnabled {
-		IncTxHandlerCounterMetricWithLabels(ctx, metricName, labels)
+		mm.txHandlerMetricsManager.IncCounterMetricWithLabels(ctx, metricName, labels)
 	}
 }
 func (mm *metricsManager) ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64) {
 	if mm.metricsEnabled {
-		ObserveTxHandlerHistogramMetric(ctx, metricName, number)
+		mm.txHandlerMetricsManager.ObserveHistogramMetric(ctx, metricName, number)
 	}
 }
 func (mm *metricsManager) ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
 	if mm.metricsEnabled {
-		ObserveTxHandlerHistogramMetricWithLabels(ctx, metricName, number, labels)
+		mm.txHandlerMetricsManager.ObserveHistogramMetricWithLabels(ctx, metricName, number, labels)
+	}
+}
+
+func (mm *metricsManager) ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64) {
+	if mm.metricsEnabled {
+		mm.txHandlerMetricsManager.ObserveSummaryMetric(ctx, metricName, number)
+	}
+}
+func (mm *metricsManager) ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
+	if mm.metricsEnabled {
+		mm.txHandlerMetricsManager.ObserveSummaryMetricWithLabels(ctx, metricName, number, labels)
 	}
 }

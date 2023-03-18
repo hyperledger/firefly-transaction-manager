@@ -29,16 +29,14 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
-	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (m *manager) router(metricsEnabled bool) *mux.Router {
 	mux := mux.NewRouter()
 
 	if metricsEnabled {
-		mux.Use(metrics.GetRESTServerInstrumentation().Middleware)
+		mux.Use(m.metricsManager.GetAPIServerRESTHTTPMiddleware())
 	}
 	hf := ffapi.HandlerFactory{
 		DefaultRequestTimeout: config.GetDuration(tmconfig.APIDefaultRequestTimeout),
@@ -88,8 +86,7 @@ func (m *manager) router(metricsEnabled bool) *mux.Router {
 func (m *manager) createMetricsMuxRouter() *mux.Router {
 	r := mux.NewRouter()
 
-	r.Path(config.GetString(tmconfig.MetricsPath)).Handler(promhttp.InstrumentMetricHandler(metrics.Registry(),
-		promhttp.HandlerFor(metrics.Registry(), promhttp.HandlerOpts{})))
+	r.Path(config.GetString(tmconfig.MetricsPath)).Handler(m.metricsManager.HTTPHandler())
 
 	return r
 }

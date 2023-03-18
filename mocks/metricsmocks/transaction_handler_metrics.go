@@ -53,6 +53,16 @@ func (_m *TransactionHandlerMetrics) InitTxHandlerHistogramMetricWithLabels(ctx 
 	_m.Called(ctx, metricName, helpText, buckets, labelNames)
 }
 
+// InitTxHandlerSummaryMetric provides a mock function with given fields: ctx, metricName, helpText
+func (_m *TransactionHandlerMetrics) InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string) {
+	_m.Called(ctx, metricName, helpText)
+}
+
+// InitTxHandlerSummaryMetricWithLabels provides a mock function with given fields: ctx, metricName, helpText, labelNames
+func (_m *TransactionHandlerMetrics) InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
+	_m.Called(ctx, metricName, helpText, labelNames)
+}
+
 // ObserveTxHandlerHistogramMetric provides a mock function with given fields: ctx, metricName, number
 func (_m *TransactionHandlerMetrics) ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64) {
 	_m.Called(ctx, metricName, number)
@@ -60,6 +70,16 @@ func (_m *TransactionHandlerMetrics) ObserveTxHandlerHistogramMetric(ctx context
 
 // ObserveTxHandlerHistogramMetricWithLabels provides a mock function with given fields: ctx, metricName, number, labels
 func (_m *TransactionHandlerMetrics) ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
+	_m.Called(ctx, metricName, number, labels)
+}
+
+// ObserveTxHandlerSummaryMetric provides a mock function with given fields: ctx, metricName, number
+func (_m *TransactionHandlerMetrics) ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64) {
+	_m.Called(ctx, metricName, number)
+}
+
+// ObserveTxHandlerSummaryMetricWithLabels provides a mock function with given fields: ctx, metricName, number, labels
+func (_m *TransactionHandlerMetrics) ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
 	_m.Called(ctx, metricName, number, labels)
 }
 

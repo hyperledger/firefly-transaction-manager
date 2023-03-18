@@ -26,12 +26,14 @@ import (
 
 func newTestMetricsManager(t *testing.T) (*metricsManager, func()) {
 	tmconfig.Reset()
-	Clear()
-	Registry()
 	ctx, cancel := context.WithCancel(context.Background())
 	mmi := NewMetricsManager(ctx)
 	mm := mmi.(*metricsManager)
 	assert.Equal(t, len(mm.timeMap), 0)
+	httpMiddleware := mm.GetAPIServerRESTHTTPMiddleware()
+	assert.NotNil(t, httpMiddleware)
+	httpHandler := mm.HTTPHandler()
+	assert.NotNil(t, httpHandler)
 	return mm, cancel
 }
 
@@ -44,15 +46,19 @@ func TestTransactionHandlerMetricsToolkit(t *testing.T) {
 	mm.InitTxHandlerCounterMetricWithLabels(ctx, "tx_process", "Transaction processed", []string{"status"})
 	mm.InitTxHandlerGaugeMetric(ctx, "tx_stalled", "Transactions that are stuck in a loop")
 	mm.InitTxHandlerGaugeMetricWithLabels(ctx, "tx_inflight", "Transactions that are in flight", []string{"stage"})
-	mm.InitTxHandlerHistogramMetric(ctx, "tx_timeout_ms", "Duration of timed out transactions", []float64{})
-	mm.InitTxHandlerHistogramMetricWithLabels(ctx, "tx_stage_ms", "Duration of each transaction stage", []float64{}, []string{"stage"})
+	mm.InitTxHandlerHistogramMetric(ctx, "tx_timeout_seconds", "Duration of timed out transactions", []float64{})
+	mm.InitTxHandlerHistogramMetricWithLabels(ctx, "tx_stage_seconds", "Duration of each transaction stage", []float64{}, []string{"stage"})
+	mm.InitTxHandlerSummaryMetric(ctx, "tx_request_bytes", "Request size of timed out transactions")
+	mm.InitTxHandlerSummaryMetricWithLabels(ctx, "tx_retry_bytes", "Retry request size of each transaction stage", []string{"stage"})
 
 	mm.IncTxHandlerCounterMetric(ctx, "tx_request")
 	mm.IncTxHandlerCounterMetricWithLabels(ctx, "tx_process", map[string]string{"status": "success"})
 	mm.SetTxHandlerGaugeMetric(ctx, "tx_stalled", 2)
 	mm.SetTxHandlerGaugeMetricWithLabels(ctx, "tx_inflight", 2, map[string]string{"stage": "singing:)"})
-	mm.ObserveTxHandlerHistogramMetric(ctx, "tx_timeout_ms", 2000)
-	mm.ObserveTxHandlerHistogramMetricWithLabels(ctx, "tx_stage_ms", 2000, map[string]string{"stage": "singing:)"})
+	mm.ObserveTxHandlerHistogramMetric(ctx, "tx_timeout_seconds", 2000)
+	mm.ObserveTxHandlerHistogramMetricWithLabels(ctx, "tx_stage_seconds", 2000, map[string]string{"stage": "singing:)"})
+	mm.ObserveTxHandlerSummaryMetric(ctx, "tx_request_bytes", 2000)
+	mm.ObserveTxHandlerSummaryMetricWithLabels(ctx, "tx_retry_bytes", 2000, map[string]string{"stage": "singing:)"})
 }
 
 func TestTransactionHandlerMetricsToolkitSwallowErrors(t *testing.T) {
@@ -74,6 +80,8 @@ func TestTransactionHandlerMetricsToolkitSwallowErrors(t *testing.T) {
 	mm.SetTxHandlerGaugeMetricWithLabels(ctx, "tx_not_exist", 2, map[string]string{"stage": "singing:)"})
 	mm.ObserveTxHandlerHistogramMetric(ctx, "tx_not_exist", 2000)
 	mm.ObserveTxHandlerHistogramMetricWithLabels(ctx, "tx_not_exist", 2000, map[string]string{"stage": "singing:)"})
+	mm.ObserveTxHandlerSummaryMetric(ctx, "tx_not_exist", 2000)
+	mm.ObserveTxHandlerSummaryMetricWithLabels(ctx, "tx_not_exist", 2000, map[string]string{"stage": "singing:)"})
 }
 
 func TestIsMetricsEnabledTrue(t *testing.T) {

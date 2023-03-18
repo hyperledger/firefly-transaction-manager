@@ -39,16 +39,16 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
-const metricsTransactionsInflightCurrent = "tx_in_flight"
+const metricsTransactionsInflightCurrent = "tx_in_flight_total"
 const metricsTransactionsInflightCurrentDescription = "Number of transactions currently in flight"
 
-const metricsTransactionProcessEventsTotal = "tx_process_new_state_total"
-const metricsTransactionProcessEventsTotalDescription = "Number of transaction process transited into a new stage grouped by stage name"
+const metricsTransactionProcessActionsTotal = "tx_process_action_total"
+const metricsTransactionProcessActionsTotalDescription = "Number of transaction process transited into a new stage grouped by stage name"
 
-const metricsLabelNameEvent = "event"
+const metricsLabelNameAction = "action"
 
-const metricsTransactionProcessDuration = "tx_process_duration"
-const metricsTransactionProcessDurationDescription = "Duration of transaction process grouped by action name"
+const metricsTransactionProcessActionDuration = "tx_process_duration_seconds"
+const metricsTransactionProcessActionDurationDescription = "Duration of transaction process grouped by action name"
 
 // UpdateType informs FFTM whether the transaction needs an update to be persisted after this execution of the policy engine
 type UpdateType int
@@ -188,8 +188,8 @@ func (sth *simpleTransactionHandler) Init(ctx context.Context, toolkit *txhandle
 	sth.toolkit = toolkit
 
 	// init metrics
-	sth.toolkit.MetricsManager.InitTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessEventsTotal, metricsTransactionProcessEventsTotalDescription, []string{metricsLabelNameEvent})
-	sth.toolkit.MetricsManager.InitTxHandlerHistogramMetricWithLabels(ctx, metricsTransactionProcessDuration, metricsTransactionProcessDurationDescription, []float64{} /*fallback to default buckets*/, []string{metricsLabelNameEvent})
+	sth.toolkit.MetricsManager.InitTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessActionsTotal, metricsTransactionProcessActionsTotalDescription, []string{metricsLabelNameAction})
+	sth.toolkit.MetricsManager.InitTxHandlerHistogramMetricWithLabels(ctx, metricsTransactionProcessActionDuration, metricsTransactionProcessActionDurationDescription, []float64{} /*fallback to default buckets*/, []string{metricsLabelNameAction})
 	sth.toolkit.MetricsManager.InitTxHandlerGaugeMetric(ctx, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription)
 }
 
@@ -298,8 +298,8 @@ func (sth *simpleTransactionHandler) submitTX(ctx context.Context, mtx *apitypes
 	log.L(ctx).Debugf("Sending transaction %s at nonce %s / %d (lastSubmit=%s)", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.LastSubmit)
 	transactionSendStartTime := time.Now()
 	res, reason, err := sth.toolkit.Connector.TransactionSend(ctx, sendTX)
-	sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessEventsTotal, map[string]string{metricsLabelNameEvent: "transaction_submission"})
-	sth.toolkit.MetricsManager.ObserveTxHandlerHistogramMetricWithLabels(ctx, metricsTransactionProcessEventsTotal, time.Since(transactionSendStartTime).Seconds(), map[string]string{metricsLabelNameEvent: "transaction_submission"})
+	sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessActionsTotal, map[string]string{metricsLabelNameAction: "transaction_submission"})
+	sth.toolkit.MetricsManager.ObserveTxHandlerHistogramMetricWithLabels(ctx, metricsTransactionProcessActionDuration, time.Since(transactionSendStartTime).Seconds(), map[string]string{metricsLabelNameAction: "transaction_submission"})
 	if err == nil {
 		sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), nil)
 		mtx.TransactionHash = res.TransactionHash

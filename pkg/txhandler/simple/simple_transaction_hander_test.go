@@ -162,10 +162,10 @@ func TestFixedGasPriceOK(t *testing.T) {
 
 	mmm := &metricsmocks.TransactionHandlerMetrics{}
 	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(fmt.Errorf("fail")).Once()
-	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, metricsTransactionProcessEventsTotalDescription, []string{metricsLabelNameEvent}).Return(fmt.Errorf("fail")).Once()
-	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessDuration, metricsTransactionProcessDurationDescription, []float64{}, []string{metricsLabelNameEvent}).Return(fmt.Errorf("fail")).Once()
-	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
-	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessEventsTotal, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessActionsTotal, metricsTransactionProcessActionsTotalDescription, []string{metricsLabelNameAction}).Return(fmt.Errorf("fail")).Once()
+	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessActionDuration, metricsTransactionProcessActionDurationDescription, []float64{}, []string{metricsLabelNameAction}).Return(fmt.Errorf("fail")).Once()
+	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessActionsTotal, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessActionDuration, mock.Anything, mock.Anything).Return().Maybe()
 
 	tk.MetricsManager = mmm
 
