@@ -93,107 +93,107 @@ type Metrics interface {
 // Transaction handler metrics are defined and emitted by transaction handlers
 type TransactionHandlerMetrics interface {
 	// functions for declaring new metrics
-	InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string)
-	InitTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string)
-	InitTxHandlerGaugeMetric(ctx context.Context, metricName string, helpText string)
-	InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string)
-	InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64)
-	InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string)
-	InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string)
-	InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string)
+	InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool)
+	InitTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool)
+	InitTxHandlerGaugeMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool)
+	InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool)
+	InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64, withDefaultLabels bool)
+	InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string, withDefaultLabels bool)
+	InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool)
+	InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool)
 
 	// functions for use existing metrics
-	SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64)
-	SetTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string)
-	IncTxHandlerCounterMetric(ctx context.Context, metricName string)
-	IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string)
-	ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64)
-	ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string)
-	ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64)
-	ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string)
+	SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels)
+	SetTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
+	IncTxHandlerCounterMetric(ctx context.Context, metricName string, defaultLabels *metric.FireflyDefaultLabels)
+	IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
+	ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels)
+	ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
+	ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels)
+	ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
 }
 
-func (mm *metricsManager) InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string) {
+func (mm *metricsManager) InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.NewCounterMetric(ctx, metricName, helpText)
+		mm.txHandlerMetricsManager.NewCounterMetric(ctx, metricName, helpText, withDefaultLabels)
 	}
 }
-func (mm *metricsManager) InitTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
+func (mm *metricsManager) InitTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.NewCounterMetricWithLabels(ctx, metricName, helpText, labelNames)
+		mm.txHandlerMetricsManager.NewCounterMetricWithLabels(ctx, metricName, helpText, labelNames, withDefaultLabels)
 	}
 }
-func (mm *metricsManager) InitTxHandlerGaugeMetric(ctx context.Context, metricName string, helpText string) {
+func (mm *metricsManager) InitTxHandlerGaugeMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.NewGaugeMetric(ctx, metricName, helpText)
+		mm.txHandlerMetricsManager.NewGaugeMetric(ctx, metricName, helpText, withDefaultLabels)
 	}
 }
-func (mm *metricsManager) InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
+func (mm *metricsManager) InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.NewGaugeMetricWithLabels(ctx, metricName, helpText, labelNames)
+		mm.txHandlerMetricsManager.NewGaugeMetricWithLabels(ctx, metricName, helpText, labelNames, withDefaultLabels)
 	}
 }
-func (mm *metricsManager) InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64) {
+func (mm *metricsManager) InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64, withDefaultLabels bool) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.NewHistogramMetric(ctx, metricName, helpText, buckets)
+		mm.txHandlerMetricsManager.NewHistogramMetric(ctx, metricName, helpText, buckets, withDefaultLabels)
 	}
 }
-func (mm *metricsManager) InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string) {
+func (mm *metricsManager) InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string, withDefaultLabels bool) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.NewHistogramMetricWithLabels(ctx, metricName, helpText, buckets, labelNames)
+		mm.txHandlerMetricsManager.NewHistogramMetricWithLabels(ctx, metricName, helpText, buckets, labelNames, withDefaultLabels)
 	}
 }
-func (mm *metricsManager) InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string) {
+func (mm *metricsManager) InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.NewSummaryMetric(ctx, metricName, helpText)
+		mm.txHandlerMetricsManager.NewSummaryMetric(ctx, metricName, helpText, withDefaultLabels)
 	}
 }
-func (mm *metricsManager) InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
+func (mm *metricsManager) InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.NewSummaryMetricWithLabels(ctx, metricName, helpText, labelNames)
+		mm.txHandlerMetricsManager.NewSummaryMetricWithLabels(ctx, metricName, helpText, labelNames, withDefaultLabels)
 	}
 }
 
 // functions for use existing metrics
-func (mm *metricsManager) SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64) {
+func (mm *metricsManager) SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.SetGaugeMetric(ctx, metricName, number)
+		mm.txHandlerMetricsManager.SetGaugeMetric(ctx, metricName, number, defaultLabels)
 	}
 }
-func (mm *metricsManager) SetTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
+func (mm *metricsManager) SetTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.SetGaugeMetricWithLabels(ctx, metricName, number, labels)
-	}
-}
-
-func (mm *metricsManager) IncTxHandlerCounterMetric(ctx context.Context, metricName string) {
-	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.IncCounterMetric(ctx, metricName)
-	}
-}
-func (mm *metricsManager) IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string) {
-	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.IncCounterMetricWithLabels(ctx, metricName, labels)
-	}
-}
-func (mm *metricsManager) ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64) {
-	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.ObserveHistogramMetric(ctx, metricName, number)
-	}
-}
-func (mm *metricsManager) ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
-	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.ObserveHistogramMetricWithLabels(ctx, metricName, number, labels)
+		mm.txHandlerMetricsManager.SetGaugeMetricWithLabels(ctx, metricName, number, labels, defaultLabels)
 	}
 }
 
-func (mm *metricsManager) ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64) {
+func (mm *metricsManager) IncTxHandlerCounterMetric(ctx context.Context, metricName string, defaultLabels *metric.FireflyDefaultLabels) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.ObserveSummaryMetric(ctx, metricName, number)
+		mm.txHandlerMetricsManager.IncCounterMetric(ctx, metricName, defaultLabels)
 	}
 }
-func (mm *metricsManager) ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
+func (mm *metricsManager) IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels) {
 	if mm.metricsEnabled {
-		mm.txHandlerMetricsManager.ObserveSummaryMetricWithLabels(ctx, metricName, number, labels)
+		mm.txHandlerMetricsManager.IncCounterMetricWithLabels(ctx, metricName, labels, defaultLabels)
+	}
+}
+func (mm *metricsManager) ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels) {
+	if mm.metricsEnabled {
+		mm.txHandlerMetricsManager.ObserveHistogramMetric(ctx, metricName, number, defaultLabels)
+	}
+}
+func (mm *metricsManager) ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels) {
+	if mm.metricsEnabled {
+		mm.txHandlerMetricsManager.ObserveHistogramMetricWithLabels(ctx, metricName, number, labels, defaultLabels)
+	}
+}
+
+func (mm *metricsManager) ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels) {
+	if mm.metricsEnabled {
+		mm.txHandlerMetricsManager.ObserveSummaryMetric(ctx, metricName, number, defaultLabels)
+	}
+}
+func (mm *metricsManager) ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels) {
+	if mm.metricsEnabled {
+		mm.txHandlerMetricsManager.ObserveSummaryMetricWithLabels(ctx, metricName, number, labels, defaultLabels)
 	}
 }

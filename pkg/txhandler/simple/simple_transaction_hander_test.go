@@ -161,11 +161,12 @@ func TestFixedGasPriceOK(t *testing.T) {
 	ctx := context.Background()
 
 	mmm := &metricsmocks.TransactionHandlerMetrics{}
-	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightCurrent, metricsTransactionsInflightCurrentDescription).Return(fmt.Errorf("fail")).Once()
-	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessActionsTotal, metricsTransactionProcessActionsTotalDescription, []string{metricsLabelNameAction}).Return(fmt.Errorf("fail")).Once()
-	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessActionDuration, metricsTransactionProcessActionDurationDescription, []float64{}, []string{metricsLabelNameAction}).Return(fmt.Errorf("fail")).Once()
-	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessActionsTotal, mock.Anything, mock.Anything).Return().Maybe()
-	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessActionDuration, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightUsed, metricsTransactionsInflightUsedDescription, false).Return(fmt.Errorf("fail")).Once()
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsTransactionsInflightFree, metricsTransactionsInflightFreeDescription, false).Return(fmt.Errorf("fail")).Once()
+	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessActionsTotal, metricsTransactionProcessActionsTotalDescription, []string{metricsLabelNameAction}, true).Return(fmt.Errorf("fail")).Once()
+	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessActionDuration, metricsTransactionProcessActionDurationDescription, []float64{}, []string{metricsLabelNameAction}, true).Return(fmt.Errorf("fail")).Once()
+	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsTransactionProcessActionsTotal, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsTransactionProcessActionDuration, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
 
 	tk.MetricsManager = mmm
 

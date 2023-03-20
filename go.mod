@@ -9,18 +9,20 @@ require (
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/hyperledger/firefly-common v1.2.6-0.20230318215707-0ae892ea64e6
+	github.com/hyperledger/firefly-common v1.2.6-0.20230320125706-a7ddd7778e4a
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/viper v1.14.0
 	github.com/stretchr/testify v1.8.1
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
-	gitlab.com/hfuss/mux-prometheus v0.0.4
 	golang.org/x/text v0.7.0
 )
 
-require github.com/inconshreveable/mousetrap v1.0.1 // indirect
+require (
+	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	gitlab.com/hfuss/mux-prometheus v0.0.4 // indirect
+)
 
 require (
 	github.com/Masterminds/goutils v1.1.1 // indirect

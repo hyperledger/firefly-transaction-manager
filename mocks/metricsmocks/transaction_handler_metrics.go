@@ -5,6 +5,8 @@ package metricsmocks
 import (
 	context "context"
 
+	metric "github.com/hyperledger/firefly-common/pkg/metric"
+
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -13,84 +15,84 @@ type TransactionHandlerMetrics struct {
 	mock.Mock
 }
 
-// IncTxHandlerCounterMetric provides a mock function with given fields: ctx, metricName
-func (_m *TransactionHandlerMetrics) IncTxHandlerCounterMetric(ctx context.Context, metricName string) {
-	_m.Called(ctx, metricName)
+// IncTxHandlerCounterMetric provides a mock function with given fields: ctx, metricName, defaultLabels
+func (_m *TransactionHandlerMetrics) IncTxHandlerCounterMetric(ctx context.Context, metricName string, defaultLabels *metric.FireflyDefaultLabels) {
+	_m.Called(ctx, metricName, defaultLabels)
 }
 
-// IncTxHandlerCounterMetricWithLabels provides a mock function with given fields: ctx, metricName, labels
-func (_m *TransactionHandlerMetrics) IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string) {
-	_m.Called(ctx, metricName, labels)
+// IncTxHandlerCounterMetricWithLabels provides a mock function with given fields: ctx, metricName, labels, defaultLabels
+func (_m *TransactionHandlerMetrics) IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels) {
+	_m.Called(ctx, metricName, labels, defaultLabels)
 }
 
-// InitTxHandlerCounterMetric provides a mock function with given fields: ctx, metricName, helpText
-func (_m *TransactionHandlerMetrics) InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string) {
-	_m.Called(ctx, metricName, helpText)
+// InitTxHandlerCounterMetric provides a mock function with given fields: ctx, metricName, helpText, withDefaultLabels
+func (_m *TransactionHandlerMetrics) InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool) {
+	_m.Called(ctx, metricName, helpText, withDefaultLabels)
 }
 
-// InitTxHandlerCounterMetricWithLabels provides a mock function with given fields: ctx, metricName, helpText, labelNames
-func (_m *TransactionHandlerMetrics) InitTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
-	_m.Called(ctx, metricName, helpText, labelNames)
+// InitTxHandlerCounterMetricWithLabels provides a mock function with given fields: ctx, metricName, helpText, labelNames, withDefaultLabels
+func (_m *TransactionHandlerMetrics) InitTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool) {
+	_m.Called(ctx, metricName, helpText, labelNames, withDefaultLabels)
 }
 
-// InitTxHandlerGaugeMetric provides a mock function with given fields: ctx, metricName, helpText
-func (_m *TransactionHandlerMetrics) InitTxHandlerGaugeMetric(ctx context.Context, metricName string, helpText string) {
-	_m.Called(ctx, metricName, helpText)
+// InitTxHandlerGaugeMetric provides a mock function with given fields: ctx, metricName, helpText, withDefaultLabels
+func (_m *TransactionHandlerMetrics) InitTxHandlerGaugeMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool) {
+	_m.Called(ctx, metricName, helpText, withDefaultLabels)
 }
 
-// InitTxHandlerGaugeMetricWithLabels provides a mock function with given fields: ctx, metricName, helpText, labelNames
-func (_m *TransactionHandlerMetrics) InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
-	_m.Called(ctx, metricName, helpText, labelNames)
+// InitTxHandlerGaugeMetricWithLabels provides a mock function with given fields: ctx, metricName, helpText, labelNames, withDefaultLabels
+func (_m *TransactionHandlerMetrics) InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool) {
+	_m.Called(ctx, metricName, helpText, labelNames, withDefaultLabels)
 }
 
-// InitTxHandlerHistogramMetric provides a mock function with given fields: ctx, metricName, helpText, buckets
-func (_m *TransactionHandlerMetrics) InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64) {
-	_m.Called(ctx, metricName, helpText, buckets)
+// InitTxHandlerHistogramMetric provides a mock function with given fields: ctx, metricName, helpText, buckets, withDefaultLabels
+func (_m *TransactionHandlerMetrics) InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64, withDefaultLabels bool) {
+	_m.Called(ctx, metricName, helpText, buckets, withDefaultLabels)
 }
 
-// InitTxHandlerHistogramMetricWithLabels provides a mock function with given fields: ctx, metricName, helpText, buckets, labelNames
-func (_m *TransactionHandlerMetrics) InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string) {
-	_m.Called(ctx, metricName, helpText, buckets, labelNames)
+// InitTxHandlerHistogramMetricWithLabels provides a mock function with given fields: ctx, metricName, helpText, buckets, labelNames, withDefaultLabels
+func (_m *TransactionHandlerMetrics) InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string, withDefaultLabels bool) {
+	_m.Called(ctx, metricName, helpText, buckets, labelNames, withDefaultLabels)
 }
 
-// InitTxHandlerSummaryMetric provides a mock function with given fields: ctx, metricName, helpText
-func (_m *TransactionHandlerMetrics) InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string) {
-	_m.Called(ctx, metricName, helpText)
+// InitTxHandlerSummaryMetric provides a mock function with given fields: ctx, metricName, helpText, withDefaultLabels
+func (_m *TransactionHandlerMetrics) InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool) {
+	_m.Called(ctx, metricName, helpText, withDefaultLabels)
 }
 
-// InitTxHandlerSummaryMetricWithLabels provides a mock function with given fields: ctx, metricName, helpText, labelNames
-func (_m *TransactionHandlerMetrics) InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string) {
-	_m.Called(ctx, metricName, helpText, labelNames)
+// InitTxHandlerSummaryMetricWithLabels provides a mock function with given fields: ctx, metricName, helpText, labelNames, withDefaultLabels
+func (_m *TransactionHandlerMetrics) InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool) {
+	_m.Called(ctx, metricName, helpText, labelNames, withDefaultLabels)
 }
 
-// ObserveTxHandlerHistogramMetric provides a mock function with given fields: ctx, metricName, number
-func (_m *TransactionHandlerMetrics) ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64) {
-	_m.Called(ctx, metricName, number)
+// ObserveTxHandlerHistogramMetric provides a mock function with given fields: ctx, metricName, number, defaultLabels
+func (_m *TransactionHandlerMetrics) ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels) {
+	_m.Called(ctx, metricName, number, defaultLabels)
 }
 
-// ObserveTxHandlerHistogramMetricWithLabels provides a mock function with given fields: ctx, metricName, number, labels
-func (_m *TransactionHandlerMetrics) ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
-	_m.Called(ctx, metricName, number, labels)
+// ObserveTxHandlerHistogramMetricWithLabels provides a mock function with given fields: ctx, metricName, number, labels, defaultLabels
+func (_m *TransactionHandlerMetrics) ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels) {
+	_m.Called(ctx, metricName, number, labels, defaultLabels)
 }
 
-// ObserveTxHandlerSummaryMetric provides a mock function with given fields: ctx, metricName, number
-func (_m *TransactionHandlerMetrics) ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64) {
-	_m.Called(ctx, metricName, number)
+// ObserveTxHandlerSummaryMetric provides a mock function with given fields: ctx, metricName, number, defaultLabels
+func (_m *TransactionHandlerMetrics) ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels) {
+	_m.Called(ctx, metricName, number, defaultLabels)
 }
 
-// ObserveTxHandlerSummaryMetricWithLabels provides a mock function with given fields: ctx, metricName, number, labels
-func (_m *TransactionHandlerMetrics) ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
-	_m.Called(ctx, metricName, number, labels)
+// ObserveTxHandlerSummaryMetricWithLabels provides a mock function with given fields: ctx, metricName, number, labels, defaultLabels
+func (_m *TransactionHandlerMetrics) ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels) {
+	_m.Called(ctx, metricName, number, labels, defaultLabels)
 }
 
-// SetTxHandlerGaugeMetric provides a mock function with given fields: ctx, metricName, number
-func (_m *TransactionHandlerMetrics) SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64) {
-	_m.Called(ctx, metricName, number)
+// SetTxHandlerGaugeMetric provides a mock function with given fields: ctx, metricName, number, defaultLabels
+func (_m *TransactionHandlerMetrics) SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels) {
+	_m.Called(ctx, metricName, number, defaultLabels)
 }
 
-// SetTxHandlerGaugeMetricWithLabels provides a mock function with given fields: ctx, metricName, number, labels
-func (_m *TransactionHandlerMetrics) SetTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string) {
-	_m.Called(ctx, metricName, number, labels)
+// SetTxHandlerGaugeMetricWithLabels provides a mock function with given fields: ctx, metricName, number, labels, defaultLabels
+func (_m *TransactionHandlerMetrics) SetTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels) {
+	_m.Called(ctx, metricName, number, labels, defaultLabels)
 }
 
 type mockConstructorTestingTNewTransactionHandlerMetrics interface {
