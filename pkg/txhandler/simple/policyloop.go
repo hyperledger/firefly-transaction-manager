@@ -24,11 +24,16 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
-	"github.com/hyperledger/firefly-common/pkg/metric"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs" // replace with your own messages if you are developing a customized transaction handler
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
+
+const metricsGaugeTransactionsInflightUsed = "tx_in_flight_used_total"
+const metricsGaugeTransactionsInflightUsedDescription = "Number of transactions currently in flight"
+
+const metricsGaugeTransactionsInflightFree = "tx_in_flight_free_total"
+const metricsGaugeTransactionsInflightFreeDescription = "Number of transactions left in the in flight queue"
 
 type policyEngineAPIRequestType int
 
@@ -103,7 +108,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 		if !p.remove {
 			sth.inflight = append(sth.inflight, p)
 		} else {
-			sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessActionsTotal, map[string]string{metricsLabelNameAction: "removed"}, &metric.FireflyDefaultLabels{Namespace: p.mtx.Namespace(ctx)})
+			sth.incTransactionOperationCounter(ctx, p.mtx.Namespace(ctx), "removed")
 		}
 	}
 
@@ -125,7 +130,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 			return false
 		}
 		for _, mtx := range additional {
-			sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessActionsTotal, map[string]string{metricsLabelNameAction: "polled"}, &metric.FireflyDefaultLabels{Namespace: mtx.Namespace(ctx)})
+			sth.incTransactionOperationCounter(ctx, mtx.Namespace(ctx), "polled")
 			sth.inflight = append(sth.inflight, &pendingState{mtx: mtx})
 		}
 		newLen := len(sth.inflight)
@@ -133,8 +138,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 			log.L(ctx).Debugf("Inflight set updated len=%d head-seq=%s tail-seq=%s old-tail=%s", len(sth.inflight), sth.inflight[0].mtx.SequenceID, sth.inflight[newLen-1].mtx.SequenceID, after)
 		}
 	}
-	sth.toolkit.MetricsManager.SetTxHandlerGaugeMetric(ctx, metricsTransactionsInflightUsed, float64(len(sth.inflight)), nil)
-	sth.toolkit.MetricsManager.SetTxHandlerGaugeMetric(ctx, metricsTransactionsInflightFree, float64(sth.maxInFlight-len(sth.inflight)), nil)
+	sth.setTransactionInflightQueueMetrics(ctx)
 	return true
 
 }
@@ -315,10 +319,11 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 					})
 					if err != nil {
 						log.L(ctx).Infof("Error detected notifying confirmation manager to add new transaction hash: %s", err.Error())
-						sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessActionsTotal, map[string]string{metricsLabelNameAction: "tracking_failed"}, &metric.FireflyDefaultLabels{Namespace: mtx.Namespace(ctx)})
+
+						sth.incTransactionOperationCounter(ctx, mtx.Namespace(ctx), "tracking_failed")
 					} else {
 						pending.trackingTransactionHash = mtx.TransactionHash
-						sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessActionsTotal, map[string]string{metricsLabelNameAction: "tracking"}, &metric.FireflyDefaultLabels{Namespace: mtx.Namespace(ctx)})
+						sth.incTransactionOperationCounter(ctx, mtx.Namespace(ctx), "tracking")
 					}
 				}
 				pending.lastPolicyCycle = time.Now()
@@ -436,6 +441,7 @@ func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx contex
 	log.L(ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 	sth.toolkit.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
 	sth.markInflightUpdate()
-	sth.toolkit.MetricsManager.IncTxHandlerCounterMetricWithLabels(ctx, metricsTransactionProcessActionsTotal, map[string]string{metricsLabelNameAction: "received_receipt"}, &metric.FireflyDefaultLabels{Namespace: pending.mtx.Namespace(ctx)})
+
+	sth.incTransactionOperationCounter(ctx, pending.mtx.Namespace(ctx), "received_receipt")
 	return
 }
