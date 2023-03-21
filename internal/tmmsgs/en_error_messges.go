@@ -93,4 +93,8 @@ var (
 	MsgTransactionHandlerResponseNoSequenceID = ffe("FF21074", "Transaction handler failed to allocate a sequence ID for request '%s'", http.StatusInternalServerError)
 	MsgPersistenceSequenceIDNotAllowed        = ffe("FF21075", "New transaction should not have sequence ID")
 	MsgInvalidJSONGasObject                   = ffe("FF21076", "Failed to parse response from Gas Oracle REST API as a JSON object")
+
+	MsgTHMetricsInvalidName     = ffe("FF21077", "Transaction handler metrics registration name can only contain lowercase letters and underscore. Actual name: %s")
+	MsgTHMetricsHelpTextMissing = ffe("FF21078", "Transaction handler metrics registration help text must be provided")
+	MsgTHMetricsDuplicateName   = ffe("FF21080", "Transaction handler metrics registration invalid name already registered: %s")
 )

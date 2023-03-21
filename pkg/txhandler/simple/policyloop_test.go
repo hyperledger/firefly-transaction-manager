@@ -275,11 +275,15 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mmm := &metricsmocks.Metrics{}
-
-	mmm.On("IsMetricsEnabled").Return(true).Maybe()
-	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
-	mmm.On("TransactionSubmissionError").Return().Once()
+	mmm := &metricsmocks.TransactionHandlerMetrics{}
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightUsed, metricsGaugeTransactionsInflightUsedDescription, false).Return(nil).Maybe()
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightFree, metricsGaugeTransactionsInflightFreeDescription, false).Return(nil).Maybe()
+	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsCounterTransactionProcessOperationsTotal, metricsCounterTransactionProcessOperationsTotalDescription, []string{metricsLabelNameOperation}, true).Return(nil).Maybe()
+	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsHistogramTransactionProcessOperationsDuration, metricsHistogramTransactionProcessOperationsDurationDescription, []float64{}, []string{metricsLabelNameOperation}, true).Return(nil).Maybe()
+	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightUsed, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightFree, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsCounterTransactionProcessOperationsTotal, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsHistogramTransactionProcessOperationsDuration, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
 
 	tk.MetricsManager = mmm
 
@@ -441,11 +445,15 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
 
-	mmm := &metricsmocks.Metrics{}
-
-	mmm.On("IsMetricsEnabled").Return(true).Maybe()
-	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
-	mmm.On("TransactionSubmissionError").Return().Once()
+	mmm := &metricsmocks.TransactionHandlerMetrics{}
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightUsed, metricsGaugeTransactionsInflightUsedDescription, false).Return(nil).Maybe()
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightFree, metricsGaugeTransactionsInflightFreeDescription, false).Return(nil).Maybe()
+	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsCounterTransactionProcessOperationsTotal, metricsCounterTransactionProcessOperationsTotalDescription, []string{metricsLabelNameOperation}, true).Return(nil).Maybe()
+	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsHistogramTransactionProcessOperationsDuration, metricsHistogramTransactionProcessOperationsDurationDescription, []float64{}, []string{metricsLabelNameOperation}, true).Return(nil).Maybe()
+	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightUsed, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightFree, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsCounterTransactionProcessOperationsTotal, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsHistogramTransactionProcessOperationsDuration, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
 
 	tk.MetricsManager = mmm
 	sth := th.(*simpleTransactionHandler)
@@ -695,11 +703,16 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
-	mmm := &metricsmocks.Metrics{}
 
-	mmm.On("IsMetricsEnabled").Return(true).Maybe()
-	mmm.On("TransactionsInFlightSet", mock.Anything).Return().Maybe()
-	mmm.On("TransactionSubmissionError").Return().Twice()
+	mmm := &metricsmocks.TransactionHandlerMetrics{}
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightUsed, metricsGaugeTransactionsInflightUsedDescription, false).Return(nil).Maybe()
+	mmm.On("InitTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightFree, metricsGaugeTransactionsInflightFreeDescription, false).Return(nil).Maybe()
+	mmm.On("InitTxHandlerCounterMetricWithLabels", mock.Anything, metricsCounterTransactionProcessOperationsTotal, metricsCounterTransactionProcessOperationsTotalDescription, []string{metricsLabelNameOperation}, true).Return(nil).Maybe()
+	mmm.On("InitTxHandlerHistogramMetricWithLabels", mock.Anything, metricsHistogramTransactionProcessOperationsDuration, metricsHistogramTransactionProcessOperationsDurationDescription, []float64{}, []string{metricsLabelNameOperation}, true).Return(nil).Maybe()
+	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightUsed, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("SetTxHandlerGaugeMetric", mock.Anything, metricsGaugeTransactionsInflightFree, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("IncTxHandlerCounterMetricWithLabels", mock.Anything, metricsCounterTransactionProcessOperationsTotal, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
+	mmm.On("ObserveTxHandlerHistogramMetricWithLabels", mock.Anything, metricsHistogramTransactionProcessOperationsDuration, mock.Anything, mock.Anything, mock.Anything).Return().Maybe()
 
 	tk.MetricsManager = mmm
 	sth := th.(*simpleTransactionHandler)

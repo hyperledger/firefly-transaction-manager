@@ -29,6 +29,12 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
+const metricsGaugeTransactionsInflightUsed = "tx_in_flight_used_total"
+const metricsGaugeTransactionsInflightUsedDescription = "Number of transactions currently in flight"
+
+const metricsGaugeTransactionsInflightFree = "tx_in_flight_free_total"
+const metricsGaugeTransactionsInflightFreeDescription = "Number of transactions left in the in flight queue"
+
 type policyEngineAPIRequestType int
 
 const (
@@ -101,6 +107,8 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 	for _, p := range oldInflight {
 		if !p.remove {
 			sth.inflight = append(sth.inflight, p)
+		} else {
+			sth.incTransactionOperationCounter(ctx, p.mtx.Namespace(ctx), "removed")
 		}
 	}
 
@@ -122,6 +130,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 			return false
 		}
 		for _, mtx := range additional {
+			sth.incTransactionOperationCounter(ctx, mtx.Namespace(ctx), "polled")
 			sth.inflight = append(sth.inflight, &pendingState{mtx: mtx})
 		}
 		newLen := len(sth.inflight)
@@ -129,6 +138,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 			log.L(ctx).Debugf("Inflight set updated len=%d head-seq=%s tail-seq=%s old-tail=%s", len(sth.inflight), sth.inflight[0].mtx.SequenceID, sth.inflight[newLen-1].mtx.SequenceID, after)
 		}
 	}
+	sth.setTransactionInflightQueueMetrics(ctx)
 	return true
 
 }
@@ -143,11 +153,7 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 			return
 		}
 	}
-
 	// Go through executing the policy engine against them
-	if sth.toolkit.MetricsManager.IsMetricsEnabled() {
-		sth.toolkit.MetricsManager.TransactionsInFlightSet(float64(len(sth.inflight)))
-	}
 
 	for _, pending := range sth.inflight {
 		err := sth.execPolicy(ctx, pending, false)
@@ -270,9 +276,6 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			if updateErr != nil {
 				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, updateReason, err)
 				update = UpdateYes
-				if sth.toolkit.MetricsManager.IsMetricsEnabled() {
-					sth.toolkit.MetricsManager.TransactionSubmissionError()
-				}
 			} else {
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
 				if mtx.FirstSubmit != nil &&
@@ -316,8 +319,11 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 					})
 					if err != nil {
 						log.L(ctx).Infof("Error detected notifying confirmation manager to add new transaction hash: %s", err.Error())
+
+						sth.incTransactionOperationCounter(ctx, mtx.Namespace(ctx), "tracking_failed")
 					} else {
 						pending.trackingTransactionHash = mtx.TransactionHash
+						sth.incTransactionOperationCounter(ctx, mtx.Namespace(ctx), "tracking")
 					}
 				}
 				pending.lastPolicyCycle = time.Now()
@@ -431,8 +437,11 @@ func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx contex
 	sth.mux.Lock()
 	pending.mtx.Receipt = receipt
 	sth.mux.Unlock()
+
 	log.L(ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
 	sth.toolkit.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
 	sth.markInflightUpdate()
+
+	sth.incTransactionOperationCounter(ctx, pending.mtx.Namespace(ctx), "received_receipt")
 	return
 }

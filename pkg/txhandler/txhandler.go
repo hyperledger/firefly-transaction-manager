@@ -31,7 +31,7 @@ type TransactionPersistence interface {
 }
 
 type TransactionMetrics interface {
-	metrics.Metrics
+	metrics.TransactionHandlerMetrics
 }
 
 type Toolkit struct {

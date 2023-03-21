@@ -17,6 +17,8 @@
 package apitypes
 
 import (
+	"context"
+
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
@@ -141,6 +143,11 @@ type ManagedTX struct {
 
 	History        []*TxHistoryStateTransitionEntry `json:"history,omitempty"`
 	HistorySummary []*TxHistorySummaryEntry         `json:"historySummary,omitempty"`
+}
+
+func (mtx *ManagedTX) Namespace(ctx context.Context) string {
+	namespace, _, _ := fftypes.ParseNamespacedUUID(ctx, mtx.ID)
+	return namespace
 }
 
 type BlockInfo struct {

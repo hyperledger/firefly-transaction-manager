@@ -39,6 +39,14 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
+const metricsCounterTransactionProcessOperationsTotal = "tx_process_operation_total"
+const metricsCounterTransactionProcessOperationsTotalDescription = "Number of transaction process operations occurred grouped by operation name"
+
+const metricsLabelNameOperation = "operation"
+
+const metricsHistogramTransactionProcessOperationsDuration = "tx_process_duration_seconds"
+const metricsHistogramTransactionProcessOperationsDurationDescription = "Duration of transaction process grouped by operation name"
+
 // UpdateType informs FFTM whether the transaction needs an update to be persisted after this execution of the policy engine
 type UpdateType int
 
@@ -175,6 +183,9 @@ func (sth *simpleTransactionHandler) withPolicyInfo(ctx context.Context, mtx *ap
 
 func (sth *simpleTransactionHandler) Init(ctx context.Context, toolkit *txhandler.Toolkit) {
 	sth.toolkit = toolkit
+
+	// init metrics
+	sth.initSimpleHandlerMetrics(ctx)
 }
 
 func (sth *simpleTransactionHandler) Start(ctx context.Context) (done <-chan struct{}, err error) {
@@ -280,7 +291,10 @@ func (sth *simpleTransactionHandler) submitTX(ctx context.Context, mtx *apitypes
 	sendTX.TransactionHeaders.Nonce = (*fftypes.FFBigInt)(mtx.Nonce.Int())
 	sendTX.TransactionHeaders.Gas = (*fftypes.FFBigInt)(mtx.Gas.Int())
 	log.L(ctx).Debugf("Sending transaction %s at nonce %s / %d (lastSubmit=%s)", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64(), mtx.LastSubmit)
+	transactionSendStartTime := time.Now()
 	res, reason, err := sth.toolkit.Connector.TransactionSend(ctx, sendTX)
+	sth.incTransactionOperationCounter(ctx, mtx.Namespace(ctx), "transaction_submission")
+	sth.recordTransactionOperationDuration(ctx, mtx.Namespace(ctx), "transaction_submission", time.Since(transactionSendStartTime).Seconds())
 	if err == nil {
 		sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), nil)
 		mtx.TransactionHash = res.TransactionHash

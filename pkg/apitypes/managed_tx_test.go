@@ -14,16 +14,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package metrics
+package apitypes
 
 import (
+	"context"
 	"testing"
 
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestPrometheusMiddleware(t *testing.T) {
-	Registry()
-	evmInstrumentation = nil
-	assert.NotNil(t, GetTransactionManagerServerInstrumentation())
+func TestManagedTxNamespace(t *testing.T) {
+	ctx := context.Background()
+	mtx := &ManagedTX{
+		ID: "not a valid ID",
+	}
+
+	// returns empty string when the ID is invalid
+	ns := mtx.Namespace(ctx)
+	assert.Equal(t, "", ns)
+
+	// returns the namespace correctly
+	mtx.ID = fftypes.NewNamespacedUUIDString(ctx, "ns1", fftypes.NewUUID())
+	ns = mtx.Namespace(ctx)
+	assert.Equal(t, "ns1", ns)
 }
