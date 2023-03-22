@@ -18,7 +18,6 @@ package metrics
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -29,11 +28,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const metricsTransactionManagerPrefix = "tm"
+const metricsTransactionManagerComponentName = "transaction_manager"
 
 // REST api-server and transaction handler are sub-subsystem
-var metricsTransactionHandlerSubsystemName = fmt.Sprintf("%s_%s", metricsTransactionManagerPrefix, "th")
-var metricsRESTAPIServerSubSystemName = fmt.Sprintf("%s_%s", metricsTransactionManagerPrefix, "api_server_rest")
+var metricsTransactionHandlerSubsystemName = "tx_handler"
+var metricsRESTAPIServerSubSystemName = "api_server_rest"
 
 type metricsManager struct {
 	ctx                     context.Context
@@ -44,7 +43,7 @@ type metricsManager struct {
 }
 
 func NewMetricsManager(ctx context.Context) Metrics {
-	metricsRegistry := metric.NewPrometheusMetricsRegistry()
+	metricsRegistry := metric.NewPrometheusMetricsRegistry(metricsTransactionManagerComponentName)
 	txHandlerMetricsManager, _ := metricsRegistry.NewMetricsManagerForSubsystem(ctx, metricsTransactionHandlerSubsystemName)
 	_ = metricsRegistry.NewHTTPMetricsInstrumentationsForSubsystem(
 		ctx,
