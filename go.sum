@@ -188,6 +188,10 @@ github.com/hyperledger/firefly-common v1.2.6 h1:NDf42a2iH6QSt3p7KkdT1pTDoW/NljcT
 github.com/hyperledger/firefly-common v1.2.6/go.mod h1:uYO8DMgT3OGoF2R4Bew1Ql4BS3udYGzPs59sJH1V3E4=
 github.com/hyperledger/firefly-common v1.2.7-0.20230322140623-76adeb969897 h1:1g7ins8fkyOAIsi/d4oHl79ZKQCYXCO79+1SuyAEOzA=
 github.com/hyperledger/firefly-common v1.2.7-0.20230322140623-76adeb969897/go.mod h1:uYO8DMgT3OGoF2R4Bew1Ql4BS3udYGzPs59sJH1V3E4=
+github.com/hyperledger/firefly-common v1.2.7-0.20230322151734-5499cb0173cd h1:5nBZufnP8gSFqMXII96HPFiswNXLcxY9Cw2xvQA9uHE=
+github.com/hyperledger/firefly-common v1.2.7-0.20230322151734-5499cb0173cd/go.mod h1:uYO8DMgT3OGoF2R4Bew1Ql4BS3udYGzPs59sJH1V3E4=
+github.com/hyperledger/firefly-common v1.2.7-0.20230323064710-ac564a7fac43 h1:MIvKpoyxkpV6gokDJ6k5AYuTr0UyuhXPj/lcGz8Ya9c=
+github.com/hyperledger/firefly-common v1.2.7-0.20230323064710-ac564a7fac43/go.mod h1:uYO8DMgT3OGoF2R4Bew1Ql4BS3udYGzPs59sJH1V3E4=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/imdario/mergo v0.3.11/go.mod h1:jmQim1M+e3UYxmgPu/WyfjB3N3VflVyUjjjwH0dnCYA=
