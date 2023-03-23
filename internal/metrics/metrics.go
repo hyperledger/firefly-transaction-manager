@@ -31,7 +31,7 @@ import (
 const metricsTransactionManagerComponentName = "transaction_manager"
 
 // REST api-server and transaction handler are sub-subsystem
-var metricsTransactionHandlerSubsystemName = "tx_handler"
+var metricsTransactionHandlerSubsystemName = "th"
 var metricsRESTAPIServerSubSystemName = "api_server_rest"
 
 type metricsManager struct {
