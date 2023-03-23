@@ -9,7 +9,7 @@ require (
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/hyperledger/firefly-common v1.2.7-0.20230323064710-ac564a7fac43
+	github.com/hyperledger/firefly-common v1.2.7
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/sirupsen/logrus v1.9.0
