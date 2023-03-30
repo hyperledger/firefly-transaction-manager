@@ -21,6 +21,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffresty"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 )
 
 const (
@@ -78,4 +79,16 @@ func (f *TransactionHandlerFactory) InitConfig(conf config.Section) {
 	gasOracleConfig.AddKnownKey(GasOracleMode, defaultGasOracleMode)
 	gasOracleConfig.AddKnownKey(GasOracleQueryInterval, defaultGasOracleQueryInterval)
 	gasOracleConfig.AddKnownKey(GasOracleTemplate)
+
+	// Init the deprecated policy engine config in case people are still using them
+	legacyConfig := tmconfig.DeprecatedPolicyEngineBaseConfig.SubSection(f.Name())
+	legacyConfig.AddKnownKey(FixedGasPrice)
+	legacyConfig.AddKnownKey(ResubmitInterval, defaultResubmitInterval)
+
+	legacyGasOracleConfig := legacyConfig.SubSection(GasOracleConfig)
+	ffresty.InitConfig(legacyGasOracleConfig)
+	legacyGasOracleConfig.AddKnownKey(GasOracleMethod, defaultGasOracleMethod)
+	legacyGasOracleConfig.AddKnownKey(GasOracleMode, defaultGasOracleMode)
+	legacyGasOracleConfig.AddKnownKey(GasOracleQueryInterval, defaultGasOracleQueryInterval)
+	legacyGasOracleConfig.AddKnownKey(GasOracleTemplate)
 }

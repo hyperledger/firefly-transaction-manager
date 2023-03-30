@@ -29,7 +29,6 @@ import (
 )
 
 func TestBalanceOK(t *testing.T) {
-
 	_, m, cancel := newTestManager(t)
 	defer cancel()
 	m.Start()
