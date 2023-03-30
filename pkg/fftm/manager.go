@@ -120,7 +120,7 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 
 	// check whether a policy engine name is provided
 	if config.GetString(tmconfig.TransactionHandlerName) == "" {
-		log.L(ctx).Warnf("The 'policyengine.name' config key has been deprecated. Please use 'transactions.handler.name' instead")
+		log.L(ctx).Warnf("The 'policyengine' config key has been deprecated. Please use 'transactions.handler' instead")
 		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.DeprecatedPolicyEngineBaseConfig, config.GetString(tmconfig.DeprecatedPolicyEngineName))
 	} else {
 		// if not, fall back to use the deprecated policy engine

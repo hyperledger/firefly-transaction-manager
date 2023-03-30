@@ -174,7 +174,7 @@
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|name|Deprecated: Please use 'transactions.handler.name' instead|`string`|`<nil>`
+|name|Deprecated: Please use 'transactions.handler.name' instead|`string`|`simple`
 
 ## policyengine.simple
 
