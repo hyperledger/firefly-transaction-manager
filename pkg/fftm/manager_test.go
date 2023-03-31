@@ -48,6 +48,7 @@ func strPtr(s string) *string { return &s }
 func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 
 	InitConfig()
+	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").SubSection(simple.GasOracleConfig).Set(simple.GasOracleMode, simple.GasOracleModeDisabled)
 
@@ -267,6 +268,8 @@ func TestNewManagerWithMetrics(t *testing.T) {
 func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 
 	tmconfig.Reset()
+	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
+
 	tmconfig.MetricsConfig.Set("enabled", true)
 	tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "::::")
 	dir, err := ioutil.TempDir("", "ldb_*")

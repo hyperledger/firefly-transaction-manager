@@ -45,14 +45,7 @@ type Factory interface {
 func RegisterHandler(factory Factory) string {
 	name := factory.Name()
 	txHandlers[name] = factory
-
-	// check whether a policy engine name is provided
-	if config.GetString(tmconfig.DeprecatedPolicyEngineName) != "" {
-		factory.InitConfig(tmconfig.DeprecatedPolicyEngineBaseConfig.SubSection(name))
-	} else {
-		// if not, use the new transaction handler configurations
-		factory.InitConfig(tmconfig.TransactionHandlerBaseConfig.SubSection(name))
-
-	}
+	// init the new transaction handler configurations
+	factory.InitConfig(tmconfig.TransactionHandlerBaseConfig.SubSection(name))
 	return name
 }

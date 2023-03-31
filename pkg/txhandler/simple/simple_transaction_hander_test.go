@@ -53,6 +53,7 @@ import (
 func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, config.Section) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
+	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
 
 	f := &TransactionHandlerFactory{}
 	f.InitConfig(conf)
@@ -74,6 +75,7 @@ func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory,
 func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, config.Section, func()) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
+	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
 
 	f := &TransactionHandlerFactory{}
 	f.InitConfig(conf)
@@ -111,7 +113,7 @@ func newTestTransactionHandler(t *testing.T) txhandler.TransactionHandler {
 
 func TestSupportDeprecatedPolicyEngineConfiguration(t *testing.T) {
 	f, _, _, conf := newTestTransactionHandlerFactory(t)
-	viper.SetDefault(string(tmconfig.DeprecatedPolicyEngineName), "simple")
+	viper.SetDefault(string(tmconfig.TransactionHandlerName), "")
 	viper.SetDefault(string(tmconfig.DeprecatedTransactionsMaxInFlight), 23412412)
 
 	conf.Set(FixedGasPrice, `12345`)

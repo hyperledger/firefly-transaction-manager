@@ -109,7 +109,7 @@ func setDefaults() {
 	viper.SetDefault(string(MetricsPath), "/metrics")
 
 	viper.SetDefault(string(APIPassthroughHeaders), []string{})
-	viper.SetDefault(string(TransactionHandlerName), "simple")
+	viper.SetDefault(string(DeprecatedPolicyEngineName), "simple")
 
 	// Deprecated default values for transaction handling configurations
 	viper.SetDefault(string(DeprecatedTransactionsMaxInFlight), 100)

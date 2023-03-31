@@ -80,8 +80,8 @@ func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, c
 		inflightUpdate: make(chan bool, 1),
 	}
 
-	// check whether a policy engine name is provided
-	if config.GetString(tmconfig.DeprecatedPolicyEngineName) != "" {
+	// check whether we are using deprecated configuration
+	if config.GetString(tmconfig.TransactionHandlerName) == "" {
 		log.L(ctx).Warnf("Initializing transaction handler with deprecated configurations. Please use 'transactions.handler' instead")
 		sth.nonceStateTimeout = config.GetDuration(tmconfig.DeprecatedTransactionsNonceStateTimeout)
 		sth.maxInFlight = config.GetInt(tmconfig.DeprecatedTransactionsMaxInFlight)

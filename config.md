@@ -174,7 +174,54 @@
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|name|Deprecated: Please use 'transactions.handler.name' instead|`string`|`<nil>`
+|name|Deprecated: Please use 'transactions.handler.name' instead|`string`|`simple`
+
+## policyengine.simple
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|fixedGasPrice|Deprecated: Please use 'transactions.handler.simple.fixedGasPrice' instead|Raw JSON|`<nil>`
+|resubmitInterval|Deprecated: Please use 'transactions.handler.simple.resubmitInterval' instead|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+
+## policyengine.simple.gasOracle
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|connectionTimeout|The maximum amount of time that a connection is allowed to remain with no data transmitted|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|expectContinueTimeout|See [ExpectContinueTimeout in the Go docs](https://pkg.go.dev/net/http#Transport)|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|headers|Adds custom headers to HTTP requests|`map[string]string`|`<nil>`
+|idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxIdleConns|The max number of idle connections to hold pooled|`int`|`<nil>`
+|method|Deprecated: Please use 'transactions.handler.simple.gasOracle.method' instead|`string`|`<nil>`
+|mode|Deprecated: Please use 'transactions.handler.simple.gasOracle.mode' instead|'connector', 'restapi', 'fixed', or 'disabled'|`<nil>`
+|passthroughHeadersEnabled|Enable passing through the set of allowed HTTP request headers|`boolean`|`<nil>`
+|queryInterval|Deprecated: Please use 'transactions.handler.simple.gasOracle.queryInterval' instead|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|requestTimeout|The maximum amount of time that a request is allowed to remain open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|template|Deprecated: Please use 'transactions.handler.simple.gasOracle.template' instead|[Go Template](https://pkg.go.dev/text/template) `string`|`<nil>`
+|tlsHandshakeTimeout|The maximum amount of time to wait for a successful TLS handshake|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|url|Deprecated: Please use 'transactions.handler.simple.gasOracle.url' instead|`string`|`<nil>`
+
+## policyengine.simple.gasOracle.auth
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|password|Password|`string`|`<nil>`
+|username|Username|`string`|`<nil>`
+
+## policyengine.simple.gasOracle.proxy
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|url|Deprecated: Please use 'transactions.handler.simple.gasOracle.proxy.url' instead|`string`|`<nil>`
+
+## policyengine.simple.gasOracle.retry
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|count|The maximum number of times to retry|`int`|`<nil>`
+|enabled|Enables retries|`boolean`|`<nil>`
+|initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
 ## policyloop
 
@@ -202,7 +249,7 @@
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|name|The name of the transaction handler to use|`string`|`simple`
+|name|The name of the transaction handler to use|`string`|`<nil>`
 
 ## transactions.handler.simple
 
