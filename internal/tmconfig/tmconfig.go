@@ -20,6 +20,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffresty"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/postgres"
 	"github.com/spf13/viper"
 )
 
@@ -47,13 +48,14 @@ var (
 	PersistenceLevelDBPath                        = ffc("persistence.leveldb.path")
 	PersistenceLevelDBMaxHandles                  = ffc("persistence.leveldb.maxHandles")
 	PersistenceLevelDBSyncWrites                  = ffc("persistence.leveldb.syncWrites")
-	APIDefaultRequestTimeout                      = ffc("api.defaultRequestTimeout")
-	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
-	APIPassthroughHeaders                         = ffc("api.passthroughHeaders")
-	DebugPort                                     = ffc("debug.port")
-	MetricsEnabled                                = ffc("metrics.enabled")
-	MetricsPath                                   = ffc("metrics.path")
-	TransactionHandlerName                        = ffc("transactions.handler.name")
+	// Postgres persistence initialization can be found in reset function
+	APIDefaultRequestTimeout = ffc("api.defaultRequestTimeout")
+	APIMaxRequestTimeout     = ffc("api.maxRequestTimeout")
+	APIPassthroughHeaders    = ffc("api.passthroughHeaders")
+	DebugPort                = ffc("debug.port")
+	MetricsEnabled           = ffc("metrics.enabled")
+	MetricsPath              = ffc("metrics.path")
+	TransactionHandlerName   = ffc("transactions.handler.name")
 
 	// Deprecated Configurations for transaction handling
 	DeprecatedTransactionsMaxInFlight       = ffc("transactions.maxInFlight")
@@ -76,6 +78,8 @@ var TransactionHandlerBaseConfig config.Section
 var WebhookPrefix config.Section
 
 var MetricsConfig config.Section
+
+var PostgresConfig config.Section
 
 func setDefaults() {
 	viper.SetDefault(string(TransactionsMaxHistoryCount), 50)
@@ -138,4 +142,7 @@ func Reset() {
 
 	MetricsConfig = config.RootSection("metrics")
 	httpserver.InitHTTPConfig(MetricsConfig, 6000)
+
+	PostgresConfig = config.RootSection("persistence.postgres")
+	postgres.InitPostgresConfig(PostgresConfig)
 }
