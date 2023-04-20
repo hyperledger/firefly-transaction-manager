@@ -35,7 +35,7 @@ func ClientCommand() *cobra.Command {
 	return buildClientCommand(createClient)
 }
 
-func buildClientCommand(clientFactory func() apiclient.FFTMClient) *cobra.Command {
+func buildClientCommand(clientFactory func() (apiclient.FFTMClient, error)) *cobra.Command {
 	clientCmd := &cobra.Command{
 		Use:   "client <subcommand>",
 		Short: "Make API requests to a blockchain connector instance",
@@ -51,13 +51,19 @@ func buildClientCommand(clientFactory func() apiclient.FFTMClient) *cobra.Comman
 	return clientCmd
 }
 
-func createClient() apiclient.FFTMClient {
+func createClient() (apiclient.FFTMClient, error) {
 	cfg := config.RootSection("fftm_client")
 	apiclient.InitConfig(cfg)
 	if url != "" {
 		cfg.Set("url", url)
 	}
-	return apiclient.NewFFTMClient(context.Background(), cfg)
+
+	fftmClient, err := apiclient.NewFFTMClient(context.Background(), cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return fftmClient, nil
 }
 
 func init() {

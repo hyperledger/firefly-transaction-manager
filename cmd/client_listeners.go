@@ -23,7 +23,7 @@ import (
 
 var listenerID string
 
-func clientListenersCommand(clientFactory func() apiclient.FFTMClient) *cobra.Command {
+func clientListenersCommand(clientFactory func() (apiclient.FFTMClient, error)) *cobra.Command {
 	clientListenersCmd := &cobra.Command{
 		Use:   "listeners <subcommand>",
 		Short: "Make API requests to an blockchain connector instance",

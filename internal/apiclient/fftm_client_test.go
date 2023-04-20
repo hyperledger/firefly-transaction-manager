@@ -20,15 +20,18 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/stretchr/testify/assert"
 )
 
-func newTestClientServer(handler func(w http.ResponseWriter, r *http.Request)) (FFTMClient, *httptest.Server) {
+func newTestClientServer(t *testing.T, handler func(w http.ResponseWriter, r *http.Request)) (FFTMClient, *httptest.Server) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	config := config.RootSection("fftm_client")
 	InitConfig(config)
 	config.Set("url", server.URL)
-	client := NewFFTMClient(context.Background(), config)
+	client, err := NewFFTMClient(context.Background(), config)
+	assert.NoError(t, err)
 	return client, server
 }

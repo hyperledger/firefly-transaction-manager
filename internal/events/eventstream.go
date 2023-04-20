@@ -161,7 +161,12 @@ func (es *eventStream) initAction(startedState *startedStreamState) {
 	ctx := startedState.ctx
 	switch *es.spec.Type {
 	case apitypes.EventStreamTypeWebhook:
-		startedState.action = newWebhookAction(ctx, es.spec.Webhook).attemptBatch
+		webhookAction, err := newWebhookAction(ctx, es.spec.Webhook)
+		if err != nil {
+			// TODO does this make sense?
+			panic(err)
+		}
+		startedState.action = webhookAction.attemptBatch
 	case apitypes.EventStreamTypeWebSocket:
 		startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
 	default:

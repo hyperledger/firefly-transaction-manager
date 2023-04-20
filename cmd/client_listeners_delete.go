@@ -25,13 +25,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func clientListenersDeleteCommand(clientFactory func() apiclient.FFTMClient) *cobra.Command {
+func clientListenersDeleteCommand(clientFactory func() (apiclient.FFTMClient, error)) *cobra.Command {
 	clientListenersDeleteCmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete event streams",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := clientFactory()
+			client, err := clientFactory()
+			if err != nil {
+				return err
+			}
 			if eventStreamID == "" {
 				return fmt.Errorf("eventstream flag not set")
 			}

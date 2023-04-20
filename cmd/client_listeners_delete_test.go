@@ -28,7 +28,7 @@ import (
 
 func TestListenersDeleteByID(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "delete", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "--listener", "7db29758-2a5a-4cc5-91ec-72ade16e0dc5"})
 	mc.On("DeleteListener", mock.Anything, "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "7db29758-2a5a-4cc5-91ec-72ade16e0dc5").Return(nil)
 	err := cmd.Execute()
@@ -38,7 +38,7 @@ func TestListenersDeleteByID(t *testing.T) {
 
 func TestListenersDeleteByName(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "delete", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "--name", "foo"})
 	mc.On("DeleteListenersByName", mock.Anything, "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "foo").Return(nil)
 	err := cmd.Execute()
@@ -48,7 +48,7 @@ func TestListenersDeleteByName(t *testing.T) {
 
 func TestListenersDeleteNoEventStream(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "delete"})
 	err := cmd.Execute()
 	assert.Regexp(t, "eventstream flag not set", err)
@@ -56,7 +56,7 @@ func TestListenersDeleteNoEventStream(t *testing.T) {
 
 func TestListenersDeleteNoID(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "delete", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7"})
 	err := cmd.Execute()
 	assert.Regexp(t, "listener or name flag must be set", err)
@@ -64,7 +64,7 @@ func TestListenersDeleteNoID(t *testing.T) {
 
 func TestListenersDeleteIDandName(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "delete", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "--listener", "7db29758-2a5a-4cc5-91ec-72ade16e0dc5", "--name", "foo"})
 	err := cmd.Execute()
 	assert.Regexp(t, "listener and name flags cannot be combined", err)
@@ -72,7 +72,7 @@ func TestListenersDeleteIDandName(t *testing.T) {
 
 func TestListenersDeleteByNameError(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "delete", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "--name", "foo"})
 	mc.On("DeleteListenersByName", mock.Anything, "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "foo").Return(fmt.Errorf("pop"))
 	err := cmd.Execute()
@@ -82,7 +82,7 @@ func TestListenersDeleteByNameError(t *testing.T) {
 
 func TestListenersDeleteByIDError(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "delete", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "--listener", "7db29758-2a5a-4cc5-91ec-72ade16e0dc5"})
 	mc.On("DeleteListener", mock.Anything, "f9506df2-5473-4fd4-9cfb-f835656eaaa7", "7db29758-2a5a-4cc5-91ec-72ade16e0dc5").Return(fmt.Errorf("pop"))
 	err := cmd.Execute()

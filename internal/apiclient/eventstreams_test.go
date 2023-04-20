@@ -43,7 +43,7 @@ func TestGetEventSteams(t *testing.T) {
 			w.Write(responseJSON)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	eventStreams, err := client.GetEventStreams(context.Background())
@@ -57,7 +57,7 @@ func TestGetEventStreamsError(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	_, err := client.GetEventStreams(context.Background())
@@ -107,7 +107,7 @@ func TestDeleteListenersByName(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteListenersByName(context.Background(), esID.String(), "^fft:.*:ns1$")
@@ -117,7 +117,7 @@ func TestDeleteListenersByName(t *testing.T) {
 
 func TestDeleteListenersByNameBadRegexp(t *testing.T) {
 	handler := func(w http.ResponseWriter, r *http.Request) {}
-	client, _ := newTestClientServer(handler)
+	client, _ := newTestClientServer(t, handler)
 	err := client.DeleteListenersByName(context.Background(), "esID", "*!BADREGEX")
 	assert.Error(t, err)
 	assert.Regexp(t, "error parsing regexp", err)
@@ -131,7 +131,7 @@ func TestDeleteListenersByNameListInvalidResponse(t *testing.T) {
 			w.Header().Set("Content-Length", "1")
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteListenersByName(context.Background(), esID.String(), "^fft:.*:ns1$")
@@ -146,7 +146,7 @@ func TestDeleteListenersByNameListError(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteListenersByName(context.Background(), esID.String(), "^fft:.*:ns1$")
@@ -193,7 +193,7 @@ func TestDeleteListenersByNameDeleteError(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteListenersByName(context.Background(), esID.String(), "^fft:.*:ns1$")
@@ -240,7 +240,7 @@ func TestDeleteListenersByNameDeleteInvalidResponse(t *testing.T) {
 			w.Header().Set("Content-Length", "1")
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteListenersByName(context.Background(), esID.String(), "^fft:.*:ns1$")
@@ -255,7 +255,7 @@ func TestDeleteEventStream(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteEventStream(context.Background(), esID.String())
@@ -270,7 +270,7 @@ func TestDeleteEventStreamError(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteEventStream(context.Background(), esID.String())
@@ -285,7 +285,7 @@ func TestDeleteEventStreamInvalidResponse(t *testing.T) {
 			w.Header().Set("Content-Length", "1")
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteEventStream(context.Background(), esID.String())
@@ -321,7 +321,7 @@ func TestDeleteEventStreamsByName(t *testing.T) {
 			deletedIDs = append(deletedIDs, esID)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteEventStreamsByName(context.Background(), "^fft:.*:ns1$")
@@ -331,7 +331,7 @@ func TestDeleteEventStreamsByName(t *testing.T) {
 
 func TestDeleteEventStreamsByNameBadRegex(t *testing.T) {
 	handler := func(w http.ResponseWriter, r *http.Request) {}
-	client, _ := newTestClientServer(handler)
+	client, _ := newTestClientServer(t, handler)
 	err := client.DeleteEventStreamsByName(context.Background(), "*!BADREGEX")
 	assert.Error(t, err)
 	assert.Regexp(t, "error parsing regexp", err)
@@ -343,7 +343,7 @@ func TestDeleteEventStreamsByNameError(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteEventStreamsByName(context.Background(), "^fft:.*:ns1$")
@@ -377,7 +377,7 @@ func TestDeleteEventStreamsByNameErrorDelete(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
-	client, server := newTestClientServer(handler)
+	client, server := newTestClientServer(t, handler)
 	defer server.Close()
 
 	err := client.DeleteEventStreamsByName(context.Background(), "^fft:.*:ns1$")

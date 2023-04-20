@@ -29,6 +29,7 @@ func TestClientCommand(t *testing.T) {
 }
 
 func TestCreateDefaultClient(t *testing.T) {
-	client := createClient()
+	client, err := createClient()
+	assert.NoError(t, err)
 	assert.NotNil(t, client)
 }

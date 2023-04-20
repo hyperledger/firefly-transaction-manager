@@ -107,7 +107,11 @@ func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, c
 	case GasOracleModeConnector:
 		// No initialization required
 	case GasOracleModeRESTAPI:
-		sth.gasOracleClient = ffresty.New(ctx, gasOracleConfig)
+		var err error
+		sth.gasOracleClient, err = ffresty.New(ctx, gasOracleConfig)
+		if err != nil {
+			return nil, err
+		}
 		templateString := gasOracleConfig.GetString(GasOracleTemplate)
 		if templateString == "" {
 			return nil, i18n.NewError(ctx, tmmsgs.MsgMissingGOTemplate)

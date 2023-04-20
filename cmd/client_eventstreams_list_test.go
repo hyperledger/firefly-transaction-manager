@@ -29,7 +29,7 @@ import (
 
 func TestEventStreamsList(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"eventstreams", "list"})
 	mc.On("GetEventStreams", mock.Anything).Return([]apitypes.EventStream{}, nil)
 	err := cmd.Execute()
@@ -39,7 +39,7 @@ func TestEventStreamsList(t *testing.T) {
 
 func TestEventStreamsListError(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"eventstreams", "list"})
 	mc.On("GetEventStreams", mock.Anything).Return(nil, fmt.Errorf("pop"))
 	err := cmd.Execute()

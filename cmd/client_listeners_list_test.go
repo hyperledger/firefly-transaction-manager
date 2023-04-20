@@ -29,7 +29,7 @@ import (
 
 func TestListenersList(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "list", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7"})
 	mc.On("GetListeners", mock.Anything, "f9506df2-5473-4fd4-9cfb-f835656eaaa7").Return([]apitypes.Listener{}, nil)
 	err := cmd.Execute()
@@ -39,7 +39,7 @@ func TestListenersList(t *testing.T) {
 
 func TestListenersListNoEventStream(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "list"})
 	err := cmd.Execute()
 	assert.Regexp(t, "eventstream flag not set", err)
@@ -47,7 +47,7 @@ func TestListenersListNoEventStream(t *testing.T) {
 
 func TestListenersListError(t *testing.T) {
 	mc := apiclientmocks.NewFFTMClient(t)
-	cmd := buildClientCommand(func() apiclient.FFTMClient { return mc })
+	cmd := buildClientCommand(func() (apiclient.FFTMClient, error) { return mc, nil })
 	cmd.SetArgs([]string{"listeners", "list", "--eventstream", "f9506df2-5473-4fd4-9cfb-f835656eaaa7"})
 	mc.On("GetListeners", mock.Anything, "f9506df2-5473-4fd4-9cfb-f835656eaaa7").Return(nil, fmt.Errorf("pop"))
 	err := cmd.Execute()

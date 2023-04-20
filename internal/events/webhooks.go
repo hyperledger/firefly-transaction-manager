@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -73,8 +73,11 @@ type webhookAction struct {
 	client          *resty.Client
 }
 
-func newWebhookAction(bgCtx context.Context, spec *apitypes.WebhookConfig) *webhookAction {
-	client := ffresty.New(bgCtx, tmconfig.WebhookPrefix)   // majority of settings come from config
+func newWebhookAction(bgCtx context.Context, spec *apitypes.WebhookConfig) (*webhookAction, error) {
+	client, err := ffresty.New(bgCtx, tmconfig.WebhookPrefix) // majority of settings come from config
+	if err != nil {
+		return nil, err
+	}
 	client.SetTimeout(time.Duration(*spec.RequestTimeout)) // request timeout set per stream
 	if *spec.TLSkipHostVerify {
 		client.SetTLSClientConfig(&tls.Config{
@@ -86,7 +89,7 @@ func newWebhookAction(bgCtx context.Context, spec *apitypes.WebhookConfig) *webh
 		spec:            spec,
 		allowPrivateIPs: config.GetBool(tmconfig.WebhooksAllowPrivateIPs),
 		client:          client,
-	}
+	}, nil
 }
 
 // attemptWebhookAction performs a single attempt of a webhook action
