@@ -44,7 +44,7 @@ func NewManagedTransactionEventHandler(ctx context.Context, cm confirmations.Man
 	return eh
 }
 
-func (eh *ManagedTransactionEventHandler) HandleEvent(ctx context.Context, e apitypes.ManagedTransactionEvent) error {
+func (eh *ManagedTransactionEventHandler) HandleEvent(_ context.Context, e apitypes.ManagedTransactionEvent) error {
 	switch e.Type {
 	case apitypes.ManagedTXProcessSucceeded:
 		eh.sendWSReply(e.Tx)

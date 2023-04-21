@@ -100,4 +100,5 @@ var (
 	MsgPersistenceBeginFailed                  = ffe("FF21083", "Persistence begin transaction failed")
 	MsgPersistenceUpdateFailed                 = ffe("FF21084", "Persistence update failed")
 	MsgPersistenceCommitFailed                 = ffe("FF21085", "Persistence commit failed")
+	MsgPersistenceSequenceIDInvalid            = ffe("FF21086", "Sequence ID can not be parsed into the expected format for current database: %s")
 )

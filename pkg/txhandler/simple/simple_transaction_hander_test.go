@@ -35,7 +35,7 @@ import (
 	// Internal packages are used in the tests for e2e tests with more coverage
 	// If you are developing a customized transaction handler, you'll need to mock the toolkit APIs instead
 	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/leveldb"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/metricsmocks"
@@ -85,7 +85,7 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 	dir, err := ioutil.TempDir("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
-	filePersistence, err := persistence.NewLevelDBPersistence(context.Background())
+	filePersistence, err := leveldb.NewLevelDBPersistence(context.Background())
 	assert.NoError(t, err)
 
 	mockEventHandler := &txhandlermocks.ManagedTxEventHandler{}

@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
@@ -72,6 +73,10 @@ var transactionColumnsWithoutSeq = []string{
 	"created",
 	"updated",
 	"delete_requested",
+}
+
+var transactionFilterFieldMap = map[string]string{
+	"signer": "transaction_headers->>'from'",
 }
 
 const transactionsTable = "transactions"
@@ -241,7 +246,45 @@ func (s *SQLCommon) transactionResult(ctx context.Context, row *sql.Rows) (*apit
 	return &tx, nil
 }
 
-func (s *SQLCommon) getTransactionPred(ctx context.Context, desc string, pred interface{}) (*apitypes.ManagedTX, error) {
+func (s *SQLCommon) GetTransactions(ctx context.Context, filter ffapi.Filter) (message []*apitypes.ManagedTX, res *ffapi.FilterResult, err error) {
+
+	query, fop, fi, err := s.FilterSelect(
+		ctx,
+		// TODO: need better documentation for the purpose of this table name field
+		// vs the .From(tableName) in the query.
+		"",
+		sq.Select(transactionColumns...).From(transactionsTable),
+		filter,
+		transactionFilterFieldMap,
+		// NB: "sequence" is a special keyword
+		// it will be translated to the sequence column field name returned by SequenceColumn function of the database.
+		// e.g. for postgres, it will be "seq"
+		[]interface{}{"sequence"},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rows, tx, err := s.Query(ctx, transactionsTable, query)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	transactions := []*apitypes.ManagedTX{}
+	for rows.Next() {
+		s, err := s.transactionResult(ctx, rows)
+		if err != nil {
+			return nil, nil, err
+		}
+		transactions = append(transactions, s)
+	}
+
+	return transactions, s.QueryRes(ctx, transactionsTable, tx, fop, fi), err
+
+}
+
+func (s *SQLCommon) getTransactionPred(ctx context.Context, id string, pred interface{}) (*apitypes.ManagedTX, error) {
 	rows, _, err := s.Database.Query(ctx, transactionsTable,
 		sq.Select(transactionColumns...).
 			From(transactionsTable).
@@ -253,7 +296,7 @@ func (s *SQLCommon) getTransactionPred(ctx context.Context, desc string, pred in
 	defer rows.Close()
 
 	if !rows.Next() {
-		log.L(ctx).Debugf("Transaction '%s' not found", desc)
+		log.L(ctx).Debugf("Transaction '%s' not found", id)
 		return nil, nil
 	}
 
@@ -265,10 +308,30 @@ func (s *SQLCommon) getTransactionPred(ctx context.Context, desc string, pred in
 	return tx, nil
 }
 
-func (s *SQLCommon) GetTransactionByID(ctx context.Context, id *fftypes.UUID) (*apitypes.ManagedTX, error) {
-	return s.getTransactionPred(ctx, id.String(), sq.Eq{"id": id})
+func (s *SQLCommon) GetTransactionByID(ctx context.Context, id string) (*apitypes.ManagedTX, error) {
+	return s.getTransactionPred(ctx, id, sq.Eq{"id": id})
 }
 
 func (s *SQLCommon) GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error) {
 	return s.getTransactionPred(ctx, nonce.String(), sq.Eq{"nonce": nonce, "transaction_headers->>'from'": signer})
+}
+
+func (s *SQLCommon) DeleteTransactionByID(ctx context.Context, id string) error {
+	ctx, tx, autoCommit, err := s.Database.BeginOrUseTx(ctx)
+	if err != nil {
+		return err
+	}
+	defer s.Database.RollbackTx(ctx, tx, autoCommit)
+
+	transaction, err := s.GetTransactionByID(ctx, id)
+	if err == nil && transaction != nil {
+		err = s.Database.DeleteTx(ctx, transactionsTable, tx, sq.Delete(transactionsTable).Where(sq.Eq{
+			"id": id,
+		}), nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	return s.Database.CommitTx(ctx, tx, autoCommit)
 }

@@ -367,8 +367,8 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 		return nil, err
 	}
 
-	// Do the locked part - which checks if this is a new listener, or just an update to the options.
-	new, l, startedState, err := es.lockedListenerUpdate(ctx, spec, reset)
+	// Do the locked part - which checks if this is a newListener listener, or just an update to the options.
+	newListener, l, startedState, err := es.lockedListenerUpdate(ctx, spec, reset)
 	if err != nil {
 		return nil, err
 	}
@@ -389,7 +389,7 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 				return nil, err
 			}
 		}
-	} else if new && startedState != nil {
+	} else if newListener && startedState != nil {
 		// Start the new listener - no checkpoint needed here
 		return spec, l.start(startedState, nil)
 	}

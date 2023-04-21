@@ -7,5 +7,5 @@ CREATE TABLE checkpoints (
   time         BIGINT        NOT NULL,
 );
 
-CREATE UNIQUE INDEX checkpoints_streamId on checkpoints(streamId);
+CREATE UNIQUE INDEX checkpoints_streamId on checkpoints(stream_id);
 COMMIT;

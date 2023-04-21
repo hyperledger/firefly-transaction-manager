@@ -92,10 +92,19 @@ var (
 	ConfigEventStreamsRetryMaxDelay                     = ffc("config.eventstreams.retry.maxDelay", "Maximum delay between retries", i18n.TimeDurationType)
 	ConfigEventStreamsRetryFactor                       = ffc("config.eventstreams.retry.factor", "Factor to increase the delay by, between each retry", i18n.FloatType)
 
-	ConfigPersistenceType              = ffc("config.persistence.type", "The type of persistence to use", "Only 'leveldb' currently supported")
+	ConfigPersistenceType = ffc("config.persistence.type", "The type of persistence to use", "Only 'leveldb' currently supported")
+
 	ConfigPersistenceLevelDBPath       = ffc("config.persistence.leveldb.path", "The path for the LevelDB persistence directory", i18n.StringType)
 	ConfigPersistenceLevelDBMaxHandles = ffc("config.persistence.leveldb.maxHandles", "The maximum number of cached file handles LevelDB should keep open", i18n.IntType)
 	ConfigPersistenceLevelDBSyncWrites = ffc("config.persistence.leveldb.syncWrites", "Whether to synchronously perform writes to the storage", i18n.BooleanType)
+
+	ConfigDatabasePostgresMaxConnIdleTime = ffc("config.persistence.postgres.maxConnIdleTime", "The maximum amount of time a database connection can be idle", i18n.TimeDurationType)
+	ConfigDatabasePostgresMaxConnLifetime = ffc("config.persistence.postgres.maxConnLifetime", "The maximum amount of time to keep a database connection open", i18n.TimeDurationType)
+	ConfigDatabasePostgresMaxConns        = ffc("config.persistence.postgres.maxConns", "Maximum connections to the database", i18n.IntType)
+	ConfigDatabasePostgresMaxIdleConns    = ffc("config.persistence.postgres.maxIdleConns", "The maximum number of idle connections to the database", i18n.IntType)
+	ConfigDatabasePostgresURL             = ffc("config.persistence.postgres.url", "The PostgreSQL connection string for the database", i18n.StringType)
+	ConfigGlobalMigrationsAuto            = ffc("config.persistence.postgres.migrations.auto", "Enables automatic database migrations", i18n.BooleanType)
+	ConfigGlobalMigrationsDirectory       = ffc("config.persistence.postgres.migrations.directory", "The directory containing the numerically ordered migration DDL files to apply to the database", i18n.StringType)
 
 	ConfigWebhooksAllowPrivateIPs = ffc("config.webhooks.allowPrivateIPs", "Whether to allow WebHook URLs that resolve to Private IP address ranges (vs. internet addresses)", i18n.BooleanType)
 	ConfigWebhooksURL             = ffc("config.webhooks.url", "Unused (overridden by the WebHook configuration of an individual event stream)", i18n.IgnoredType)

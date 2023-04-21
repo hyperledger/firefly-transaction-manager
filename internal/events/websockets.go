@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -65,7 +65,7 @@ func newWebSocketAction(wsChannels ws.WebSocketChannels, spec *apitypes.WebSocke
 }
 
 // attemptBatch attempts to deliver a batch over socket IO
-func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error {
+func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber int64, _ int, events []*apitypes.EventWithContext) error {
 	var err error
 
 	// Get a blocking channel to send and receive on our chosen namespace

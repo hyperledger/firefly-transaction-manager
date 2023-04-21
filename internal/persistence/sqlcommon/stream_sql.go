@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
@@ -128,17 +129,55 @@ func (s *SQLCommon) streamResult(ctx context.Context, row *sql.Rows) (*apitypes.
 
 	if webhookJSON.Valid {
 		if err := json.Unmarshal([]byte(webhookJSON.String), stream.Webhook); err != nil {
-			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceReadFailed, transactionsTable)
+			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceReadFailed, streamsTable)
 		}
 	}
 
 	if webSocketJSON.Valid {
 		if err := json.Unmarshal([]byte(webSocketJSON.String), stream.WebSocket); err != nil {
-			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceReadFailed, transactionsTable)
+			return nil, i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceReadFailed, streamsTable)
 		}
 	}
 
 	return &stream, nil
+}
+
+func (s *SQLCommon) GetStreams(ctx context.Context, filter ffapi.Filter) (message []*apitypes.EventStream, res *ffapi.FilterResult, err error) {
+
+	query, fop, fi, err := s.FilterSelect(
+		ctx,
+		// TODO: need better documentation for the purpose of this table name field
+		// vs the .From(tableName) in the query.
+		"",
+		sq.Select(streamColumns...).From(streamsTable),
+		filter,
+		nil,
+		// NB: "sequence" is a special keyword
+		// it will be translated to the sequence column field name returned by SequenceColumn function of the database.
+		// e.g. for postgres, it will be "seq"
+		[]interface{}{"sequence"},
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rows, tx, err := s.Query(ctx, streamsTable, query)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	streams := []*apitypes.EventStream{}
+	for rows.Next() {
+		s, err := s.streamResult(ctx, rows)
+		if err != nil {
+			return nil, nil, err
+		}
+		streams = append(streams, s)
+	}
+
+	return streams, s.QueryRes(ctx, streamsTable, tx, fop, fi), err
+
 }
 
 func (s *SQLCommon) getStreamPred(ctx context.Context, desc string, pred interface{}) (*apitypes.EventStream, error) {

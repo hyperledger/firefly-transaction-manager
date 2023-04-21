@@ -29,10 +29,14 @@ import (
 )
 
 var checkpointColumns = []string{
-	"streamId",
+	"stream_id",
 	"listeners",
 	"time",
 }
+
+// var checkpointFilterFieldMap = map[string]string{
+// 	"stream.id": "stream_id",
+// }
 
 const checkpointsTable = "checkpoints"
 
@@ -95,7 +99,7 @@ func (s *SQLCommon) getCheckpointPred(ctx context.Context, desc string, pred int
 }
 
 func (s *SQLCommon) GetCheckpointByStreamID(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStreamCheckpoint, error) {
-	return s.getCheckpointPred(ctx, streamID.String(), sq.Eq{"streamId": streamID})
+	return s.getCheckpointPred(ctx, streamID.String(), sq.Eq{"stream_id": streamID})
 }
 
 func (s *SQLCommon) DeleteCheckpointByStreamID(ctx context.Context, streamID *fftypes.UUID) error {
@@ -108,7 +112,7 @@ func (s *SQLCommon) DeleteCheckpointByStreamID(ctx context.Context, streamID *ff
 	checkpoint, err := s.GetCheckpointByStreamID(ctx, streamID)
 	if err == nil && checkpoint != nil {
 		err = s.Database.DeleteTx(ctx, checkpointsTable, tx, sq.Delete(checkpointsTable).Where(sq.Eq{
-			"streamId": streamID,
+			"stream_id": streamID,
 		}), nil)
 		if err != nil {
 			return err
