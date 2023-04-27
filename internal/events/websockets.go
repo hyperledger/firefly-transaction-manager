@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -94,16 +94,16 @@ func (w *webSocketAction) attemptBatch(ctx context.Context, batchNumber int64, a
 
 	// If we ever add more distribution modes, we may want to change this logic from a simple if statement
 	if err == nil && *w.spec.DistributionMode != apitypes.DistributionModeBroadcast {
-		log.L(ctx).Infof("Batch %d dispatched (len=%d)", batchNumber, len(events))
+		log.L(ctx).Infof("Batch %d dispatched (len=%d,attempt=%d)", batchNumber, len(events), attempt)
 		err = w.waitForAck(ctx, receiver, batchNumber)
 	}
 
 	// Pass back any exception due
 	if err != nil {
-		log.L(ctx).Infof("WebSocket event batch %d delivery failed (len=%d): %s", batchNumber, len(events), err)
+		log.L(ctx).Infof("WebSocket event batch %d delivery failed (len=%d,attempt=%d): %s", batchNumber, len(events), attempt, err)
 		return err
 	}
-	log.L(ctx).Infof("WebSocket event batch %d complete (len=%d)", batchNumber, len(events))
+	log.L(ctx).Infof("WebSocket event batch %d complete (len=%d,attempt=%d)", batchNumber, len(events), attempt)
 	return nil
 }
 

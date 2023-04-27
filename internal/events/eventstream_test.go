@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/fftls"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
@@ -66,6 +67,7 @@ func testESConf(t *testing.T, j string) (spec *apitypes.EventStream) {
 }
 
 func newTestEventStream(t *testing.T, conf string) (es *eventStream) {
+	tmconfig.Reset()
 	es, err := newTestEventStreamWithListener(t, &ffcapimocks.API{}, conf)
 	assert.NoError(t, err)
 	return es
@@ -1456,6 +1458,27 @@ func TestDeleteFail(t *testing.T) {
 	err = es.Delete(es.bgCtx)
 	assert.Regexp(t, "pop", err)
 
+}
+
+func TestStartFailCreateClient(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name": "ut_stream",
+		"errorHandling": "block",
+		"blockedRetryDelay": "0s",
+		"retryTimeout": "0s",
+		"type": "webhook",
+		"webhook": {
+			"url": "http://test.example.com"
+		}
+	}`)
+
+	tlsConf := tmconfig.WebhookPrefix.SubSection("tls")
+	tlsConf.Set(fftls.HTTPConfTLSEnabled, true)
+	tlsConf.Set(fftls.HTTPConfTLSCAFile, "!!!badness")
+
+	err := es.Start(es.bgCtx)
+	assert.Regexp(t, "FF00153", err)
 }
 
 func TestEventLoopProcessRemovedEvent(t *testing.T) {
