@@ -38,13 +38,16 @@ type fftmClient struct {
 	client *resty.Client
 }
 
-func InitConfig(conf config.KeySet) {
+func InitConfig(conf config.Section) {
 	ffresty.InitConfig(conf)
 }
 
-func NewFFTMClient(ctx context.Context, staticConfig config.Section) FFTMClient {
-	client := ffresty.New(ctx, staticConfig)
+func NewFFTMClient(ctx context.Context, staticConfig config.Section) (FFTMClient, error) {
+	client, err := ffresty.New(ctx, staticConfig)
+	if err != nil {
+		return nil, err
+	}
 	return &fftmClient{
 		client: client,
-	}
+	}, nil
 }

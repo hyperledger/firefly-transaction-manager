@@ -23,7 +23,7 @@ import (
 
 var eventStreamID string
 
-func clientEventStreamsCommand(clientFactory func() apiclient.FFTMClient) *cobra.Command {
+func clientEventStreamsCommand(clientFactory func() (apiclient.FFTMClient, error)) *cobra.Command {
 	clientEventStreamsCmd := &cobra.Command{
 		Use:   "eventstreams <subcommand>",
 		Short: "Make API requests to an blockchain connector instance",

@@ -155,16 +155,16 @@ func (pi *pendingItem) getKey() string {
 }
 
 func (pi *pendingItem) copyConfirmations() []apitypes.BlockInfo {
-	copy := make([]apitypes.BlockInfo, len(pi.confirmations))
+	cCopy := make([]apitypes.BlockInfo, len(pi.confirmations))
 	for i, c := range pi.confirmations {
-		copy[i] = apitypes.BlockInfo{
+		cCopy[i] = apitypes.BlockInfo{
 			BlockNumber: c.BlockNumber,
 			BlockHash:   c.BlockHash,
 			ParentHash:  c.ParentHash,
 			// Don't include transaction hash array
 		}
 	}
-	return copy
+	return cCopy
 }
 
 func (n *Notification) eventPendingItem() *pendingItem {

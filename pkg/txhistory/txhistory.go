@@ -37,13 +37,13 @@ type manager struct {
 	maxHistoryCount int
 }
 
-func NewTxHistoryManager(ctx context.Context) Manager {
+func NewTxHistoryManager(_ context.Context) Manager {
 	return &manager{
 		maxHistoryCount: config.GetInt(tmconfig.TransactionsMaxHistoryCount),
 	}
 }
 
-func (h *manager) CurrentSubStatus(ctx context.Context, mtx *apitypes.ManagedTX) *apitypes.TxHistoryStateTransitionEntry {
+func (h *manager) CurrentSubStatus(_ context.Context, mtx *apitypes.ManagedTX) *apitypes.TxHistoryStateTransitionEntry {
 	if len(mtx.History) > 0 {
 		return mtx.History[len(mtx.History)-1]
 	}
