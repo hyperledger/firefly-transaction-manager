@@ -30,6 +30,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffresty"
+	"github.com/hyperledger/firefly-common/pkg/fftls"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 
 	// Internal packages are used in the tests for e2e tests with more coverage
@@ -264,6 +265,22 @@ func TestGasOracleSendOK(t *testing.T) {
 	gasPrice, err := th.(*simpleTransactionHandler).getGasPrice(ctx, mockFFCAPI)
 	assert.NoError(t, err)
 	assert.NotNil(t, gasPrice)
+}
+
+func TestGasOracleBadTLSConf(t *testing.T) {
+	f, _, _, conf := newTestTransactionHandlerFactory(t)
+	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeRESTAPI)
+	conf.SubSection(GasOracleConfig).Set(ffresty.HTTPConfigURL, "http://12345")
+	conf.SubSection(GasOracleConfig).Set(GasOracleTemplate, `{
+		"maxPriorityFeePerGas": {{.standard.maxPriorityFee | mulf 1000000000.0 | int }},
+		"maxFeePerGas": {{ .standard.maxFee | mulf 1000000000.0 | int }}
+	}`)
+	tlsConf := conf.SubSection(GasOracleConfig).SubSection("tls")
+	tlsConf.Set(fftls.HTTPConfTLSEnabled, true)
+	tlsConf.Set(fftls.HTTPConfTLSCAFile, "!!!badness")
+	_, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.Regexp(t, "FF00153", err)
+
 }
 
 func TestConnectorGasOracleSendOK(t *testing.T) {

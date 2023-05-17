@@ -25,13 +25,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func clientEventStreamsDeleteCommand(clientFactory func() apiclient.FFTMClient) *cobra.Command {
+func clientEventStreamsDeleteCommand(clientFactory func() (apiclient.FFTMClient, error)) *cobra.Command {
 	clientEventStreamsDeleteCmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete event streams",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := clientFactory()
+			client, err := clientFactory()
+			if err != nil {
+				return err
+			}
 			if eventStreamID == "" && nameRegex == "" {
 				return fmt.Errorf("eventstream or name flag must be set")
 			}

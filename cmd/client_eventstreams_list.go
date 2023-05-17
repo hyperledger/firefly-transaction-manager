@@ -25,13 +25,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func clientEventStreamsListCommand(clientFactory func() apiclient.FFTMClient) *cobra.Command {
+func clientEventStreamsListCommand(clientFactory func() (apiclient.FFTMClient, error)) *cobra.Command {
 	clientEventStreamsListCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List event streams",
 		Long:  "",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			client := clientFactory()
+			client, err := clientFactory()
+			if err != nil {
+				return err
+			}
 			eventStreams, err := client.GetEventStreams(context.Background())
 			if err != nil {
 				return err

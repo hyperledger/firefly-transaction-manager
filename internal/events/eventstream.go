@@ -157,17 +157,22 @@ func NewEventStream(
 	return es, nil
 }
 
-func (es *eventStream) initAction(startedState *startedStreamState) {
+func (es *eventStream) initAction(startedState *startedStreamState) error {
 	ctx := startedState.ctx
 	switch *es.spec.Type {
 	case apitypes.EventStreamTypeWebhook:
-		startedState.action = newWebhookAction(ctx, es.spec.Webhook).attemptBatch
+		wa, err := newWebhookAction(ctx, es.spec.Webhook)
+		if err != nil {
+			return err
+		}
+		startedState.action = wa.attemptBatch
 	case apitypes.EventStreamTypeWebSocket:
 		startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
 	default:
 		// mergeValidateEsConfig always be called previous to this
 		panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
 	}
+	return nil
 }
 
 func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, updates *apitypes.EventStream) (merged *apitypes.EventStream, changed bool, err error) {
@@ -367,8 +372,8 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 		return nil, err
 	}
 
-	// Do the locked part - which checks if this is a newListener listener, or just an update to the options.
-	newListener, l, startedState, err := es.lockedListenerUpdate(ctx, spec, reset)
+	// Do the locked part - which checks if this is a new listener, or just an update to the options.
+	isNew, l, startedState, err := es.lockedListenerUpdate(ctx, spec, reset)
 	if err != nil {
 		return nil, err
 	}
@@ -389,7 +394,7 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 				return nil, err
 			}
 		}
-	} else if newListener && startedState != nil {
+	} else if isNew && startedState != nil {
 		// Start the new listener - no checkpoint needed here
 		return spec, l.start(startedState, nil)
 	}
@@ -483,7 +488,10 @@ func (es *eventStream) Start(ctx context.Context) error {
 	}
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.currentState = startedState
-	es.initAction(startedState)
+	err := es.initAction(startedState)
+	if err != nil {
+		return err
+	}
 
 	cp, err := es.persistence.GetCheckpoint(ctx, es.spec.ID)
 	if err != nil {

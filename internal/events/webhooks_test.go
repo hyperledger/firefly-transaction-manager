@@ -25,26 +25,38 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hyperledger/firefly-common/pkg/fftls"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/stretchr/testify/assert"
 )
 
-func newTestWebhooks(url string) *webhookAction {
+func newTestWebhooks(t *testing.T, url string) *webhookAction {
 	tmconfig.Reset()
 	truthy := true
 	oneSec := 1 * time.Second
-	return newWebhookAction(context.Background(), &apitypes.WebhookConfig{
+	wa, err := newWebhookAction(context.Background(), &apitypes.WebhookConfig{
 		TLSkipHostVerify: &truthy,
 		URL:              &url,
 		RequestTimeout:   (*fftypes.FFDuration)(&oneSec),
 	})
+	assert.NoError(t, err)
+	return wa
+}
+
+func TestWebhooksBadTLS(t *testing.T) {
+	tmconfig.Reset()
+	tlsConf := tmconfig.WebhookPrefix.SubSection("tls")
+	tlsConf.Set(fftls.HTTPConfTLSEnabled, true)
+	tlsConf.Set(fftls.HTTPConfTLSCAFile, "!!!!badness")
+	_, err := newWebhookAction(context.Background(), &apitypes.WebhookConfig{})
+	assert.Regexp(t, "FF00153", err)
 }
 
 func TestWebhooksBadHost(t *testing.T) {
 	tmconfig.Reset()
-	ws := newTestWebhooks("http://www.sample.invalid/guaranteed-to-fail")
+	ws := newTestWebhooks(t, "http://www.sample.invalid/guaranteed-to-fail")
 
 	err := ws.attemptBatch(context.Background(), 0, 0, []*apitypes.EventWithContext{})
 	assert.Regexp(t, "FF21041", err)
@@ -52,7 +64,7 @@ func TestWebhooksBadHost(t *testing.T) {
 
 func TestWebhooksPrivateBlocked(t *testing.T) {
 	tmconfig.Reset()
-	ws := newTestWebhooks("http://10.0.0.1/one-of-the-private-ranges")
+	ws := newTestWebhooks(t, "http://10.0.0.1/one-of-the-private-ranges")
 	falsy := false
 	ws.allowPrivateIPs = falsy
 
@@ -74,7 +86,7 @@ func TestWebhooksCustomHeaders403(t *testing.T) {
 	defer s.Close()
 
 	tmconfig.Reset()
-	ws := newTestWebhooks(fmt.Sprintf("http://%s/test/path", s.Listener.Addr()))
+	ws := newTestWebhooks(t, fmt.Sprintf("http://%s/test/path", s.Listener.Addr()))
 	ws.spec.Headers = map[string]string{
 		"test-header": "test-value",
 	}
@@ -94,7 +106,7 @@ func TestWebhooksCustomHeadersConnectFail(t *testing.T) {
 	s.Close()
 
 	tmconfig.Reset()
-	ws := newTestWebhooks(fmt.Sprintf("http://%s/test/path", s.Listener.Addr()))
+	ws := newTestWebhooks(t, fmt.Sprintf("http://%s/test/path", s.Listener.Addr()))
 
 	done := make(chan struct{})
 	go func() {

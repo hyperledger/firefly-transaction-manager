@@ -73,8 +73,11 @@ type webhookAction struct {
 	client          *resty.Client
 }
 
-func newWebhookAction(bgCtx context.Context, spec *apitypes.WebhookConfig) *webhookAction {
-	client := ffresty.New(bgCtx, tmconfig.WebhookPrefix)   // majority of settings come from config
+func newWebhookAction(bgCtx context.Context, spec *apitypes.WebhookConfig) (*webhookAction, error) {
+	client, err := ffresty.New(bgCtx, tmconfig.WebhookPrefix) // majority of settings come from config
+	if err != nil {
+		return nil, err
+	}
 	client.SetTimeout(time.Duration(*spec.RequestTimeout)) // request timeout set per stream
 	if *spec.TLSkipHostVerify {
 		client.SetTLSClientConfig(&tls.Config{
@@ -86,7 +89,7 @@ func newWebhookAction(bgCtx context.Context, spec *apitypes.WebhookConfig) *webh
 		spec:            spec,
 		allowPrivateIPs: config.GetBool(tmconfig.WebhooksAllowPrivateIPs),
 		client:          client,
-	}
+	}, nil
 }
 
 // attemptWebhookAction performs a single attempt of a webhook action
@@ -112,11 +115,11 @@ func (w *webhookAction) attemptBatch(ctx context.Context, _ int64, _ int, events
 	}
 	res, err := req.Post(u.String())
 	if err != nil {
-		log.L(ctx).Errorf("Webhook %s (%s): %s", *w.spec.URL, u, err)
+		log.L(ctx).Errorf("Webhook %s (%s) batch=%d attempt=%d: %s", *w.spec.URL, u, batchNumber, attempt, err)
 		return i18n.NewError(ctx, tmmsgs.MsgWebhookErr, err)
 	}
 	if res.IsError() {
-		log.L(ctx).Errorf("Webhook %s (%s) [%d]: %s", *w.spec.URL, u, res.StatusCode(), resBody)
+		log.L(ctx).Errorf("Webhook %s (%s) [%d] batch=%d attempt=%d: %s", *w.spec.URL, u, res.StatusCode(), batchNumber, attempt, resBody)
 		err = i18n.NewError(ctx, tmmsgs.MsgWebhookFailedStatus, res.StatusCode())
 	}
 	return err
