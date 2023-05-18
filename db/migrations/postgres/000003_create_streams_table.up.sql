@@ -17,7 +17,7 @@ CREATE TABLE streams (
   webhook                  JSONB,
   websocket                JSONB,
   created                  BIGINT          NOT NULL,
-  updated                  BIGINT,
+  updated                  BIGINT
 );
 
 CREATE UNIQUE INDEX streams_id on streams(id);

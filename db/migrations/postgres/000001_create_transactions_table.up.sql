@@ -3,7 +3,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 BEGIN;
 CREATE TABLE transactions (
   seq                      SERIAL          PRIMARY KEY,
-  id                       VARCHAR(64)     PRIMARY KEY,
+  id                       VARCHAR(64)     NOT NULL,
   status                   VARCHAR(64)     NOT NULL,
   nonce                    BIGINT          NOT NULL,
   gas                      BIGINT          NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE transactions (
   history_summary          JSONB,
   created                  BIGINT     NOT NULL,
   updated                  BIGINT,
-  delete_requested         BIGINT,
+  delete_requested         BIGINT
 );
 
 CREATE UNIQUE INDEX transactions_id on transactions(id);

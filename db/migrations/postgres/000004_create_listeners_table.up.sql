@@ -11,9 +11,9 @@ CREATE TABLE listeners (
   filters                  JSONB,
   options                  JSONB,
   signature                TEXT,
-  from_block               VARCHAR(64)
+  from_block               VARCHAR(64),
   created                  BIGINT          NOT NULL,
-  updated                  BIGINT,
+  updated                  BIGINT
 );
 
 CREATE UNIQUE INDEX listener_id on listeners(id);
