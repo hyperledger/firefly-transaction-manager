@@ -4,12 +4,12 @@ go 1.19
 
 require (
 	github.com/Masterminds/sprig/v3 v3.2.2
-	github.com/getkin/kin-openapi v0.107.0
+	github.com/getkin/kin-openapi v0.116.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
-	github.com/hyperledger/firefly-common v1.2.10
+	github.com/hyperledger/firefly-common v1.2.11
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/prometheus/client_golang v1.13.0
 	github.com/sirupsen/logrus v1.9.0
@@ -21,6 +21,7 @@ require (
 
 require (
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
+	github.com/perimeterx/marshmallow v1.1.4 // indirect
 	gitlab.com/hfuss/mux-prometheus v0.0.5 // indirect
 )
 
