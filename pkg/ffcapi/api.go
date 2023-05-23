@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-signer/pkg/ethsigner"
 )
 
 // API is the interface to the blockchain specific connector, from the FFTM server and policy engine.
@@ -42,6 +43,9 @@ type API interface {
 
 	// GasPriceEstimate provides a blockchain specific gas price estimate
 	GasPriceEstimate(ctx context.Context, req *GasPriceEstimateRequest) (*GasPriceEstimateResponse, ErrorReason, error)
+
+	// EstimateGas provides an estimate of the gas required for the given transaction
+	EstimateGas(ctx context.Context, req *ethsigner.Transaction) (*GasEstimateResponse, ErrorReason, error)
 
 	// QueryInvoke executes a method on a blockchain smart contract, which might execute Smart Contract code, but does not affect the blockchain state.
 	QueryInvoke(ctx context.Context, req *QueryInvokeRequest) (*QueryInvokeResponse, ErrorReason, error)
