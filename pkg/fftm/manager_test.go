@@ -81,8 +81,7 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 
 	url := testManagerCommonInit(t, false)
 
-	dir, err := os.MkdirTemp("", "ldb_*")
-	assert.NoError(t, err)
+	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
 	mca := &ffcapimocks.API{}
@@ -99,7 +98,6 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 		m,
 		func() {
 			m.Close()
-			os.RemoveAll(dir)
 		}
 }
 
@@ -167,8 +165,7 @@ func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
 
 	url := testManagerCommonInit(t, true)
 
-	dir, err := os.MkdirTemp("", "ldb_*")
-	assert.NoError(t, err)
+	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
 	mca := &ffcapimocks.API{}
@@ -185,7 +182,6 @@ func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
 		m,
 		func() {
 			m.Close()
-			os.RemoveAll(dir)
 		}
 }
 
@@ -251,15 +247,13 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 
 	tmconfig.Reset()
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "::::")
-	dir, err := os.MkdirTemp("", "ldb_*")
-	defer os.RemoveAll(dir)
-	assert.NoError(t, err)
+	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	_, err = NewManager(context.Background(), nil)
+	_, err := NewManager(context.Background(), nil)
 	assert.Error(t, err)
 	assert.Regexp(t, "FF00151", err)
 
@@ -300,13 +294,11 @@ func TestNewManagerBadPersistenceConfig(t *testing.T) {
 func TestNewManagerInvalidTransactionHandlerName(t *testing.T) {
 
 	tmconfig.Reset()
-	dir, err := os.MkdirTemp("", "ldb_*")
-	defer os.RemoveAll(dir)
-	assert.NoError(t, err)
+	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 	config.Set(tmconfig.TransactionsHandlerName, "wrong")
 
-	_, err = NewManager(context.Background(), nil)
+	_, err := NewManager(context.Background(), nil)
 	assert.Regexp(t, "FF21070", err)
 
 }
@@ -335,15 +327,13 @@ func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 
 	tmconfig.MetricsConfig.Set("enabled", true)
 	tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "::::")
-	dir, err := os.MkdirTemp("", "ldb_*")
-	defer os.RemoveAll(dir)
-	assert.NoError(t, err)
+	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	_, err = NewManager(context.Background(), nil)
+	_, err := NewManager(context.Background(), nil)
 	assert.Error(t, err)
 	assert.Regexp(t, "FF00151", err)
 }
