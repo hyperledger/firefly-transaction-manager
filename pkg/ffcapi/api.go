@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -39,6 +39,9 @@ type API interface {
 
 	// NextNonceForSigner is used when there are no outstanding transactions for a given signing identity, to determine the next nonce to use for submission of a transaction
 	NextNonceForSigner(ctx context.Context, req *NextNonceForSignerRequest) (*NextNonceForSignerResponse, ErrorReason, error)
+
+	// GasEstimate provides an estimate of the gas required for the given transaction
+	GasEstimate(ctx context.Context, req *TransactionInput) (*GasEstimateResponse, ErrorReason, error)
 
 	// GasPriceEstimate provides a blockchain specific gas price estimate
 	GasPriceEstimate(ctx context.Context, req *GasPriceEstimateRequest) (*GasPriceEstimateResponse, ErrorReason, error)
