@@ -41,11 +41,11 @@ type API interface {
 	// NextNonceForSigner is used when there are no outstanding transactions for a given signing identity, to determine the next nonce to use for submission of a transaction
 	NextNonceForSigner(ctx context.Context, req *NextNonceForSignerRequest) (*NextNonceForSignerResponse, ErrorReason, error)
 
+	// GasEstimate provides an estimate of the gas required for the given transaction
+	GasEstimate(ctx context.Context, req *ethsigner.Transaction) (*GasEstimateResponse, ErrorReason, error)
+
 	// GasPriceEstimate provides a blockchain specific gas price estimate
 	GasPriceEstimate(ctx context.Context, req *GasPriceEstimateRequest) (*GasPriceEstimateResponse, ErrorReason, error)
-
-	// EstimateGas provides an estimate of the gas required for the given transaction
-	EstimateGas(ctx context.Context, req *ethsigner.Transaction) (*GasEstimateResponse, ErrorReason, error)
 
 	// QueryInvoke executes a method on a blockchain smart contract, which might execute Smart Contract code, but does not affect the blockchain state.
 	QueryInvoke(ctx context.Context, req *QueryInvokeRequest) (*QueryInvokeResponse, ErrorReason, error)

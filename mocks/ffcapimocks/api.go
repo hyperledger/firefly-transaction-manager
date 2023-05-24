@@ -148,39 +148,6 @@ func (_m *API) DeployContractPrepare(ctx context.Context, req *ffcapi.ContractDe
 	return r0, r1, r2
 }
 
-// EstimateGas provides a mock function with given fields: ctx, req
-func (_m *API) EstimateGas(ctx context.Context, req *ethsigner.Transaction) (*ffcapi.GasEstimateResponse, ffcapi.ErrorReason, error) {
-	ret := _m.Called(ctx, req)
-
-	var r0 *ffcapi.GasEstimateResponse
-	var r1 ffcapi.ErrorReason
-	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, *ethsigner.Transaction) (*ffcapi.GasEstimateResponse, ffcapi.ErrorReason, error)); ok {
-		return rf(ctx, req)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, *ethsigner.Transaction) *ffcapi.GasEstimateResponse); ok {
-		r0 = rf(ctx, req)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.GasEstimateResponse)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, *ethsigner.Transaction) ffcapi.ErrorReason); ok {
-		r1 = rf(ctx, req)
-	} else {
-		r1 = ret.Get(1).(ffcapi.ErrorReason)
-	}
-
-	if rf, ok := ret.Get(2).(func(context.Context, *ethsigner.Transaction) error); ok {
-		r2 = rf(ctx, req)
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
-}
-
 // EventListenerAdd provides a mock function with given fields: ctx, req
 func (_m *API) EventListenerAdd(ctx context.Context, req *ffcapi.EventListenerAddRequest) (*ffcapi.EventListenerAddResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
@@ -387,6 +354,39 @@ func (_m *API) EventStreamStopped(ctx context.Context, req *ffcapi.EventStreamSt
 	}
 
 	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.EventStreamStoppedRequest) error); ok {
+		r2 = rf(ctx, req)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
+// GasEstimate provides a mock function with given fields: ctx, req
+func (_m *API) GasEstimate(ctx context.Context, req *ethsigner.Transaction) (*ffcapi.GasEstimateResponse, ffcapi.ErrorReason, error) {
+	ret := _m.Called(ctx, req)
+
+	var r0 *ffcapi.GasEstimateResponse
+	var r1 ffcapi.ErrorReason
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, *ethsigner.Transaction) (*ffcapi.GasEstimateResponse, ffcapi.ErrorReason, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *ethsigner.Transaction) *ffcapi.GasEstimateResponse); ok {
+		r0 = rf(ctx, req)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.GasEstimateResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *ethsigner.Transaction) ffcapi.ErrorReason); ok {
+		r1 = rf(ctx, req)
+	} else {
+		r1 = ret.Get(1).(ffcapi.ErrorReason)
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, *ethsigner.Transaction) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)
