@@ -5,9 +5,7 @@ package ffcapimocks
 import (
 	context "context"
 
-	ethsigner "github.com/hyperledger/firefly-signer/pkg/ethsigner"
 	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -363,16 +361,16 @@ func (_m *API) EventStreamStopped(ctx context.Context, req *ffcapi.EventStreamSt
 }
 
 // GasEstimate provides a mock function with given fields: ctx, req
-func (_m *API) GasEstimate(ctx context.Context, req *ethsigner.Transaction) (*ffcapi.GasEstimateResponse, ffcapi.ErrorReason, error) {
+func (_m *API) GasEstimate(ctx context.Context, req *ffcapi.TransactionInput) (*ffcapi.GasEstimateResponse, ffcapi.ErrorReason, error) {
 	ret := _m.Called(ctx, req)
 
 	var r0 *ffcapi.GasEstimateResponse
 	var r1 ffcapi.ErrorReason
 	var r2 error
-	if rf, ok := ret.Get(0).(func(context.Context, *ethsigner.Transaction) (*ffcapi.GasEstimateResponse, ffcapi.ErrorReason, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.TransactionInput) (*ffcapi.GasEstimateResponse, ffcapi.ErrorReason, error)); ok {
 		return rf(ctx, req)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *ethsigner.Transaction) *ffcapi.GasEstimateResponse); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *ffcapi.TransactionInput) *ffcapi.GasEstimateResponse); ok {
 		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
@@ -380,13 +378,13 @@ func (_m *API) GasEstimate(ctx context.Context, req *ethsigner.Transaction) (*ff
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *ethsigner.Transaction) ffcapi.ErrorReason); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, *ffcapi.TransactionInput) ffcapi.ErrorReason); ok {
 		r1 = rf(ctx, req)
 	} else {
 		r1 = ret.Get(1).(ffcapi.ErrorReason)
 	}
 
-	if rf, ok := ret.Get(2).(func(context.Context, *ethsigner.Transaction) error); ok {
+	if rf, ok := ret.Get(2).(func(context.Context, *ffcapi.TransactionInput) error); ok {
 		r2 = rf(ctx, req)
 	} else {
 		r2 = ret.Error(2)

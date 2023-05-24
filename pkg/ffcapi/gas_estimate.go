@@ -16,8 +16,12 @@
 
 package ffcapi
 
-import "github.com/hyperledger/firefly-signer/pkg/ethtypes"
+import "github.com/hyperledger/firefly-common/pkg/fftypes"
+
+type GasEstimateRequest struct {
+	TransactionInput
+}
 
 type GasEstimateResponse struct {
-	GasEstimate *ethtypes.HexInteger `json:"gasEstimate"`
+	GasEstimate *fftypes.FFBigInt `json:"gasEstimate"`
 }
