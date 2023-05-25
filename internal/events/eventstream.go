@@ -104,7 +104,7 @@ type eventStream struct {
 	mux                sync.Mutex
 	status             apitypes.EventStreamStatus
 	connector          ffcapi.API
-	persistence        persistence.EventStreamPersistence
+	persistence        persistence.Persistence
 	confirmations      confirmations.Manager
 	listeners          map[fftypes.UUID]*listener
 	wsChannels         ws.WebSocketChannels

@@ -31,6 +31,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
 	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/leveldb"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
@@ -149,7 +150,7 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 	pType := config.GetString(tmconfig.PersistenceType)
 	switch pType {
 	case "leveldb":
-		if m.persistence, err = persistence.NewLevelDBPersistence(ctx); err != nil {
+		if m.persistence, err = leveldb.NewLevelDBPersistence(ctx); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
 		m.toolkit.TXPersistence = m.persistence

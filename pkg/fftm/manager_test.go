@@ -290,7 +290,7 @@ func TestStartListListenersFail(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamsByCreateTime", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
 
 	err := m.Start()
 	assert.Regexp(t, "pop", err)
@@ -313,7 +313,7 @@ func TestStartBlockListenerFail(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, nil)
+	mp.On("ListStreamsByCreateTime", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, nil)
 
 	mca := m.connector.(*ffcapimocks.API)
 	mca.On("NewBlockListener", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
