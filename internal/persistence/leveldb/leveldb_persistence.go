@@ -242,6 +242,10 @@ func (p *leveldbPersistence) deleteKeys(ctx context.Context, keys ...[]byte) err
 	return nil
 }
 
+func (p *leveldbPersistence) RichQuery() persistence.RichQuery {
+	panic("not supported")
+}
+
 func (p *leveldbPersistence) WriteCheckpoint(ctx context.Context, checkpoint *apitypes.EventStreamCheckpoint) error {
 	return p.writeJSON(ctx, prefixedKey(checkpointsPrefix, checkpoint.StreamID), checkpoint)
 }

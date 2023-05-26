@@ -366,6 +366,22 @@ func (_m *Persistence) ListTransactionsPending(ctx context.Context, afterSequenc
 	return r0, r1
 }
 
+// RichQuery provides a mock function with given fields:
+func (_m *Persistence) RichQuery() persistence.RichQuery {
+	ret := _m.Called()
+
+	var r0 persistence.RichQuery
+	if rf, ok := ret.Get(0).(func() persistence.RichQuery); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(persistence.RichQuery)
+		}
+	}
+
+	return r0
+}
+
 // WriteCheckpoint provides a mock function with given fields: ctx, checkpoint
 func (_m *Persistence) WriteCheckpoint(ctx context.Context, checkpoint *apitypes.EventStreamCheckpoint) error {
 	ret := _m.Called(ctx, checkpoint)

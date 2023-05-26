@@ -95,6 +95,17 @@ func TestLevelDBInitFail(t *testing.T) {
 
 }
 
+func TestRichQueryNotSupported(t *testing.T) {
+
+	p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	assert.Panics(t, func() {
+		p.RichQuery()
+	})
+
+}
+
 func TestReadWriteStreams(t *testing.T) {
 
 	p, done := newTestLevelDBPersistence(t)

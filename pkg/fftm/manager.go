@@ -55,6 +55,7 @@ type manager struct {
 	metricsServer httpserver.HTTPServer
 	wsServer      ws.WebSocketServer
 	persistence   persistence.Persistence
+	richQueryAPI  bool
 
 	txhistory txhistory.Manager
 	connector ffcapi.API
@@ -154,6 +155,12 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
 		m.toolkit.TXPersistence = m.persistence
+		m.richQueryAPI = false
+		return nil
+	case "postgres":
+		// TODO: init
+		m.toolkit.TXPersistence = m.persistence
+		m.richQueryAPI = !config.GetBool(tmconfig.APISimpleQuery)
 		return nil
 	default:
 		return i18n.NewError(ctx, tmmsgs.MsgUnknownPersistence, pType)

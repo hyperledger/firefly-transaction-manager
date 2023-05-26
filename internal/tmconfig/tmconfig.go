@@ -50,6 +50,7 @@ var (
 	APIDefaultRequestTimeout                      = ffc("api.defaultRequestTimeout")
 	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
 	APIPassthroughHeaders                         = ffc("api.passthroughHeaders")
+	APISimpleQuery                                = ffc("api.simpleQuery")
 	DebugPort                                     = ffc("debug.port")
 	MetricsEnabled                                = ffc("metrics.enabled")
 	MetricsPath                                   = ffc("metrics.path")

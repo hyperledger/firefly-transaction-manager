@@ -26,6 +26,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func genTestTxn(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
@@ -115,5 +116,24 @@ func TestGetTransactionsError(t *testing.T) {
 	res, err := resty.New().R().
 		Get(url + "/transactions?limit=invalidLimit")
 	assert.Equal(t, 500, res.StatusCode())
+
+}
+
+func TestGetTransactionsRich(t *testing.T) {
+
+	url, _, mrq, done := newTestManagerMockRichDB(t)
+	defer done()
+	t1 := fftypes.NewUUID()
+	mrq.On("ListTransactions", mock.Anything, mock.Anything, mock.Anything).Return(
+		[]*apitypes.ManagedTX{{ID: t1.String()}}, nil, nil,
+	)
+
+	var txs []*apitypes.ManagedTX
+	res, err := resty.New().R().
+		SetResult(&txs).
+		Get(fmt.Sprintf("%s/transactions", url))
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+	assert.Equal(t, t1.String(), txs[0].ID)
 
 }

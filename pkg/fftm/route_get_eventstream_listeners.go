@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2023 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -20,28 +20,38 @@ import (
 	"net/http"
 
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
 var getEventStreamListeners = func(m *manager) *ffapi.Route {
-	return &ffapi.Route{
+	route := &ffapi.Route{
 		Name:   "getEventStreamListeners",
 		Path:   "/eventstreams/{streamId}/listeners",
 		Method: http.MethodGet,
 		PathParams: []*ffapi.PathParam{
 			{Name: "streamId", Description: tmmsgs.APIParamStreamID},
 		},
-		QueryParams: []*ffapi.QueryParam{
-			{Name: "limit", Description: tmmsgs.APIParamLimit},
-			{Name: "after", Description: tmmsgs.APIParamAfter},
-		},
 		Description:     tmmsgs.APIEndpointGetEventStreamListeners,
 		JSONInputValue:  nil,
 		JSONOutputValue: func() interface{} { return []*apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
-		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getStreamListeners(r.Req.Context(), r.QP["after"], r.QP["limit"], r.PP["streamId"])
-		},
 	}
+	if m.richQueryAPI {
+		route.FilterFactory = persistence.ListenerFilters
+		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
+			return r.FilterResult(m.getStreamListenersRich(r.Req.Context(), r.PP["streamId"], r.Filter))
+		}
+	} else {
+		// Very limited query support
+		route.QueryParams = []*ffapi.QueryParam{
+			{Name: "limit", Description: tmmsgs.APIParamLimit},
+			{Name: "after", Description: tmmsgs.APIParamAfter},
+		}
+		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
+			return m.getStreamListenersByCreateTime(r.Req.Context(), r.QP["after"], r.QP["limit"], r.PP["streamId"])
+		}
+	}
+	return route
 }

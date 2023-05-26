@@ -36,6 +36,7 @@ var (
 	ConfigAPIWriteTimeout          = ffc("config.api.writeTimeout", "The maximum time to wait when writing to a HTTP connection", i18n.TimeDurationType)
 	ConfigAPIShutdownTimeout       = ffc("config.api.shutdownTimeout", "The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server", i18n.TimeDurationType)
 	ConfigAPIPassthroughHeaders    = ffc("config.api.passthroughHeaders", "A list of HTTP request headers to pass through to dependency microservices", i18n.ArrayStringType)
+	ConfigAPISimpleQuery           = ffc("config.api.simpleQuery", "Force use of original limited API query syntax, even if rich query is supported in the database", i18n.BooleanType)
 
 	ConfigDebugPort = ffc("config.debug.port", "An HTTP port on which to enable the go debugger", i18n.IntType)
 

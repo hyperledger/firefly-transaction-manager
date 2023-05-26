@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -72,5 +73,24 @@ func TestGetEventStreamListeners(t *testing.T) {
 	assert.Equal(t, es1.ID, listeners[0].StreamID)
 
 	mfc.AssertExpectations(t)
+
+}
+
+func TestGetEventStreamListenersRich(t *testing.T) {
+
+	url, _, mrq, done := newTestManagerMockRichDB(t)
+	defer done()
+	l1 := fftypes.NewUUID()
+	mrq.On("ListStreamListeners", mock.Anything, mock.Anything, mock.Anything).Return(
+		[]*apitypes.Listener{{ID: l1}}, nil, nil,
+	)
+
+	var listeners []*apitypes.Listener
+	res, err := resty.New().R().
+		SetResult(&listeners).
+		Get(fmt.Sprintf("%s/eventstreams/%s/listeners", url, fftypes.NewUUID()))
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+	assert.Equal(t, l1, listeners[0].ID)
 
 }

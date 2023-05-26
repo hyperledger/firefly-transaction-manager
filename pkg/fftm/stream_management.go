@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"strconv"
 
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
@@ -393,7 +394,7 @@ func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (
 	return m.persistence.ListListenersByCreateTime(ctx, after, limit, persistence.SortDirectionDescending)
 }
 
-func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
+func (m *manager) getStreamListenersByCreateTime(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
 	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
 	if err != nil {
 		return nil, err
@@ -403,6 +404,14 @@ func (m *manager) getStreamListeners(ctx context.Context, afterStr, limitStr, id
 		return nil, err
 	}
 	return m.persistence.ListStreamListenersByCreateTime(ctx, after, limit, persistence.SortDirectionDescending, id)
+}
+
+func (m *manager) getStreamListenersRich(ctx context.Context, streamID string, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
+	id, err := fftypes.ParseUUID(ctx, streamID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return m.persistence.RichQuery().ListStreamListeners(ctx, id, filter)
 }
 
 func mergeEthCompatMethods(ctx context.Context, listener *apitypes.Listener) error {

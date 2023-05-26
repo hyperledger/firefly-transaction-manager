@@ -12,6 +12,7 @@
 |publicURL|External address callers should access API over|`string`|`<nil>`
 |readTimeout|The maximum time to wait when reading from an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
 |shutdownTimeout|The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
+|simpleQuery|Force use of original limited API query syntax, even if rich query is supported in the database|`boolean`|`<nil>`
 |writeTimeout|The maximum time to wait when writing to a HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
 
 ## api.auth

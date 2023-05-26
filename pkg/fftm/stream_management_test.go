@@ -599,12 +599,21 @@ func TestGetListenerNotFound(t *testing.T) {
 
 }
 
-func TestGetStreamListenersBadLimit(t *testing.T) {
+func TestGetStreamListenersByCreateTimeBadLimit(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.getStreamListeners(m.ctx, "", "!bad limit", apitypes.NewULID().String())
+	_, err := m.getStreamListenersByCreateTime(m.ctx, "", "!bad limit", apitypes.NewULID().String())
 	assert.Regexp(t, "FF21044", err)
+
+}
+
+func TestGetStreamListenersByCreateTimeBadStreamID(t *testing.T) {
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	_, err := m.getStreamListenersByCreateTime(m.ctx, "", "", "bad ID")
+	assert.Regexp(t, "FF00138", err)
 
 }
 
@@ -612,7 +621,7 @@ func TestGetStreamListenersBadStreamID(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.getStreamListeners(m.ctx, "", "", "bad ID")
+	_, _, err := m.getStreamListenersRich(m.ctx, "", nil)
 	assert.Regexp(t, "FF00138", err)
 
 }

@@ -85,16 +85,15 @@ var (
 	MsgTransactionNotFound                     = ffe("FF21067", "Transaction '%s' not found", http.StatusNotFound)
 	DeprecatedMsgPolicyEngineRequestTimeout    = ffe("FF21068", "(Deprecated) The policy engine did not acknowledge the request after %.2fs", 408) // deprecated
 	DeprecatedMsgPolicyEngineRequestInvalid    = ffe("FF21069", "(Deprecated) Invalid policy engine request type '%d'")                            // deprecated
-
-	MsgTransactionHandlerNotRegistered        = ffe("FF21070", "No transaction handler registered with name '%s'")
-	MsgNoGasConfigSetForTransactionHandler    = ffe("FF21071", "A fixed gas price must be set when not using a gas oracle")
-	MsgTransactionHandlerRequestTimeout       = ffe("FF21072", "The transaction handler did not acknowledge the request after %.2fs", 408)
-	MsgTransactionHandlerRequestInvalid       = ffe("FF21073", "Invalid transaction handler request type '%d'")
-	MsgTransactionHandlerResponseNoSequenceID = ffe("FF21074", "Transaction handler failed to allocate a sequence ID for request '%s'", http.StatusInternalServerError)
-	MsgPersistenceSequenceIDNotAllowed        = ffe("FF21075", "New transaction should not have sequence ID")
-	MsgInvalidJSONGasObject                   = ffe("FF21076", "Failed to parse response from Gas Oracle REST API as a JSON object")
-
-	MsgTHMetricsInvalidName     = ffe("FF21077", "Transaction handler metrics registration name can only contain lowercase letters and underscore. Actual name: %s")
-	MsgTHMetricsHelpTextMissing = ffe("FF21078", "Transaction handler metrics registration help text must be provided")
-	MsgTHMetricsDuplicateName   = ffe("FF21080", "Transaction handler metrics registration invalid name already registered: %s")
+	MsgTransactionHandlerNotRegistered         = ffe("FF21070", "No transaction handler registered with name '%s'")
+	MsgNoGasConfigSetForTransactionHandler     = ffe("FF21071", "A fixed gas price must be set when not using a gas oracle")
+	MsgTransactionHandlerRequestTimeout        = ffe("FF21072", "The transaction handler did not acknowledge the request after %.2fs", 408)
+	MsgTransactionHandlerRequestInvalid        = ffe("FF21073", "Invalid transaction handler request type '%d'")
+	MsgTransactionHandlerResponseNoSequenceID  = ffe("FF21074", "Transaction handler failed to allocate a sequence ID for request '%s'", http.StatusInternalServerError)
+	MsgPersistenceSequenceIDNotAllowed         = ffe("FF21075", "New transaction should not have sequence ID")
+	MsgInvalidJSONGasObject                    = ffe("FF21076", "Failed to parse response from Gas Oracle REST API as a JSON object")
+	MsgTHMetricsInvalidName                    = ffe("FF21077", "Transaction handler metrics registration name can only contain lowercase letters and underscore. Actual name:%s")
+	MsgTHMetricsHelpTextMissing                = ffe("FF21078", "Transaction handler metrics registration help text must be provided")
+	MsgTHMetricsDuplicateName                  = ffe("FF21080", "Transaction handler metrics registration invalid name already registered: %s")
+	MsgInvalidNonRichQuery                     = ffe("FF21081", "Rich query is not supported by persistence. Query params limited to %v")
 )

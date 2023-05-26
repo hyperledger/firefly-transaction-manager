@@ -19,6 +19,7 @@ package persistence
 import (
 	"context"
 
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
@@ -40,8 +41,27 @@ type Persistence interface {
 	ListenerPersistence
 	TransactionPersistence
 
-	// close function is controlled by the manager
-	Close(ctx context.Context)
+	RichQuery() RichQuery      // panics if not supported
+	Close(ctx context.Context) // close function is controlled by the manager
+}
+
+var EventStreamFilters = &ffapi.QueryFields{
+	// TODO: complete
+}
+
+var ListenerFilters = &ffapi.QueryFields{
+	// TODO: complete
+}
+
+var TransactionFilters = &ffapi.QueryFields{
+	// TODO: complete
+}
+
+type RichQuery interface {
+	ListStreams(ctx context.Context, filter ffapi.Filter) ([]*apitypes.EventStream, *ffapi.FilterResult, error)
+	ListListeners(ctx context.Context, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
+	ListTransactions(ctx context.Context, filter ffapi.Filter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error)
+	ListStreamListeners(ctx context.Context, streamID *fftypes.UUID, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
 }
 
 type CheckpointPersistence interface {
@@ -51,28 +71,24 @@ type CheckpointPersistence interface {
 }
 
 type EventStreamPersistence interface {
-	// Optimized listing method common to LDB and SQL that is used internally when listing is required
-	ListStreamsByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.EventStream, error) // reverse UUIDv1 order
-
+	ListStreamsByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.EventStream, error) // reverse insertion order
 	GetStream(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStream, error)
 	WriteStream(ctx context.Context, spec *apitypes.EventStream) error
 	DeleteStream(ctx context.Context, streamID *fftypes.UUID) error
 }
-type ListenerPersistence interface {
-	// Optimized listing methods common to LDB and SQL that is used internally when listing is required
-	ListListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.Listener, error) // reverse UUIDv1 order
-	ListStreamListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error)
 
+type ListenerPersistence interface {
+	ListListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.Listener, error) // reverse insertion
+	ListStreamListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error)
 	GetListener(ctx context.Context, listenerID *fftypes.UUID) (*apitypes.Listener, error)
 	WriteListener(ctx context.Context, spec *apitypes.Listener) error
 	DeleteListener(ctx context.Context, listenerID *fftypes.UUID) error
 }
+
 type TransactionPersistence interface {
-	// Optimized listing methods common to LDB and SQL that is used internally when listing is required
 	ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)         // reverse create time order
 	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
-	ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                 // reverse UUIDv1 order, only those in pending state
-
+	ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                 // reverse insertion order, only those in pending state
 	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
 	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
 	WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, new bool) error // must reject if new is true, and the request ID is no

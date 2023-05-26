@@ -100,6 +100,38 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 		}
 }
 
+func newTestManagerMockRichDB(t *testing.T) (string, *manager, *persistencemocks.RichQuery, func()) {
+
+	url := testManagerCommonInit(t, false)
+
+	mca := &ffcapimocks.API{}
+
+	m := newManager(context.Background(), mca)
+
+	mpm := &persistencemocks.Persistence{}
+	mpm.On("Close", mock.Anything).Return(nil)
+	mrq := &persistencemocks.RichQuery{}
+	mpm.On("RichQuery").Return(mrq)
+	m.persistence = mpm
+	m.richQueryAPI = true
+	mcm := &confirmationsmocks.Manager{}
+	m.confirmations = mcm
+
+	err := m.initServices(m.ctx)
+	assert.NoError(t, err)
+
+	go m.runAPIServer()
+
+	return url,
+		m,
+		mrq,
+		func() {
+			m.Close()
+			mpm.AssertExpectations(t)
+			mrq.AssertExpectations(t)
+		}
+}
+
 func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
 
 	url := testManagerCommonInit(t, true)
