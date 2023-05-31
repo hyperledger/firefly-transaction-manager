@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/fftls"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-transaction-manager/internal/apiclient"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
@@ -30,6 +31,11 @@ import (
 var url string
 var nameRegex string
 var ignoreNotFound bool
+
+var tlsEnabled bool
+var caFile string
+var certFile string
+var keyFile string
 
 func ClientCommand() *cobra.Command {
 	return buildClientCommand(createClient)
@@ -45,6 +51,11 @@ func buildClientCommand(clientFactory func() (apiclient.FFTMClient, error)) *cob
 	clientCmd.PersistentFlags().BoolVarP(&ignoreNotFound, "ignore-not-found", "", false, "Does not return an error if the resource is not found. Useful for idempotent delete functions.")
 	clientCmd.PersistentFlags().StringVarP(&url, "url", "", defaultURL, "The URL of the blockchain connector")
 
+	clientCmd.PersistentFlags().BoolVarP(&tlsEnabled, "tls", "", false, "Enable TLS on client")
+	clientCmd.PersistentFlags().StringVarP(&caFile, "cacert", "", "", "The tls CA cert file")
+	clientCmd.PersistentFlags().StringVarP(&certFile, "cert", "", "", "The tls cert file")
+	clientCmd.PersistentFlags().StringVarP(&keyFile, "key", "", "", "The tls key file")
+
 	clientCmd.AddCommand(clientEventStreamsCommand(clientFactory))
 	clientCmd.AddCommand(clientListenersCommand(clientFactory))
 
@@ -56,6 +67,19 @@ func createClient() (apiclient.FFTMClient, error) {
 	apiclient.InitConfig(cfg)
 	if url != "" {
 		cfg.Set("url", url)
+	}
+	if tlsEnabled {
+		tlsConf := cfg.SubSection("tls")
+		tlsConf.Set(fftls.HTTPConfTLSEnabled, true)
+		if caFile != "" {
+			tlsConf.Set(fftls.HTTPConfTLSCAFile, caFile)
+		}
+		if certFile != "" {
+			tlsConf.Set(fftls.HTTPConfTLSCertFile, certFile)
+		}
+		if keyFile != "" {
+			tlsConf.Set(fftls.HTTPConfTLSKeyFile, keyFile)
+		}
 	}
 	return apiclient.NewFFTMClient(context.Background(), cfg)
 }
