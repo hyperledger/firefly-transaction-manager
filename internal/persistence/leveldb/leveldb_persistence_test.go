@@ -34,7 +34,9 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
-func newTestLevelDBPersistence(t *testing.T) (*leveldbPersistence, func()) {
+func newTestLevelDBPersistence(t *testing.T) (context.Context, *leveldbPersistence, func()) {
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
 
 	dir, err := ioutil.TempDir("", "ldb_*")
 	assert.NoError(t, err)
@@ -42,7 +44,7 @@ func newTestLevelDBPersistence(t *testing.T) (*leveldbPersistence, func()) {
 	tmconfig.Reset()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
-	pp, err := NewLevelDBPersistence(context.Background())
+	pp, err := NewLevelDBPersistence(ctx)
 	assert.NoError(t, err)
 
 	// Write some random stuff to the DB
@@ -57,9 +59,10 @@ func newTestLevelDBPersistence(t *testing.T) (*leveldbPersistence, func()) {
 		assert.NoError(t, err)
 	}
 
-	return p, func() {
-		p.Close(context.Background())
+	return ctx, p, func() {
+		p.Close(ctx)
 		os.RemoveAll(dir)
+		cancelCtx()
 	}
 
 }
@@ -97,7 +100,7 @@ func TestLevelDBInitFail(t *testing.T) {
 
 func TestRichQueryNotSupported(t *testing.T) {
 
-	p, done := newTestLevelDBPersistence(t)
+	_, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	assert.Panics(t, func() {
@@ -108,10 +111,9 @@ func TestRichQueryNotSupported(t *testing.T) {
 
 func TestReadWriteStreams(t *testing.T) {
 
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	ctx := context.Background()
 	s1 := &apitypes.EventStream{
 		ID:   apitypes.NewULID(), // ensure we get sequentially ascending IDs
 		Name: strPtr("stream1"),
@@ -173,10 +175,8 @@ func TestReadWriteStreams(t *testing.T) {
 
 func TestReadWriteListeners(t *testing.T) {
 
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
-
-	ctx := context.Background()
 
 	sID1 := apitypes.NewULID()
 	sID2 := apitypes.NewULID()
@@ -239,10 +239,9 @@ func TestReadWriteListeners(t *testing.T) {
 
 func TestReadWriteCheckpoints(t *testing.T) {
 
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	ctx := context.Background()
 	cp1 := &apitypes.EventStreamCheckpoint{
 		StreamID: apitypes.NewULID(),
 	}
@@ -276,22 +275,21 @@ func newTestTX(signer string, nonce int64, status apitypes.TxStatus) *apitypes.M
 		ID:      fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
 		Created: fftypes.Now(),
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From: signer,
+			From:  signer,
+			Nonce: fftypes.NewFFBigInt(nonce),
 		},
-		Nonce:  fftypes.NewFFBigInt(nonce),
 		Status: status,
 	}
 }
 
 func TestReadWriteManagedTransactions(t *testing.T) {
 
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	ctx := context.Background()
 	submitNewTX := func(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 		tx := newTestTX(signer, nonce, status)
-		err := p.WriteTransaction(ctx, tx, true)
+		err := p.InsertTransaction(ctx, tx)
 		assert.NoError(t, err)
 		return tx
 	}
@@ -302,12 +300,12 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	s1t3 := submitNewTX("0xaaaaa", 10003, apitypes.TxStatusPending)
 
 	// Check new transaction should not have a sequenceID
-	err := p.WriteTransaction(ctx, s1t1, true)
+	err := p.InsertTransaction(ctx, s1t1)
 	assert.Regexp(t, "FF21075", err)
 
 	// Check dup
 	s1t1.SequenceID = ""
-	err = p.WriteTransaction(ctx, s1t1, true)
+	err = p.InsertTransaction(ctx, s1t1)
 	assert.Regexp(t, "FF21065", err)
 
 	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
@@ -369,66 +367,118 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 }
 
 func TestListStreamsBadJSON(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	sID := apitypes.NewULID()
 	err := p.db.Put(prefixedKey(eventstreamsPrefix, sID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListStreamsByCreateTime(context.Background(), nil, 0, persistence.SortDirectionDescending)
+	_, err = p.ListStreamsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
 	assert.Error(t, err)
 
 }
 
 func TestListListenersBadJSON(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	lID := apitypes.NewULID()
 	err := p.db.Put(prefixedKey(listenersPrefix, lID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListListenersByCreateTime(context.Background(), nil, 0, persistence.SortDirectionDescending)
+	_, err = p.ListListenersByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
 	assert.Error(t, err)
 
-	_, err = p.ListStreamListenersByCreateTime(context.Background(), nil, 0, persistence.SortDirectionDescending, apitypes.NewULID())
+	_, err = p.ListStreamListenersByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending, apitypes.NewULID())
 	assert.Error(t, err)
 
 }
 
 func TestDeleteStreamFail(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	p.db.Close()
 
-	err := p.DeleteStream(context.Background(), apitypes.NewULID())
+	err := p.DeleteStream(ctx, apitypes.NewULID())
 	assert.Error(t, err)
 
 }
 
 func TestWriteTXFail(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	p.db.Close()
 
 	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
 
-	err := p.WriteTransaction(context.Background(), tx, true)
+	err := p.InsertTransaction(ctx, tx)
+	assert.Error(t, err)
+
+}
+
+func TestUpdateTXFail(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	p.db.Close()
+
+	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
+
+	err := p.UpdateTransaction(ctx, tx.ID, &apitypes.TXUpdates{})
+	assert.Error(t, err)
+
+}
+
+func TestGetSubStatusFail(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	p.db.Close()
+
+	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
+
+	_, err := p.GetCurrentSubStatus(ctx, tx.ID)
+	assert.Error(t, err)
+
+}
+
+func TestSetSubStatusFail(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	p.db.Close()
+
+	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
+
+	err := p.SetSubStatus(ctx, tx.ID, apitypes.TxSubStatusConfirmed)
+	assert.Error(t, err)
+
+}
+
+func TestAddSubStatusActionFail(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	p.db.Close()
+
+	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
+
+	err := p.AddSubStatusAction(ctx, tx.ID, apitypes.TxActionAssignNonce, nil, nil)
 	assert.Error(t, err)
 
 }
 
 func TestWriteCheckpointFailMarshal(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	p.db.Close()
 
 	id1 := apitypes.NewULID()
-	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
+	err := p.WriteCheckpoint(ctx, &apitypes.EventStreamCheckpoint{
 		Listeners: map[fftypes.UUID]json.RawMessage{
 			*id1: json.RawMessage([]byte(`{"bad": "json"!`)),
 		},
@@ -438,13 +488,13 @@ func TestWriteCheckpointFailMarshal(t *testing.T) {
 }
 
 func TestWriteCheckpointFail(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	p.db.Close()
 
 	id1 := apitypes.NewULID()
-	err := p.WriteCheckpoint(context.Background(), &apitypes.EventStreamCheckpoint{
+	err := p.WriteCheckpoint(ctx, &apitypes.EventStreamCheckpoint{
 		Listeners: map[fftypes.UUID]json.RawMessage{
 			*id1: json.RawMessage([]byte(`{}`)),
 		},
@@ -454,31 +504,31 @@ func TestWriteCheckpointFail(t *testing.T) {
 }
 
 func TestReadListenerFail(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	p.db.Close()
 
-	_, err := p.GetListener(context.Background(), apitypes.NewULID())
+	_, err := p.GetListener(ctx, apitypes.NewULID())
 	assert.Error(t, err)
 
 }
 
 func TestReadCheckpointFail(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	sID := apitypes.NewULID()
 	err := p.db.Put(prefixedKey(checkpointsPrefix, sID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.GetCheckpoint(context.Background(), sID)
+	_, err = p.GetCheckpoint(ctx, sID)
 	assert.Error(t, err)
 
 }
 
 func TestListManagedTransactionFail(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	tx := &apitypes.ManagedTX{
@@ -486,18 +536,18 @@ func TestListManagedTransactionFail(t *testing.T) {
 		Created:    fftypes.Now(),
 		SequenceID: apitypes.NewULID().String(),
 	}
-	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
+	err := p.writeKeyValue(ctx, txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
 	err = p.db.Put(txDataKey(tx.ID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsByCreateTime(context.Background(), nil, 0, persistence.SortDirectionDescending)
+	_, err = p.ListTransactionsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
 	assert.Error(t, err)
 
 }
 
 func TestListManagedTransactionCleanupOrphans(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	tx := &apitypes.ManagedTX{
@@ -505,86 +555,86 @@ func TestListManagedTransactionCleanupOrphans(t *testing.T) {
 		Created:    fftypes.Now(),
 		SequenceID: apitypes.NewULID().String(),
 	}
-	err := p.writeKeyValue(context.Background(), txCreatedIndexKey(tx), txDataKey(tx.ID))
+	err := p.writeKeyValue(ctx, txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
 
-	txns, err := p.ListTransactionsByCreateTime(context.Background(), nil, 0, persistence.SortDirectionDescending)
+	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Empty(t, txns)
 
-	cleanedUpIndex, err := p.getKeyValue(context.Background(), txCreatedIndexKey(tx))
+	cleanedUpIndex, err := p.getKeyValue(ctx, txCreatedIndexKey(tx))
 	assert.NoError(t, err)
 	assert.Nil(t, cleanedUpIndex)
 
 }
 
 func TestListNonceAllocationsFail(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	txID := fmt.Sprintf("ns1:%s", apitypes.NewULID())
-	err := p.writeKeyValue(context.Background(), txNonceAllocationKey("0xaaa", fftypes.NewFFBigInt(12345)), txDataKey(txID))
+	err := p.writeKeyValue(ctx, txNonceAllocationKey("0xaaa", fftypes.NewFFBigInt(12345)), txDataKey(txID))
 	assert.NoError(t, err)
 	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsByNonce(context.Background(), "0xaaa", nil, 0, persistence.SortDirectionDescending)
+	_, err = p.ListTransactionsByNonce(ctx, "0xaaa", nil, 0, persistence.SortDirectionDescending)
 	assert.Error(t, err)
 
 }
 
 func TestListInflightTransactionFail(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
 	txID := fmt.Sprintf("ns1:%s", apitypes.NewULID())
-	err := p.writeKeyValue(context.Background(), txPendingIndexKey(apitypes.NewULID().String()), txDataKey(txID))
+	err := p.writeKeyValue(ctx, txPendingIndexKey(apitypes.NewULID().String()), txDataKey(txID))
 	assert.NoError(t, err)
 	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsPending(context.Background(), "", 0, persistence.SortDirectionDescending)
+	_, err = p.ListTransactionsPending(ctx, "", 0, persistence.SortDirectionDescending)
 	assert.Error(t, err)
 
 }
 
 func TestIndexLookupCallbackErr(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
-	p.Close(context.Background())
+	p.Close(ctx)
 
-	_, err := p.indexLookupCallback(context.Background(), ([]byte("any key")))
+	_, err := p.indexLookupCallback(ctx, ([]byte("any key")))
 	assert.NotNil(t, err)
 
 }
 
 func TestIndexLookupCallbackNotFound(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	b, err := p.indexLookupCallback(context.Background(), ([]byte("any key")))
+	b, err := p.indexLookupCallback(ctx, ([]byte("any key")))
 	assert.Nil(t, err)
 	assert.Nil(t, b)
 
 }
 
 func TestGetTransactionByNonceFail(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
-	p.Close(context.Background())
+	p.Close(ctx)
 
-	_, err := p.GetTransactionByNonce(context.Background(), "0xaaa", fftypes.NewFFBigInt(12345))
+	_, err := p.GetTransactionByNonce(ctx, "0xaaa", fftypes.NewFFBigInt(12345))
 	assert.Regexp(t, "FF21055", err)
 
 }
 
 func TestIterateReverseJSONFailIdxResolve(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	err := p.writeKeyValue(context.Background(), []byte(`test_0/key`), []byte(`test/value`))
+	err := p.writeKeyValue(ctx, []byte(`test_0/key`), []byte(`test/value`))
 	assert.NoError(t, err)
-	_, err = p.listJSON(context.Background(),
+	_, err = p.listJSON(ctx,
 		"test_0/",
 		"test_1",
 		"",
@@ -601,12 +651,12 @@ func TestIterateReverseJSONFailIdxResolve(t *testing.T) {
 }
 
 func TestIterateReverseJSONSkipIdxResolve(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	err := p.writeKeyValue(context.Background(), []byte(`test_0/key`), []byte(`test/value`))
+	err := p.writeKeyValue(ctx, []byte(`test_0/key`), []byte(`test/value`))
 	assert.NoError(t, err)
-	orphans, err := p.listJSON(context.Background(),
+	orphans, err := p.listJSON(ctx,
 		"test_0/",
 		"test_1",
 		"",
@@ -626,28 +676,444 @@ func TestIterateReverseJSONSkipIdxResolve(t *testing.T) {
 }
 
 func TestCleanupOrphanedTXIdxKeysSwallowError(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
-	p.Close(context.Background())
+	p.Close(ctx)
 
-	p.cleanupOrphanedTXIdxKeys(context.Background(), [][]byte{[]byte("test")})
+	p.cleanupOrphanedTXIdxKeys(ctx, [][]byte{[]byte("test")})
 
 }
 
 func TestWriteTransactionIncomplete(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	err := p.WriteTransaction(context.Background(), &apitypes.ManagedTX{}, true)
+	err := p.InsertTransaction(ctx, &apitypes.ManagedTX{})
 	assert.Regexp(t, "FF21059", err)
 
 }
 
 func TestDeleteTransactionMissing(t *testing.T) {
-	p, done := newTestLevelDBPersistence(t)
+	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	err := p.DeleteTransaction(context.Background(), "missing")
+	err := p.DeleteTransaction(ctx, "missing")
 	assert.NoError(t, err)
 
+}
+
+func TestManagedTXDeprecatedTransactionHeadersMigration(t *testing.T) {
+
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	txh := apitypes.TXWithStatus{
+		DeprecatedTransactionHeaders: &ffcapi.TransactionHeaders{
+			From:  "0x12345",
+			To:    "0x23456",
+			Nonce: fftypes.NewFFBigInt(11111),
+			Gas:   fftypes.NewFFBigInt(22222),
+			Value: fftypes.NewFFBigInt(33333),
+		},
+		ManagedTX: &apitypes.ManagedTX{
+			ID:      fftypes.NewUUID().String(),
+			Created: fftypes.Now(),
+			Status:  apitypes.TxStatusPending,
+		},
+	}
+
+	err := p.writeJSON(ctx, txDataKey(txh.ID), txh)
+	assert.NoError(t, err)
+
+	tx, err := p.GetTransactionByID(ctx, txh.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, "0x12345", tx.From)
+	assert.Equal(t, "0x23456", tx.To)
+	assert.Equal(t, int64(11111), tx.Nonce.Int64())
+	assert.Equal(t, int64(22222), tx.Gas.Int64())
+	assert.Equal(t, int64(33333), tx.Value.Int64())
+}
+
+func TestManagedTXUpdate(t *testing.T) {
+
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	mtx := &apitypes.ManagedTX{
+		ID: fftypes.NewUUID().String(),
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From:  "0x11111",
+			To:    "0x22222",
+			Nonce: fftypes.NewFFBigInt(11111),
+			Gas:   fftypes.NewFFBigInt(22222),
+			Value: fftypes.NewFFBigInt(33333),
+		},
+		Created:    fftypes.Now(),
+		PolicyInfo: fftypes.JSONAnyPtr(`{"some":"data to clear"}`),
+		Status:     apitypes.TxStatusPending,
+	}
+
+	// Error if not stored at all
+	err := p.UpdateTransaction(ctx, mtx.ID, &apitypes.TXUpdates{})
+	assert.Regexp(t, "FF21067", err)
+
+	err = p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+
+	err = p.UpdateTransaction(ctx, mtx.ID, &apitypes.TXUpdates{}) // no-op
+	assert.NoError(t, err)
+
+	tx, err := p.GetTransactionByID(ctx, mtx.ID)
+	assert.NoError(t, err)
+	tx.Updated = nil // for compare
+	assert.Equal(t, mtx, tx)
+
+	newStatus := apitypes.TxStatusFailed
+	delTime := fftypes.Now()
+	newFrom := "0x33333"
+	newTo := "0x44444"
+	newTXData := "new data"
+	newTXHash := "new hash"
+	firstSubmitTime := fftypes.Now()
+	lastSubmitTime := fftypes.Now()
+	var nullString fftypes.JSONAny = fftypes.NullString
+	newError := "new error"
+	err = p.UpdateTransaction(ctx, mtx.ID, &apitypes.TXUpdates{
+		Status:          &newStatus,
+		DeleteRequested: delTime,
+		From:            &newFrom,
+		To:              &newTo,
+		Nonce:           fftypes.NewFFBigInt(44444),
+		Gas:             fftypes.NewFFBigInt(55555),
+		Value:           fftypes.NewFFBigInt(66666),
+		GasPrice:        fftypes.JSONAnyPtr(`"gas price"`),
+		TransactionData: &newTXData,
+		TransactionHash: &newTXHash,
+		PolicyInfo:      &nullString,
+		FirstSubmit:     firstSubmitTime,
+		LastSubmit:      lastSubmitTime,
+		ErrorMessage:    &newError,
+	})
+	assert.NoError(t, err)
+
+	tx, err = p.GetTransactionByID(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, newStatus, tx.Status)
+	assert.Equal(t, delTime, tx.DeleteRequested)
+	assert.Equal(t, newFrom, tx.From)
+	assert.Equal(t, newTo, tx.To)
+	assert.Equal(t, fftypes.NewFFBigInt(44444), tx.Nonce)
+	assert.Equal(t, fftypes.NewFFBigInt(55555), tx.Gas)
+	assert.Equal(t, fftypes.NewFFBigInt(66666), tx.Value)
+	assert.Equal(t, []byte(`"gas price"`), tx.GasPrice.Bytes())
+	assert.Equal(t, newTXData, tx.TransactionData)
+	assert.Equal(t, newTXHash, tx.TransactionHash)
+	assert.Nil(t, tx.PolicyInfo)
+	assert.Equal(t, firstSubmitTime, tx.FirstSubmit)
+	assert.Equal(t, lastSubmitTime, tx.LastSubmit)
+	assert.Equal(t, newError, tx.ErrorMessage)
+
+}
+
+func TestManagedTXSubStatus(t *testing.T) {
+	mtx := &apitypes.ManagedTX{
+		ID: fftypes.NewUUID().String(),
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From:  "0x12345",
+			Nonce: fftypes.NewFFBigInt(12345),
+		},
+		Created: fftypes.Now(),
+		Status:  apitypes.TxStatusPending,
+	}
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	// Error if not stored at all
+	_, err := p.GetCurrentSubStatus(ctx, mtx.ID)
+	assert.Regexp(t, "FF21067", err)
+
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusConfirmed)
+	assert.Regexp(t, "FF21067", err)
+
+	err = p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+
+	// No sub-status entries initially
+	subStatus, err := p.GetCurrentSubStatus(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Nil(t, subStatus)
+
+	// Adding the same sub-status lots of times in succession should only result
+	// in a single entry for that instance
+	for i := 0; i < 100; i++ {
+		err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
+		assert.NoError(t, err)
+	}
+
+	subStatus, err = p.GetCurrentSubStatus(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, apitypes.TxSubStatusReceived, subStatus.Status)
+
+	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(txh.History))
+	assert.Equal(t, "Received", string(txh.History[0].Status))
+
+	// Adding a different type of sub-status should result in
+	// a new entry in the list
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusTracking)
+	assert.NoError(t, err)
+
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(txh.History))
+
+	// Even if many new types are added we shouldn't go over the
+	// configured upper limit
+	for i := 0; i < 100; i++ {
+		err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusStale)
+		assert.NoError(t, err)
+		err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusTracking)
+		assert.NoError(t, err)
+	}
+
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 50, len(txh.History))
+
+}
+
+func TestManagedTXSubStatusRepeat(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+	err := p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+
+	// Add a sub-status
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
+	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(txh.History))
+	assert.Equal(t, 1, len(txh.HistorySummary))
+
+	// Add another sub-status
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusTracking)
+	assert.NoError(t, err)
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.Equal(t, 2, len(txh.History))
+	assert.Equal(t, 2, len(txh.HistorySummary))
+
+	// Add another that we've seen before
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
+	assert.NoError(t, err)
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.Equal(t, 3, len(txh.History))        // This goes up
+	assert.Equal(t, 2, len(txh.HistorySummary)) // This doesn't
+}
+
+func TestManagedTXSubStatusAction(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+
+	err := p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionAssignNonce, nil, nil)
+	assert.Regexp(t, "FF21067", err)
+
+	err = p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+
+	// Add at least 1 sub-status
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
+	assert.NoError(t, err)
+
+	// Add an action
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionAssignNonce, nil, nil)
+	assert.NoError(t, err)
+	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(txh.History[0].Actions))
+	assert.Nil(t, txh.History[0].Actions[0].LastErrorTime)
+
+	// Add another action
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=12345"}`))
+	assert.NoError(t, err)
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(txh.History[0].Actions))
+	assert.Equal(t, (*txh.History[0].Actions[1].LastError).String(), `{"gasError":"Acme Gas Oracle RC=12345"}`)
+
+	// Add the same action which should cause the previous one to inc its counter
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"info":"helloworld"}`), fftypes.JSONAnyPtr(`{"error":"nogood"}`))
+	assert.NoError(t, err)
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(txh.History[0].Actions))
+	assert.Equal(t, txh.History[0].Actions[1].Action, apitypes.TxActionRetrieveGasPrice)
+	assert.Equal(t, 2, txh.History[0].Actions[1].Count)
+
+	// Add the same action but with new error information should update the last error field
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=67890"}`))
+	assert.NoError(t, err)
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(txh.History[0].Actions))
+	assert.NotNil(t, txh.History[0].Actions[1].LastErrorTime)
+	assert.Equal(t, (*txh.History[0].Actions[1].LastError).String(), `{"gasError":"Acme Gas Oracle RC=67890"}`)
+
+	// Add a new type of action
+	reason := "known_transaction"
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil)
+	assert.NoError(t, err)
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(txh.History[0].Actions))
+	assert.Equal(t, txh.History[0].Actions[2].Action, apitypes.TxActionSubmitTransaction)
+	assert.Equal(t, 1, txh.History[0].Actions[2].Count)
+	assert.Nil(t, txh.History[0].Actions[2].LastErrorTime)
+
+	// Add one more type of action
+
+	receiptId := "123456"
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil)
+	assert.NoError(t, err)
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 4, len(txh.History[0].Actions))
+	assert.Equal(t, txh.History[0].Actions[3].Action, apitypes.TxActionReceiveReceipt)
+	assert.Equal(t, 1, txh.History[0].Actions[3].Count)
+	assert.Nil(t, txh.History[0].Actions[3].LastErrorTime)
+
+	// History is the complete list of unique sub-status types and actions
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 5, len(txh.HistorySummary))
+
+	// Add some new sub-status and actions to check max lengths are correct
+	// Seen one of these before - should increase summary length by 1
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusConfirmed)
+	assert.NoError(t, err)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil)
+	assert.NoError(t, err)
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.Equal(t, 6, len(txh.HistorySummary))
+
+	// Seen both of these before - no change expected
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
+	assert.NoError(t, err)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionAssignNonce, nil, nil)
+	assert.NoError(t, err)
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 6, len(txh.HistorySummary))
+
+	// Sanity check the history summary entries
+	for _, historyEntry := range txh.HistorySummary {
+		assert.NotNil(t, historyEntry.FirstOccurrence)
+		assert.NotNil(t, historyEntry.LastOccurrence)
+		assert.GreaterOrEqual(t, historyEntry.Count, 1)
+
+		if historyEntry.Action == apitypes.TxActionRetrieveGasPrice {
+			// The first and last occurrence timestamps shoudn't be the same
+			assert.NotEqual(t, historyEntry.FirstOccurrence, historyEntry.LastOccurrence)
+
+			// We should have a count of 3 for this action
+			assert.Equal(t, historyEntry.Count, 3)
+		}
+	}
+}
+
+func TestManagedTXSubStatusInvalidJSON(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+	err := p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+
+	reason := "\"cannot-marshall\""
+
+	// Add a new type of action
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
+	assert.NoError(t, err)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil)
+	assert.NoError(t, err)
+	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	val, err := json.Marshal(txh.History[0].Actions[0].LastInfo)
+
+	// It should never be possible to cause the sub-status history to become un-marshallable
+	assert.NoError(t, err)
+	assert.Contains(t, string(val), "cannot-marshall")
+
+}
+
+func TestManagedTXSubStatusMaxEntries(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+
+	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+	err := p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+	var nextSubStatus apitypes.TxSubStatus
+
+	// Create 100 unique sub-status strings. We should only keep the
+	// first 50
+	for i := 0; i < 100; i++ {
+		nextSubStatus = apitypes.TxSubStatus(fmt.Sprint(i))
+		err := p.SetSubStatus(ctx, mtx.ID, nextSubStatus)
+		assert.NoError(t, err)
+	}
+
+	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 50, len(txh.History))
+
+}
+
+func TestMaxHistoryCountSetToZero(t *testing.T) {
+	tmconfig.Reset()
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+	p.maxHistoryCount = 0
+	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+	err := p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+
+	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
+	assert.NoError(t, err)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionSubmitTransaction, nil, nil)
+	assert.NoError(t, err)
+
+	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(txh.History))
+	assert.Equal(t, 0, len(txh.HistorySummary))
+
+}
+
+func TestAddReceivedStatusWhenNothingSet(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+
+	defer done()
+	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+	err := p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+
+	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(txh.History))
+
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionSubmitTransaction, nil, nil)
+	assert.NoError(t, err)
+
+	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(txh.History))
+	assert.Equal(t, 1, len(txh.History[0].Actions))
+	assert.Equal(t, apitypes.TxSubStatusReceived, txh.History[0].Status)
+	assert.Equal(t, apitypes.TxActionSubmitTransaction, txh.History[0].Actions[0].Action)
+}
+
+func TestJSONOrStringNull(t *testing.T) {
+	assert.Nil(t, jsonOrString(nil))
 }

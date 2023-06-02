@@ -124,6 +124,41 @@ func (_m *RichQuery) ListStreams(ctx context.Context, filter ffapi.Filter) ([]*a
 	return r0, r1, r2
 }
 
+// ListTransactionHistory provides a mock function with given fields: ctx, streamID, filter
+func (_m *RichQuery) ListTransactionHistory(ctx context.Context, streamID *fftypes.UUID, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
+	ret := _m.Called(ctx, streamID, filter)
+
+	var r0 []*apitypes.Listener
+	var r1 *ffapi.FilterResult
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)); ok {
+		return rf(ctx, streamID, filter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, ffapi.Filter) []*apitypes.Listener); ok {
+		r0 = rf(ctx, streamID, filter)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.Listener)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID, ffapi.Filter) *ffapi.FilterResult); ok {
+		r1 = rf(ctx, streamID, filter)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*ffapi.FilterResult)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, *fftypes.UUID, ffapi.Filter) error); ok {
+		r2 = rf(ctx, streamID, filter)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // ListTransactions provides a mock function with given fields: ctx, filter
 func (_m *RichQuery) ListTransactions(ctx context.Context, filter ffapi.Filter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error) {
 	ret := _m.Called(ctx, filter)

@@ -35,7 +35,6 @@ $(eval $(call makemock, pkg/ffcapi,             API,                         ffc
 $(eval $(call makemock, pkg/txhandler,          TransactionHandler,          txhandlermocks))
 $(eval $(call makemock, pkg/txhandler,          ManagedTxEventHandler,       txhandlermocks))
 $(eval $(call makemock, internal/metrics,       TransactionHandlerMetrics,   metricsmocks))
-$(eval $(call makemock, pkg/txhistory,          Manager,                     txhistorymocks))
 $(eval $(call makemock, internal/confirmations, Manager,                     confirmationsmocks))
 $(eval $(call makemock, internal/persistence,   Persistence,                 persistencemocks))
 $(eval $(call makemock, internal/persistence,   TransactionPersistence,      persistencemocks))

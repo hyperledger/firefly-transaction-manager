@@ -149,7 +149,6 @@ func TestFixedGasPriceOK(t *testing.T) {
 		},
 		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.MatchedBy(func(req *ffcapi.TransactionSendRequest) bool {
@@ -231,7 +230,6 @@ func TestGasOracleSendOK(t *testing.T) {
 		},
 		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.MatchedBy(func(req *ffcapi.TransactionSendRequest) bool {
@@ -296,7 +294,6 @@ func TestConnectorGasOracleSendOK(t *testing.T) {
 		},
 		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -342,7 +339,6 @@ func TestConnectorGasOracleFail(t *testing.T) {
 		},
 		TransactionHash: "0x12345",
 		TransactionData: "SOME_RAW_TX_BYTES",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -377,7 +373,6 @@ func TestConnectorGasOracleFailStale(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 		FirstSubmit:     (*fftypes.FFTime)(&longAgo),
 		LastSubmit:      (*fftypes.FFTime)(&longAgo),
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -417,7 +412,6 @@ func TestGasOracleSendFail(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionData: "SOME_RAW_TX_BYTES",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -450,7 +444,6 @@ func TestGasOracleInvalidJSON(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionData: "SOME_RAW_TX_BYTES",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -510,7 +503,6 @@ func TestGasOracleTemplateExecuteFail(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionData: "SOME_RAW_TX_BYTES",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -540,7 +532,6 @@ func TestGasOracleNonJSON(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionData: "SOME_RAW_TX_BYTES",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -573,7 +564,6 @@ func TestTXSendFail(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionData: "SOME_RAW_TX_BYTES",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonInvalidInputs, fmt.Errorf("pop"))
@@ -602,7 +592,6 @@ func TestWarnStaleWarningCannotParse(t *testing.T) {
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
-		History: []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -638,7 +627,6 @@ func TestKnownTransactionHashKnown(t *testing.T) {
 			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
 		},
 		TransactionHash: "0x01020304",
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("TransactionSend", mock.Anything, mock.Anything).
@@ -672,7 +660,6 @@ func TestWarnStaleAdditionalWarningResubmitFail(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 		FirstSubmit:     &submitTime,
 		PolicyInfo:      fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	mockFFCAPI.On("GasPriceEstimate", mock.Anything, mock.Anything).Return(&ffcapi.GasPriceEstimateResponse{
@@ -711,7 +698,6 @@ func TestWarnStaleNoWarning(t *testing.T) {
 		TransactionData: "SOME_RAW_TX_BYTES",
 		FirstSubmit:     &submitTime,
 		PolicyInfo:      fftypes.JSONAnyPtr(fmt.Sprintf(`{"lastWarnTime": "%s"}`, lastWarning.String())),
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -744,7 +730,6 @@ func TestNoOpWithReceipt(t *testing.T) {
 		Receipt: &ffcapi.TransactionReceiptResponse{
 			BlockHash: "0x39e2664effa5ad0651c35f1fe3b4c4b90492b1955fee731c2e9fb4d6518de114",
 		},
-		History: []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()
@@ -768,7 +753,6 @@ func TestAllowsDeleteRequest(t *testing.T) {
 
 	mtx := &apitypes.ManagedTX{
 		DeleteRequested: fftypes.Now(),
-		History:         []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 
 	ctx := context.Background()

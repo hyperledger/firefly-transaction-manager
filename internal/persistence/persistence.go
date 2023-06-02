@@ -40,6 +40,7 @@ type Persistence interface {
 	CheckpointPersistence
 	ListenerPersistence
 	TransactionPersistence
+	TransactionHistoryPersistence
 
 	RichQuery() RichQuery      // panics if not supported
 	Close(ctx context.Context) // close function is controlled by the manager
@@ -62,6 +63,7 @@ type RichQuery interface {
 	ListListeners(ctx context.Context, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
 	ListTransactions(ctx context.Context, filter ffapi.Filter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error)
 	ListStreamListeners(ctx context.Context, streamID *fftypes.UUID, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
+	ListTransactionHistory(ctx context.Context, streamID *fftypes.UUID, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
 }
 
 type CheckpointPersistence interface {
@@ -90,7 +92,15 @@ type TransactionPersistence interface {
 	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
 	ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                 // reverse insertion order, only those in pending state
 	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
+	GetTransactionByIDWithHistory(ctx context.Context, txID string) (*apitypes.TXWithStatus, error)
 	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
-	WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, new bool) error // must reject if new is true, and the request ID is no
+	InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error
+	UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error
 	DeleteTransaction(ctx context.Context, txID string) error
+}
+
+type TransactionHistoryPersistence interface {
+	GetCurrentSubStatus(ctx context.Context, txID string) (*apitypes.TxHistoryStateTransitionEntry, error)
+	SetSubStatus(ctx context.Context, txID string, subStatus apitypes.TxSubStatus) error
+	AddSubStatusAction(ctx context.Context, txID string, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error
 }

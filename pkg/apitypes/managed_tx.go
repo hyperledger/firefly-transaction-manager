@@ -121,28 +121,61 @@ type TxHistoryActionEntry struct {
 //   - When listing back entries, the persistence layer will automatically clean up indexes if the underlying
 //     TX they refer to is not available. For this reason the index records are written first.
 type ManagedTX struct {
-	ID                 string                    `json:"id"`
-	Created            *fftypes.FFTime           `json:"created"`
-	Updated            *fftypes.FFTime           `json:"updated"`
-	Status             TxStatus                  `json:"status"`
-	DeleteRequested    *fftypes.FFTime           `json:"deleteRequested,omitempty"`
-	SequenceID         string                    `json:"sequenceId"`
-	Nonce              *fftypes.FFBigInt         `json:"nonce"`
-	Gas                *fftypes.FFBigInt         `json:"gas"`
-	TransactionHeaders ffcapi.TransactionHeaders `json:"transactionHeaders"`
-	TransactionData    string                    `json:"transactionData"`
-	TransactionHash    string                    `json:"transactionHash,omitempty"`
-	GasPrice           *fftypes.JSONAny          `json:"gasPrice"`
-	PolicyInfo         *fftypes.JSONAny          `json:"policyInfo"`
-	FirstSubmit        *fftypes.FFTime           `json:"firstSubmit,omitempty"`
-	LastSubmit         *fftypes.FFTime           `json:"lastSubmit,omitempty"`
-	ErrorMessage       string                    `json:"errorMessage,omitempty"`
+	ID              string          `json:"id"`
+	Created         *fftypes.FFTime `json:"created"`
+	Updated         *fftypes.FFTime `json:"updated"`
+	Status          TxStatus        `json:"status"`
+	DeleteRequested *fftypes.FFTime `json:"deleteRequested,omitempty"`
+	SequenceID      string          `json:"sequenceId"`
+	ffcapi.TransactionHeaders
+	GasPrice        *fftypes.JSONAny `json:"gasPrice"`
+	TransactionData string           `json:"transactionData"`
+	TransactionHash string           `json:"transactionHash,omitempty"`
+	PolicyInfo      *fftypes.JSONAny `json:"policyInfo"`
+	FirstSubmit     *fftypes.FFTime  `json:"firstSubmit,omitempty"`
+	LastSubmit      *fftypes.FFTime  `json:"lastSubmit,omitempty"`
+	ErrorMessage    string           `json:"errorMessage,omitempty"`
+}
 
-	Receipt       *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
-	Confirmations []BlockInfo                        `json:"confirmations,omitempty"`
+// TXUpdates specifies a set of updates that are possible on the base structure.
+//
+// Any non-nil fields will be set.
+// Sub-objects are set as a whole, apart from TransactionHeaders where each field
+// is considered and stored individually.
+// JSONAny fields can be set explicitly to null using fftypes.NullString
+//
+// This is the update interface for the policy engine to update base status on the
+// transaction object.
+//
+// There are separate setter functions for fields that depending on the persistence
+// mechanism might be in separate tables - including History, Receipt, and Confirmations
+type TXUpdates struct {
+	Status          *TxStatus         `json:"status"`
+	DeleteRequested *fftypes.FFTime   `json:"deleteRequested,omitempty"`
+	From            *string           `json:"from,omitempty"`
+	To              *string           `json:"to,omitempty"`
+	Nonce           *fftypes.FFBigInt `json:"nonce,omitempty"`
+	Gas             *fftypes.FFBigInt `json:"gas,omitempty"`
+	Value           *fftypes.FFBigInt `json:"value,omitempty"`
+	GasPrice        *fftypes.JSONAny  `json:"gasPrice"`
+	TransactionData *string           `json:"transactionData"`
+	TransactionHash *string           `json:"transactionHash,omitempty"`
+	PolicyInfo      *fftypes.JSONAny  `json:"policyInfo"`
+	FirstSubmit     *fftypes.FFTime   `json:"firstSubmit,omitempty"`
+	LastSubmit      *fftypes.FFTime   `json:"lastSubmit,omitempty"`
+	ErrorMessage    *string           `json:"errorMessage,omitempty"`
+}
 
-	History        []*TxHistoryStateTransitionEntry `json:"history,omitempty"`
-	HistorySummary []*TxHistorySummaryEntry         `json:"historySummary,omitempty"`
+// TXWithStatus is a convenience object that fetches all data about a transaction into one
+// large JSON payload (with limits on certain parts, such as the history entries).
+// Note that in LevelDB persistence this is the stored form of the single document object.
+type TXWithStatus struct {
+	*ManagedTX
+	DeprecatedTransactionHeaders *ffcapi.TransactionHeaders         `json:"transactionHeaders,omitempty"` // for historical reasons we duplicate these fields at the base too on this query structure
+	Receipt                      *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
+	Confirmations                []BlockInfo                        `json:"confirmations,omitempty"`
+	History                      []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
+	HistorySummary               []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`
 }
 
 func (mtx *ManagedTX) Namespace(ctx context.Context) string {

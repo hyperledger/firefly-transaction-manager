@@ -19,6 +19,20 @@ type Persistence struct {
 	mock.Mock
 }
 
+// AddSubStatusAction provides a mock function with given fields: ctx, txID, action, info, err
+func (_m *Persistence) AddSubStatusAction(ctx context.Context, txID string, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error {
+	ret := _m.Called(ctx, txID, action, info, err)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, apitypes.TxAction, *fftypes.JSONAny, *fftypes.JSONAny) error); ok {
+		r0 = rf(ctx, txID, action, info, err)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // Close provides a mock function with given fields: ctx
 func (_m *Persistence) Close(ctx context.Context) {
 	_m.Called(ctx)
@@ -106,6 +120,32 @@ func (_m *Persistence) GetCheckpoint(ctx context.Context, streamID *fftypes.UUID
 	return r0, r1
 }
 
+// GetCurrentSubStatus provides a mock function with given fields: ctx, txID
+func (_m *Persistence) GetCurrentSubStatus(ctx context.Context, txID string) (*apitypes.TxHistoryStateTransitionEntry, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 *apitypes.TxHistoryStateTransitionEntry
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.TxHistoryStateTransitionEntry, error)); ok {
+		return rf(ctx, txID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.TxHistoryStateTransitionEntry); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.TxHistoryStateTransitionEntry)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetListener provides a mock function with given fields: ctx, listenerID
 func (_m *Persistence) GetListener(ctx context.Context, listenerID *fftypes.UUID) (*apitypes.Listener, error) {
 	ret := _m.Called(ctx, listenerID)
@@ -184,6 +224,32 @@ func (_m *Persistence) GetTransactionByID(ctx context.Context, txID string) (*ap
 	return r0, r1
 }
 
+// GetTransactionByIDWithHistory provides a mock function with given fields: ctx, txID
+func (_m *Persistence) GetTransactionByIDWithHistory(ctx context.Context, txID string) (*apitypes.TXWithStatus, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 *apitypes.TXWithStatus
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.TXWithStatus, error)); ok {
+		return rf(ctx, txID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.TXWithStatus); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.TXWithStatus)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetTransactionByNonce provides a mock function with given fields: ctx, signer, nonce
 func (_m *Persistence) GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error) {
 	ret := _m.Called(ctx, signer, nonce)
@@ -208,6 +274,20 @@ func (_m *Persistence) GetTransactionByNonce(ctx context.Context, signer string,
 	}
 
 	return r0, r1
+}
+
+// InsertTransaction provides a mock function with given fields: ctx, tx
+func (_m *Persistence) InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error {
+	ret := _m.Called(ctx, tx)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX) error); ok {
+		r0 = rf(ctx, tx)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // ListListenersByCreateTime provides a mock function with given fields: ctx, after, limit, dir
@@ -382,6 +462,34 @@ func (_m *Persistence) RichQuery() persistence.RichQuery {
 	return r0
 }
 
+// SetSubStatus provides a mock function with given fields: ctx, txID, subStatus
+func (_m *Persistence) SetSubStatus(ctx context.Context, txID string, subStatus apitypes.TxSubStatus) error {
+	ret := _m.Called(ctx, txID, subStatus)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, apitypes.TxSubStatus) error); ok {
+		r0 = rf(ctx, txID, subStatus)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// UpdateTransaction provides a mock function with given fields: ctx, txID, updates
+func (_m *Persistence) UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error {
+	ret := _m.Called(ctx, txID, updates)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *apitypes.TXUpdates) error); ok {
+		r0 = rf(ctx, txID, updates)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // WriteCheckpoint provides a mock function with given fields: ctx, checkpoint
 func (_m *Persistence) WriteCheckpoint(ctx context.Context, checkpoint *apitypes.EventStreamCheckpoint) error {
 	ret := _m.Called(ctx, checkpoint)
@@ -417,20 +525,6 @@ func (_m *Persistence) WriteStream(ctx context.Context, spec *apitypes.EventStre
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.EventStream) error); ok {
 		r0 = rf(ctx, spec)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// WriteTransaction provides a mock function with given fields: ctx, tx, new
-func (_m *Persistence) WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, new bool) error {
-	ret := _m.Called(ctx, tx, new)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX, bool) error); ok {
-		r0 = rf(ctx, tx, new)
 	} else {
 		r0 = ret.Error(0)
 	}

@@ -59,6 +59,32 @@ func (_m *TransactionPersistence) GetTransactionByID(ctx context.Context, txID s
 	return r0, r1
 }
 
+// GetTransactionByIDWithHistory provides a mock function with given fields: ctx, txID
+func (_m *TransactionPersistence) GetTransactionByIDWithHistory(ctx context.Context, txID string) (*apitypes.TXWithStatus, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 *apitypes.TXWithStatus
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.TXWithStatus, error)); ok {
+		return rf(ctx, txID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.TXWithStatus); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.TXWithStatus)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // GetTransactionByNonce provides a mock function with given fields: ctx, signer, nonce
 func (_m *TransactionPersistence) GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error) {
 	ret := _m.Called(ctx, signer, nonce)
@@ -83,6 +109,20 @@ func (_m *TransactionPersistence) GetTransactionByNonce(ctx context.Context, sig
 	}
 
 	return r0, r1
+}
+
+// InsertTransaction provides a mock function with given fields: ctx, tx
+func (_m *TransactionPersistence) InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error {
+	ret := _m.Called(ctx, tx)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX) error); ok {
+		r0 = rf(ctx, tx)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
 }
 
 // ListTransactionsByCreateTime provides a mock function with given fields: ctx, after, limit, dir
@@ -163,13 +203,13 @@ func (_m *TransactionPersistence) ListTransactionsPending(ctx context.Context, a
 	return r0, r1
 }
 
-// WriteTransaction provides a mock function with given fields: ctx, tx, new
-func (_m *TransactionPersistence) WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, new bool) error {
-	ret := _m.Called(ctx, tx, new)
+// UpdateTransaction provides a mock function with given fields: ctx, txID, updates
+func (_m *TransactionPersistence) UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error {
+	ret := _m.Called(ctx, txID, updates)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX, bool) error); ok {
-		r0 = rf(ctx, tx, new)
+	if rf, ok := ret.Get(0).(func(context.Context, string, *apitypes.TXUpdates) error); ok {
+		r0 = rf(ctx, txID, updates)
 	} else {
 		r0 = ret.Error(0)
 	}

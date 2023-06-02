@@ -38,7 +38,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
 type Manager interface {
@@ -57,7 +56,6 @@ type manager struct {
 	persistence   persistence.Persistence
 	richQueryAPI  bool
 
-	txhistory txhistory.Manager
 	connector ffcapi.API
 	toolkit   *txhandler.Toolkit
 
@@ -101,11 +99,9 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 		eventStreams:      make(map[fftypes.UUID]events.Stream),
 		streamsByName:     make(map[string]*fftypes.UUID),
 		metricsManager:    metrics.NewMetricsManager(ctx),
-		txhistory:         txhistory.NewTxHistoryManager(ctx),
 	}
 	m.toolkit = &txhandler.Toolkit{
 		Connector:      m.connector,
-		TXHistory:      m.txhistory,
 		MetricsManager: m.metricsManager,
 	}
 	m.ctx, m.cancelCtx = context.WithCancel(ctx)
@@ -154,17 +150,17 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 		if m.persistence, err = leveldb.NewLevelDBPersistence(ctx); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
-		m.toolkit.TXPersistence = m.persistence
 		m.richQueryAPI = false
 		return nil
 	case "postgres":
 		// TODO: init
-		m.toolkit.TXPersistence = m.persistence
 		m.richQueryAPI = !config.GetBool(tmconfig.APISimpleQuery)
-		return nil
 	default:
 		return i18n.NewError(ctx, tmmsgs.MsgUnknownPersistence, pType)
 	}
+	m.toolkit.TXPersistence = m.persistence
+	m.toolkit.TXHistory = m.persistence
+	return nil
 }
 
 func (m *manager) Start() error {

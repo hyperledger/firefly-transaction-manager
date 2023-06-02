@@ -23,11 +23,14 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
 type TransactionPersistence interface {
 	persistence.TransactionPersistence
+}
+
+type TransactionHistoryPersistence interface {
+	persistence.TransactionHistoryPersistence
 }
 
 type TransactionMetrics interface {
@@ -39,7 +42,7 @@ type Toolkit struct {
 	Connector ffcapi.API
 
 	// Transaction History toolkit contains methods to easily manage and set historical status of a Managed Transaction
-	TXHistory txhistory.Manager
+	TXHistory TransactionHistoryPersistence
 
 	// TransactionPersistence toolkit contains methods to persist Managed Transaction objects into the plugged-in persistence service
 	TXPersistence TransactionPersistence

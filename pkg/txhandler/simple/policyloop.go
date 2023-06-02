@@ -283,30 +283,11 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 
 					if pending.trackingTransactionHash != "" {
 						// if had a previous transaction hash, emit an event to for transaction hash removal
+						eventTX := *mtx
+						eventTX.TransactionHash = pending.trackingTransactionHash // using the previous hash
 						if err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 							Type: apitypes.ManagedTXTransactionHashRemoved,
-							Tx: &apitypes.ManagedTX{
-								ID:                 mtx.ID,
-								Created:            mtx.Created,
-								Updated:            mtx.Updated,
-								Status:             mtx.Status,
-								DeleteRequested:    mtx.DeleteRequested,
-								SequenceID:         mtx.SequenceID,
-								Nonce:              mtx.Nonce,
-								Gas:                mtx.Gas,
-								TransactionHeaders: mtx.TransactionHeaders,
-								TransactionData:    mtx.TransactionData,
-								TransactionHash:    pending.trackingTransactionHash, // using the previous hash
-								GasPrice:           mtx.GasPrice,
-								PolicyInfo:         mtx.PolicyInfo,
-								FirstSubmit:        mtx.FirstSubmit,
-								LastSubmit:         mtx.LastSubmit,
-								Receipt:            mtx.Receipt,
-								ErrorMessage:       mtx.ErrorMessage,
-								Confirmations:      mtx.Confirmations,
-								History:            mtx.History,
-								HistorySummary:     mtx.HistorySummary,
-							},
+							Tx:   &eventTX,
 						}); err != nil {
 							log.L(ctx).Infof("Error detected notifying confirmation manager to remove old transaction hash: %s", err.Error())
 						}

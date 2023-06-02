@@ -38,9 +38,10 @@ import (
 )
 
 type leveldbPersistence struct {
-	db         *leveldb.DB
-	syncWrites bool
-	txMux      sync.RWMutex // allows us to draw conclusions on the cleanup of indexes
+	db              *leveldb.DB
+	syncWrites      bool
+	maxHistoryCount int
+	txMux           sync.RWMutex // allows us to draw conclusions on the cleanup of indexes
 }
 
 func NewLevelDBPersistence(ctx context.Context) (persistence.Persistence, error) {
@@ -55,8 +56,9 @@ func NewLevelDBPersistence(ctx context.Context) (persistence.Persistence, error)
 		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceInitFailed, dbPath)
 	}
 	return &leveldbPersistence{
-		db:         db,
-		syncWrites: config.GetBool(tmconfig.PersistenceLevelDBSyncWrites),
+		db:              db,
+		syncWrites:      config.GetBool(tmconfig.PersistenceLevelDBSyncWrites),
+		maxHistoryCount: config.GetInt(tmconfig.TransactionsMaxHistoryCount),
 	}, nil
 }
 
@@ -385,7 +387,27 @@ func (p *leveldbPersistence) ListTransactionsPending(ctx context.Context, afterS
 func (p *leveldbPersistence) GetTransactionByID(ctx context.Context, txID string) (tx *apitypes.ManagedTX, err error) {
 	p.txMux.RLock()
 	defer p.txMux.RUnlock()
+	txh, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	if err != nil || txh == nil {
+		return nil, err
+	}
+	return txh.ManagedTX, err
+}
+
+func (p *leveldbPersistence) GetTransactionByIDWithHistory(ctx context.Context, txID string) (tx *apitypes.TXWithStatus, err error) {
+	p.txMux.RLock()
+	defer p.txMux.RUnlock()
 	err = p.readJSON(ctx, txDataKey(txID), &tx)
+	if tx != nil {
+		// For historical reasons we had some fields stored twice in V1.2
+		// We now consistently tread the top level objects as the source of truth, but for any
+		// read of an old object (LevelDB problem only) we need to do a migration to the new place.
+		if tx.DeprecatedTransactionHeaders != nil && tx.DeprecatedTransactionHeaders.From != "" {
+			tx.TransactionHeaders = *tx.DeprecatedTransactionHeaders
+		}
+		// We then for API queries copy them all for read - but never stored again here.
+		tx.DeprecatedTransactionHeaders = &tx.TransactionHeaders
+	}
 	return tx, err
 }
 
@@ -396,7 +418,70 @@ func (p *leveldbPersistence) GetTransactionByNonce(ctx context.Context, signer s
 	return tx, err
 }
 
-func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.ManagedTX, new bool) (err error) {
+func (p *leveldbPersistence) InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) (err error) {
+	return p.writeTransaction(ctx, &apitypes.TXWithStatus{
+		ManagedTX: tx,
+	}, true)
+}
+
+func (p *leveldbPersistence) UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) (err error) {
+	// In LevelDB we bundle the transaction history (up to a certain limit) into the single nested JSON object.
+	// So when the base transaction is updated we need to load back in the history from LDB
+	// with a cached query before we do the update.
+	tx, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	if err != nil {
+		return err
+	}
+	if tx == nil {
+		return i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
+	}
+	if updates.Status != nil {
+		tx.Status = *updates.Status
+	}
+	if updates.DeleteRequested != nil {
+		tx.DeleteRequested = updates.DeleteRequested
+	}
+	if updates.From != nil {
+		tx.From = *updates.From
+	}
+	if updates.To != nil {
+		tx.To = *updates.To
+	}
+	if updates.Nonce != nil {
+		tx.Nonce = updates.Nonce
+	}
+	if updates.Gas != nil {
+		tx.Gas = updates.Gas
+	}
+	if updates.Value != nil {
+		tx.Value = updates.Value
+	}
+	if updates.TransactionData != nil {
+		tx.TransactionData = *updates.TransactionData
+	}
+	if updates.TransactionHash != nil {
+		tx.TransactionHash = *updates.TransactionHash
+	}
+	if updates.GasPrice != nil {
+		tx.GasPrice = updates.GasPrice
+	}
+	if updates.PolicyInfo != nil {
+		tx.PolicyInfo = updates.PolicyInfo
+	}
+	if updates.FirstSubmit != nil {
+		tx.FirstSubmit = updates.FirstSubmit
+	}
+	if updates.LastSubmit != nil {
+		tx.LastSubmit = updates.LastSubmit
+	}
+	if updates.ErrorMessage != nil {
+		tx.ErrorMessage = *updates.ErrorMessage
+	}
+	tx.Updated = fftypes.Now()
+	return p.writeTransaction(ctx, tx, false)
+}
+
+func (p *leveldbPersistence) writeTransaction(ctx context.Context, tx *apitypes.TXWithStatus, new bool) (err error) {
 	// We take a write-lock here, because we are writing multiple values (the indexes), and anybody
 	// attempting to read the critical nonce allocation index must know the difference between a partial write
 	// (we crashed before we completed all the writes) and an incomplete write that's in process.
@@ -404,7 +489,13 @@ func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.
 	p.txMux.Lock()
 	defer p.txMux.Unlock()
 
-	if tx.TransactionHeaders.From == "" ||
+	// We don't double store these values.
+	// Would be great to reconcile out this historical oddity, once the only place it's available is on the
+	// API, and FireFly core and any other consumers of the API have had time to update to use the base fields
+	// consistently.
+	tx.DeprecatedTransactionHeaders = nil
+
+	if tx.From == "" ||
 		tx.Nonce == nil ||
 		tx.Created == nil ||
 		tx.ID == "" ||
@@ -433,12 +524,12 @@ func (p *leveldbPersistence) WriteTransaction(ctx context.Context, tx *apitypes.
 		// that does not have a corresponding managed TX available, we will clean up the
 		// orphaned index (after swapping the read lock for the write lock)
 		// See listTransactionsByIndex() for the other half of this logic.
-		err = p.writeKeyValue(ctx, txCreatedIndexKey(tx), idKey)
+		err = p.writeKeyValue(ctx, txCreatedIndexKey(tx.ManagedTX), idKey)
 		if err == nil && tx.Status == apitypes.TxStatusPending {
 			err = p.writeKeyValue(ctx, txPendingIndexKey(tx.SequenceID), idKey)
 		}
 		if err == nil {
-			err = p.writeKeyValue(ctx, txNonceAllocationKey(tx.TransactionHeaders.From, tx.Nonce), idKey)
+			err = p.writeKeyValue(ctx, txNonceAllocationKey(tx.From, tx.Nonce), idKey)
 		}
 	}
 	// If we are creating/updating a record that is not pending, we need to ensure there is no pending index associated with it
@@ -461,8 +552,156 @@ func (p *leveldbPersistence) DeleteTransaction(ctx context.Context, txID string)
 		txDataKey(txID),
 		txCreatedIndexKey(tx),
 		txPendingIndexKey(tx.SequenceID),
-		txNonceAllocationKey(tx.TransactionHeaders.From, tx.Nonce),
+		txNonceAllocationKey(tx.TransactionHeaders.From, tx.TransactionHeaders.Nonce),
 	)
+}
+
+func (p *leveldbPersistence) GetCurrentSubStatus(ctx context.Context, txID string) (*apitypes.TxHistoryStateTransitionEntry, error) {
+	tx, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	if err != nil {
+		return nil, err
+	}
+	if tx == nil {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
+	}
+	if len(tx.History) > 0 {
+		return tx.History[len(tx.History)-1], nil
+	}
+	return nil, nil
+}
+
+func (p *leveldbPersistence) SetSubStatus(ctx context.Context, txID string, subStatus apitypes.TxSubStatus) error {
+	tx, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	if err != nil {
+		return err
+	}
+	if tx == nil {
+		return i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
+	}
+	p.setSubStatusInStruct(ctx, tx, subStatus)
+	return p.writeTransaction(ctx, tx, false)
+}
+
+func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apitypes.TXWithStatus, subStatus apitypes.TxSubStatus) {
+	if p.maxHistoryCount <= 0 {
+		// if history is turned off, it's a no op
+		return
+	}
+	// See if the status being transitioned to is the same as the current status.
+	// If so, there's nothing to do.
+	if len(tx.History) > 0 {
+		if tx.History[len(tx.History)-1].Status == subStatus {
+			return
+		}
+		log.L(ctx).Debugf("State transition to sub-status %s", subStatus)
+	}
+
+	// If this is a change in status add a new record
+	newStatus := &apitypes.TxHistoryStateTransitionEntry{
+		Time:    fftypes.Now(),
+		Status:  subStatus,
+		Actions: make([]*apitypes.TxHistoryActionEntry, 0),
+	}
+	tx.History = append(tx.History, newStatus)
+
+	if len(tx.History) > p.maxHistoryCount {
+		// Need to trim the oldest record
+		tx.History = tx.History[1:]
+	}
+
+	// As we have a possibly indefinite list of sub-status records (which might be a long list and early entries
+	// get purged at some point) we keep a separate list of all the discrete types of sub-status
+	// and action we've we've ever seen for this transaction along with a count of them. This means an early sub-status
+	// (e.g. "queued") followed by 100s of different sub-status types will still be recorded
+	for _, statusType := range tx.HistorySummary {
+		if statusType.Status == subStatus {
+			// Just increment the counter and last timestamp
+			statusType.LastOccurrence = fftypes.Now()
+			statusType.Count++
+			return
+		}
+	}
+
+	tx.HistorySummary = append(tx.HistorySummary, &apitypes.TxHistorySummaryEntry{Status: subStatus, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
+}
+
+func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
+	tx, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	if err != nil {
+		return err
+	}
+	if tx == nil {
+		return i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
+	}
+	if p.maxHistoryCount <= 0 {
+		// if history is turned off, it's a no op
+		return nil
+	}
+
+	// check there is a parent sub status to add actions to
+	if len(tx.History) == 0 {
+		// if there is no sub status, add a sub status with the first possible sub status: received
+		p.setSubStatusInStruct(ctx, tx, apitypes.TxSubStatusReceived)
+	}
+
+	// See if this action exists in the list already since we only want to update the single entry, not
+	// add a new one
+	currentSubStatus := tx.History[len(tx.History)-1]
+	alreadyRecordedAction := false
+	for _, entry := range currentSubStatus.Actions {
+		if entry.Action == action {
+			alreadyRecordedAction = true
+			entry.Count++
+			entry.LastOccurrence = fftypes.Now()
+
+			if errInfo != nil {
+				entry.LastError = jsonOrString(errInfo)
+				entry.LastErrorTime = fftypes.Now()
+			}
+
+			if info != nil {
+				entry.LastInfo = jsonOrString(info)
+			}
+			break
+		}
+	}
+
+	if !alreadyRecordedAction {
+		// If this is an entirely new action for this status entry, add it to the list
+		newAction := &apitypes.TxHistoryActionEntry{
+			Time:           fftypes.Now(),
+			Action:         action,
+			LastOccurrence: fftypes.Now(),
+			Count:          1,
+		}
+
+		if errInfo != nil {
+			newAction.LastError = jsonOrString(errInfo)
+			newAction.LastErrorTime = fftypes.Now()
+		}
+
+		if info != nil {
+			newAction.LastInfo = jsonOrString(info)
+		}
+
+		currentSubStatus.Actions = append(currentSubStatus.Actions, newAction)
+	}
+
+	// Check if the history summary needs updating
+	found := false
+	for _, actionType := range tx.HistorySummary {
+		if actionType.Action == action {
+			// Just increment the counter and last timestamp
+			actionType.LastOccurrence = fftypes.Now()
+			actionType.Count++
+			found = true
+			break
+		}
+	}
+	if !found {
+		tx.HistorySummary = append(tx.HistorySummary, &apitypes.TxHistorySummaryEntry{Action: action, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
+	}
+	return p.writeTransaction(ctx, tx, false)
 }
 
 func (p *leveldbPersistence) Close(ctx context.Context) {
@@ -470,4 +709,22 @@ func (p *leveldbPersistence) Close(ctx context.Context) {
 	if err != nil {
 		log.L(ctx).Warnf("Error closing leveldb: %s", err)
 	}
+}
+
+// Takes a string that might be valid JSON, and returns valid JSON that is either:
+// a) The original JSON if it is valid
+// b) An escaped string
+func jsonOrString(value *fftypes.JSONAny) *fftypes.JSONAny {
+	if value == nil {
+		return nil
+	}
+
+	if json.Valid([]byte(*value)) {
+		// Already valid
+		return value
+	}
+
+	// Quote it as a string
+	b, _ := json.Marshal((string)(*value))
+	return fftypes.JSONAnyPtrBytes(b)
 }
