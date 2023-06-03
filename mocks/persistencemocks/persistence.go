@@ -7,6 +7,8 @@ import (
 
 	apitypes "github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 
+	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+
 	fftypes "github.com/hyperledger/firefly-common/pkg/fftypes"
 
 	mock "github.com/stretchr/testify/mock"
@@ -26,6 +28,27 @@ func (_m *Persistence) AddSubStatusAction(ctx context.Context, txID string, acti
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, apitypes.TxAction, *fftypes.JSONAny, *fftypes.JSONAny) error); ok {
 		r0 = rf(ctx, txID, action, info, err)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// AddTransactionConfirmations provides a mock function with given fields: ctx, txID, clearExisting, confirmations
+func (_m *Persistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...apitypes.BlockInfo) error {
+	_va := make([]interface{}, len(confirmations))
+	for _i := range confirmations {
+		_va[_i] = confirmations[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, ctx, txID, clearExisting)
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool, ...apitypes.BlockInfo) error); ok {
+		r0 = rf(ctx, txID, clearExisting, confirmations...)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -113,32 +136,6 @@ func (_m *Persistence) GetCheckpoint(ctx context.Context, streamID *fftypes.UUID
 
 	if rf, ok := ret.Get(1).(func(context.Context, *fftypes.UUID) error); ok {
 		r1 = rf(ctx, streamID)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// GetCurrentSubStatus provides a mock function with given fields: ctx, txID
-func (_m *Persistence) GetCurrentSubStatus(ctx context.Context, txID string) (*apitypes.TxHistoryStateTransitionEntry, error) {
-	ret := _m.Called(ctx, txID)
-
-	var r0 *apitypes.TxHistoryStateTransitionEntry
-	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.TxHistoryStateTransitionEntry, error)); ok {
-		return rf(ctx, txID)
-	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.TxHistoryStateTransitionEntry); ok {
-		r0 = rf(ctx, txID)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*apitypes.TxHistoryStateTransitionEntry)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, txID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -269,6 +266,58 @@ func (_m *Persistence) GetTransactionByNonce(ctx context.Context, signer string,
 
 	if rf, ok := ret.Get(1).(func(context.Context, string, *fftypes.FFBigInt) error); ok {
 		r1 = rf(ctx, signer, nonce)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetTransactionConfirmations provides a mock function with given fields: ctx, txID
+func (_m *Persistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]apitypes.BlockInfo, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 []apitypes.BlockInfo
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]apitypes.BlockInfo, error)); ok {
+		return rf(ctx, txID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) []apitypes.BlockInfo); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]apitypes.BlockInfo)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// GetTransactionReceipt provides a mock function with given fields: ctx, txID
+func (_m *Persistence) GetTransactionReceipt(ctx context.Context, txID string) (*ffcapi.TransactionReceiptResponse, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 *ffcapi.TransactionReceiptResponse
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*ffcapi.TransactionReceiptResponse, error)); ok {
+		return rf(ctx, txID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *ffcapi.TransactionReceiptResponse); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*ffcapi.TransactionReceiptResponse)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -469,6 +518,20 @@ func (_m *Persistence) SetSubStatus(ctx context.Context, txID string, subStatus 
 	var r0 error
 	if rf, ok := ret.Get(0).(func(context.Context, string, apitypes.TxSubStatus) error); ok {
 		r0 = rf(ctx, txID, subStatus)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// SetTransactionReceipt provides a mock function with given fields: ctx, txID, receipt
+func (_m *Persistence) SetTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error {
+	ret := _m.Called(ctx, txID, receipt)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.TransactionReceiptResponse) error); ok {
+		r0 = rf(ctx, txID, receipt)
 	} else {
 		r0 = ret.Error(0)
 	}

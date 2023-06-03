@@ -31,6 +31,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/iterator"
 	"github.com/syndtr/goleveldb/leveldb/opt"
@@ -394,6 +395,26 @@ func (p *leveldbPersistence) GetTransactionByID(ctx context.Context, txID string
 	return txh.ManagedTX, err
 }
 
+func (p *leveldbPersistence) GetTransactionReceipt(ctx context.Context, txID string) (receipt *ffcapi.TransactionReceiptResponse, err error) {
+	p.txMux.RLock()
+	defer p.txMux.RUnlock()
+	txh, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	if err != nil || txh == nil {
+		return nil, err
+	}
+	return txh.Receipt, err
+}
+
+func (p *leveldbPersistence) GetTransactionConfirmations(ctx context.Context, txID string) (confirmations []apitypes.BlockInfo, err error) {
+	p.txMux.RLock()
+	defer p.txMux.RUnlock()
+	txh, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	if err != nil || txh == nil {
+		return nil, err
+	}
+	return txh.Confirmations, err
+}
+
 func (p *leveldbPersistence) GetTransactionByIDWithHistory(ctx context.Context, txID string) (tx *apitypes.TXWithStatus, err error) {
 	p.txMux.RLock()
 	defer p.txMux.RUnlock()
@@ -424,16 +445,45 @@ func (p *leveldbPersistence) InsertTransaction(ctx context.Context, tx *apitypes
 	}, true)
 }
 
+func (p *leveldbPersistence) getPersistedTX(ctx context.Context, txID string) (tx *apitypes.TXWithStatus, err error) {
+	tx, err = p.GetTransactionByIDWithHistory(ctx, txID)
+	if err != nil {
+		return nil, err
+	}
+	if tx == nil {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
+	}
+	return tx, nil
+}
+
+func (p *leveldbPersistence) SetTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error {
+	tx, err := p.getPersistedTX(ctx, txID)
+	if err != nil {
+		return err
+	}
+	tx.Receipt = receipt
+	return p.writeTransaction(ctx, tx, false)
+}
+
+func (p *leveldbPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...apitypes.BlockInfo) error {
+	tx, err := p.getPersistedTX(ctx, txID)
+	if err != nil {
+		return err
+	}
+	if clearExisting {
+		tx.Confirmations = nil
+	}
+	tx.Confirmations = append(tx.Confirmations, confirmations...)
+	return p.writeTransaction(ctx, tx, false)
+}
+
 func (p *leveldbPersistence) UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) (err error) {
 	// In LevelDB we bundle the transaction history (up to a certain limit) into the single nested JSON object.
 	// So when the base transaction is updated we need to load back in the history from LDB
 	// with a cached query before we do the update.
-	tx, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	tx, err := p.getPersistedTX(ctx, txID)
 	if err != nil {
 		return err
-	}
-	if tx == nil {
-		return i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 	}
 	if updates.Status != nil {
 		tx.Status = *updates.Status
@@ -556,27 +606,10 @@ func (p *leveldbPersistence) DeleteTransaction(ctx context.Context, txID string)
 	)
 }
 
-func (p *leveldbPersistence) GetCurrentSubStatus(ctx context.Context, txID string) (*apitypes.TxHistoryStateTransitionEntry, error) {
-	tx, err := p.GetTransactionByIDWithHistory(ctx, txID)
-	if err != nil {
-		return nil, err
-	}
-	if tx == nil {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
-	}
-	if len(tx.History) > 0 {
-		return tx.History[len(tx.History)-1], nil
-	}
-	return nil, nil
-}
-
 func (p *leveldbPersistence) SetSubStatus(ctx context.Context, txID string, subStatus apitypes.TxSubStatus) error {
-	tx, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	tx, err := p.getPersistedTX(ctx, txID)
 	if err != nil {
 		return err
-	}
-	if tx == nil {
-		return i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 	}
 	p.setSubStatusInStruct(ctx, tx, subStatus)
 	return p.writeTransaction(ctx, tx, false)
@@ -626,12 +659,9 @@ func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apity
 }
 
 func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
-	tx, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	tx, err := p.getPersistedTX(ctx, txID)
 	if err != nil {
 		return err
-	}
-	if tx == nil {
-		return i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 	}
 	if p.maxHistoryCount <= 0 {
 		// if history is turned off, it's a no op

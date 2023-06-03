@@ -33,19 +33,18 @@ func genTestTxn(signer string, nonce int64, status apitypes.TxStatus) *apitypes.
 	return &apitypes.ManagedTX{
 		ID:          fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:     fftypes.Now(),
-		Nonce:       fftypes.NewFFBigInt(nonce),
 		Status:      status,
 		FirstSubmit: fftypes.Now(),
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From: signer,
+			From:  signer,
+			Nonce: fftypes.NewFFBigInt(nonce),
 		},
-		History: []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 }
 
 func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	tx := genTestTxn(signer, nonce, status)
-	err := m.persistence.WriteTransaction(context.Background(), tx, true)
+	err := m.persistence.InsertTransaction(context.Background(), tx)
 	assert.NoError(t, err)
 	return tx
 }

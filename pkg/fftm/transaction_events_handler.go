@@ -47,11 +47,11 @@ func NewManagedTransactionEventHandler(ctx context.Context, cm confirmations.Man
 func (eh *ManagedTransactionEventHandler) HandleEvent(_ context.Context, e apitypes.ManagedTransactionEvent) error {
 	switch e.Type {
 	case apitypes.ManagedTXProcessSucceeded:
-		eh.sendWSReply(e.Tx)
+		eh.sendWSReply(e.Tx, e.Receipt)
 	case apitypes.ManagedTXProcessFailed:
-		eh.sendWSReply(e.Tx)
+		eh.sendWSReply(e.Tx, e.Receipt)
 	case apitypes.ManagedTXDeleted:
-		eh.sendWSReply(e.Tx)
+		eh.sendWSReply(e.Tx, nil /* receipt never sent with delete */)
 	case apitypes.ManagedTXTransactionHashAdded:
 		return eh.ConfirmationManager.Notify(&confirmations.Notification{
 			NotificationType: confirmations.NewTransaction,
@@ -80,7 +80,7 @@ func (eh *ManagedTransactionEventHandler) HandleEvent(_ context.Context, e apity
 	return nil
 }
 
-func (eh *ManagedTransactionEventHandler) sendWSReply(mtx *apitypes.ManagedTX) {
+func (eh *ManagedTransactionEventHandler) sendWSReply(mtx *apitypes.ManagedTX, receipt *ffcapi.TransactionReceiptResponse) {
 	wsr := &apitypes.TransactionUpdateReply{
 		Headers: apitypes.ReplyHeaders{
 			RequestID: mtx.ID,
@@ -89,12 +89,12 @@ func (eh *ManagedTransactionEventHandler) sendWSReply(mtx *apitypes.ManagedTX) {
 		TransactionHash: mtx.TransactionHash,
 	}
 
-	if mtx.Receipt != nil && mtx.Receipt.ContractLocation != nil {
-		wsr.ContractLocation = mtx.Receipt.ContractLocation
+	if receipt != nil && receipt.ContractLocation != nil {
+		wsr.ContractLocation = receipt.ContractLocation
 	}
 
-	if mtx.Receipt != nil {
-		wsr.ProtocolID = mtx.Receipt.ProtocolID
+	if receipt != nil {
+		wsr.ProtocolID = receipt.ProtocolID
 	} else {
 		wsr.ProtocolID = ""
 	}

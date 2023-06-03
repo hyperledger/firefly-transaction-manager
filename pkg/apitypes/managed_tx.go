@@ -171,9 +171,9 @@ type TXUpdates struct {
 // Note that in LevelDB persistence this is the stored form of the single document object.
 type TXWithStatus struct {
 	*ManagedTX
-	DeprecatedTransactionHeaders *ffcapi.TransactionHeaders         `json:"transactionHeaders,omitempty"` // for historical reasons we duplicate these fields at the base too on this query structure
 	Receipt                      *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
 	Confirmations                []BlockInfo                        `json:"confirmations,omitempty"`
+	DeprecatedTransactionHeaders *ffcapi.TransactionHeaders         `json:"transactionHeaders,omitempty"` // for historical reasons we duplicate these fields at the base too on this query structure
 	History                      []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
 	HistorySummary               []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`
 }
@@ -229,6 +229,7 @@ const (
 )
 
 type ManagedTransactionEvent struct {
-	Type ManagedTransactionEventType `json:"type"`
-	Tx   *ManagedTX                  `json:"transaction"`
+	Type    ManagedTransactionEventType
+	Tx      *ManagedTX
+	Receipt *ffcapi.TransactionReceiptResponse
 }

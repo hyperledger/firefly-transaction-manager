@@ -36,7 +36,6 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -596,19 +595,18 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 				ID:          fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
 				Created:     fftypes.Now(),
 				SequenceID:  apitypes.NewULID().String(),
-				Nonce:       fftypes.NewFFBigInt(1000),
 				Status:      apitypes.TxStatusSucceeded,
 				FirstSubmit: nil,
-				Receipt:     &ffcapi.TransactionReceiptResponse{},
 				TransactionHeaders: ffcapi.TransactionHeaders{
-					From: "0x12345",
+					Nonce: fftypes.NewFFBigInt(1000),
+					From:  "0x12345",
 				},
 			},
+			receipt: &ffcapi.TransactionReceiptResponse{},
 		},
 	}
 
-	h := txhistory.NewTxHistoryManager(sth.ctx)
-	h.SetSubStatus(sth.ctx, sth.inflight[0].mtx, apitypes.TxSubStatusReceived)
+	tk.TXHistory.SetSubStatus(sth.ctx, sth.inflight[0].mtx.ID, apitypes.TxSubStatusReceived)
 
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
 	mp.On("WriteTransaction", sth.ctx, mock.Anything, false).Return(fmt.Errorf("pop"))
@@ -673,19 +671,18 @@ func TestPolicyLoopUpdateEventHandlerError(t *testing.T) {
 				ID:          fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
 				Created:     fftypes.Now(),
 				SequenceID:  apitypes.NewULID().String(),
-				Nonce:       fftypes.NewFFBigInt(1000),
 				Status:      apitypes.TxStatusSucceeded,
 				FirstSubmit: nil,
-				Receipt:     &ffcapi.TransactionReceiptResponse{},
 				TransactionHeaders: ffcapi.TransactionHeaders{
-					From: "0x12345",
+					From:  "0x12345",
+					Nonce: fftypes.NewFFBigInt(1000),
 				},
 			},
+			receipt: &ffcapi.TransactionReceiptResponse{},
 		},
 	}
 
-	h := txhistory.NewTxHistoryManager(sth.ctx)
-	h.SetSubStatus(sth.ctx, sth.inflight[0].mtx, apitypes.TxSubStatusReceived)
+	tk.TXHistory.SetSubStatus(sth.ctx, sth.inflight[0].mtx.ID, apitypes.TxSubStatusReceived)
 
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
 	mp.On("WriteTransaction", sth.ctx, mock.Anything, false).Return(nil)
@@ -1101,8 +1098,8 @@ func TestExecPolicyUpdateNewInfo(t *testing.T) {
 		mtx: &apitypes.ManagedTX{
 			ID:          "id1",
 			FirstSubmit: fftypes.Now(),
-			Receipt:     &ffcapi.TransactionReceiptResponse{},
 		},
+		receipt: &ffcapi.TransactionReceiptResponse{},
 	}, false)
 	assert.NoError(t, err)
 

@@ -406,7 +406,7 @@ func TestDeleteStreamFail(t *testing.T) {
 
 }
 
-func TestWriteTXFail(t *testing.T) {
+func TestReadWriteTXFail(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
@@ -415,6 +415,15 @@ func TestWriteTXFail(t *testing.T) {
 	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
 
 	err := p.InsertTransaction(ctx, tx)
+	assert.Error(t, err)
+
+	_, err = p.GetTransactionByID(ctx, tx.ID)
+	assert.Error(t, err)
+
+	_, err = p.GetTransactionReceipt(ctx, tx.ID)
+	assert.Error(t, err)
+
+	_, err = p.GetTransactionReceipt(ctx, tx.ID)
 	assert.Error(t, err)
 
 }
@@ -428,19 +437,6 @@ func TestUpdateTXFail(t *testing.T) {
 	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
 
 	err := p.UpdateTransaction(ctx, tx.ID, &apitypes.TXUpdates{})
-	assert.Error(t, err)
-
-}
-
-func TestGetSubStatusFail(t *testing.T) {
-	ctx, p, done := newTestLevelDBPersistence(t)
-	defer done()
-
-	p.db.Close()
-
-	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
-
-	_, err := p.GetCurrentSubStatus(ctx, tx.ID)
 	assert.Error(t, err)
 
 }
@@ -828,20 +824,11 @@ func TestManagedTXSubStatus(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	// Error if not stored at all
-	_, err := p.GetCurrentSubStatus(ctx, mtx.ID)
-	assert.Regexp(t, "FF21067", err)
-
-	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusConfirmed)
+	err := p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusConfirmed)
 	assert.Regexp(t, "FF21067", err)
 
 	err = p.InsertTransaction(ctx, mtx)
 	assert.NoError(t, err)
-
-	// No sub-status entries initially
-	subStatus, err := p.GetCurrentSubStatus(ctx, mtx.ID)
-	assert.NoError(t, err)
-	assert.Nil(t, subStatus)
 
 	// Adding the same sub-status lots of times in succession should only result
 	// in a single entry for that instance
@@ -849,10 +836,6 @@ func TestManagedTXSubStatus(t *testing.T) {
 		err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
 		assert.NoError(t, err)
 	}
-
-	subStatus, err = p.GetCurrentSubStatus(ctx, mtx.ID)
-	assert.NoError(t, err)
-	assert.Equal(t, apitypes.TxSubStatusReceived, subStatus.Status)
 
 	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
 	assert.NoError(t, err)
@@ -1021,6 +1004,66 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 			assert.Equal(t, historyEntry.Count, 3)
 		}
 	}
+}
+
+func TestSetReceipt(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+
+	receipt := &ffcapi.TransactionReceiptResponse{
+		Success: true,
+	}
+
+	err := p.SetTransactionReceipt(ctx, mtx.ID, receipt)
+	assert.Regexp(t, "FF21067", err)
+
+	err = p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+
+	err = p.SetTransactionReceipt(ctx, mtx.ID, receipt)
+	assert.NoError(t, err)
+
+	receipt, err = p.GetTransactionReceipt(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.True(t, receipt.Success)
+}
+
+func TestAddConfirmations(t *testing.T) {
+	ctx, p, done := newTestLevelDBPersistence(t)
+	defer done()
+	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+
+	conf1 := apitypes.BlockInfo{
+		BlockNumber: fftypes.FFuint64(11111),
+	}
+	conf2 := apitypes.BlockInfo{
+		BlockNumber: fftypes.FFuint64(22222),
+	}
+
+	err := p.AddTransactionConfirmations(ctx, mtx.ID, false, conf1, conf2)
+	assert.Regexp(t, "FF21067", err)
+
+	err = p.InsertTransaction(ctx, mtx)
+	assert.NoError(t, err)
+
+	err = p.AddTransactionConfirmations(ctx, mtx.ID, false, conf1)
+	assert.NoError(t, err)
+
+	err = p.AddTransactionConfirmations(ctx, mtx.ID, false, conf2)
+	assert.NoError(t, err)
+
+	confirmations, err := p.GetTransactionConfirmations(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, []apitypes.BlockInfo{conf1, conf2}, confirmations)
+
+	err = p.AddTransactionConfirmations(ctx, mtx.ID, true, conf2)
+	assert.NoError(t, err)
+
+	confirmations, err = p.GetTransactionConfirmations(ctx, mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, []apitypes.BlockInfo{conf2}, confirmations)
+
 }
 
 func TestManagedTXSubStatusInvalidJSON(t *testing.T) {

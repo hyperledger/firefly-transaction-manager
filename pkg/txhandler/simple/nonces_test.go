@@ -44,15 +44,15 @@ func TestNonceStaleStateContention(t *testing.T) {
 
 	// Write a stale record to persistence
 	oldTime := fftypes.FFTime(time.Now().Add(-100 * time.Hour))
-	err = tk.TXPersistence.WriteTransaction(sth.ctx, &apitypes.ManagedTX{
+	err = tk.TXPersistence.InsertTransaction(sth.ctx, &apitypes.ManagedTX{
 		ID:      "stale1",
 		Created: &oldTime,
 		Status:  apitypes.TxStatusSucceeded,
-		Nonce:   fftypes.NewFFBigInt(1000), // old nonce
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From: "0x12345",
+			From:  "0x12345",
+			Nonce: fftypes.NewFFBigInt(1000), // old nonce
 		},
-	}, true)
+	})
 	assert.NoError(t, err)
 
 	mFFC := tk.Connector.(*ffcapimocks.API)
@@ -77,15 +77,15 @@ func TestNonceStaleStateContention(t *testing.T) {
 
 		time.Sleep(1 * time.Millisecond)
 		ln.spent = &apitypes.ManagedTX{
-			ID:         "ns1:" + fftypes.NewUUID().String(),
-			Created:    &oldTime,
-			Nonce:      fftypes.NewFFBigInt(int64(ln.nonce)),
-			Status:     apitypes.TxStatusPending,
+			ID:      "ns1:" + fftypes.NewUUID().String(),
+			Created: &oldTime,
+			Status:  apitypes.TxStatusPending,
 			TransactionHeaders: ffcapi.TransactionHeaders{
-				From: "0x12345",
+				From:  "0x12345",
+				Nonce: fftypes.NewFFBigInt(int64(ln.nonce)),
 			},
 		}
-		err = sth.toolkit.TXPersistence.WriteTransaction(sth.ctx, ln.spent, true)
+		err = sth.toolkit.TXPersistence.InsertTransaction(sth.ctx, ln.spent)
 		assert.NoError(t, err)
 		ln.complete(context.Background())
 	}()
@@ -156,7 +156,10 @@ func TestNonceListStaleThenQueryFail(t *testing.T) {
 	old := fftypes.FFTime(time.Now().Add(-10000 * time.Hour))
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
-			{ID: "id12345", Created: &old, Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
+			{ID: "id12345", Created: &old, Status: apitypes.TxStatusSucceeded,
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					Nonce: fftypes.NewFFBigInt(1000),
+				}},
 		}, nil)
 
 	mFFC := tk.Connector.(*ffcapimocks.API)
@@ -196,7 +199,10 @@ func TestNonceListNotStale(t *testing.T) {
 
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
-			{ID: "id12345", Created: fftypes.Now(), Status: apitypes.TxStatusSucceeded, Nonce: fftypes.NewFFBigInt(1000)},
+			{ID: "id12345", Created: fftypes.Now(), Status: apitypes.TxStatusSucceeded,
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					Nonce: fftypes.NewFFBigInt(1000),
+				}},
 		}, nil)
 	sth.Init(sth.ctx, tk)
 	n, err := sth.calcNextNonce(context.Background(), "0x12345")

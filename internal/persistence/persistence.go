@@ -22,6 +22,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 type SortDirection int
@@ -97,10 +98,15 @@ type TransactionPersistence interface {
 	InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error
 	UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error
 	DeleteTransaction(ctx context.Context, txID string) error
+
+	GetTransactionReceipt(ctx context.Context, txID string) (receipt *ffcapi.TransactionReceiptResponse, err error)
+	SetTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error
+
+	GetTransactionConfirmations(ctx context.Context, txID string) ([]apitypes.BlockInfo, error)
+	AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...apitypes.BlockInfo) error
 }
 
 type TransactionHistoryPersistence interface {
-	GetCurrentSubStatus(ctx context.Context, txID string) (*apitypes.TxHistoryStateTransitionEntry, error)
 	SetSubStatus(ctx context.Context, txID string, subStatus apitypes.TxSubStatus) error
 	AddSubStatusAction(ctx context.Context, txID string, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error
 }
