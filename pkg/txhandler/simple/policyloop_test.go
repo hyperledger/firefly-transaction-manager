@@ -109,7 +109,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	txHash := "0x" + fftypes.NewRandB32().String()
 
 	mfc := sth.toolkit.Connector.(*ffcapimocks.API)
-	mfc.On("TransactionSend", sth.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
+	mfc.On("TransactionSend", mock.AnythingOfType("*simple.RunContext"), mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
 		return r.Nonce.Equals(fftypes.NewFFBigInt(12345))
 	})).Return(&ffcapi.TransactionSendResponse{
 		TransactionHash: txHash,
@@ -179,7 +179,7 @@ func TestPolicyLoopIgnoreTransactionInformationalEventHandlingErrors(t *testing.
 	txHash := "0x" + fftypes.NewRandB32().String()
 
 	mfc := sth.toolkit.Connector.(*ffcapimocks.API)
-	mfc.On("TransactionSend", sth.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
+	mfc.On("TransactionSend", mock.AnythingOfType("*simple.RunContext"), mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
 		return r.Nonce.Equals(fftypes.NewFFBigInt(12345))
 	})).Return(&ffcapi.TransactionSendResponse{
 		TransactionHash: txHash,
@@ -293,7 +293,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	txHash := "0x" + fftypes.NewRandB32().String()
 
 	mfc := sth.toolkit.Connector.(*ffcapimocks.API)
-	mfc.On("TransactionSend", sth.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
+	mfc.On("TransactionSend", mock.AnythingOfType("*simple.RunContext"), mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
 		return r.Nonce.Equals(fftypes.NewFFBigInt(12345))
 	})).Return(&ffcapi.TransactionSendResponse{
 		TransactionHash: txHash,
@@ -532,7 +532,7 @@ func TestInflightSetListFailCancel(t *testing.T) {
 	sth.ctx = ctx
 	sth.Init(sth.ctx, tk)
 	cancel()
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsPending", sth.ctx, "", sth.maxInFlight, persistence.SortDirectionAscending).
 		Return(nil, fmt.Errorf("pop"))
 
@@ -557,7 +557,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 	txHash := "0x" + fftypes.NewRandB32().String()
 
 	mfc := sth.toolkit.Connector.(*ffcapimocks.API)
-	mfc.On("TransactionSend", sth.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
+	mfc.On("TransactionSend", mock.AnythingOfType("*simple.RunContext"), mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
 		return r.Nonce.Equals(fftypes.NewFFBigInt(1000))
 	})).Return(&ffcapi.TransactionSendResponse{
 		TransactionHash: txHash,
@@ -588,11 +588,12 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
+	txID := fmt.Sprintf("ns1/%s", fftypes.NewUUID())
 	sth.inflight = []*pendingState{
 		{
 			confirmed: true,
 			mtx: &apitypes.ManagedTX{
-				ID:          fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+				ID:          txID,
 				Created:     fftypes.Now(),
 				SequenceID:  apitypes.NewULID().String(),
 				Status:      apitypes.TxStatusSucceeded,
@@ -606,10 +607,8 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 		},
 	}
 
-	tk.TXHistory.SetSubStatus(sth.ctx, sth.inflight[0].mtx.ID, apitypes.TxSubStatusReceived)
-
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
-	mp.On("WriteTransaction", sth.ctx, mock.Anything, false).Return(fmt.Errorf("pop"))
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("UpdateTransaction", mock.AnythingOfType("*simple.RunContext"), txID, mock.Anything).Return(fmt.Errorf("pop"))
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	sth.policyLoopCycle(sth.ctx, false)
@@ -633,7 +632,7 @@ func TestPolicyLoopUpdateEventHandlerError(t *testing.T) {
 	txHash := "0x" + fftypes.NewRandB32().String()
 
 	mfc := sth.toolkit.Connector.(*ffcapimocks.API)
-	mfc.On("TransactionSend", sth.ctx, mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
+	mfc.On("TransactionSend", mock.AnythingOfType("*simple.RunContext"), mock.MatchedBy(func(r *ffcapi.TransactionSendRequest) bool {
 		return r.Nonce.Equals(fftypes.NewFFBigInt(1000))
 	})).Return(&ffcapi.TransactionSendResponse{
 		TransactionHash: txHash,
@@ -664,11 +663,12 @@ func TestPolicyLoopUpdateEventHandlerError(t *testing.T) {
 
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
+	txID := fmt.Sprintf("ns1/%s", fftypes.NewUUID())
 	sth.inflight = []*pendingState{
 		{
 			confirmed: true,
 			mtx: &apitypes.ManagedTX{
-				ID:          fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
+				ID:          txID,
 				Created:     fftypes.Now(),
 				SequenceID:  apitypes.NewULID().String(),
 				Status:      apitypes.TxStatusSucceeded,
@@ -682,10 +682,8 @@ func TestPolicyLoopUpdateEventHandlerError(t *testing.T) {
 		},
 	}
 
-	tk.TXHistory.SetSubStatus(sth.ctx, sth.inflight[0].mtx.ID, apitypes.TxSubStatusReceived)
-
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
-	mp.On("WriteTransaction", sth.ctx, mock.Anything, false).Return(nil)
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("UpdateTransaction", mock.AnythingOfType("*simple.RunContext"), txID, mock.Anything).Return(nil)
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	sth.policyLoopCycle(sth.ctx, false)
@@ -785,9 +783,11 @@ func TestExecPolicyGetTxFail(t *testing.T) {
 	sth.ctx = context.Background()
 	sth.Init(sth.ctx, tk)
 
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("WriteTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransaction", sth.ctx, mock.Anything).Return(nil, nil).Once()
+	mp.On("SetSubStatus", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived).Return(nil)
+	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	mp.On("GetTransactionByID", sth.ctx, tx.ID).Return(nil, fmt.Errorf("pop"))
 
@@ -806,6 +806,7 @@ func TestExecPolicyGetTxFail(t *testing.T) {
 	mp.AssertExpectations(t)
 
 }
+
 func TestExecPolicyDeleteFail(t *testing.T) {
 
 	f, tk, _, conf := newTestTransactionHandlerFactory(t)
@@ -818,12 +819,14 @@ func TestExecPolicyDeleteFail(t *testing.T) {
 	sth.ctx = context.Background()
 	sth.Init(sth.ctx, tk)
 
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("WriteTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("SetSubStatus", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived).Return(nil)
+	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	mp.On("GetTransactionByID", sth.ctx, tx.ID).Return(tx, nil)
-	mp.On("DeleteTransaction", sth.ctx, tx.ID).Return(fmt.Errorf("pop"))
+	mp.On("DeleteTransaction", mock.Anything, tx.ID).Return(fmt.Errorf("pop"))
 
 	req := &policyEngineAPIRequest{
 		requestType: policyEngineAPIRequestTypeDelete,
@@ -863,12 +866,14 @@ func TestExecPolicyDeleteInflightSync(t *testing.T) {
 
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("WriteTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("SetSubStatus", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived).Return(nil)
+	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	sth.inflight = []*pendingState{{mtx: tx}}
-	mp.On("DeleteTransaction", sth.ctx, tx.ID).Return(nil)
+	mp.On("DeleteTransaction", mock.Anything, tx.ID).Return(nil)
 
 	req := &policyEngineAPIRequest{
 		requestType: policyEngineAPIRequestTypeDelete,
@@ -912,7 +917,7 @@ func TestExecPolicyIdempotentCancellation(t *testing.T) {
 	testTxID := fftypes.NewUUID()
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsPending", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil)
 	mp.On("DeleteTransaction", mock.Anything, testTxID.String()).Return(nil)
 	sth.inflight = []*pendingState{{
@@ -961,7 +966,7 @@ func TestPendingTransactionGetsRemoved(t *testing.T) {
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
 	deleteCalled := make(chan struct{})
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsPending", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil)
 	mp.On("DeleteTransaction", mock.Anything, testTxID.String()).Return(nil).Once().Run(func(args mock.Arguments) {
 		close(deleteCalled)
@@ -1006,9 +1011,11 @@ func TestExecPolicyDeleteNotFound(t *testing.T) {
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
 	sth.Init(sth.ctx, tk)
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("WriteTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("SetSubStatus", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived).Return(nil)
+	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	sth.inflight = []*pendingState{{mtx: tx}}
 	mp.On("GetTransactionByID", sth.ctx, "bad-id").Return(nil, nil)
@@ -1039,9 +1046,11 @@ func TestBadTransactionAPIRequest(t *testing.T) {
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
 	sth.Init(sth.ctx, tk)
-	mp := sth.toolkit.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("WriteTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("SetSubStatus", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived).Return(nil)
+	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	sth.inflight = []*pendingState{{mtx: tx}}
 
@@ -1102,5 +1111,149 @@ func TestExecPolicyUpdateNewInfo(t *testing.T) {
 		receipt: &ffcapi.TransactionReceiptResponse{},
 	}, false)
 	assert.NoError(t, err)
+
+}
+
+func TestPolicyStoreReceiptFail(t *testing.T) {
+
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(ResubmitInterval, "100s")
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+
+	txID := fmt.Sprintf("ns1/%s", fftypes.NewUUID())
+	sth.inflight = []*pendingState{
+		{
+			confirmed: true,
+			mtx: &apitypes.ManagedTX{
+				ID:          txID,
+				Created:     fftypes.Now(),
+				SequenceID:  apitypes.NewULID().String(),
+				Status:      apitypes.TxStatusSucceeded,
+				FirstSubmit: nil,
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					Nonce: fftypes.NewFFBigInt(1000),
+					From:  "0x12345",
+				},
+			},
+			receiptNotify: fftypes.Now(),
+			receipt:       &ffcapi.TransactionReceiptResponse{},
+		},
+	}
+
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("SetTransactionReceipt", mock.Anything, txID, mock.Anything).Return(fmt.Errorf("pop"))
+
+	sth.policyLoopCycle(sth.ctx, false)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestPolicyStoreConfirmationsFail(t *testing.T) {
+
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(ResubmitInterval, "100s")
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+
+	txID := fmt.Sprintf("ns1/%s", fftypes.NewUUID())
+	sth.inflight = []*pendingState{
+		{
+			confirmed: true,
+			mtx: &apitypes.ManagedTX{
+				ID:          txID,
+				Created:     fftypes.Now(),
+				SequenceID:  apitypes.NewULID().String(),
+				Status:      apitypes.TxStatusSucceeded,
+				FirstSubmit: nil,
+				TransactionHeaders: ffcapi.TransactionHeaders{
+					Nonce: fftypes.NewFFBigInt(1000),
+					From:  "0x12345",
+				},
+			},
+			confirmNotify: fftypes.Now(),
+		},
+	}
+
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("AddTransactionConfirmations", mock.Anything, txID, true, mock.Anything).Return(fmt.Errorf("pop"))
+
+	sth.policyLoopCycle(sth.ctx, false)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestUpdateFailWithPolicyInfo(t *testing.T) {
+
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(ResubmitInterval, "100s")
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
+	txID := fftypes.NewUUID().String()
+	mp.On("UpdateTransaction", mock.AnythingOfType("*simple.RunContext"), txID, mock.Anything).Return(fmt.Errorf("pop"))
+
+	err = sth.flushChanges(&RunContext{
+		Context: context.Background(),
+		TX: &apitypes.ManagedTX{
+			ID: txID,
+		},
+		UpdateType:  Update,
+		UpdatedInfo: true,
+		Info: &simplePolicyInfo{
+			LastWarnTime: fftypes.Now(),
+		},
+	}, &pendingState{}, true)
+	assert.Regexp(t, "pop", err)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestUpdateFailHistory(t *testing.T) {
+
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(ResubmitInterval, "100s")
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
+	txID := fftypes.NewUUID().String()
+	mp.On("AddSubStatusAction", mock.AnythingOfType("*simple.RunContext"), txID, mock.Anything, (*fftypes.JSONAny)(nil), (*fftypes.JSONAny)(nil)).Return(fmt.Errorf("pop"))
+
+	rc := &RunContext{
+		Context: context.Background(),
+		TX: &apitypes.ManagedTX{
+			ID: txID,
+		},
+	}
+	rc.AddSubStatusAction(apitypes.TxActionAssignNonce, nil, nil)
+	err = sth.flushChanges(rc, &pendingState{}, true)
+	assert.Regexp(t, "pop", err)
+
+	mp.AssertExpectations(t)
 
 }

@@ -289,6 +289,7 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 		TransactionHeaders: *txHeaders,
 		TransactionData:    transactionData,
 		Status:             apitypes.TxStatusPending,
+		PolicyInfo:         fftypes.JSONAnyPtr(`{}`),
 	}
 
 	// Sequencing ID will be added as part of persistence logic - so we have a deterministic order of transactions

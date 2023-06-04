@@ -423,7 +423,7 @@ func TestReadWriteTXFail(t *testing.T) {
 	_, err = p.GetTransactionReceipt(ctx, tx.ID)
 	assert.Error(t, err)
 
-	_, err = p.GetTransactionReceipt(ctx, tx.ID)
+	_, err = p.GetTransactionConfirmations(ctx, tx.ID)
 	assert.Error(t, err)
 
 }

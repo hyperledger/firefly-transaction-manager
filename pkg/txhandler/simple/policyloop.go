@@ -136,10 +136,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 			// So if this was already submitted, we rely on the transactionHash and go
 			// re-request the receipt.
 			var info simplePolicyInfo
-			infoErr := json.Unmarshal(mtx.PolicyInfo.Bytes(), &info)
-			if infoErr != nil {
-				log.L(ctx).Warnf("Invalid policy info in stored TX: %s", err)
-			}
+			_ = json.Unmarshal(mtx.PolicyInfo.Bytes(), &info)
 			sth.inflight = append(sth.inflight, &pendingState{
 				mtx:  mtx,
 				info: &info,
@@ -303,17 +300,17 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 	}
 	mtx := ctx.TX
 
-	var updates *apitypes.TXUpdates
 	completed := false
 	switch {
 	case ctx.Confirmed && !syncDeleteRequest:
 		completed = true
+		ctx.UpdateType = Update
 		if ctx.Receipt != nil && ctx.Receipt.Success {
-			succeeded := apitypes.TxStatusSucceeded
-			updates.Status = &succeeded
+			mtx.Status = apitypes.TxStatusSucceeded
+			ctx.TXUpdates.Status = &mtx.Status
 		} else {
-			failed := apitypes.TxStatusFailed
-			updates.Status = &failed
+			mtx.Status = apitypes.TxStatusFailed
+			ctx.TXUpdates.Status = &mtx.Status
 		}
 
 	default:
@@ -334,8 +331,7 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 				ctx.TXUpdates.ErrorMessage = &errMsg
 			} else {
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, ctx.UpdateType, mtx.Status, mtx.TransactionHash)
-				if mtx.FirstSubmit != nil &&
-					pending.trackingTransactionHash != mtx.TransactionHash {
+				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 
 					if pending.trackingTransactionHash != "" {
 						// if had a previous transaction hash, emit an event to for transaction hash removal
@@ -343,7 +339,7 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 						eventTX.TransactionHash = pending.trackingTransactionHash // using the previous hash
 						if err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 							Type: apitypes.ManagedTXTransactionHashRemoved,
-							Tx:   mtx,
+							Tx:   &eventTX,
 						}); err != nil {
 							log.L(ctx).Infof("Error detected notifying confirmation manager to remove old transaction hash: %s", err.Error())
 						}
@@ -367,13 +363,17 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 			}
 		}
 	}
+	return sth.flushChanges(ctx, pending, completed)
+}
 
+func (sth *simpleTransactionHandler) flushChanges(ctx *RunContext, pending *pendingState, completed bool) (err error) {
 	// flush any sub-status changes
 	for _, historyUpdate := range ctx.HistoryUpdates {
 		if err := historyUpdate(sth.toolkit.TXHistory); err != nil {
 			return err
 		}
 	}
+	mtx := ctx.TX
 
 	// flush any transaction update
 	switch ctx.UpdateType {
@@ -457,6 +457,7 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Cont
 		return
 	}
 	sth.mux.Lock()
+	pending.confirmed = true
 	pending.confirmNotify = fftypes.Now()
 	pending.confirmations = confirmations
 	sth.mux.Unlock()

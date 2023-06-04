@@ -124,7 +124,7 @@ func TestNonceListError(t *testing.T) {
 		Gas:             fftypes.NewFFBigInt(2000000), // gas estimate simulation
 	}, ffcapi.ErrorReason(""), nil)
 
-	mp := tk.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := tk.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return(nil, fmt.Errorf("pop"))
 	sth.Init(sth.ctx, tk)
@@ -152,7 +152,7 @@ func TestNonceListStaleThenQueryFail(t *testing.T) {
 	sth := th.(*simpleTransactionHandler)
 	sth.ctx = context.Background()
 
-	mp := tk.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := tk.TXPersistence.(*persistencemocks.Persistence)
 	old := fftypes.FFTime(time.Now().Add(-10000 * time.Hour))
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{
@@ -195,7 +195,7 @@ func TestNonceListNotStale(t *testing.T) {
 
 	sth.nonceStateTimeout = 1 * time.Hour
 
-	mp := tk.TXPersistence.(*persistencemocks.TransactionPersistence)
+	mp := tk.TXPersistence.(*persistencemocks.Persistence)
 
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{

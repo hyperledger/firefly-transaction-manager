@@ -151,7 +151,6 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
 		m.richQueryAPI = false
-		return nil
 	case "postgres":
 		// TODO: init
 		m.richQueryAPI = !config.GetBool(tmconfig.APISimpleQuery)
