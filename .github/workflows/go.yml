@@ -26,6 +26,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fetch history # See https://github.com/actions/checkout/issues/477
+        run: |-
+          git config --global --add safe.directory .
+          git fetch origin
+
       - name: Build and Test
         env:
           TEST_FLAGS: -v
