@@ -11,6 +11,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container: golang:1.19-bullseye
+    defaults:
+      run:
+        shell: bash # needed for codecov
     services:
       postgres:
         image: postgres
