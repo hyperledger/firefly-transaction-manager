@@ -64,7 +64,6 @@ type RichQuery interface {
 	ListListeners(ctx context.Context, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
 	ListTransactions(ctx context.Context, filter ffapi.Filter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error)
 	ListStreamListeners(ctx context.Context, streamID *fftypes.UUID, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
-	ListTransactionHistory(ctx context.Context, streamID *fftypes.UUID, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
 }
 
 type CheckpointPersistence interface {

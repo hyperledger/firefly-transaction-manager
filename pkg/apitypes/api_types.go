@@ -18,11 +18,15 @@ package apitypes
 
 import (
 	"bytes"
+	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"reflect"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/jsonmap"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
@@ -83,10 +87,40 @@ type EventStreamWithStatus struct {
 	Status EventStreamStatus `ffstruct:"eventstream" json:"status"`
 }
 
+type CheckpointListeners map[fftypes.UUID]json.RawMessage
+
 type EventStreamCheckpoint struct {
-	StreamID  *fftypes.UUID                    `json:"streamId"`
-	Time      *fftypes.FFTime                  `json:"time"`
-	Listeners map[fftypes.UUID]json.RawMessage `json:"listeners"`
+	StreamID        *fftypes.UUID       `json:"streamId"`
+	Time            *fftypes.FFTime     `json:"time"`            // this is the latest checkpoint time
+	FirstCheckpoint *fftypes.FFTime     `json:"firstCheckpoint"` // this is the initial create time
+	Listeners       CheckpointListeners `json:"listeners"`
+}
+
+func (l *CheckpointListeners) Scan(val any) error {
+	switch vt := val.(type) {
+	case []byte:
+		return json.Unmarshal(vt, &l)
+	case nil:
+		return nil
+	default:
+		return i18n.NewError(context.Background(), tmmsgs.MsgSQLScanFailed, val)
+	}
+}
+
+func (l CheckpointListeners) Value() (driver.Value, error) {
+	return json.Marshal(l)
+}
+
+func (cp *EventStreamCheckpoint) GetID() *fftypes.UUID {
+	return cp.StreamID
+}
+
+func (cp *EventStreamCheckpoint) SetCreated(t *fftypes.FFTime) {
+	cp.FirstCheckpoint = t
+}
+
+func (cp *EventStreamCheckpoint) SetUpdated(t *fftypes.FFTime) {
+	cp.Time = t
 }
 
 type WebhookConfig struct {

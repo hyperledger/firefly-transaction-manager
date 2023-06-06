@@ -110,4 +110,12 @@ var (
 	ConfigMetricsReadTimeout     = ffc("config.metrics.readTimeout", "The maximum time to wait when reading from an HTTP connection", i18n.TimeDurationType)
 	ConfigMetricsWriteTimeout    = ffc("config.metrics.writeTimeout", "The maximum time to wait when writing to an HTTP connection", i18n.TimeDurationType)
 	ConfigMetricsShutdownTimeout = ffc("config.metrics.shutdownTimeout", "The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server", i18n.TimeDurationType)
+
+	ConfigDatabasePostgresMaxConnIdleTime = ffc("config.persistence.postgres.maxConnIdleTime", "The maximum amount of time a database connection can be idle", i18n.TimeDurationType)
+	ConfigDatabasePostgresMaxConnLifetime = ffc("config.persistence.postgres.maxConnLifetime", "The maximum amount of time to keep a database connection open", i18n.TimeDurationType)
+	ConfigDatabasePostgresMaxConns        = ffc("config.persistence.postgres.maxConns", "Maximum connections to the database", i18n.IntType)
+	ConfigDatabasePostgresMaxIdleConns    = ffc("config.persistence.postgres.maxIdleConns", "The maximum number of idle connections to the database", i18n.IntType)
+	ConfigDatabasePostgresURL             = ffc("config.persistence.postgres.url", "The PostgreSQL connection string for the database", i18n.StringType)
+	ConfigGlobalMigrationsAuto            = ffc("config.global.migrations.auto", "Enables automatic database migrations", i18n.BooleanType)
+	ConfigGlobalMigrationsDirectory       = ffc("config.global.migrations.directory", "The directory containing the numerically ordered migration DDL files to apply to the database", i18n.StringType)
 )

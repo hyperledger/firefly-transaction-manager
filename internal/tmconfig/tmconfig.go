@@ -20,6 +20,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffresty"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/postgres"
 	"github.com/spf13/viper"
 )
 
@@ -65,6 +66,10 @@ var (
 	DeprecatedPolicyLoopRetryFactor         = ffc("policyloop.retry.factor")
 	DeprecatedPolicyEngineName              = ffc("policyengine.name")
 )
+
+var PersistenceSection config.Section
+
+var PostgresSection config.Section
 
 var APIConfig config.Section
 
@@ -132,6 +137,10 @@ func Reset() {
 
 	WebhookPrefix = config.RootSection("webhooks")
 	ffresty.InitConfig(WebhookPrefix)
+
+	PersistenceSection = config.RootSection("persistence")
+	PostgresSection = PersistenceSection.SubSection("postgres")
+	postgres.InitConfig(PostgresSection)
 
 	DeprecatedPolicyEngineBaseConfig = config.RootSection("policyengine") // Deprecated! policy engines must be registered outside of this package
 

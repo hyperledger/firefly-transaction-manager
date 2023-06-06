@@ -173,6 +173,23 @@
 |path|The path for the LevelDB persistence directory|`string`|`<nil>`
 |syncWrites|Whether to synchronously perform writes to the storage|`boolean`|`false`
 
+## persistence.postgres
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|maxConnIdleTime|The maximum amount of time a database connection can be idle|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1m`
+|maxConnLifetime|The maximum amount of time to keep a database connection open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxConns|Maximum connections to the database|`int`|`<nil>`
+|maxIdleConns|The maximum number of idle connections to the database|`int`|`<nil>`
+|url|The PostgreSQL connection string for the database|`string`|`<nil>`
+
+## persistence.postgres.migrations
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|auto|Enables automatic database migrations|`boolean`|`false`
+|directory|The directory containing the numerically ordered migration DDL files to apply to the database|`string`|`./db/migrations/postgres`
+
 ## policyengine
 
 |Key|Description|Type|Default Value|

@@ -96,4 +96,5 @@ var (
 	MsgTHMetricsHelpTextMissing                = ffe("FF21078", "Transaction handler metrics registration help text must be provided")
 	MsgTHMetricsDuplicateName                  = ffe("FF21080", "Transaction handler metrics registration invalid name already registered: %s")
 	MsgInvalidNonRichQuery                     = ffe("FF21081", "Rich query is not supported by persistence. Query params limited to %v")
+	MsgSQLScanFailed                           = ffe("FF21082", "Failed to read value from DB (%T)")
 )

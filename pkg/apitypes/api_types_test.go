@@ -252,3 +252,38 @@ func TestUnmarshalFail(t *testing.T) {
 	assert.Error(t, err)
 
 }
+
+func TestEventStreamCheckpoint(t *testing.T) {
+
+	cp := &EventStreamCheckpoint{
+		StreamID: fftypes.NewUUID(),
+		Listeners: CheckpointListeners{
+			*fftypes.NewUUID(): json.RawMessage([]byte(`{"some":"data"}`)),
+		},
+	}
+	assert.Equal(t, cp.StreamID, cp.GetID())
+	t1 := fftypes.Now()
+	cp.SetCreated(t1)
+	assert.Equal(t, t1, cp.FirstCheckpoint)
+	t2 := fftypes.Now()
+	cp.SetUpdated(t2)
+	assert.Equal(t, t2, cp.Time)
+
+	v, err := cp.Listeners.Value()
+	assert.NoError(t, err)
+
+	cp1 := &EventStreamCheckpoint{}
+	err = cp1.Listeners.Scan(v)
+	assert.NoError(t, err)
+	assert.Equal(t, cp.Listeners, cp1.Listeners)
+
+	cp1 = &EventStreamCheckpoint{}
+	err = cp1.Listeners.Scan(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, cp1.Listeners)
+
+	cp1 = &EventStreamCheckpoint{}
+	err = cp1.Listeners.Scan(12345)
+	assert.Regexp(t, "FF21082", err)
+
+}
