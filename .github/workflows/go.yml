@@ -34,6 +34,9 @@ jobs:
       - name: Build and Test
         env:
           TEST_FLAGS: -v
+          POSTGRES_HOSTNAME: postgres
+          POSTGRES_PASSWORD: f1refly
+          POSTGRES_PORT: 5432
         run: make
 
       - name: Upload coverage

@@ -20,6 +20,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path"
 	"testing"
 
@@ -37,7 +38,19 @@ func initTestPSQL(t *testing.T) (context.Context, *sqlPersistence, *migrate.Migr
 	InitConfig(dbconf)
 
 	dbURL := func(dbname string) string {
-		return fmt.Sprintf("postgres://postgres:f1refly@localhost:5432/%s?sslmode=disable", dbname)
+		hostname := os.Getenv("POSTGRES_HOSTNAME")
+		port := os.Getenv("POSTGRES_PORT")
+		password := os.Getenv("POSTGRES_PASSWORD")
+		if hostname == "" {
+			hostname = "localhost"
+		}
+		if port == "" {
+			port = "5432"
+		}
+		if password == "" {
+			password = "f1refly"
+		}
+		return fmt.Sprintf("postgres://postgres:%s@%s:%s/%s?sslmode=disable", password, hostname, port, dbname)
 	}
 	utdbName := "ut_" + fftypes.NewUUID().String()
 
