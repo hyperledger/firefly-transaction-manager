@@ -28,7 +28,7 @@ jobs:
 
       - name: Fetch history # See https://github.com/actions/checkout/issues/477
         run: |-
-          git config --global --add safe.directory .
+          git config --global --add safe.directory $PWD
           git fetch origin
 
       - name: Build and Test
