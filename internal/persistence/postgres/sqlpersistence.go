@@ -34,6 +34,7 @@ type sqlPersistence struct {
 func newSQLPersistence(db *dbsql.Database) *sqlPersistence {
 	p := &sqlPersistence{db: db}
 	p.checkpoints = p.newCheckpointCollection()
+	p.confirmations = p.newConfirmationsCollection()
 	return p
 }
 

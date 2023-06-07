@@ -101,8 +101,8 @@ type TransactionPersistence interface {
 	GetTransactionReceipt(ctx context.Context, txID string) (receipt *ffcapi.TransactionReceiptResponse, err error)
 	SetTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error
 
-	GetTransactionConfirmations(ctx context.Context, txID string) ([]apitypes.BlockInfo, error)
-	AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...apitypes.BlockInfo) error
+	GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error)
+	AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error
 }
 
 type TransactionHistoryPersistence interface {

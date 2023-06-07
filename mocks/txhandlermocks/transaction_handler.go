@@ -97,13 +97,13 @@ func (_m *TransactionHandler) HandleNewTransaction(ctx context.Context, txReq *a
 	return r0, r1
 }
 
-// HandleTransactionConfirmed provides a mock function with given fields: ctx, txID, confirmations
-func (_m *TransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) error {
-	ret := _m.Called(ctx, txID, confirmations)
+// HandleTransactionConfirmations provides a mock function with given fields: ctx, txID, notification
+func (_m *TransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) error {
+	ret := _m.Called(ctx, txID, notification)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []apitypes.BlockInfo) error); ok {
-		r0 = rf(ctx, txID, confirmations)
+	if rf, ok := ret.Get(0).(func(context.Context, string, *apitypes.ConfirmationsNotification) error); ok {
+		r0 = rf(ctx, txID, notification)
 	} else {
 		r0 = ret.Error(0)
 	}

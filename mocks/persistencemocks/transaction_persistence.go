@@ -22,7 +22,7 @@ type TransactionPersistence struct {
 }
 
 // AddTransactionConfirmations provides a mock function with given fields: ctx, txID, clearExisting, confirmations
-func (_m *TransactionPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...apitypes.BlockInfo) error {
+func (_m *TransactionPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error {
 	_va := make([]interface{}, len(confirmations))
 	for _i := range confirmations {
 		_va[_i] = confirmations[_i]
@@ -33,7 +33,7 @@ func (_m *TransactionPersistence) AddTransactionConfirmations(ctx context.Contex
 	ret := _m.Called(_ca...)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, bool, ...apitypes.BlockInfo) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool, ...*apitypes.Confirmation) error); ok {
 		r0 = rf(ctx, txID, clearExisting, confirmations...)
 	} else {
 		r0 = ret.Error(0)
@@ -135,19 +135,19 @@ func (_m *TransactionPersistence) GetTransactionByNonce(ctx context.Context, sig
 }
 
 // GetTransactionConfirmations provides a mock function with given fields: ctx, txID
-func (_m *TransactionPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]apitypes.BlockInfo, error) {
+func (_m *TransactionPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error) {
 	ret := _m.Called(ctx, txID)
 
-	var r0 []apitypes.BlockInfo
+	var r0 []*apitypes.Confirmation
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]apitypes.BlockInfo, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*apitypes.Confirmation, error)); ok {
 		return rf(ctx, txID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []apitypes.BlockInfo); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*apitypes.Confirmation); ok {
 		r0 = rf(ctx, txID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]apitypes.BlockInfo)
+			r0 = ret.Get(0).([]*apitypes.Confirmation)
 		}
 	}
 

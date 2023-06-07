@@ -405,7 +405,7 @@ func (p *leveldbPersistence) GetTransactionReceipt(ctx context.Context, txID str
 	return txh.Receipt, err
 }
 
-func (p *leveldbPersistence) GetTransactionConfirmations(ctx context.Context, txID string) (confirmations []apitypes.BlockInfo, err error) {
+func (p *leveldbPersistence) GetTransactionConfirmations(ctx context.Context, txID string) (confirmations []*apitypes.Confirmation, err error) {
 	p.txMux.RLock()
 	defer p.txMux.RUnlock()
 	txh, err := p.GetTransactionByIDWithHistory(ctx, txID)
@@ -465,7 +465,7 @@ func (p *leveldbPersistence) SetTransactionReceipt(ctx context.Context, txID str
 	return p.writeTransaction(ctx, tx, false)
 }
 
-func (p *leveldbPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...apitypes.BlockInfo) error {
+func (p *leveldbPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error {
 	tx, err := p.getPersistedTX(ctx, txID)
 	if err != nil {
 		return err

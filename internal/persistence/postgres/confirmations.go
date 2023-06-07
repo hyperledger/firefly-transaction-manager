@@ -55,10 +55,10 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 	}
 }
 
-func (p *sqlPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]apitypes.BlockInfo, error) {
+func (p *sqlPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error) {
 	return nil, nil
 }
 
-func (p *sqlPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...apitypes.BlockInfo) error {
+func (p *sqlPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error {
 	return nil
 }

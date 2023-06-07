@@ -172,7 +172,7 @@ type TXUpdates struct {
 type TXWithStatus struct {
 	*ManagedTX
 	Receipt                      *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
-	Confirmations                []BlockInfo                        `json:"confirmations,omitempty"`
+	Confirmations                []*Confirmation                    `json:"confirmations,omitempty"`
 	DeprecatedTransactionHeaders *ffcapi.TransactionHeaders         `json:"transactionHeaders,omitempty"` // for historical reasons we duplicate these fields at the base too on this query structure
 	History                      []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
 	HistorySummary               []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`

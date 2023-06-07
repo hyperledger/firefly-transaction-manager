@@ -273,13 +273,15 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 		sth.mux.Unlock()
 	}
 
-	if confirmNotify != nil {
+	if confirmNotify != nil && ctx.Confirmations != nil {
 		log.L(ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
-		if err := sth.toolkit.TXPersistence.AddTransactionConfirmations(ctx, mtx.ID, true, ctx.Confirmations...); err != nil {
+		if err := sth.toolkit.TXPersistence.AddTransactionConfirmations(ctx, mtx.ID, ctx.Confirmations.NewFork, ctx.Confirmations.Confirmations...); err != nil {
 			return nil, err
 		}
-		ctx.AddSubStatusAction(apitypes.TxActionConfirmTransaction, nil, nil)
-		ctx.SetSubStatus(apitypes.TxSubStatusConfirmed)
+		if ctx.Confirmed {
+			ctx.AddSubStatusAction(apitypes.TxActionConfirmTransaction, nil, nil)
+			ctx.SetSubStatus(apitypes.TxSubStatusConfirmed)
+		}
 
 		// Clear the notification (as long as no other came through)
 		sth.mux.Lock()
@@ -443,7 +445,7 @@ func (sth *simpleTransactionHandler) policyEngineAPIRequest(ctx context.Context,
 	}
 }
 
-func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) (err error) {
+func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error) {
 	// Will be picked up on the next policy loop cycle
 	var pending *pendingState
 	for _, p := range sth.inflight {
@@ -457,9 +459,9 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Cont
 		return
 	}
 	sth.mux.Lock()
-	pending.confirmed = true
+	pending.confirmed = notification.Confirmed
 	pending.confirmNotify = fftypes.Now()
-	pending.confirmations = confirmations
+	pending.confirmations = notification
 	sth.mux.Unlock()
 
 	sth.markInflightUpdate()

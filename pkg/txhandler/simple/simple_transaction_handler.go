@@ -64,7 +64,7 @@ type RunContext struct {
 	context.Context
 	TX            *apitypes.ManagedTX
 	Receipt       *ffcapi.TransactionReceiptResponse
-	Confirmations []apitypes.BlockInfo
+	Confirmations *apitypes.ConfirmationsNotification
 	Confirmed     bool
 	Info          *simplePolicyInfo // must be updated in-place and set UpdatedInfo to true as well as UpdateType = Update
 	// Output
@@ -193,7 +193,7 @@ type pendingState struct {
 	receipt                 *ffcapi.TransactionReceiptResponse
 	info                    *simplePolicyInfo
 	confirmed               bool
-	confirmations           []apitypes.BlockInfo
+	confirmations           *apitypes.ConfirmationsNotification
 	receiptNotify           *fftypes.FFTime
 	confirmNotify           *fftypes.FFTime
 	remove                  bool

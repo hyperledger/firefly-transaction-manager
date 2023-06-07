@@ -59,7 +59,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmations: func(ctx context.Context, notification *ConfirmationsNotification) {
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
 			if notification.Confirmed {
 				confirmed <- notification.Confirmations
 			}
@@ -172,7 +172,7 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmations: func(ctx context.Context, notification *ConfirmationsNotification) {
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
 			if notification.Confirmed {
 				confirmed <- notification.Confirmations
 			}
@@ -299,7 +299,7 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	receiptReceived := make(chan *ffcapi.TransactionReceiptResponse, 1)
 	txToConfirmForkA := &TransactionInfo{
 		TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-		Confirmations: func(ctx context.Context, notification *ConfirmationsNotification) {
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
 			if notification.Confirmed {
 				confirmed <- notification.Confirmations
 			}
@@ -479,7 +479,7 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmations: func(ctx context.Context, notification *ConfirmationsNotification) {
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
 			if notification.Confirmed {
 				confirmed <- notification.Confirmations
 			}
@@ -612,7 +612,7 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmations: func(ctx context.Context, notification *ConfirmationsNotification) {
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
 			if notification.Confirmed {
 				confirmed <- notification.Confirmations
 			}
@@ -939,7 +939,7 @@ func TestNotificationValidation(t *testing.T) {
 		NotificationType: NewTransaction,
 		Transaction: &TransactionInfo{
 			TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-			Confirmations:   func(ctx context.Context, notification *ConfirmationsNotification) {},
+			Confirmations:   func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {},
 		},
 	})
 	assert.NoError(t, err)
@@ -984,7 +984,7 @@ func TestCheckReceiptImmediateConfirm(t *testing.T) {
 	pending := &pendingItem{
 		pType:           pendingTypeTransaction,
 		transactionHash: txHash,
-		confirmationsCallback: func(ctx context.Context, notification *ConfirmationsNotification) {
+		confirmationsCallback: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
 			close(done)
 		},
 	}

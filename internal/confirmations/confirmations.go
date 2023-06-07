@@ -63,13 +63,13 @@ type Notification struct {
 
 type EventInfo struct {
 	ID            *ffcapi.EventID
-	Confirmations func(ctx context.Context, notification *ConfirmationsNotification)
+	Confirmations func(ctx context.Context, notification *apitypes.ConfirmationsNotification)
 }
 
 type TransactionInfo struct {
 	TransactionHash string
 	Receipt         func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse)
-	Confirmations   func(ctx context.Context, notification *ConfirmationsNotification)
+	Confirmations   func(ctx context.Context, notification *apitypes.ConfirmationsNotification)
 }
 
 type RemovedListenerInfo struct {
@@ -92,16 +92,6 @@ type blockConfirmationManager struct {
 	pendingMux            sync.Mutex
 	staleReceipts         map[string]bool
 	done                  chan struct{}
-}
-
-type ConfirmationsNotification struct {
-	// Confirmed marks we've reached the confirmation threshold
-	Confirmed bool
-	// NewFork is true when NewConfirmations is a complete list of confirmations.
-	// Otherwise, Confirmations is an additive delta on top of a previous list of confirmations.
-	NewFork bool
-	// Confirmations is the list of confirmations being notified - assured to be non-nil, but might be empty.
-	Confirmations []*apitypes.Confirmation
 }
 
 func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API, desc string) Manager {
@@ -139,7 +129,7 @@ type pendingItem struct {
 	confirmed             bool
 	lastReceiptCheck      time.Time
 	receiptCallback       func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse)
-	confirmationsCallback func(ctx context.Context, notification *ConfirmationsNotification)
+	confirmationsCallback func(ctx context.Context, notification *apitypes.ConfirmationsNotification)
 	transactionHash       string
 	blockHash             string        // can be notified of changes to this for receipts
 	blockNumber           uint64        // known at creation time for event logs
@@ -585,7 +575,7 @@ func (bcm *blockConfirmationManager) dispatchConfirmations(item *pendingItem) {
 		notificationConfirmations = append(notificationConfirmations, c)
 	}
 
-	notification := &ConfirmationsNotification{
+	notification := &apitypes.ConfirmationsNotification{
 		Confirmed:     item.confirmed,
 		NewFork:       newFork,
 		Confirmations: notificationConfirmations,
