@@ -27,7 +27,8 @@ import (
 type sqlPersistence struct {
 	db *dbsql.Database
 
-	checkpoints *dbsql.CrudBase[*apitypes.EventStreamCheckpoint]
+	checkpoints   *dbsql.CrudBase[*apitypes.EventStreamCheckpoint]
+	confirmations *dbsql.CrudBase[*apitypes.ConfirmationRecord]
 }
 
 func newSQLPersistence(db *dbsql.Database) *sqlPersistence {

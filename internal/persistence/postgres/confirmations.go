@@ -19,8 +19,41 @@ package postgres
 import (
 	"context"
 
+	sq "github.com/Masterminds/squirrel"
+	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
+
+func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.ConfirmationRecord] {
+	return &dbsql.CrudBase[*apitypes.ConfirmationRecord]{
+		DB:    &psql.Database,
+		Table: "confirmations",
+		Columns: []string{
+			dbsql.ColumnID,
+			dbsql.ColumnCreated,
+			dbsql.ColumnUpdated,
+			"listeners",
+		},
+		FilterFieldMap: map[string]string{
+			"streamid": "id",
+		},
+		NilValue:     func() *apitypes.ConfirmationRecord { return nil },
+		NewInstance:  func() *apitypes.ConfirmationRecord { return &apitypes.ConfirmationRecord{} },
+		ScopedFilter: func() sq.Eq { return sq.Eq{} },
+		EventHandler: nil, // set below
+		GetFieldPtr: func(inst *apitypes.ConfirmationRecord, col string) interface{} {
+			switch col {
+			case dbsql.ColumnID:
+				return &inst.ID
+			case dbsql.ColumnCreated:
+				return &inst.Created
+			case dbsql.ColumnUpdated:
+				return &inst.Updated
+			}
+			return nil
+		},
+	}
+}
 
 func (p *sqlPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]apitypes.BlockInfo, error) {
 	return nil, nil

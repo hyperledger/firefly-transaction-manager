@@ -632,10 +632,12 @@ func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.Listener
 				NotificationType: confirmations.NewEventLog,
 				Event: &confirmations.EventInfo{
 					ID: &event.ID,
-					Confirmed: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
-						// Push it to the batch when confirmed
-						// - Note this will block the confirmation manager when the event stream is blocked
-						es.batchChannel <- fev
+					Confirmations: func(ctx context.Context, notification *confirmations.ConfirmationsNotification) {
+						if notification.Confirmed {
+							// Push it to the batch when confirmed
+							// - Note this will block the confirmation manager when the event stream is blocked
+							es.batchChannel <- fev
+						}
 					},
 				},
 			})

@@ -62,14 +62,14 @@ type Notification struct {
 }
 
 type EventInfo struct {
-	ID        *ffcapi.EventID
-	Confirmed func(ctx context.Context, confirmations []apitypes.BlockInfo)
+	ID            *ffcapi.EventID
+	Confirmations func(ctx context.Context, notification *ConfirmationsNotification)
 }
 
 type TransactionInfo struct {
 	TransactionHash string
 	Receipt         func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse)
-	Confirmed       func(ctx context.Context, confirmations []apitypes.BlockInfo)
+	Confirmations   func(ctx context.Context, notification *ConfirmationsNotification)
 }
 
 type RemovedListenerInfo struct {
@@ -92,6 +92,16 @@ type blockConfirmationManager struct {
 	pendingMux            sync.Mutex
 	staleReceipts         map[string]bool
 	done                  chan struct{}
+}
+
+type ConfirmationsNotification struct {
+	// Confirmed marks we've reached the confirmation threshold
+	Confirmed bool
+	// NewFork is true when NewConfirmations is a complete list of confirmations.
+	// Otherwise, Confirmations is an additive delta on top of a previous list of confirmations.
+	NewFork bool
+	// Confirmations is the list of confirmations being notified - assured to be non-nil, but might be empty.
+	Confirmations []*apitypes.Confirmation
 }
 
 func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API, desc string) Manager {
@@ -122,18 +132,20 @@ const (
 // pendingItem could be a specific event that has been detected, but not confirmed yet.
 // Or it could be a transaction
 type pendingItem struct {
-	pType             pendingType
-	added             time.Time
-	confirmations     []*apitypes.BlockInfo
-	lastReceiptCheck  time.Time
-	receiptCallback   func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse)
-	confirmedCallback func(ctx context.Context, confirmations []apitypes.BlockInfo)
-	transactionHash   string
-	blockHash         string        // can be notified of changes to this for receipts
-	blockNumber       uint64        // known at creation time for event logs
-	transactionIndex  uint64        // known at creation time for event logs
-	logIndex          uint64        // events only
-	listenerID        *fftypes.UUID // events only
+	pType                 pendingType
+	added                 time.Time
+	notifiedConfirmations []*apitypes.Confirmation
+	confirmations         []*apitypes.Confirmation
+	confirmed             bool
+	lastReceiptCheck      time.Time
+	receiptCallback       func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse)
+	confirmationsCallback func(ctx context.Context, notification *ConfirmationsNotification)
+	transactionHash       string
+	blockHash             string        // can be notified of changes to this for receipts
+	blockNumber           uint64        // known at creation time for event logs
+	transactionIndex      uint64        // known at creation time for event logs
+	logIndex              uint64        // events only
+	listenerID            *fftypes.UUID // events only
 }
 
 func pendingKeyForTX(txHash string) string {
@@ -154,39 +166,26 @@ func (pi *pendingItem) getKey() string {
 	}
 }
 
-func (pi *pendingItem) copyConfirmations() []apitypes.BlockInfo {
-	cCopy := make([]apitypes.BlockInfo, len(pi.confirmations))
-	for i, c := range pi.confirmations {
-		cCopy[i] = apitypes.BlockInfo{
-			BlockNumber: c.BlockNumber,
-			BlockHash:   c.BlockHash,
-			ParentHash:  c.ParentHash,
-			// Don't include transaction hash array
-		}
-	}
-	return cCopy
-}
-
 func (n *Notification) eventPendingItem() *pendingItem {
 	return &pendingItem{
-		pType:             pendingTypeEvent,
-		listenerID:        n.Event.ID.ListenerID,
-		blockNumber:       n.Event.ID.BlockNumber.Uint64(),
-		blockHash:         n.Event.ID.BlockHash,
-		transactionHash:   n.Event.ID.TransactionHash,
-		transactionIndex:  n.Event.ID.TransactionIndex.Uint64(),
-		logIndex:          n.Event.ID.LogIndex.Uint64(),
-		confirmedCallback: n.Event.Confirmed,
+		pType:                 pendingTypeEvent,
+		listenerID:            n.Event.ID.ListenerID,
+		blockNumber:           n.Event.ID.BlockNumber.Uint64(),
+		blockHash:             n.Event.ID.BlockHash,
+		transactionHash:       n.Event.ID.TransactionHash,
+		transactionIndex:      n.Event.ID.TransactionIndex.Uint64(),
+		logIndex:              n.Event.ID.LogIndex.Uint64(),
+		confirmationsCallback: n.Event.Confirmations,
 	}
 }
 
 func (n *Notification) transactionPendingItem() *pendingItem {
 	return &pendingItem{
-		pType:             pendingTypeTransaction,
-		lastReceiptCheck:  time.Now(),
-		transactionHash:   n.Transaction.TransactionHash,
-		receiptCallback:   n.Transaction.Receipt,
-		confirmedCallback: n.Transaction.Confirmed,
+		pType:                 pendingTypeTransaction,
+		lastReceiptCheck:      time.Now(),
+		transactionHash:       n.Transaction.TransactionHash,
+		receiptCallback:       n.Transaction.Receipt,
+		confirmationsCallback: n.Transaction.Confirmations,
 	}
 }
 
@@ -433,7 +432,7 @@ func (bcm *blockConfirmationManager) checkReceipt(pending *pendingItem, blocks *
 		}
 
 		if bcm.requiredConfirmations == 0 {
-			bcm.dispatchConfirmed(pending)
+			bcm.dispatchConfirmations(pending)
 		} else {
 			// Need to walk the chain for this new receipt
 			if err = bcm.walkChainForItem(pending, blocks); err != nil {
@@ -463,7 +462,7 @@ func (bcm *blockConfirmationManager) addOrReplaceItem(pending *pendingItem) {
 	bcm.pendingMux.Lock()
 	defer bcm.pendingMux.Unlock()
 	pending.added = time.Now()
-	pending.confirmations = make([]*apitypes.BlockInfo, 0, bcm.requiredConfirmations)
+	pending.confirmations = make([]*apitypes.Confirmation, 0, bcm.requiredConfirmations)
 	pendingKey := pending.getKey()
 	bcm.pending[pendingKey] = pending
 	log.L(bcm.ctx).Infof("Added pending item %s", pendingKey)
@@ -522,17 +521,23 @@ func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 	// Go through all the events, adding in the confirmations, and popping any out
 	// that have reached their threshold. Then drop the log before logging/processing them.
 	blockNumber := block.BlockNumber.Uint64()
-	var confirmed pendingItems
+	var notifications pendingItems
 	for pendingKey, pending := range bcm.pending {
 		if pending.blockHash != "" {
 
 			// The block might appear at any point in the confirmation list
+			newConfirmations := false
 			expectedParentHash := pending.blockHash
 			expectedBlockNumber := pending.blockNumber + 1
 			for i := 0; i < (len(pending.confirmations) + 1); i++ {
 				l.Tracef("Comparing block number=%d parent=%s to %d / %s for %s", blockNumber, block.ParentHash, expectedBlockNumber, expectedParentHash, pendingKey)
 				if block.ParentHash == expectedParentHash && blockNumber == expectedBlockNumber {
-					pending.confirmations = append(pending.confirmations[0:i], block)
+					pending.confirmations = append(pending.confirmations[0:i], &apitypes.Confirmation{
+						BlockNumber: block.BlockNumber,
+						BlockHash:   block.BlockHash,
+						ParentHash:  block.ParentHash,
+					})
+					newConfirmations = true
 					l.Infof("Confirmation %d at block %d / %s item=%s",
 						len(pending.confirmations), block.BlockNumber, block.BlockHash, pending.getKey())
 					break
@@ -543,27 +548,54 @@ func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 				expectedBlockNumber++
 			}
 			if len(pending.confirmations) >= bcm.requiredConfirmations {
-				confirmed = append(confirmed, pending)
+				pending.confirmed = true
 			}
-
+			if pending.confirmed || newConfirmations {
+				notifications = append(notifications, pending)
+			}
 		}
 	}
 
 	// Sort the events to dispatch them in the correct order
-	sort.Sort(confirmed)
-	for _, c := range confirmed {
-		bcm.dispatchConfirmed(c)
+	sort.Sort(notifications)
+	for _, item := range notifications {
+		bcm.dispatchConfirmations(item)
 	}
 
 }
 
 // dispatchConfirmed drive the event stream for any events that are confirmed, and prunes the state
-func (bcm *blockConfirmationManager) dispatchConfirmed(item *pendingItem) {
+func (bcm *blockConfirmationManager) dispatchConfirmations(item *pendingItem) {
 	pendingKey := item.getKey()
-	bcm.removeItem(pendingKey, false)
+	if item.confirmed {
+		bcm.removeItem(pendingKey, false)
+	}
 
-	log.L(bcm.ctx).Infof("Confirmed with %d confirmations event=%s", len(item.confirmations), pendingKey)
-	item.confirmedCallback(bcm.ctx, item.copyConfirmations() /* a safe copy outside of our cache */)
+	// We keep track of the last confirmation we sent, to allow the target code to be efficient
+	// on how it stores the confirmations as they arrive. If it's just additive, it can just
+	// write the additive confirmations as they arrive. If we've gone down a different fork,
+	// or this is the first notification, then it needs to replace any previously persisted
+	// list of confirmations with the new set.
+	newFork := len(item.notifiedConfirmations) == 0 // first confirmation notification is always marked newFork
+	notificationConfirmations := make([]*apitypes.Confirmation, 0, len(item.confirmations))
+	for i, c := range item.confirmations {
+		if !newFork && i < len(item.notifiedConfirmations) {
+			newFork = c.BlockHash != item.notifiedConfirmations[i].BlockHash
+		}
+		notificationConfirmations = append(notificationConfirmations, c)
+	}
+
+	notification := &ConfirmationsNotification{
+		Confirmed:     item.confirmed,
+		NewFork:       newFork,
+		Confirmations: notificationConfirmations,
+	}
+	item.notifiedConfirmations = notificationConfirmations
+	log.L(bcm.ctx).Infof("Confirmation notification item=%s confirmed=%t confirmations=%d newFork=%t notifiedConfirmations=%d",
+		pendingKey, notification.Confirmed, len(item.confirmations),
+		notification.NewFork, len(notificationConfirmations))
+	item.confirmationsCallback(bcm.ctx, notification)
+
 }
 
 // walkChain goes through each event and sees whether it's valid,
@@ -650,7 +682,7 @@ func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem, bloc
 		// No point in walking past the highest block we've seen via the notifier
 		if bcm.highestBlockSeen > 0 && blockNumber > bcm.highestBlockSeen {
 			log.L(bcm.ctx).Debugf("Waiting for confirmation after block %d event=%s", bcm.highestBlockSeen, pendingKey)
-			return nil
+			break
 		}
 		block, err := blocks.getByNumber(blockNumber, expectedParentHash)
 		if err != nil {
@@ -658,21 +690,25 @@ func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem, bloc
 		}
 		if block == nil {
 			log.L(bcm.ctx).Infof("Block %d unavailable walking chain event=%s", blockNumber, pendingKey)
-			return nil
+			break
 		}
 		candidateParentHash := block.ParentHash
 		if candidateParentHash != expectedParentHash {
 			log.L(bcm.ctx).Infof("Block mismatch in confirmations: block=%d expected=%s actual=%s confirmations=%d event=%s", blockNumber, expectedParentHash, candidateParentHash, len(pending.confirmations), pendingKey)
-			return nil
+			break
 		}
-		pending.confirmations = append(pending.confirmations, block)
+		pending.confirmations = append(pending.confirmations, apitypes.ConfirmationFromBlock(block))
 		if len(pending.confirmations) >= bcm.requiredConfirmations {
-			// Ready for dispatch
-			bcm.dispatchConfirmed(pending)
-			return nil
+			pending.confirmed = true
+			break
 		}
 		blockNumber++
 		expectedParentHash = block.BlockHash
 	}
+	// Notify the new confirmation set
+	if pending.confirmed || len(pending.confirmations) > 0 {
+		bcm.dispatchConfirmations(pending)
+	}
+	return nil
 
 }

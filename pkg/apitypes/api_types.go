@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"reflect"
 
+	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/jsonmap"
@@ -313,4 +314,24 @@ func (e *EventWithContext) UnmarshalJSON(b []byte) error {
 		}
 	}
 	return err
+}
+
+func ConfirmationFromBlock(block *BlockInfo) *Confirmation {
+	return &Confirmation{
+		BlockNumber: block.BlockNumber,
+		BlockHash:   block.BlockHash,
+		ParentHash:  block.ParentHash,
+	}
+}
+
+type Confirmation struct {
+	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
+	BlockHash   string           `json:"blockHash"`
+	ParentHash  string           `json:"parentHash"`
+}
+
+type ConfirmationRecord struct {
+	dbsql.ResourceBase        // default persistence headers for this micro object
+	TransactionID      string `json:"transaction"` // owning transaction
+	*Confirmation
 }
