@@ -878,21 +878,21 @@ func TestManagedTXSubStatusRepeat(t *testing.T) {
 	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(txh.History))
-	assert.Equal(t, 1, len(txh.HistorySummary))
+	assert.Equal(t, 1, len(txh.DeprecatedHistorySummary))
 
 	// Add another sub-status
 	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusTracking)
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
 	assert.Equal(t, 2, len(txh.History))
-	assert.Equal(t, 2, len(txh.HistorySummary))
+	assert.Equal(t, 2, len(txh.DeprecatedHistorySummary))
 
 	// Add another that we've seen before
 	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
-	assert.Equal(t, 3, len(txh.History))        // This goes up
-	assert.Equal(t, 2, len(txh.HistorySummary)) // This doesn't
+	assert.Equal(t, 3, len(txh.History))                  // This goes up
+	assert.Equal(t, 2, len(txh.DeprecatedHistorySummary)) // This doesn't
 }
 
 func TestManagedTXSubStatusAction(t *testing.T) {
@@ -970,7 +970,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	// History is the complete list of unique sub-status types and actions
 	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, 5, len(txh.HistorySummary))
+	assert.Equal(t, 5, len(txh.DeprecatedHistorySummary))
 
 	// Add some new sub-status and actions to check max lengths are correct
 	// Seen one of these before - should increase summary length by 1
@@ -979,7 +979,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil)
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
-	assert.Equal(t, 6, len(txh.HistorySummary))
+	assert.Equal(t, 6, len(txh.DeprecatedHistorySummary))
 
 	// Seen both of these before - no change expected
 	err = p.SetSubStatus(ctx, mtx.ID, apitypes.TxSubStatusReceived)
@@ -988,10 +988,10 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithHistory(ctx, mtx.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, 6, len(txh.HistorySummary))
+	assert.Equal(t, 6, len(txh.DeprecatedHistorySummary))
 
 	// Sanity check the history summary entries
-	for _, historyEntry := range txh.HistorySummary {
+	for _, historyEntry := range txh.DeprecatedHistorySummary {
 		assert.NotNil(t, historyEntry.FirstOccurrence)
 		assert.NotNil(t, historyEntry.LastOccurrence)
 		assert.GreaterOrEqual(t, historyEntry.Count, 1)
@@ -1130,7 +1130,7 @@ func TestMaxHistoryCountSetToZero(t *testing.T) {
 	txh, err := p.GetTransactionByIDWithHistory(ctx, mtx.ID)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, len(txh.History))
-	assert.Equal(t, 0, len(txh.HistorySummary))
+	assert.Equal(t, 0, len(txh.DeprecatedHistorySummary))
 
 }
 

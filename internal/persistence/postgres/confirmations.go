@@ -21,26 +21,28 @@ import (
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
 func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.ConfirmationRecord] {
-	return &dbsql.CrudBase[*apitypes.ConfirmationRecord]{
+	collection := &dbsql.CrudBase[*apitypes.ConfirmationRecord]{
 		DB:    &psql.Database,
 		Table: "confirmations",
 		Columns: []string{
 			dbsql.ColumnID,
 			dbsql.ColumnCreated,
 			dbsql.ColumnUpdated,
-			"listeners",
+			"blocknumber",
+			"blockhash",
+			"parenthash",
 		},
-		FilterFieldMap: map[string]string{
-			"streamid": "id",
-		},
-		NilValue:     func() *apitypes.ConfirmationRecord { return nil },
-		NewInstance:  func() *apitypes.ConfirmationRecord { return &apitypes.ConfirmationRecord{} },
-		ScopedFilter: func() sq.Eq { return sq.Eq{} },
-		EventHandler: nil, // set below
+		FilterFieldMap: map[string]string{},
+		NilValue:       func() *apitypes.ConfirmationRecord { return nil },
+		NewInstance:    func() *apitypes.ConfirmationRecord { return &apitypes.ConfirmationRecord{} },
+		ScopedFilter:   func() sq.Eq { return sq.Eq{} },
+		EventHandler:   nil, // set below
 		GetFieldPtr: func(inst *apitypes.ConfirmationRecord, col string) interface{} {
 			switch col {
 			case dbsql.ColumnID:
@@ -49,16 +51,40 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 				return &inst.Created
 			case dbsql.ColumnUpdated:
 				return &inst.Updated
+			case "blocknumber":
+				return &inst.BlockNumber
+			case "blockhash":
+				return &inst.BlockHash
+			case "parenthash":
+				return &inst.ParentHash
 			}
 			return nil
 		},
 	}
+	collection.Validate()
+	return collection
 }
 
 func (p *sqlPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error) {
+	records, _, err := p.confirmations.GetMany(ctx, persistence.ConfirmationFilters.NewFilter(ctx).Eq("id", txID))
+	if err != nil {
+		return nil, err
+	}
+	confirmations := make([]*apitypes.Confirmation, len(records))
+	for i, r := range records {
+		confirmations[i] = r.Confirmation
+	}
 	return nil, nil
 }
 
 func (p *sqlPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error {
 	return nil
+}
+
+func (p *sqlPersistence) ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.Filter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error) {
+	fb := persistence.ConfirmationFilters.NewFilter(ctx)
+	return p.confirmations.GetMany(ctx, fb.And(
+		fb.Eq("id", txID),
+		filter,
+	))
 }

@@ -646,7 +646,7 @@ func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apity
 	// get purged at some point) we keep a separate list of all the discrete types of sub-status
 	// and action we've we've ever seen for this transaction along with a count of them. This means an early sub-status
 	// (e.g. "queued") followed by 100s of different sub-status types will still be recorded
-	for _, statusType := range tx.HistorySummary {
+	for _, statusType := range tx.DeprecatedHistorySummary {
 		if statusType.Status == subStatus {
 			// Just increment the counter and last timestamp
 			statusType.LastOccurrence = fftypes.Now()
@@ -655,7 +655,7 @@ func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apity
 		}
 	}
 
-	tx.HistorySummary = append(tx.HistorySummary, &apitypes.TxHistorySummaryEntry{Status: subStatus, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
+	tx.DeprecatedHistorySummary = append(tx.DeprecatedHistorySummary, &apitypes.TxHistorySummaryEntry{Status: subStatus, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
 }
 
 func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
@@ -719,7 +719,7 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 
 	// Check if the history summary needs updating
 	found := false
-	for _, actionType := range tx.HistorySummary {
+	for _, actionType := range tx.DeprecatedHistorySummary {
 		if actionType.Action == action {
 			// Just increment the counter and last timestamp
 			actionType.LastOccurrence = fftypes.Now()
@@ -729,7 +729,7 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 		}
 	}
 	if !found {
-		tx.HistorySummary = append(tx.HistorySummary, &apitypes.TxHistorySummaryEntry{Action: action, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
+		tx.DeprecatedHistorySummary = append(tx.DeprecatedHistorySummary, &apitypes.TxHistorySummaryEntry{Action: action, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
 	}
 	return p.writeTransaction(ctx, tx, false)
 }

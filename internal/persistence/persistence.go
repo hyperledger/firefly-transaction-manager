@@ -59,10 +59,18 @@ var TransactionFilters = &ffapi.QueryFields{
 	// TODO: complete
 }
 
+var ConfirmationFilters = &ffapi.QueryFields{
+	"id":          &ffapi.UUIDField{},
+	"blocknumber": &ffapi.Int64Field{},
+	"blockhash":   &ffapi.StringField{},
+	"parenthash":  &ffapi.StringField{},
+}
+
 type RichQuery interface {
 	ListStreams(ctx context.Context, filter ffapi.Filter) ([]*apitypes.EventStream, *ffapi.FilterResult, error)
 	ListListeners(ctx context.Context, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
 	ListTransactions(ctx context.Context, filter ffapi.Filter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error)
+	ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.Filter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error)
 	ListStreamListeners(ctx context.Context, streamID *fftypes.UUID, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
 }
 

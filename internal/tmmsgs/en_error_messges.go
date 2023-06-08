@@ -97,4 +97,6 @@ var (
 	MsgTHMetricsDuplicateName                  = ffe("FF21080", "Transaction handler metrics registration invalid name already registered: %s")
 	MsgInvalidNonRichQuery                     = ffe("FF21081", "Rich query is not supported by persistence. Query params limited to %v")
 	MsgSQLScanFailed                           = ffe("FF21082", "Failed to read value from DB (%T)")
+	MsgShuttingDown                            = ffe("FF21083", "Connector shutdown initiated", 500)
+	MsgTransactionPersistenceError             = ffe("FF21084", "Failed to persist transaction data", 500)
 )

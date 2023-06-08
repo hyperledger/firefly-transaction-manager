@@ -261,7 +261,7 @@ func TestEventStreamCheckpoint(t *testing.T) {
 			*fftypes.NewUUID(): json.RawMessage([]byte(`{"some":"data"}`)),
 		},
 	}
-	assert.Equal(t, cp.StreamID, cp.GetID())
+	assert.Equal(t, cp.StreamID.String(), cp.GetID())
 	t1 := fftypes.Now()
 	cp.SetCreated(t1)
 	assert.Equal(t, t1, cp.FirstCheckpoint)
@@ -285,5 +285,19 @@ func TestEventStreamCheckpoint(t *testing.T) {
 	cp1 = &EventStreamCheckpoint{}
 	err = cp1.Listeners.Scan(12345)
 	assert.Regexp(t, "FF21082", err)
+
+}
+
+func TestConfirmationFromBlock(t *testing.T) {
+
+	bi := &BlockInfo{
+		BlockNumber: fftypes.FFuint64(12345),
+		BlockHash:   "hash1",
+		ParentHash:  "parent1",
+	}
+	c := ConfirmationFromBlock(bi)
+	assert.Equal(t, bi.BlockNumber, c.BlockNumber)
+	assert.Equal(t, bi.BlockHash, c.BlockHash)
+	assert.Equal(t, bi.ParentHash, c.ParentHash)
 
 }

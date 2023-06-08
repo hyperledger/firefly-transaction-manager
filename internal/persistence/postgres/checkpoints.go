@@ -19,14 +19,13 @@ package postgres
 import (
 	"context"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
 func (p *sqlPersistence) newCheckpointCollection() *dbsql.CrudBase[*apitypes.EventStreamCheckpoint] {
-	return &dbsql.CrudBase[*apitypes.EventStreamCheckpoint]{
+	collection := &dbsql.CrudBase[*apitypes.EventStreamCheckpoint]{
 		DB:    &psql.Database,
 		Table: "checkpoints",
 		Columns: []string{
@@ -40,7 +39,6 @@ func (p *sqlPersistence) newCheckpointCollection() *dbsql.CrudBase[*apitypes.Eve
 		},
 		NilValue:     func() *apitypes.EventStreamCheckpoint { return nil },
 		NewInstance:  func() *apitypes.EventStreamCheckpoint { return &apitypes.EventStreamCheckpoint{} },
-		ScopedFilter: func() sq.Eq { return sq.Eq{} },
 		EventHandler: nil, // set below
 		GetFieldPtr: func(inst *apitypes.EventStreamCheckpoint, col string) interface{} {
 			switch col {
@@ -59,6 +57,8 @@ func (p *sqlPersistence) newCheckpointCollection() *dbsql.CrudBase[*apitypes.Eve
 			return nil
 		},
 	}
+	collection.Validate()
+	return collection
 }
 
 func (p *sqlPersistence) WriteCheckpoint(ctx context.Context, checkpoint *apitypes.EventStreamCheckpoint) error {
@@ -69,9 +69,9 @@ func (p *sqlPersistence) WriteCheckpoint(ctx context.Context, checkpoint *apityp
 }
 
 func (p *sqlPersistence) GetCheckpoint(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStreamCheckpoint, error) {
-	return p.checkpoints.GetByID(ctx, streamID)
+	return p.checkpoints.GetByID(ctx, streamID.String())
 }
 
 func (p *sqlPersistence) DeleteCheckpoint(ctx context.Context, streamID *fftypes.UUID) error {
-	return p.checkpoints.Delete(ctx, streamID)
+	return p.checkpoints.Delete(ctx, streamID.String())
 }

@@ -112,8 +112,8 @@ func (l CheckpointListeners) Value() (driver.Value, error) {
 	return json.Marshal(l)
 }
 
-func (cp *EventStreamCheckpoint) GetID() *fftypes.UUID {
-	return cp.StreamID
+func (cp *EventStreamCheckpoint) GetID() string {
+	return cp.StreamID.String()
 }
 
 func (cp *EventStreamCheckpoint) SetCreated(t *fftypes.FFTime) {

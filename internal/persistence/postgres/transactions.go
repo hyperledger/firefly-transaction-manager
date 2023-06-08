@@ -19,11 +19,93 @@ package postgres
 import (
 	"context"
 
+	sq "github.com/Masterminds/squirrel"
+	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
+
+func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.ManagedTX] {
+	collection := &dbsql.CrudBase[*apitypes.ManagedTX]{
+		DB:    &psql.Database,
+		Table: "transactions",
+		Columns: []string{
+			dbsql.ColumnID,
+			dbsql.ColumnCreated,
+			dbsql.ColumnUpdated,
+			"status",
+			"delete",
+			"from",
+			"to",
+			"nonce",
+			"gas",
+			"value",
+			"gasprice",
+			"tx_data",
+			"tx_hash",
+			"policy_info",
+			"first_submit",
+			"last_submit",
+			"error_message",
+		},
+		FilterFieldMap: map[string]string{
+			"transactiondata": "tx_data",
+			"transactionhash": "tx_hash",
+			"deleterequested": "delete",
+			"policyinfo":      "policy_info",
+			"firstsubmit":     "first_submit",
+			"lastsubmit":      "last_submit",
+			"errormessage":    "error_message",
+		},
+		NilValue:     func() *apitypes.ManagedTX { return nil },
+		NewInstance:  func() *apitypes.ManagedTX { return &apitypes.ManagedTX{} },
+		ScopedFilter: func() sq.Eq { return sq.Eq{} },
+		EventHandler: nil, // set below
+		GetFieldPtr: func(inst *apitypes.ManagedTX, col string) interface{} {
+			switch col {
+			case dbsql.ColumnID:
+				return &inst.ID
+			case dbsql.ColumnCreated:
+				return &inst.Created
+			case dbsql.ColumnUpdated:
+				return &inst.Updated
+			case "status":
+				return &inst.Status
+			case "delete":
+				return &inst.DeleteRequested
+			case "from":
+				return &inst.From
+			case "to":
+				return &inst.To
+			case "nonce":
+				return &inst.Nonce
+			case "gas":
+				return &inst.Gas
+			case "value":
+				return &inst.Value
+			case "gasprice":
+				return &inst.GasPrice
+			case "tx_data":
+				return &inst.TransactionData
+			case "tx_hash":
+				return &inst.TransactionHash
+			case "policy_info":
+				return &inst.PolicyInfo
+			case "first_submit":
+				return &inst.FirstSubmit
+			case "last_submit":
+				return &inst.LastSubmit
+			case "error_message":
+				return &inst.ErrorMessage
+			}
+			return nil
+		},
+	}
+	collection.Validate()
+	return collection
+}
 
 func (p *sqlPersistence) ListTransactions(ctx context.Context, filter ffapi.Filter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error) {
 	return nil, nil, nil

@@ -27,12 +27,14 @@ import (
 type sqlPersistence struct {
 	db *dbsql.Database
 
+	transactions  *dbsql.CrudBase[*apitypes.ManagedTX]
 	checkpoints   *dbsql.CrudBase[*apitypes.EventStreamCheckpoint]
 	confirmations *dbsql.CrudBase[*apitypes.ConfirmationRecord]
 }
 
 func newSQLPersistence(db *dbsql.Database) *sqlPersistence {
 	p := &sqlPersistence{db: db}
+	p.transactions = p.newTransactionCollection()
 	p.checkpoints = p.newCheckpointCollection()
 	p.confirmations = p.newConfirmationsCollection()
 	return p

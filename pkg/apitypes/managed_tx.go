@@ -74,6 +74,8 @@ type TxHistorySummaryEntry struct {
 type TxAction string
 
 const (
+	// TxActionStateTransition is a special value used for state transition entries, which are created using SetSubStatus
+	TxActionStateTransition TxAction = "StateTransition"
 	// TxActionAssignNonce indicates that a nonce has been assigned to the transaction
 	TxActionAssignNonce TxAction = "AssignNonce"
 	// TxActionRetrieveGasPrice indicates the operation is getting a gas price
@@ -103,6 +105,26 @@ type TxHistoryActionEntry struct {
 	LastInfo       *fftypes.JSONAny `json:"lastInfo,omitempty"`
 }
 
+// TXHistoryRecord are the sequential persisted records, which might be state transitions, or actions within the current state.
+// Note LevelDB does not use this, as the []*TxHistoryStateTransitionEntry array is maintained directly on the large single JSON document
+type TXHistoryRecord struct {
+	ID            *fftypes.UUID `json:"id"`          // unique identifier for this entry
+	TransactionID string        `json:"transaction"` // owning transaction
+	TxHistoryActionEntry
+}
+
+func (r *TXHistoryRecord) GetID() string {
+	return r.ID.String()
+}
+
+func (r *TXHistoryRecord) SetCreated(t *fftypes.FFTime) {
+	r.Time = t
+}
+
+func (r *TXHistoryRecord) SetUpdated(t *fftypes.FFTime) {
+	panic("no updated column for action records") // We use Crud.NoUpdateColumn to avoid this being called
+}
+
 // ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
 //
 // Indexing:
@@ -126,7 +148,7 @@ type ManagedTX struct {
 	Updated         *fftypes.FFTime `json:"updated"`
 	Status          TxStatus        `json:"status"`
 	DeleteRequested *fftypes.FFTime `json:"deleteRequested,omitempty"`
-	SequenceID      string          `json:"sequenceId"`
+	SequenceID      string          `json:"sequenceId,omitempty"`
 	ffcapi.TransactionHeaders
 	GasPrice        *fftypes.JSONAny `json:"gasPrice"`
 	TransactionData string           `json:"transactionData"`
@@ -135,6 +157,18 @@ type ManagedTX struct {
 	FirstSubmit     *fftypes.FFTime  `json:"firstSubmit,omitempty"`
 	LastSubmit      *fftypes.FFTime  `json:"lastSubmit,omitempty"`
 	ErrorMessage    string           `json:"errorMessage,omitempty"`
+}
+
+func (mtx *ManagedTX) GetID() string {
+	return mtx.ID
+}
+
+func (mtx *ManagedTX) SetCreated(t *fftypes.FFTime) {
+	mtx.Created = t
+}
+
+func (mtx *ManagedTX) SetUpdated(t *fftypes.FFTime) {
+	mtx.Updated = t
 }
 
 // TXUpdates specifies a set of updates that are possible on the base structure.
@@ -173,9 +207,9 @@ type TXWithStatus struct {
 	*ManagedTX
 	Receipt                      *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
 	Confirmations                []*Confirmation                    `json:"confirmations,omitempty"`
-	DeprecatedTransactionHeaders *ffcapi.TransactionHeaders         `json:"transactionHeaders,omitempty"` // for historical reasons we duplicate these fields at the base too on this query structure
+	DeprecatedTransactionHeaders *ffcapi.TransactionHeaders         `json:"transactionHeaders,omitempty"` // LevelDB only: for historical reasons we duplicate these fields at the base too on this query structure
+	DeprecatedHistorySummary     []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`     // LevelDB only: maintains a summary to retain data while limiting single JSON payload size
 	History                      []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
-	HistorySummary               []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`
 }
 
 func (mtx *ManagedTX) Namespace(ctx context.Context) string {
