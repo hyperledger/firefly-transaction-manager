@@ -22,10 +22,36 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestNewTransactionWriterBadConfig(t *testing.T) {
+	badconf := config.RootSection("ut")
+	InitConfig(badconf)
+	badconf.Set(ConfigTXWriterHistoryCacheSlots, -1)
+	_, err := newTransactionWriter(context.Background(), &sqlPersistence{}, badconf)
+	assert.Regexp(t, "must provide a positive size", err)
+}
+
+func TestExecuteBatchOpsInsertTXFailWrapped(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	mdb.ExpectBegin()
+	mdb.ExpectExec("INSERT.*").WillReturnError(fmt.Errorf("pop"))
+	mdb.ExpectRollback()
+
+	p.writer.runBatch(ctx, &transactionWriterBatch{
+		ops: []*transactionOperation{
+			{txID: "1", txInsert: &apitypes.ManagedTX{}, done: make(chan error, 1)},
+		},
+	})
+
+	mdb.ExpectationsWereMet()
+}
 
 func TestExecuteBatchOpsInsertTXFail(t *testing.T) {
 	ctx, p, mdb, done := newMockSQLPersistence(t)
@@ -205,4 +231,33 @@ func TestExecuteBatchOpsDeleteTXReceiptFail(t *testing.T) {
 	assert.Regexp(t, "FF00179", err)
 
 	mdb.ExpectationsWereMet()
+}
+
+func TestFlushOpClosedContext(t *testing.T) {
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	cancelCtx()
+	err := newTransactionOperation("tx1").flush(ctx)
+	assert.Regexp(t, "FF00154", err)
+}
+
+func TestQueueClosedBGContext(t *testing.T) {
+	_, p, _, done := newMockSQLPersistence(t)
+	done()
+
+	op := newTransactionOperation("tx1")
+	p.writer.queue(context.Background(), op)
+	err := op.flush(context.Background())
+	assert.Regexp(t, "FF21083", err)
+
+}
+
+func TestQueueClosedContext(t *testing.T) {
+	_, p, _, done := newMockSQLPersistence(t)
+	done()
+	p.writer.bgCtx = context.Background()
+
+	closedCtx, cancelCtx := context.WithCancel(context.Background())
+	cancelCtx()
+	p.writer.queue(closedCtx, newTransactionOperation("tx1"))
+
 }

@@ -38,6 +38,9 @@ func newMockSQLPersistence(t *testing.T) (context.Context, *sqlPersistence, sqlm
 	p, err := newSQLPersistence(ctx, &db.Database, dbconf)
 	assert.NoError(t, err)
 
-	return ctx, p, dbm, cancelCtx
+	return ctx, p, dbm, func() {
+		cancelCtx()
+		p.Close(ctx)
+	}
 
 }

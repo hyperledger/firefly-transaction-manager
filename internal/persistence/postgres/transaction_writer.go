@@ -145,6 +145,7 @@ func (tw *transactionWriter) queue(ctx context.Context, op *transactionOperation
 }
 
 func (tw *transactionWriter) worker(i int) {
+	defer close(tw.workersDone[i])
 	workerID := fmt.Sprintf("tx_writer_%.4d", i)
 	ctx := log.WithLogField(tw.bgCtx, "job", workerID)
 	var batch *transactionWriterBatch
@@ -187,7 +188,6 @@ func (tw *transactionWriter) worker(i int) {
 }
 
 func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterBatch) {
-
 	err := tw.p.db.RunAsGroup(ctx, func(ctx context.Context) error {
 		// Build all the batch insert operations
 		b.confirmationResets = make(map[string]bool)
