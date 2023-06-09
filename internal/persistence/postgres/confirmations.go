@@ -19,7 +19,6 @@ package postgres
 import (
 	"context"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
@@ -34,15 +33,20 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 			dbsql.ColumnID,
 			dbsql.ColumnCreated,
 			dbsql.ColumnUpdated,
-			"blocknumber",
-			"blockhash",
-			"parenthash",
+			"tx_id",
+			"block_number",
+			"block_hash",
+			"parent_hash",
 		},
-		FilterFieldMap: map[string]string{},
-		NilValue:       func() *apitypes.ConfirmationRecord { return nil },
-		NewInstance:    func() *apitypes.ConfirmationRecord { return &apitypes.ConfirmationRecord{} },
-		ScopedFilter:   func() sq.Eq { return sq.Eq{} },
-		EventHandler:   nil, // set below
+		FilterFieldMap: map[string]string{
+			"transaction":  "tx_id",
+			"block_number": "block_number",
+			"block_hash":   "block_hash",
+			"parent_hash":  "parent_hash",
+		},
+		PatchDisabled: true,
+		NilValue:      func() *apitypes.ConfirmationRecord { return nil },
+		NewInstance:   func() *apitypes.ConfirmationRecord { return &apitypes.ConfirmationRecord{} },
 		GetFieldPtr: func(inst *apitypes.ConfirmationRecord, col string) interface{} {
 			switch col {
 			case dbsql.ColumnID:
@@ -51,6 +55,8 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 				return &inst.Created
 			case dbsql.ColumnUpdated:
 				return &inst.Updated
+			case "tx_id":
+				return &inst.TransactionID
 			case "blocknumber":
 				return &inst.BlockNumber
 			case "blockhash":

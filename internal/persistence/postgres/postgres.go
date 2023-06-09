@@ -41,17 +41,11 @@ type Postgres struct {
 
 var psql *Postgres
 
-// InitConfig gets called after config reset to initialize the config structure
-func InitConfig(conf config.Section) {
-	psql = &Postgres{}
-	psql.Database.InitConfig(psql, conf)
-}
-
-func NewPostgresPersistence(ctx context.Context, conf config.Section) (persistence.Persistence, error) {
-	if err := psql.Database.Init(ctx, psql, conf); err != nil {
+func NewPostgresPersistence(bgCtx context.Context, conf config.Section) (persistence.Persistence, error) {
+	if err := psql.Database.Init(bgCtx, psql, conf); err != nil {
 		return nil, err
 	}
-	return newSQLPersistence(&psql.Database), nil
+	return newSQLPersistence(bgCtx, &psql.Database, conf)
 }
 
 func (psql *Postgres) Init(ctx context.Context, config config.Section) error {

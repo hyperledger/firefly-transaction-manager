@@ -56,7 +56,23 @@ var ListenerFilters = &ffapi.QueryFields{
 }
 
 var TransactionFilters = &ffapi.QueryFields{
-	// TODO: complete
+	"id":              &ffapi.StringField{},
+	"created":         &ffapi.TimeField{},
+	"updated":         &ffapi.TimeField{},
+	"status":          &ffapi.StringField{},
+	"deleterequested": &ffapi.BoolField{},
+	"from":            &ffapi.StringField{},
+	"to":              &ffapi.StringField{},
+	"nonce":           &ffapi.BigIntField{},
+	"gas":             &ffapi.BigIntField{},
+	"value":           &ffapi.BigIntField{},
+	"gasprice":        &ffapi.BigIntField{},
+	"transactiondata": &ffapi.StringField{},
+	"transcationhash": &ffapi.StringField{},
+	"policyinfo":      &ffapi.JSONField{},
+	"firstsubmit":     &ffapi.TimeField{},
+	"lastsubmit":      &ffapi.TimeField{},
+	"errormessage":    &ffapi.StringField{},
 }
 
 var ConfirmationFilters = &ffapi.QueryFields{
@@ -64,6 +80,19 @@ var ConfirmationFilters = &ffapi.QueryFields{
 	"blocknumber": &ffapi.Int64Field{},
 	"blockhash":   &ffapi.StringField{},
 	"parenthash":  &ffapi.StringField{},
+}
+
+var ReceiptFilters = &ffapi.QueryFields{
+	"transaction":      &ffapi.StringField{},
+	"created":          &ffapi.TimeField{},
+	"updated":          &ffapi.TimeField{},
+	"blocknumber":      &ffapi.Int64Field{},
+	"transactionindex": &ffapi.BigIntField{},
+	"blockhash":        &ffapi.StringField{},
+	"success":          &ffapi.BoolField{},
+	"protocolid":       &ffapi.StringField{},
+	"extrainfo":        &ffapi.JSONField{},
+	"contractlocation": &ffapi.JSONField{},
 }
 
 type RichQuery interface {
@@ -114,6 +143,5 @@ type TransactionPersistence interface {
 }
 
 type TransactionHistoryPersistence interface {
-	SetSubStatus(ctx context.Context, txID string, subStatus apitypes.TxSubStatus) error
-	AddSubStatusAction(ctx context.Context, txID string, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error
+	AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error
 }

@@ -190,6 +190,16 @@
 |auto|Enables automatic database migrations|`boolean`|`false`
 |directory|The directory containing the numerically ordered migration DDL files to apply to the database|`string`|`./db/migrations/postgres`
 
+## persistence.postgres.txwriter
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|batchSize|Number of persistence operations on transactions to attempt to group into a DB transaction|`int`|`100`
+|batchTimeout|Duration to hold batch open for new transaction operations before flushing to the DB|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10ms`
+|cacheSlots|Number of transactions to hold cached metadata for to avoid DB read operations to calculate history|`int`|`1000`
+|count|Number of transactions writing routines to start|`int`|`5`
+|historyCompactionInterval|Duration between cleanup activities on the DB for a transaction with a large history|[`time.Duration`](https://pkg.go.dev/time#Duration)|`5m`
+
 ## policyengine
 
 |Key|Description|Type|Default Value|

@@ -606,20 +606,8 @@ func (p *leveldbPersistence) DeleteTransaction(ctx context.Context, txID string)
 	)
 }
 
-func (p *leveldbPersistence) SetSubStatus(ctx context.Context, txID string, subStatus apitypes.TxSubStatus) error {
-	tx, err := p.getPersistedTX(ctx, txID)
-	if err != nil {
-		return err
-	}
-	p.setSubStatusInStruct(ctx, tx, subStatus)
-	return p.writeTransaction(ctx, tx, false)
-}
-
 func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apitypes.TXWithStatus, subStatus apitypes.TxSubStatus) {
-	if p.maxHistoryCount <= 0 {
-		// if history is turned off, it's a no op
-		return
-	}
+
 	// See if the status being transitioned to is the same as the current status.
 	// If so, there's nothing to do.
 	if len(tx.History) > 0 {
@@ -658,7 +646,8 @@ func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apity
 	tx.DeprecatedHistorySummary = append(tx.DeprecatedHistorySummary, &apitypes.TxHistorySummaryEntry{Status: subStatus, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
 }
 
-func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
+func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
+
 	tx, err := p.getPersistedTX(ctx, txID)
 	if err != nil {
 		return err
@@ -668,11 +657,8 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 		return nil
 	}
 
-	// check there is a parent sub status to add actions to
-	if len(tx.History) == 0 {
-		// if there is no sub status, add a sub status with the first possible sub status: received
-		p.setSubStatusInStruct(ctx, tx, apitypes.TxSubStatusReceived)
-	}
+	// Ensure structure is updated to latest sub status
+	p.setSubStatusInStruct(ctx, tx, subStatus)
 
 	// See if this action exists in the list already since we only want to update the single entry, not
 	// add a new one

@@ -19,25 +19,55 @@ package postgres
 import (
 	"context"
 
+	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
+const (
+	ConfigTXWriterHistoryCacheSlots         = "txwriter.cacheSlots"
+	ConfigTXWriterHistoryCompactionInterval = "txwriter.historyCompactionInterval"
+	ConfigTXWriterCount                     = "txwriter.count"
+	ConfigTXWriterBatchTimeout              = "txwriter.batchTimeout"
+	ConfigTXWriterBatchSize                 = "txwriter.batchSize"
+)
+
 type sqlPersistence struct {
-	db *dbsql.Database
+	db     *dbsql.Database
+	writer *transactionWriter
 
 	transactions  *dbsql.CrudBase[*apitypes.ManagedTX]
 	checkpoints   *dbsql.CrudBase[*apitypes.EventStreamCheckpoint]
 	confirmations *dbsql.CrudBase[*apitypes.ConfirmationRecord]
+	receipts      *dbsql.CrudBase[*apitypes.ReceiptRecord]
+	txHistory     *dbsql.CrudBase[*apitypes.TXHistoryRecord]
 }
 
-func newSQLPersistence(db *dbsql.Database) *sqlPersistence {
-	p := &sqlPersistence{db: db}
+// InitConfig gets called after config reset to initialize the config structure
+func InitConfig(conf config.Section) {
+	psql = &Postgres{}
+	psql.Database.InitConfig(psql, conf)
+	conf.AddKnownKey(ConfigTXWriterHistoryCacheSlots, 1000)
+	conf.AddKnownKey(ConfigTXWriterHistoryCompactionInterval, "5m")
+	conf.AddKnownKey(ConfigTXWriterCount, 5)
+	conf.AddKnownKey(ConfigTXWriterBatchTimeout, "10ms")
+	conf.AddKnownKey(ConfigTXWriterBatchSize, 100)
+}
+
+func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Section) (p *sqlPersistence, err error) {
+	p = &sqlPersistence{
+		db: db,
+	}
 	p.transactions = p.newTransactionCollection()
 	p.checkpoints = p.newCheckpointCollection()
 	p.confirmations = p.newConfirmationsCollection()
-	return p
+	p.receipts = p.newReceiptsCollection()
+	p.txHistory = p.newTXHistoryCollection()
+	if p.writer, err = newTransactionWriter(bgCtx, p, conf); err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (p *sqlPersistence) RichQuery() persistence.RichQuery {
@@ -46,4 +76,5 @@ func (p *sqlPersistence) RichQuery() persistence.RichQuery {
 
 func (p *sqlPersistence) Close(_ context.Context) {
 	p.db.Close()
+	p.writer.stop()
 }

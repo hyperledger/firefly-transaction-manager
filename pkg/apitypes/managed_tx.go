@@ -110,6 +110,7 @@ type TxHistoryActionEntry struct {
 type TXHistoryRecord struct {
 	ID            *fftypes.UUID `json:"id"`          // unique identifier for this entry
 	TransactionID string        `json:"transaction"` // owning transaction
+	SubStatus     TxSubStatus   `json:"subStatus"`
 	TxHistoryActionEntry
 }
 
@@ -122,7 +123,7 @@ func (r *TXHistoryRecord) SetCreated(t *fftypes.FFTime) {
 }
 
 func (r *TXHistoryRecord) SetUpdated(t *fftypes.FFTime) {
-	panic("no updated column for action records") // We use Crud.NoUpdateColumn to avoid this being called
+	r.LastOccurrence = t
 }
 
 // ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
@@ -266,4 +267,23 @@ type ManagedTransactionEvent struct {
 	Type    ManagedTransactionEventType
 	Tx      *ManagedTX
 	Receipt *ffcapi.TransactionReceiptResponse
+}
+
+type ReceiptRecord struct {
+	TransactionID string          `json:"transaction"` // owning transaction
+	Created       *fftypes.FFTime `json:"created"`
+	Updated       *fftypes.FFTime `json:"updated"`
+	*ffcapi.TransactionReceiptResponse
+}
+
+func (r *ReceiptRecord) GetID() string {
+	return r.TransactionID
+}
+
+func (r *ReceiptRecord) SetCreated(t *fftypes.FFTime) {
+	r.Created = t
+}
+
+func (r *ReceiptRecord) SetUpdated(t *fftypes.FFTime) {
+	r.Updated = t
 }

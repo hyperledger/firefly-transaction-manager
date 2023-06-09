@@ -89,6 +89,7 @@
     "txid",
     "txns",
     "txtype",
+    "txwriter",
     "unflushed",
     "unmarshalled",
     "unmarshalling",

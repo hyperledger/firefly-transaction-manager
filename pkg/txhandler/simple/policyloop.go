@@ -137,10 +137,15 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 			// re-request the receipt.
 			var info simplePolicyInfo
 			_ = json.Unmarshal(mtx.PolicyInfo.Bytes(), &info)
-			sth.inflight = append(sth.inflight, &pendingState{
-				mtx:  mtx,
-				info: &info,
-			})
+			inflight := &pendingState{
+				mtx:       mtx,
+				info:      &info,
+				subStatus: apitypes.TxSubStatusTracking,
+			}
+			if mtx.TransactionHash == "" {
+				inflight.subStatus = apitypes.TxSubStatusReceived
+			}
+			sth.inflight = append(sth.inflight, inflight)
 		}
 		newLen := len(sth.inflight)
 		if newLen > 0 {
@@ -211,7 +216,7 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 			}
 			// This transaction was valid, but outside of our in-flight set - we still evaluate the policy engine in-line for it.
 			// This does NOT cause it to be added to the in-flight set
-			pending = &pendingState{mtx: mtx}
+			pending = &pendingState{mtx: mtx, subStatus: apitypes.TxSubStatusReceived}
 		}
 
 		switch request.requestType {
@@ -370,6 +375,7 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 
 func (sth *simpleTransactionHandler) flushChanges(ctx *RunContext, pending *pendingState, completed bool) (err error) {
 	// flush any sub-status changes
+	pending.subStatus = ctx.SubStatus
 	for _, historyUpdate := range ctx.HistoryUpdates {
 		if err := historyUpdate(sth.toolkit.TXHistory); err != nil {
 			return err

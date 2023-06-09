@@ -19,8 +19,72 @@ package postgres
 import (
 	"context"
 
+	"github.com/hyperledger/firefly-common/pkg/dbsql"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
+
+func (p *sqlPersistence) newReceiptsCollection() *dbsql.CrudBase[*apitypes.ReceiptRecord] {
+	collection := &dbsql.CrudBase[*apitypes.ReceiptRecord]{
+		DB:    &psql.Database,
+		Table: "txhistory",
+		Columns: []string{
+			dbsql.ColumnID,
+			dbsql.ColumnCreated,
+			dbsql.ColumnUpdated,
+			"block_number",
+			"tx_index",
+			"block_hash",
+			"success",
+			"protocol_id",
+			"extra_info",
+			"contract_loc",
+		},
+		FilterFieldMap: map[string]string{
+			"transaction":      dbsql.ColumnID,
+			"blocknumber":      "block_number",
+			"transactionindex": "tx_index",
+			"blockhash":        "block_hash",
+			"protocolid":       "protocol_id",
+			"extrainfo":        "extra_info",
+			"contractlocation": "contract_loc",
+		},
+		PatchDisabled: true,
+		NilValue:      func() *apitypes.ReceiptRecord { return nil },
+		NewInstance: func() *apitypes.ReceiptRecord {
+			return &apitypes.ReceiptRecord{
+				TransactionReceiptResponse: &ffcapi.TransactionReceiptResponse{},
+			}
+		},
+		GetFieldPtr: func(inst *apitypes.ReceiptRecord, col string) interface{} {
+			switch col {
+			case dbsql.ColumnID:
+				return &inst.TransactionID
+			case dbsql.ColumnCreated:
+				return &inst.Created
+			case dbsql.ColumnUpdated:
+				return &inst.Updated
+			case "block_number":
+				return &inst.BlockNumber
+			case "tx_index":
+				return &inst.TransactionIndex
+			case "block_hash":
+				return &inst.BlockHash
+			case "success":
+				return &inst.Success
+			case "protocol_id":
+				return &inst.ProtocolID
+			case "extra_info":
+				return &inst.ExtraInfo
+			case "contract_loc":
+				return &inst.ContractLocation
+			}
+			return nil
+		},
+	}
+	collection.Validate()
+	return collection
+}
 
 func (p *sqlPersistence) GetTransactionReceipt(ctx context.Context, txID string) (receipt *ffcapi.TransactionReceiptResponse, err error) {
 	return nil, nil

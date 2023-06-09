@@ -22,11 +22,15 @@ import (
 	"hash/fnv"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
+
+	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 type transactionOperation struct {
@@ -37,17 +41,25 @@ type transactionOperation struct {
 	txUpdate           *apitypes.TXUpdates
 	clearConfirmations bool
 	confirmation       *apitypes.ConfirmationRecord
-	receipt            *ffcapi.TransactionReceiptResponse
+	receipt            *apitypes.ReceiptRecord
 	historyRecord      *apitypes.TXHistoryRecord
+}
+
+type txCacheEntry struct {
+	// lastCompacted time.Time
+	// count         int
 }
 
 type transactionWriter struct {
 	p            *sqlPersistence
+	txMetaCache  *lru.Cache[string, *txCacheEntry]
 	bgCtx        context.Context
-	routines     uint32
+	cancelCtx    context.CancelFunc
 	batchTimeout time.Duration
 	batchMaxSize int
+	workerCount  uint32
 	workQueues   []chan *transactionOperation
+	workersDone  []chan struct{}
 }
 
 type transactionWriterBatch struct {
@@ -55,6 +67,33 @@ type transactionWriterBatch struct {
 	ops            []*transactionOperation
 	timeoutContext context.Context
 	timeoutCancel  func()
+}
+
+func newTransactionWriter(bgCtx context.Context, p *sqlPersistence, conf config.Section) (*transactionWriter, error) {
+	txMetaCache, err := lru.New[string, *txCacheEntry](
+		conf.GetInt(ConfigTXWriterHistoryCacheSlots),
+	)
+	if err != nil {
+		return nil, err
+	}
+	workerCount := conf.GetInt(ConfigTXWriterCount)
+	batchMaxSize := conf.GetInt(ConfigTXWriterBatchSize)
+	tw := &transactionWriter{
+		p:            p,
+		txMetaCache:  txMetaCache,
+		workerCount:  uint32(workerCount),
+		batchTimeout: conf.GetDuration(ConfigTXWriterBatchTimeout),
+		batchMaxSize: batchMaxSize,
+		workersDone:  make([]chan struct{}, workerCount),
+		workQueues:   make([]chan *transactionOperation, workerCount),
+	}
+	tw.bgCtx, tw.cancelCtx = context.WithCancel(bgCtx)
+	for i := 0; i < workerCount; i++ {
+		tw.workersDone[i] = make(chan struct{})
+		tw.workQueues[i] = make(chan *transactionOperation, batchMaxSize)
+		go tw.worker(i)
+	}
+	return tw, nil
 }
 
 func newTransactionOperation(txID string) *transactionOperation {
@@ -83,7 +122,7 @@ func (tw *transactionWriter) queue(ctx context.Context, op *transactionOperation
 	// then there is no deterministic ordering guarantee possible regardless.
 	h := fnv.New32a() // simple non-cryptographic hash algo
 	_, _ = h.Write([]byte(op.txID))
-	routine := h.Sum32() % tw.routines
+	routine := h.Sum32() % tw.workerCount
 	select {
 	case tw.workQueues[routine] <- op: // it's queued
 	case <-ctx.Done(): // timeout of caller context
@@ -113,7 +152,7 @@ func (tw *transactionWriter) worker(i int) {
 		case op := <-workQueue:
 			if batch == nil {
 				batch = &transactionWriterBatch{
-					id: fmt.Sprintf("%s/%.9d", batchCount),
+					id: fmt.Sprintf("%s/%.9d", batch.id, batchCount),
 				}
 				batch.timeoutContext, batch.timeoutCancel = context.WithTimeout(ctx, tw.batchTimeout)
 				batchCount++
@@ -121,6 +160,12 @@ func (tw *transactionWriter) worker(i int) {
 			batch.ops = append(batch.ops, op)
 		case <-timeoutContext.Done():
 			timedOut = true
+			select {
+			case <-ctx.Done():
+				log.L(ctx).Debugf("Transaction writer ending")
+				return
+			default:
+			}
 		}
 
 		if batch != nil && (timedOut || (len(batch.ops) >= tw.batchMaxSize)) {
@@ -136,10 +181,10 @@ func (tw *transactionWriter) runBatch(ctx context.Context, batch *transactionWri
 	err := tw.p.db.RunAsGroup(ctx, func(ctx context.Context) error {
 		// Build all the batch insert operations
 		var txInserts []*apitypes.ManagedTX
-		var receiptInserts []*ffcapi.TransactionReceiptResponse
+		var receiptInserts []*apitypes.ReceiptRecord
 		var historyInserts []*apitypes.TXHistoryRecord
 		var confirmationInserts []*apitypes.ConfirmationRecord
-		var confirmationResets map[string]bool // note complexity below
+		confirmationResets := make(map[string]bool)
 		for _, op := range batch.ops {
 			switch {
 			case op.txInsert != nil:
@@ -169,9 +214,11 @@ func (tw *transactionWriter) runBatch(ctx context.Context, batch *transactionWri
 		if err := tw.p.transactions.InsertMany(ctx, txInserts, false); err != nil {
 			return err
 		}
-		// Then the receipts
-		if err := tw.p.receipts.InsertMany(ctx, receiptInserts, false); err != nil {
-			return err
+		// Then the receipts - which need to be an upsert
+		for _, receipt := range receiptInserts {
+			if _, err := tw.p.receipts.Upsert(ctx, receipt, dbsql.UpsertOptimizationNew); err != nil {
+				return err
+			}
 		}
 		// Then the history entries
 		if err := tw.p.txHistory.InsertMany(ctx, historyInserts, false); err != nil {
@@ -179,9 +226,12 @@ func (tw *transactionWriter) runBatch(ctx context.Context, batch *transactionWri
 		}
 		// Then do any confirmation clears
 		for txID := range confirmationResets {
-			tw.p.confirmations.Delete
+			if err := tw.p.confirmations.DeleteMany(ctx, persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID)); err != nil {
+				return err
+			}
 		}
-		if err := tw.p.txHistory.InsertMany(ctx, historyInserts, false); err != nil {
+		// Then insert the new confirmation records
+		if err := tw.p.confirmations.InsertMany(ctx, confirmationInserts, false); err != nil {
 			return err
 		}
 		return nil
@@ -195,4 +245,11 @@ func (tw *transactionWriter) runBatch(ctx context.Context, batch *transactionWri
 		op.done <- err
 	}
 
+}
+
+func (tw *transactionWriter) stop() {
+	tw.cancelCtx()
+	for _, workerDone := range tw.workersDone {
+		<-workerDone
+	}
 }

@@ -49,7 +49,9 @@ func TestTxHistoryRecord(t *testing.T) {
 	t1 := fftypes.Now()
 	r.SetCreated(t1)
 	assert.Equal(t, t1, r.Time)
-	assert.Panics(t, func() { r.SetUpdated(fftypes.Now()) })
+	t2 := fftypes.Now()
+	r.SetUpdated(t2)
+	assert.Equal(t, t2, r.LastOccurrence)
 }
 
 func TestManagedTX(t *testing.T) {
@@ -68,4 +70,18 @@ func TestManagedTX(t *testing.T) {
 	t2 := fftypes.Now()
 	mtx.SetUpdated(fftypes.Now())
 	assert.Equal(t, t2, mtx.Updated)
+}
+
+func TestReceiptRecord(t *testing.T) {
+	u1 := fftypes.NewUUID()
+	r := &ReceiptRecord{
+		TransactionID: fmt.Sprintf("ns1:%s", u1),
+	}
+	assert.Equal(t, r.TransactionID, r.GetID())
+	t1 := fftypes.Now()
+	r.SetCreated(t1)
+	assert.Equal(t, t1, r.Created)
+	t2 := fftypes.Now()
+	r.SetUpdated(fftypes.Now())
+	assert.Equal(t, t2, r.Updated)
 }

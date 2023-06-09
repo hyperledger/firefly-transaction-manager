@@ -66,7 +66,9 @@ type RunContext struct {
 	Receipt       *ffcapi.TransactionReceiptResponse
 	Confirmations *apitypes.ConfirmationsNotification
 	Confirmed     bool
-	Info          *simplePolicyInfo // must be updated in-place and set UpdatedInfo to true as well as UpdateType = Update
+	// Input/output
+	SubStatus apitypes.TxSubStatus
+	Info      *simplePolicyInfo // must be updated in-place and set UpdatedInfo to true as well as UpdateType = Update
 	// Output
 	UpdateType     UpdateType
 	UpdatedInfo    bool
@@ -75,14 +77,13 @@ type RunContext struct {
 }
 
 func (ctx *RunContext) SetSubStatus(subStatus apitypes.TxSubStatus) {
-	ctx.HistoryUpdates = append(ctx.HistoryUpdates, func(p txhandler.TransactionHistoryPersistence) error {
-		return p.SetSubStatus(ctx, ctx.TX.ID, subStatus)
-	})
+	ctx.SubStatus = subStatus
 }
 
 func (ctx *RunContext) AddSubStatusAction(action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) {
+	subStatus := ctx.SubStatus // capture at time of action
 	ctx.HistoryUpdates = append(ctx.HistoryUpdates, func(p txhandler.TransactionHistoryPersistence) error {
-		return p.AddSubStatusAction(ctx, ctx.TX.ID, action, info, err)
+		return p.AddSubStatusAction(ctx, ctx.TX.ID, subStatus, action, info, err)
 	})
 }
 
@@ -197,6 +198,7 @@ type pendingState struct {
 	receiptNotify           *fftypes.FFTime
 	confirmNotify           *fftypes.FFTime
 	remove                  bool
+	subStatus               apitypes.TxSubStatus
 }
 
 type simplePolicyInfo struct {
@@ -297,10 +299,7 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 	//       global transaction sequence line up.
 	err = sth.toolkit.TXPersistence.InsertTransaction(ctx, mtx)
 	if err == nil {
-		err = sth.toolkit.TXHistory.SetSubStatus(ctx, txID, apitypes.TxSubStatusReceived)
-	}
-	if err == nil {
-		err = sth.toolkit.TXHistory.AddSubStatusAction(ctx, txID, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
+		err = sth.toolkit.TXHistory.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
 	}
 	if err != nil {
 		return nil, err

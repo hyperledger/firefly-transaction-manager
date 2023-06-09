@@ -21,13 +21,13 @@ type Persistence struct {
 	mock.Mock
 }
 
-// AddSubStatusAction provides a mock function with given fields: ctx, txID, action, info, err
-func (_m *Persistence) AddSubStatusAction(ctx context.Context, txID string, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error {
-	ret := _m.Called(ctx, txID, action, info, err)
+// AddSubStatusAction provides a mock function with given fields: ctx, txID, subStatus, action, info, err
+func (_m *Persistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error {
+	ret := _m.Called(ctx, txID, subStatus, action, info, err)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, apitypes.TxAction, *fftypes.JSONAny, *fftypes.JSONAny) error); ok {
-		r0 = rf(ctx, txID, action, info, err)
+	if rf, ok := ret.Get(0).(func(context.Context, string, apitypes.TxSubStatus, apitypes.TxAction, *fftypes.JSONAny, *fftypes.JSONAny) error); ok {
+		r0 = rf(ctx, txID, subStatus, action, info, err)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -506,20 +506,6 @@ func (_m *Persistence) RichQuery() persistence.RichQuery {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(persistence.RichQuery)
 		}
-	}
-
-	return r0
-}
-
-// SetSubStatus provides a mock function with given fields: ctx, txID, subStatus
-func (_m *Persistence) SetSubStatus(ctx context.Context, txID string, subStatus apitypes.TxSubStatus) error {
-	ret := _m.Called(ctx, txID, subStatus)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, apitypes.TxSubStatus) error); ok {
-		r0 = rf(ctx, txID, subStatus)
-	} else {
-		r0 = ret.Error(0)
 	}
 
 	return r0

@@ -19,7 +19,6 @@ package postgres
 import (
 	"context"
 
-	sq "github.com/Masterminds/squirrel"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -59,10 +58,9 @@ func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.Ma
 			"lastsubmit":      "last_submit",
 			"errormessage":    "error_message",
 		},
-		NilValue:     func() *apitypes.ManagedTX { return nil },
-		NewInstance:  func() *apitypes.ManagedTX { return &apitypes.ManagedTX{} },
-		ScopedFilter: func() sq.Eq { return sq.Eq{} },
-		EventHandler: nil, // set below
+		PatchDisabled: true,
+		NilValue:      func() *apitypes.ManagedTX { return nil },
+		NewInstance:   func() *apitypes.ManagedTX { return &apitypes.ManagedTX{} },
 		GetFieldPtr: func(inst *apitypes.ManagedTX, col string) interface{} {
 			switch col {
 			case dbsql.ColumnID:
@@ -136,13 +134,22 @@ func (p *sqlPersistence) GetTransactionByNonce(ctx context.Context, signer strin
 }
 
 func (p *sqlPersistence) InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error {
-	return nil
+	// Dispatch to TX writer
+	op := newTransactionOperation(tx.ID)
+	op.txInsert = tx
+	p.writer.queue(ctx, op)
+	return op.flush(ctx) // wait for completion
 }
 
 func (p *sqlPersistence) UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error {
-	return nil
+	// Dispatch to TX writer
+	op := newTransactionOperation(txID)
+	op.txUpdate = updates
+	p.writer.queue(ctx, op)
+	return op.flush(ctx) // wait for completion
 }
 
 func (p *sqlPersistence) DeleteTransaction(ctx context.Context, txID string) error {
-	return nil
+	// Delete is a direct DB operation (not dispatched via TX writer)
+	return p.transactions.Delete(ctx, txID)
 }

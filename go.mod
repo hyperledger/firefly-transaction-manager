@@ -11,6 +11,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.16.1
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
+	github.com/hashicorp/golang-lru/v2 v2.0.3
 	github.com/hyperledger/firefly-common v1.2.14-0.20230608052137-b8e256cb54a2
 	github.com/lib/pq v1.10.9
 	github.com/oklog/ulid/v2 v2.1.0

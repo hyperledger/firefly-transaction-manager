@@ -124,6 +124,41 @@ func (_m *RichQuery) ListStreams(ctx context.Context, filter ffapi.Filter) ([]*a
 	return r0, r1, r2
 }
 
+// ListTransactionConfirmations provides a mock function with given fields: ctx, txID, filter
+func (_m *RichQuery) ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.Filter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error) {
+	ret := _m.Called(ctx, txID, filter)
+
+	var r0 []*apitypes.ConfirmationRecord
+	var r1 *ffapi.FilterResult
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, ffapi.Filter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error)); ok {
+		return rf(ctx, txID, filter)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, ffapi.Filter) []*apitypes.ConfirmationRecord); ok {
+		r0 = rf(ctx, txID, filter)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.ConfirmationRecord)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, ffapi.Filter) *ffapi.FilterResult); ok {
+		r1 = rf(ctx, txID, filter)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*ffapi.FilterResult)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, string, ffapi.Filter) error); ok {
+		r2 = rf(ctx, txID, filter)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // ListTransactions provides a mock function with given fields: ctx, filter
 func (_m *RichQuery) ListTransactions(ctx context.Context, filter ffapi.Filter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error) {
 	ret := _m.Called(ctx, filter)

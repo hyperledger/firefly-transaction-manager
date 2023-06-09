@@ -37,9 +37,9 @@ func (p *sqlPersistence) newCheckpointCollection() *dbsql.CrudBase[*apitypes.Eve
 		FilterFieldMap: map[string]string{
 			"streamid": "id",
 		},
-		NilValue:     func() *apitypes.EventStreamCheckpoint { return nil },
-		NewInstance:  func() *apitypes.EventStreamCheckpoint { return &apitypes.EventStreamCheckpoint{} },
-		EventHandler: nil, // set below
+		PatchDisabled: true,
+		NilValue:      func() *apitypes.EventStreamCheckpoint { return nil },
+		NewInstance:   func() *apitypes.EventStreamCheckpoint { return &apitypes.EventStreamCheckpoint{} },
 		GetFieldPtr: func(inst *apitypes.EventStreamCheckpoint, col string) interface{} {
 			switch col {
 			case dbsql.ColumnID:
