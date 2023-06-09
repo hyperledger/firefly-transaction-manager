@@ -28,7 +28,7 @@ import (
 
 func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.ConfirmationRecord] {
 	collection := &dbsql.CrudBase[*apitypes.ConfirmationRecord]{
-		DB:    &psql.Database,
+		DB:    p.db,
 		Table: "confirmations",
 		Columns: []string{
 			dbsql.ColumnID,

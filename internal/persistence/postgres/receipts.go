@@ -26,7 +26,7 @@ import (
 
 func (p *sqlPersistence) newReceiptsCollection() *dbsql.CrudBase[*apitypes.ReceiptRecord] {
 	collection := &dbsql.CrudBase[*apitypes.ReceiptRecord]{
-		DB:    &psql.Database,
+		DB:    p.db,
 		Table: "receipts",
 		Columns: []string{
 			dbsql.ColumnID,

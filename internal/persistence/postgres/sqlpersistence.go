@@ -68,10 +68,10 @@ func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Se
 	p.confirmations = p.newConfirmationsCollection()
 	p.receipts = p.newReceiptsCollection()
 	p.txHistory = p.newTXHistoryCollection()
+	p.historySummaryLimit = conf.GetInt(ConfigTXWriterHistorySummaryLimit)
 	if p.writer, err = newTransactionWriter(bgCtx, p, conf); err != nil {
 		return nil, err
 	}
-	p.historySummaryLimit = conf.GetInt(ConfigTXWriterHistorySummaryLimit)
 	return p, nil
 }
 

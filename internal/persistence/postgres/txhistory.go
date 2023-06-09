@@ -28,7 +28,7 @@ import (
 
 func (p *sqlPersistence) newTXHistoryCollection() *dbsql.CrudBase[*apitypes.TXHistoryRecord] {
 	collection := &dbsql.CrudBase[*apitypes.TXHistoryRecord]{
-		DB:    &psql.Database,
+		DB:    p.db,
 		Table: "txhistory",
 		Columns: []string{
 			dbsql.ColumnID,

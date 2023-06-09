@@ -29,7 +29,7 @@ import (
 
 func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.ManagedTX] {
 	collection := &dbsql.CrudBase[*apitypes.ManagedTX]{
-		DB:    &psql.Database,
+		DB:    p.db,
 		Table: "transactions",
 		Columns: []string{
 			dbsql.ColumnID,

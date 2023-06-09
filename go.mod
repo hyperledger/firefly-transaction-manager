@@ -3,6 +3,7 @@ module github.com/hyperledger/firefly-transaction-manager
 go 1.19
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/Masterminds/sprig/v3 v3.2.2
 	github.com/Masterminds/squirrel v1.5.4
 	github.com/getkin/kin-openapi v0.116.0
@@ -12,7 +13,7 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru/v2 v2.0.3
-	github.com/hyperledger/firefly-common v1.2.14-0.20230609160052-f1911b45c4b3
+	github.com/hyperledger/firefly-common v1.2.14-0.20230609193419-c5a8f329936a
 	github.com/lib/pq v1.10.9
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/prometheus/client_golang v1.13.0
@@ -24,7 +25,6 @@ require (
 )
 
 require (
-	github.com/DATA-DOG/go-sqlmock v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect

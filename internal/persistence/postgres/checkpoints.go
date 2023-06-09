@@ -26,7 +26,7 @@ import (
 
 func (p *sqlPersistence) newCheckpointCollection() *dbsql.CrudBase[*apitypes.EventStreamCheckpoint] {
 	collection := &dbsql.CrudBase[*apitypes.EventStreamCheckpoint]{
-		DB:    &psql.Database,
+		DB:    p.db,
 		Table: "checkpoints",
 		Columns: []string{
 			dbsql.ColumnID,

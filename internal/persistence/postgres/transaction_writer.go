@@ -247,15 +247,23 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 	// Do all the transaction updates
 	for _, op := range b.txUpdates {
 		if err := tw.p.updateTransaction(ctx, op.txID, op.txUpdate); err != nil {
-			log.L(ctx).Errorf("Update transaction %s failed: %s", op.txID, err)
+			log.L(ctx).Errorf("Updata transaction %s failed: %s", op.txID, err)
 			return err
 		}
 	}
 	// Then the receipts - which need to be an upsert
-	for _, receipt := range b.receiptInserts {
-		if _, err := tw.p.receipts.Upsert(ctx, receipt, dbsql.UpsertOptimizationNew); err != nil {
-			log.L(ctx).Errorf("Upsert receipt %s failed: %s", receipt.TransactionID, err)
-			return err
+	if len(b.receiptInserts) > 0 {
+		// Try optimized insert first, allowing partial success so we can fall back
+		err := tw.p.receipts.InsertMany(ctx, b.receiptInserts, true /* fallback */)
+		if err != nil {
+			log.L(ctx).Debugf("Batch receipt insert optimization failed: %s", err)
+			for _, receipt := range b.receiptInserts {
+				// FAll back to individual upserts
+				if _, err := tw.p.receipts.Upsert(ctx, receipt, dbsql.UpsertOptimizationExisting); err != nil {
+					log.L(ctx).Errorf("Upsert receipt %s failed: %s", receipt.TransactionID, err)
+					return err
+				}
+			}
 		}
 	}
 	// Then the history entries
@@ -292,7 +300,7 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 			return err
 		}
 		// Clear history
-		if err := tw.p.txHistory.DeleteMany(ctx, persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID)); err != nil {
+		if err := tw.p.txHistory.DeleteMany(ctx, persistence.TXHistoryFilters.NewFilter(ctx).Eq("transaction", txID)); err != nil {
 			log.L(ctx).Errorf("DeleteMany history records for transaction %s failed: %s", txID, err)
 			return err
 		}

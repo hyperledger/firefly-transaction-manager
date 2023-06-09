@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/sirupsen/logrus"
@@ -183,6 +184,24 @@ func TestTransactionBasicValidationE2E(t *testing.T) {
 	actualMTXJson, err := json.Marshal(mtx)
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expectedMTXJson), string(actualMTXJson))
+
+	// Finally clean up
+	err = p.DeleteTransaction(ctx, txID)
+	assert.NoError(t, err)
+
+	// Check all is gone
+	count, err := p.receipts.Count(ctx, persistence.ReceiptFilters.NewFilter(ctx).And())
+	assert.NoError(t, err)
+	assert.Zero(t, count)
+	count, err = p.confirmations.Count(ctx, persistence.ConfirmationFilters.NewFilter(ctx).And())
+	assert.NoError(t, err)
+	assert.Zero(t, count)
+	count, err = p.txHistory.Count(ctx, persistence.TXHistoryFilters.NewFilter(ctx).And())
+	assert.NoError(t, err)
+	assert.Zero(t, count)
+	count, err = p.transactions.Count(ctx, persistence.TransactionFilters.NewFilter(ctx).And())
+	assert.NoError(t, err)
+	assert.Zero(t, count)
 
 }
 
