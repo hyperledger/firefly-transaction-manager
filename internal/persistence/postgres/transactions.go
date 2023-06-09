@@ -24,6 +24,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.ManagedTX] {
@@ -36,12 +37,12 @@ func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.Ma
 			dbsql.ColumnUpdated,
 			"status",
 			"delete",
-			"from",
-			"to",
-			"nonce",
-			"gas",
-			"value",
-			"gasprice",
+			"tx_from",
+			"tx_to",
+			"tx_nonce",
+			"tx_gas",
+			"tx_value",
+			"tx_gasprice",
 			"tx_data",
 			"tx_hash",
 			"policy_info",
@@ -50,9 +51,16 @@ func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.Ma
 			"error_message",
 		},
 		FilterFieldMap: map[string]string{
+			"sequence":        p.db.SequenceColumn(),
 			"transactiondata": "tx_data",
 			"transactionhash": "tx_hash",
 			"deleterequested": "delete",
+			"from":            "tx_from",
+			"to":              "tx_to",
+			"nonce":           "tx_nonce",
+			"gas":             "tx_gas",
+			"value":           "tx_value",
+			"gasprice":        "tx_gasprice",
 			"policyinfo":      "policy_info",
 			"firstsubmit":     "first_submit",
 			"lastsubmit":      "last_submit",
@@ -73,17 +81,17 @@ func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.Ma
 				return &inst.Status
 			case "delete":
 				return &inst.DeleteRequested
-			case "from":
+			case "tx_from":
 				return &inst.From
-			case "to":
+			case "tx_to":
 				return &inst.To
-			case "nonce":
+			case "tx_nonce":
 				return &inst.Nonce
-			case "gas":
+			case "tx_gas":
 				return &inst.Gas
-			case "value":
+			case "tx_value":
 				return &inst.Value
-			case "gasprice":
+			case "tx_gasprice":
 				return &inst.GasPrice
 			case "tx_data":
 				return &inst.TransactionData
@@ -122,11 +130,36 @@ func (p *sqlPersistence) ListTransactionsPending(ctx context.Context, afterSeque
 }
 
 func (p *sqlPersistence) GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
-	return nil, nil
+	return p.transactions.GetByID(ctx, txID)
 }
 
 func (p *sqlPersistence) GetTransactionByIDWithHistory(ctx context.Context, txID string) (*apitypes.TXWithStatus, error) {
-	return nil, nil
+	tx, err := p.transactions.GetByID(ctx, txID)
+	if tx == nil || err != nil {
+		return nil, err
+	}
+	receiptRecord, err := p.receipts.GetByID(ctx, txID)
+	if err != nil {
+		return nil, err
+	}
+	var receipt *ffcapi.TransactionReceiptResponse
+	if receiptRecord != nil {
+		receipt = receiptRecord.TransactionReceiptResponse
+	}
+	confirmations, err := p.GetTransactionConfirmations(ctx, txID)
+	if err != nil {
+		return nil, err
+	}
+	history, err := p.buildHistorySummary(ctx, txID, p.historySummaryLimit, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &apitypes.TXWithStatus{
+		ManagedTX:     tx,
+		Receipt:       receipt,
+		Confirmations: confirmations,
+		History:       history,
+	}, nil
 }
 
 func (p *sqlPersistence) GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error) {
@@ -150,6 +183,56 @@ func (p *sqlPersistence) UpdateTransaction(ctx context.Context, txID string, upd
 }
 
 func (p *sqlPersistence) DeleteTransaction(ctx context.Context, txID string) error {
-	// Delete is a direct DB operation (not dispatched via TX writer)
-	return p.transactions.Delete(ctx, txID)
+	// Dispatch to TX writer, as we need to sequence it against updates and delete all associated records
+	op := newTransactionOperation(txID)
+	op.txDelete = &txID
+	p.writer.queue(ctx, op)
+	return op.flush(ctx) // wait for completion
+}
+
+func (p *sqlPersistence) updateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error {
+	sqlUpdate := persistence.TransactionFilters.NewUpdate(ctx).S()
+	if updates.Status != nil {
+		sqlUpdate = sqlUpdate.Set("status", *updates.Status)
+	}
+	if updates.DeleteRequested != nil {
+		sqlUpdate = sqlUpdate.Set("deleterequested", updates.DeleteRequested)
+	}
+	if updates.From != nil {
+		sqlUpdate = sqlUpdate.Set("from", *updates.From)
+	}
+	if updates.To != nil {
+		sqlUpdate = sqlUpdate.Set("to", *updates.To)
+	}
+	if updates.Nonce != nil {
+		sqlUpdate = sqlUpdate.Set("nonce", updates.Nonce)
+	}
+	if updates.Gas != nil {
+		sqlUpdate = sqlUpdate.Set("gas", updates.Gas)
+	}
+	if updates.Value != nil {
+		sqlUpdate = sqlUpdate.Set("value", updates.Value)
+	}
+	if updates.GasPrice != nil {
+		sqlUpdate = sqlUpdate.Set("gasprice", updates.GasPrice)
+	}
+	if updates.TransactionData != nil {
+		sqlUpdate = sqlUpdate.Set("transactiondata", *updates.TransactionData)
+	}
+	if updates.TransactionHash != nil {
+		sqlUpdate = sqlUpdate.Set("transactionhash", *updates.TransactionHash)
+	}
+	if updates.PolicyInfo != nil {
+		sqlUpdate = sqlUpdate.Set("policyinfo", updates.PolicyInfo)
+	}
+	if updates.FirstSubmit != nil {
+		sqlUpdate = sqlUpdate.Set("firstsubmit", updates.FirstSubmit)
+	}
+	if updates.LastSubmit != nil {
+		sqlUpdate = sqlUpdate.Set("lastsubmit", updates.LastSubmit)
+	}
+	if updates.ErrorMessage != nil {
+		sqlUpdate = sqlUpdate.Set("errormessage", *updates.ErrorMessage)
+	}
+	return p.transactions.Update(ctx, txID, sqlUpdate)
 }

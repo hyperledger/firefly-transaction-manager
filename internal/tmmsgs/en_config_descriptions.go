@@ -123,4 +123,5 @@ var (
 	ConfigTXWriterCacheSlots                = ffc("config.global.txwriter.cacheSlots", "Number of transactions to hold cached metadata for to avoid DB read operations to calculate history", i18n.IntType)
 	ConfigTXWriterCount                     = ffc("config.global.txwriter.count", "Number of transactions writing routines to start", i18n.IntType)
 	ConfigTXWriterHistoryCompactionInterval = ffc("config.global.txwriter.historyCompactionInterval", "Duration between cleanup activities on the DB for a transaction with a large history", i18n.TimeDurationType)
+	ConfigTXWriterHistorySummaryLimit       = ffc("config.global.txwriter.historySummaryLimit", "Maximum number of action entries to return embedded in the JSON response object when querying a transaction summary", i18n.IntType)
 )

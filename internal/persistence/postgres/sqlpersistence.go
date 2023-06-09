@@ -27,6 +27,7 @@ import (
 
 const (
 	ConfigTXWriterHistoryCacheSlots         = "txwriter.cacheSlots"
+	ConfigTXWriterHistorySummaryLimit       = "txwriter.historySummaryLimit"
 	ConfigTXWriterHistoryCompactionInterval = "txwriter.historyCompactionInterval"
 	ConfigTXWriterCount                     = "txwriter.count"
 	ConfigTXWriterBatchTimeout              = "txwriter.batchTimeout"
@@ -42,6 +43,8 @@ type sqlPersistence struct {
 	confirmations *dbsql.CrudBase[*apitypes.ConfirmationRecord]
 	receipts      *dbsql.CrudBase[*apitypes.ReceiptRecord]
 	txHistory     *dbsql.CrudBase[*apitypes.TXHistoryRecord]
+
+	historySummaryLimit int
 }
 
 // InitConfig gets called after config reset to initialize the config structure
@@ -49,6 +52,7 @@ func InitConfig(conf config.Section) {
 	psql = &Postgres{}
 	psql.Database.InitConfig(psql, conf)
 	conf.AddKnownKey(ConfigTXWriterHistoryCacheSlots, 1000)
+	conf.AddKnownKey(ConfigTXWriterHistorySummaryLimit, 50) // returned on TX status
 	conf.AddKnownKey(ConfigTXWriterHistoryCompactionInterval, "5m")
 	conf.AddKnownKey(ConfigTXWriterCount, 5)
 	conf.AddKnownKey(ConfigTXWriterBatchTimeout, "10ms")
@@ -67,6 +71,7 @@ func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Se
 	if p.writer, err = newTransactionWriter(bgCtx, p, conf); err != nil {
 		return nil, err
 	}
+	p.historySummaryLimit = conf.GetInt(ConfigTXWriterHistorySummaryLimit)
 	return p, nil
 }
 

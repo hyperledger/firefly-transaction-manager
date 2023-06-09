@@ -35,6 +35,7 @@ func (p *sqlPersistence) newCheckpointCollection() *dbsql.CrudBase[*apitypes.Eve
 			"listeners",
 		},
 		FilterFieldMap: map[string]string{
+			"sequence": p.db.SequenceColumn(),
 			"streamid": "id",
 		},
 		PatchDisabled: true,

@@ -21,6 +21,8 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
@@ -41,6 +43,7 @@ func (p *sqlPersistence) newTXHistoryCollection() *dbsql.CrudBase[*apitypes.TXHi
 			"info",
 		},
 		FilterFieldMap: map[string]string{
+			"sequence":       p.db.SequenceColumn(),
 			"transaction":    "tx_id",
 			"substatus":      "status",
 			"time":           dbsql.ColumnCreated,
@@ -106,4 +109,65 @@ func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, su
 	}
 	p.writer.queue(ctx, op)
 	return nil // completely async
+}
+
+// buildHistorySummary builds a compressed summary of actions, grouped within subStatus changes, and with redundant actions removed.
+func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, resultLimit int, mergeCallback func(from, to *apitypes.TXHistoryRecord) error) ([]*apitypes.TxHistoryStateTransitionEntry, error) {
+	result := []*apitypes.TxHistoryStateTransitionEntry{}
+	skip := 0
+	pageSize := 50
+	for {
+		filter := persistence.TXHistoryFilters.
+			NewFilterLimit(ctx, uint64(pageSize)).Eq("transaction", txID).
+			Skip(uint64(skip))
+		page, _, err := p.txHistory.GetMany(ctx, filter)
+		if err != nil {
+			return nil, err
+		}
+		var lastEntrySameSubStatus *apitypes.TXHistoryRecord
+		for _, h := range page {
+			if len(result) == 0 || result[len(result)-1].Status != h.SubStatus {
+				lastEntrySameSubStatus = nil // we've changed subStatus
+				result = append(result, &apitypes.TxHistoryStateTransitionEntry{
+					Time:    h.Time,
+					Status:  h.SubStatus,
+					Actions: []*apitypes.TxHistoryActionEntry{},
+				})
+			}
+			statusEntry := result[len(result)-1]
+			var actionEntry *apitypes.TxHistoryActionEntry
+			if lastEntrySameSubStatus == nil || lastEntrySameSubStatus.Action != h.Action {
+				actionEntry = &apitypes.TxHistoryActionEntry{
+					Time:           h.Time,
+					LastOccurrence: h.LastOccurrence,
+					Action:         h.Action,
+					Count:          h.Count,
+				}
+				statusEntry.Actions = append(statusEntry.Actions, actionEntry)
+			} else {
+				// We can compress these records together. We might have a callback to persist this, if we're
+				// running this function as part of a history compression.
+				if mergeCallback != nil {
+					if err := mergeCallback(h, lastEntrySameSubStatus); err != nil {
+						log.L(ctx).Errorf("Merging status record %s into %s failed: %s", h.ID, lastEntrySameSubStatus.ID, err)
+					}
+				}
+				actionEntry = statusEntry.Actions[len(statusEntry.Actions)-1]
+				actionEntry.Count++
+				actionEntry.LastOccurrence = h.LastOccurrence
+			}
+			actionEntry.LastInfo = h.LastInfo
+			if h.LastErrorTime != nil {
+				actionEntry.LastErrorTime = h.LastErrorTime
+				actionEntry.LastError = h.LastError
+			}
+			lastEntrySameSubStatus = h
+		}
+		// We're done when we run out of input, or we hit the target maximum output records
+		if len(page) != pageSize || (resultLimit > 0 && len(result) >= resultLimit) {
+			return result, nil
+		}
+		skip += pageSize
+	}
+
 }

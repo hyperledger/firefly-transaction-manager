@@ -68,7 +68,7 @@ func TestManagedTX(t *testing.T) {
 	mtx.SetCreated(t1)
 	assert.Equal(t, t1, mtx.Created)
 	t2 := fftypes.Now()
-	mtx.SetUpdated(fftypes.Now())
+	mtx.SetUpdated(t2)
 	assert.Equal(t, t2, mtx.Updated)
 }
 
@@ -82,6 +82,6 @@ func TestReceiptRecord(t *testing.T) {
 	r.SetCreated(t1)
 	assert.Equal(t, t1, r.Created)
 	t2 := fftypes.Now()
-	r.SetUpdated(fftypes.Now())
+	r.SetUpdated(t2)
 	assert.Equal(t, t2, r.Updated)
 }

@@ -56,19 +56,20 @@ var ListenerFilters = &ffapi.QueryFields{
 }
 
 var TransactionFilters = &ffapi.QueryFields{
+	"sequence":        &ffapi.Int64Field{},
 	"id":              &ffapi.StringField{},
 	"created":         &ffapi.TimeField{},
 	"updated":         &ffapi.TimeField{},
 	"status":          &ffapi.StringField{},
-	"deleterequested": &ffapi.BoolField{},
+	"deleterequested": &ffapi.TimeField{},
 	"from":            &ffapi.StringField{},
 	"to":              &ffapi.StringField{},
 	"nonce":           &ffapi.BigIntField{},
 	"gas":             &ffapi.BigIntField{},
 	"value":           &ffapi.BigIntField{},
-	"gasprice":        &ffapi.BigIntField{},
+	"gasprice":        &ffapi.JSONField{},
 	"transactiondata": &ffapi.StringField{},
-	"transcationhash": &ffapi.StringField{},
+	"transactionhash": &ffapi.StringField{},
 	"policyinfo":      &ffapi.JSONField{},
 	"firstsubmit":     &ffapi.TimeField{},
 	"lastsubmit":      &ffapi.TimeField{},
@@ -76,13 +77,16 @@ var TransactionFilters = &ffapi.QueryFields{
 }
 
 var ConfirmationFilters = &ffapi.QueryFields{
+	"sequence":    &ffapi.Int64Field{},
 	"id":          &ffapi.UUIDField{},
+	"transaction": &ffapi.StringField{},
 	"blocknumber": &ffapi.Int64Field{},
 	"blockhash":   &ffapi.StringField{},
 	"parenthash":  &ffapi.StringField{},
 }
 
 var ReceiptFilters = &ffapi.QueryFields{
+	"sequence":         &ffapi.Int64Field{},
 	"transaction":      &ffapi.StringField{},
 	"created":          &ffapi.TimeField{},
 	"updated":          &ffapi.TimeField{},
@@ -93,6 +97,20 @@ var ReceiptFilters = &ffapi.QueryFields{
 	"protocolid":       &ffapi.StringField{},
 	"extrainfo":        &ffapi.JSONField{},
 	"contractlocation": &ffapi.JSONField{},
+}
+
+var TXHistoryFilters = &ffapi.QueryFields{
+	"sequence":       &ffapi.Int64Field{},
+	"id":             &ffapi.UUIDField{},
+	"transaction":    &ffapi.StringField{},
+	"time":           &ffapi.TimeField{},
+	"lastoccurrence": &ffapi.TimeField{},
+	"substatus":      &ffapi.StringField{},
+	"action":         &ffapi.StringField{},
+	"count":          &ffapi.Int64Field{},
+	"lasterror":      &ffapi.JSONField{},
+	"lasterrortime":  &ffapi.TimeField{},
+	"lastinfo":       &ffapi.JSONField{},
 }
 
 type RichQuery interface {

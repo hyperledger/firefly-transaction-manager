@@ -27,7 +27,7 @@ import (
 func (p *sqlPersistence) newReceiptsCollection() *dbsql.CrudBase[*apitypes.ReceiptRecord] {
 	collection := &dbsql.CrudBase[*apitypes.ReceiptRecord]{
 		DB:    &psql.Database,
-		Table: "txhistory",
+		Table: "receipts",
 		Columns: []string{
 			dbsql.ColumnID,
 			dbsql.ColumnCreated,
@@ -41,6 +41,7 @@ func (p *sqlPersistence) newReceiptsCollection() *dbsql.CrudBase[*apitypes.Recei
 			"contract_loc",
 		},
 		FilterFieldMap: map[string]string{
+			"sequence":         p.db.SequenceColumn(),
 			"transaction":      dbsql.ColumnID,
 			"blocknumber":      "block_number",
 			"transactionindex": "tx_index",
@@ -91,5 +92,11 @@ func (p *sqlPersistence) GetTransactionReceipt(ctx context.Context, txID string)
 }
 
 func (p *sqlPersistence) SetTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error {
-	return nil
+	op := newTransactionOperation(txID)
+	op.receipt = &apitypes.ReceiptRecord{
+		TransactionID:              txID,
+		TransactionReceiptResponse: receipt,
+	}
+	p.writer.queue(ctx, op)
+	return nil // we do this async for performance
 }

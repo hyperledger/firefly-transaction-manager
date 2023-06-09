@@ -26,6 +26,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
@@ -39,6 +40,7 @@ type transactionOperation struct {
 
 	txInsert           *apitypes.ManagedTX
 	txUpdate           *apitypes.TXUpdates
+	txDelete           *string
 	clearConfirmations bool
 	confirmation       *apitypes.ConfirmationRecord
 	receipt            *apitypes.ReceiptRecord
@@ -67,6 +69,14 @@ type transactionWriterBatch struct {
 	ops            []*transactionOperation
 	timeoutContext context.Context
 	timeoutCancel  func()
+
+	txInserts           []*apitypes.ManagedTX
+	txUpdates           []*transactionOperation
+	txDeletes           []string
+	receiptInserts      []*apitypes.ReceiptRecord
+	historyInserts      []*apitypes.TXHistoryRecord
+	confirmationInserts []*apitypes.ConfirmationRecord
+	confirmationResets  map[string]bool
 }
 
 func newTransactionWriter(bgCtx context.Context, p *sqlPersistence, conf config.Section) (*transactionWriter, error) {
@@ -152,7 +162,7 @@ func (tw *transactionWriter) worker(i int) {
 		case op := <-workQueue:
 			if batch == nil {
 				batch = &transactionWriterBatch{
-					id: fmt.Sprintf("%s/%.9d", batch.id, batchCount),
+					id: fmt.Sprintf("%.4d_%.9d", i, batchCount),
 				}
 				batch.timeoutContext, batch.timeoutCancel = context.WithTimeout(ctx, tw.batchTimeout)
 				batchCount++
@@ -176,62 +186,41 @@ func (tw *transactionWriter) worker(i int) {
 	}
 }
 
-func (tw *transactionWriter) runBatch(ctx context.Context, batch *transactionWriterBatch) {
+func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterBatch) {
 
 	err := tw.p.db.RunAsGroup(ctx, func(ctx context.Context) error {
 		// Build all the batch insert operations
-		var txInserts []*apitypes.ManagedTX
-		var receiptInserts []*apitypes.ReceiptRecord
-		var historyInserts []*apitypes.TXHistoryRecord
-		var confirmationInserts []*apitypes.ConfirmationRecord
-		confirmationResets := make(map[string]bool)
-		for _, op := range batch.ops {
+		b.confirmationResets = make(map[string]bool)
+		for _, op := range b.ops {
 			switch {
 			case op.txInsert != nil:
-				txInserts = append(txInserts, op.txInsert)
+				b.txInserts = append(b.txInserts, op.txInsert)
+			case op.txUpdate != nil:
+				b.txUpdates = append(b.txUpdates, op)
+			case op.txDelete != nil:
+				b.txDeletes = append(b.txDeletes, *op.txDelete)
 			case op.receipt != nil:
-				receiptInserts = append(receiptInserts, op.receipt)
+				b.receiptInserts = append(b.receiptInserts, op.receipt)
 			case op.historyRecord != nil:
-				historyInserts = append(historyInserts, op.historyRecord)
+				b.historyInserts = append(b.historyInserts, op.historyRecord)
 			case op.confirmation != nil:
 				if op.clearConfirmations {
 					// We need to purge any previous confirmation inserts for the same TX,
 					// as we will only do one clear operation for this batch (before the insert-many).
-					newConfirmationInserts := make([]*apitypes.ConfirmationRecord, 0, len(confirmationInserts))
-					for _, c := range confirmationInserts {
+					newConfirmationInserts := make([]*apitypes.ConfirmationRecord, 0, len(b.confirmationInserts))
+					for _, c := range b.confirmationInserts {
 						if c.TransactionID != op.confirmation.TransactionID {
 							newConfirmationInserts = append(newConfirmationInserts, c)
 						}
 					}
-					confirmationInserts = newConfirmationInserts
+					b.confirmationInserts = newConfirmationInserts
 					// Add the reset
-					confirmationResets[op.confirmation.TransactionID] = true
+					b.confirmationResets[op.confirmation.TransactionID] = true
 				}
-				confirmationInserts = append(confirmationInserts, op.confirmation)
+				b.confirmationInserts = append(b.confirmationInserts, op.confirmation)
 			}
 		}
-		// Insert all the transactions
-		if err := tw.p.transactions.InsertMany(ctx, txInserts, false); err != nil {
-			return err
-		}
-		// Then the receipts - which need to be an upsert
-		for _, receipt := range receiptInserts {
-			if _, err := tw.p.receipts.Upsert(ctx, receipt, dbsql.UpsertOptimizationNew); err != nil {
-				return err
-			}
-		}
-		// Then the history entries
-		if err := tw.p.txHistory.InsertMany(ctx, historyInserts, false); err != nil {
-			return err
-		}
-		// Then do any confirmation clears
-		for txID := range confirmationResets {
-			if err := tw.p.confirmations.DeleteMany(ctx, persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID)); err != nil {
-				return err
-			}
-		}
-		// Then insert the new confirmation records
-		if err := tw.p.confirmations.InsertMany(ctx, confirmationInserts, false); err != nil {
+		if err := tw.executeBatchOps(ctx, b); err != nil {
 			return err
 		}
 		return nil
@@ -241,10 +230,79 @@ func (tw *transactionWriter) runBatch(ctx context.Context, batch *transactionWri
 		// All ops in the batch get a single generic error
 		err = i18n.NewError(ctx, tmmsgs.MsgTransactionPersistenceError)
 	}
-	for _, op := range batch.ops {
+	for _, op := range b.ops {
 		op.done <- err
 	}
 
+}
+
+func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transactionWriterBatch) error {
+	// Insert all the transactions
+	if len(b.txInserts) > 0 {
+		if err := tw.p.transactions.InsertMany(ctx, b.txInserts, false); err != nil {
+			log.L(ctx).Errorf("InsertMany transactions (%d) failed: %s", len(b.historyInserts), err)
+			return err
+		}
+	}
+	// Do all the transaction updates
+	for _, op := range b.txUpdates {
+		if err := tw.p.updateTransaction(ctx, op.txID, op.txUpdate); err != nil {
+			log.L(ctx).Errorf("Update transaction %s failed: %s", op.txID, err)
+			return err
+		}
+	}
+	// Then the receipts - which need to be an upsert
+	for _, receipt := range b.receiptInserts {
+		if _, err := tw.p.receipts.Upsert(ctx, receipt, dbsql.UpsertOptimizationNew); err != nil {
+			log.L(ctx).Errorf("Upsert receipt %s failed: %s", receipt.TransactionID, err)
+			return err
+		}
+	}
+	// Then the history entries
+	if len(b.historyInserts) > 0 {
+		if err := tw.p.txHistory.InsertMany(ctx, b.historyInserts, false); err != nil {
+			log.L(ctx).Errorf("InsertMany history records (%d) failed: %s", len(b.historyInserts), err)
+			return err
+		}
+	}
+	// Then do any confirmation clears
+	for txID := range b.confirmationResets {
+		if err := tw.p.confirmations.DeleteMany(ctx, persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID)); err != nil {
+			log.L(ctx).Errorf("DeleteMany confirmation records for transaction %s failed: %s", txID, err)
+			return err
+		}
+	}
+	// Then insert the new confirmation records
+	if len(b.confirmationInserts) > 0 {
+		if err := tw.p.confirmations.InsertMany(ctx, b.confirmationInserts, false); err != nil {
+			log.L(ctx).Errorf("InsertMany confirmation records (%d) failed: %s", len(b.confirmationInserts), err)
+			return err
+		}
+	}
+	// Do all the transaction deletes
+	for _, txID := range b.txDeletes {
+		// Delete any receipt
+		if err := tw.p.receipts.Delete(ctx, txID); err != nil && err != fftypes.DeleteRecordNotFound {
+			log.L(ctx).Errorf("Delete receipt for transaction %s failed: %s", txID, err)
+			return err
+		}
+		// Clear confirmations
+		if err := tw.p.confirmations.DeleteMany(ctx, persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID)); err != nil {
+			log.L(ctx).Errorf("DeleteMany confirmation records for transaction %s failed: %s", txID, err)
+			return err
+		}
+		// Clear history
+		if err := tw.p.txHistory.DeleteMany(ctx, persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID)); err != nil {
+			log.L(ctx).Errorf("DeleteMany history records for transaction %s failed: %s", txID, err)
+			return err
+		}
+		// Delete the transaction
+		if err := tw.p.transactions.Delete(ctx, txID); err != nil {
+			log.L(ctx).Errorf("Delete transaction %s failed: %s", txID, err)
+			return err
+		}
+	}
+	return nil
 }
 
 func (tw *transactionWriter) stop() {

@@ -21,6 +21,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
@@ -39,6 +40,7 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 			"parent_hash",
 		},
 		FilterFieldMap: map[string]string{
+			"sequence":     p.db.SequenceColumn(),
 			"transaction":  "tx_id",
 			"block_number": "block_number",
 			"block_hash":   "block_hash",
@@ -46,7 +48,11 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 		},
 		PatchDisabled: true,
 		NilValue:      func() *apitypes.ConfirmationRecord { return nil },
-		NewInstance:   func() *apitypes.ConfirmationRecord { return &apitypes.ConfirmationRecord{} },
+		NewInstance: func() *apitypes.ConfirmationRecord {
+			return &apitypes.ConfirmationRecord{
+				Confirmation: &apitypes.Confirmation{},
+			}
+		},
 		GetFieldPtr: func(inst *apitypes.ConfirmationRecord, col string) interface{} {
 			switch col {
 			case dbsql.ColumnID:
@@ -57,11 +63,11 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 				return &inst.Updated
 			case "tx_id":
 				return &inst.TransactionID
-			case "blocknumber":
+			case "block_number":
 				return &inst.BlockNumber
-			case "blockhash":
+			case "block_hash":
 				return &inst.BlockHash
-			case "parenthash":
+			case "parent_hash":
 				return &inst.ParentHash
 			}
 			return nil
@@ -72,7 +78,9 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 }
 
 func (p *sqlPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error) {
-	records, _, err := p.confirmations.GetMany(ctx, persistence.ConfirmationFilters.NewFilter(ctx).Eq("id", txID))
+	// We query in increasing insertion order
+	filter := persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID).Sort("sequence").Ascending()
+	records, _, err := p.confirmations.GetMany(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -80,11 +88,27 @@ func (p *sqlPersistence) GetTransactionConfirmations(ctx context.Context, txID s
 	for i, r := range records {
 		confirmations[i] = r.Confirmation
 	}
-	return nil, nil
+	return confirmations, nil
 }
 
 func (p *sqlPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error {
-	return nil
+	// Dispatch to TX writer
+	for i, c := range confirmations {
+		op := newTransactionOperation(txID)
+		if i == 0 {
+			// We dispatch a clear with the first record, if it was requested due to a fork
+			op.clearConfirmations = clearExisting
+		}
+		op.confirmation = &apitypes.ConfirmationRecord{
+			ResourceBase: dbsql.ResourceBase{
+				ID: fftypes.NewUUID(),
+			},
+			TransactionID: txID,
+			Confirmation:  c,
+		}
+		p.writer.queue(ctx, op)
+	}
+	return nil // we do this async for performance
 }
 
 func (p *sqlPersistence) ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.Filter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error) {
