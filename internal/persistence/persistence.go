@@ -65,7 +65,16 @@ var EventStreamFilters = &ffapi.QueryFields{
 }
 
 var ListenerFilters = &ffapi.QueryFields{
-	// TODO: complete
+	"sequence":  &ffapi.Int64Field{},
+	"id":        &ffapi.UUIDField{},
+	"name":      &ffapi.StringField{},
+	"created":   &ffapi.TimeField{},
+	"updated":   &ffapi.TimeField{},
+	"streamid":  &ffapi.UUIDField{},
+	"filters":   &ffapi.JSONField{},
+	"options":   &ffapi.JSONField{},
+	"signature": &ffapi.StringField{},
+	"fromblock": &ffapi.StringField{},
 }
 
 var TransactionFilters = &ffapi.QueryFields{

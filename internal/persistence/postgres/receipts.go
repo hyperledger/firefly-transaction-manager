@@ -88,7 +88,11 @@ func (p *sqlPersistence) newReceiptsCollection() *dbsql.CrudBase[*apitypes.Recei
 }
 
 func (p *sqlPersistence) GetTransactionReceipt(ctx context.Context, txID string) (receipt *ffcapi.TransactionReceiptResponse, err error) {
-	return nil, nil
+	r, err := p.receipts.GetByID(ctx, txID)
+	if r == nil || err != nil {
+		return nil, err
+	}
+	return r.TransactionReceiptResponse, err
 }
 
 func (p *sqlPersistence) SetTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error {

@@ -73,7 +73,7 @@ type transactionWriterBatch struct {
 	txInserts           []*apitypes.ManagedTX
 	txUpdates           []*transactionOperation
 	txDeletes           []string
-	receiptInserts      []*apitypes.ReceiptRecord
+	receiptInserts      map[string]*apitypes.ReceiptRecord
 	historyInserts      []*apitypes.TXHistoryRecord
 	confirmationInserts []*apitypes.ConfirmationRecord
 	confirmationResets  map[string]bool
@@ -191,6 +191,7 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 	err := tw.p.db.RunAsGroup(ctx, func(ctx context.Context) error {
 		// Build all the batch insert operations
 		b.confirmationResets = make(map[string]bool)
+		b.receiptInserts = make(map[string]*apitypes.ReceiptRecord)
 		for _, op := range b.ops {
 			switch {
 			case op.txInsert != nil:
@@ -200,7 +201,8 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 			case op.txDelete != nil:
 				b.txDeletes = append(b.txDeletes, *op.txDelete)
 			case op.receipt != nil:
-				b.receiptInserts = append(b.receiptInserts, op.receipt)
+				// Last one wins in the receipts (can't insert the same TXID twice in one InsertMany)
+				b.receiptInserts[op.txID] = op.receipt
 			case op.historyRecord != nil:
 				b.historyInserts = append(b.historyInserts, op.historyRecord)
 			case op.confirmation != nil:
@@ -252,9 +254,13 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 		}
 	}
 	// Then the receipts - which need to be an upsert
-	if len(b.receiptInserts) > 0 {
+	receipts := make([]*apitypes.ReceiptRecord, 0, len(b.receiptInserts))
+	for _, r := range b.receiptInserts {
+		receipts = append(receipts, r)
+	}
+	if len(receipts) > 0 {
 		// Try optimized insert first, allowing partial success so we can fall back
-		err := tw.p.receipts.InsertMany(ctx, b.receiptInserts, true /* fallback */)
+		err := tw.p.receipts.InsertMany(ctx, receipts, true /* fallback */)
 		if err != nil {
 			log.L(ctx).Debugf("Batch receipt insert optimization failed: %s", err)
 			for _, receipt := range b.receiptInserts {

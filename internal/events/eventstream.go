@@ -353,13 +353,13 @@ func (es *eventStream) verifyListenerOptions(ctx context.Context, id *fftypes.UU
 	}
 
 	// We update the spec object in-place for the signature and resolved options
-	spec.Signature = res.ResolvedSignature
+	spec.Signature = &res.ResolvedSignature
 	spec.Options = &res.ResolvedOptions
 	if spec.Name == nil || *spec.Name == "" {
 		sig := spec.Signature
-		spec.Name = &sig
+		spec.Name = sig
 	}
-	log.L(ctx).Infof("Listener %s signature: %s", spec.ID, spec.Signature)
+	log.L(ctx).Infof("Listener %s signature: %s", spec.ID, *spec.Signature)
 	return spec, nil
 }
 
@@ -419,10 +419,10 @@ func (es *eventStream) lockedListenerUpdate(ctx context.Context, spec *apitypes.
 	l, exists := es.listeners[*spec.ID]
 	switch {
 	case exists:
-		if spec.Signature != l.spec.Signature {
+		if spec.SignatureString() != l.spec.SignatureString() {
 			// We do not allow the filters to be updated, because that would lead to a confusing situation
 			// where the previously emitted events are a subset/mismatch to the filters configured now.
-			return false, nil, nil, i18n.NewError(ctx, tmmsgs.MsgFilterUpdateNotAllowed, l.spec.Signature, spec.Signature)
+			return false, nil, nil, i18n.NewError(ctx, tmmsgs.MsgFilterUpdateNotAllowed, l.spec.SignatureString(), spec.SignatureString())
 		}
 		l.spec = spec
 	case reset:
@@ -716,7 +716,7 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 						// However, we need to protect the application from receiving the re-detections.
 						// This loop is the right place for this check, as we are responsible for writing the checkpoints and
 						// delivering to the application. So we are the one source of truth.
-						log.L(es.bgCtx).Debugf("%s '%s' event re-detected behind checkpoint: %s", l.spec.ID, l.spec.Signature, fev.Event)
+						log.L(es.bgCtx).Debugf("%s '%s' event re-detected behind checkpoint: %s", l.spec.ID, l.spec.SignatureString(), fev.Event)
 						continue
 					}
 
@@ -732,7 +732,7 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 						batch.checkpoints[*fev.Event.ID.ListenerID] = fev.Checkpoint
 					}
 
-					log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.Signature, fev.Event)
+					log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.SignatureString(), fev.Event)
 					batch.events = append(batch.events, &apitypes.EventWithContext{
 						StandardContext: apitypes.EventContext{
 							StreamID:       es.spec.ID,
@@ -865,7 +865,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 			if l, ok := es.listeners[lID]; ok {
 				l.checkpoint = lCP
 				l.lastCheckpoint = fftypes.Now()
-				log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %+v", l.spec.Signature, l.spec.ID, lCP)
+				log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %+v", l.spec.SignatureString(), l.spec.ID, lCP)
 			}
 		}
 	}

@@ -186,6 +186,19 @@ func (wc *WebSocketConfig) Value() (driver.Value, error) {
 
 type ListenerFilters []fftypes.JSONAny
 
+// Store in DB as JSON
+func (lf *ListenerFilters) Scan(src interface{}) error {
+	return jsonScan(src, lf)
+}
+
+// Store in DB as JSON
+func (lf ListenerFilters) Value() (driver.Value, error) {
+	if lf == nil {
+		return nil, nil
+	}
+	return jsonValue(lf)
+}
+
 type Listener struct {
 	ID               *fftypes.UUID    `ffstruct:"listener" json:"id,omitempty"`
 	Created          *fftypes.FFTime  `ffstruct:"listener" json:"created"`
@@ -197,8 +210,27 @@ type Listener struct {
 	EthCompatMethods *fftypes.JSONAny `ffstruct:"listener" json:"methods,omitempty"`
 	Filters          ListenerFilters  `ffstruct:"listener" json:"filters"`
 	Options          *fftypes.JSONAny `ffstruct:"listener" json:"options"`
-	Signature        string           `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
+	Signature        *string          `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
 	FromBlock        *string          `ffstruct:"listener" json:"fromBlock,omitempty"`
+}
+
+func (l *Listener) SignatureString() string {
+	if l.Signature == nil {
+		return ""
+	}
+	return *l.Signature
+}
+
+func (l *Listener) GetID() string {
+	return l.ID.String()
+}
+
+func (l *Listener) SetCreated(t *fftypes.FFTime) {
+	l.Created = t
+}
+
+func (l *Listener) SetUpdated(t *fftypes.FFTime) {
+	l.Updated = t
 }
 
 type ListenerWithStatus struct {

@@ -40,10 +40,26 @@ func newMockSQLPersistence(t *testing.T) (context.Context, *sqlPersistence, sqlm
 	p, err := newSQLPersistence(ctx, &db.Database, dbconf)
 	assert.NoError(t, err)
 
+	assert.NotNil(t, p.RichQuery())
+
 	return ctx, p, dbm, func() {
 		cancelCtx()
 		p.Close(ctx)
 	}
+
+}
+
+func TestNewSQLPersistenceTXWriterFail(t *testing.T) {
+
+	db, _ := dbsql.NewMockProvider().UTInit()
+
+	config.RootConfigReset()
+	dbconf := config.RootSection("utdb")
+	InitConfig(dbconf)
+	dbconf.Set(ConfigTXWriterHistoryCacheSlots, -1)
+
+	_, err := newSQLPersistence(context.Background(), &db.Database, dbconf)
+	assert.Regexp(t, "must provide a positive size", err)
 
 }
 

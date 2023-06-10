@@ -22,19 +22,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestNewTransactionWriterBadConfig(t *testing.T) {
-	badconf := config.RootSection("ut")
-	InitConfig(badconf)
-	badconf.Set(ConfigTXWriterHistoryCacheSlots, -1)
-	_, err := newTransactionWriter(context.Background(), &sqlPersistence{}, badconf)
-	assert.Regexp(t, "must provide a positive size", err)
-}
 
 func TestExecuteBatchOpsInsertTXFailWrapped(t *testing.T) {
 	ctx, p, mdb, done := newMockSQLPersistence(t)
@@ -50,7 +41,7 @@ func TestExecuteBatchOpsInsertTXFailWrapped(t *testing.T) {
 		},
 	})
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsInsertTXFail(t *testing.T) {
@@ -66,7 +57,7 @@ func TestExecuteBatchOpsInsertTXFail(t *testing.T) {
 	})
 	assert.Regexp(t, "FF00177", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsUpdateTXFail(t *testing.T) {
@@ -84,7 +75,7 @@ func TestExecuteBatchOpsUpdateTXFail(t *testing.T) {
 	})
 	assert.Regexp(t, "FF00178", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsUpsertReceiptFail(t *testing.T) {
@@ -97,12 +88,14 @@ func TestExecuteBatchOpsUpsertReceiptFail(t *testing.T) {
 
 	err := p.db.RunAsGroup(ctx, func(ctx context.Context) error {
 		return p.writer.executeBatchOps(ctx, &transactionWriterBatch{
-			receiptInserts: []*apitypes.ReceiptRecord{{TransactionReceiptResponse: &ffcapi.TransactionReceiptResponse{}}},
+			receiptInserts: map[string]*apitypes.ReceiptRecord{
+				"tx1": {TransactionReceiptResponse: &ffcapi.TransactionReceiptResponse{}},
+			},
 		})
 	})
 	assert.Regexp(t, "FF00176", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsInsertTXHistoryFail(t *testing.T) {
@@ -118,7 +111,7 @@ func TestExecuteBatchOpsInsertTXHistoryFail(t *testing.T) {
 	})
 	assert.Regexp(t, "FF00177", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsDeleteConfirmationsFail(t *testing.T) {
@@ -134,7 +127,7 @@ func TestExecuteBatchOpsDeleteConfirmationsFail(t *testing.T) {
 	})
 	assert.Regexp(t, "FF00179", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsInsertConfirmationFail(t *testing.T) {
@@ -152,7 +145,7 @@ func TestExecuteBatchOpsInsertConfirmationFail(t *testing.T) {
 	})
 	assert.Regexp(t, "FF00177", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsDeleteTXFail(t *testing.T) {
@@ -173,7 +166,7 @@ func TestExecuteBatchOpsDeleteTXFail(t *testing.T) {
 	})
 	assert.Regexp(t, "FF00179", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsDeleteTXHistoryFail(t *testing.T) {
@@ -193,7 +186,7 @@ func TestExecuteBatchOpsDeleteTXHistoryFail(t *testing.T) {
 	})
 	assert.Regexp(t, "FF00179", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsDeleteTXConfirmationsFail(t *testing.T) {
@@ -212,7 +205,7 @@ func TestExecuteBatchOpsDeleteTXConfirmationsFail(t *testing.T) {
 	})
 	assert.Regexp(t, "FF00179", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestExecuteBatchOpsDeleteTXReceiptFail(t *testing.T) {
@@ -230,7 +223,7 @@ func TestExecuteBatchOpsDeleteTXReceiptFail(t *testing.T) {
 	})
 	assert.Regexp(t, "FF00179", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
 func TestFlushOpClosedContext(t *testing.T) {

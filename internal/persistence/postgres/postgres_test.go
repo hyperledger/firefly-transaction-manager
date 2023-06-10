@@ -109,3 +109,14 @@ func TestPSQLDownMigrations(t *testing.T) {
 	assert.NoError(t, err)
 
 }
+
+func TestDBInitFail(t *testing.T) {
+
+	config.RootConfigReset()
+	dbconf := config.RootSection("utdb")
+	InitConfig(dbconf)
+
+	_, err := NewPostgresPersistence(context.Background(), dbconf)
+	assert.Regexp(t, "FF00183", err)
+
+}

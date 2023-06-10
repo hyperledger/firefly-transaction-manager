@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -32,12 +31,7 @@ import (
 func TestEventStreamBasicPSQL(t *testing.T) {
 	logrus.SetLevel(logrus.TraceLevel)
 
-	// Do a set of transaction operations through the writers, and confirm the results are correct
-	ctx, p, _, done := initTestPSQL(t, func(dbconf config.Section) {
-		dbconf.Set(ConfigTXWriterCount, 1)            // send them all to one worker
-		dbconf.Set(ConfigTXWriterBatchTimeout, "10s") // ensure it triggers with the whole thing
-		dbconf.Set(ConfigTXWriterBatchSize, 16)       // this must exactly match the number of ops
-	})
+	ctx, p, _, done := initTestPSQL(t)
 	defer done()
 
 	// Write a stream
@@ -108,12 +102,7 @@ func TestEventStreamBasicPSQL(t *testing.T) {
 func TestEventStreamAfterPaginatePSQL(t *testing.T) {
 	logrus.SetLevel(logrus.TraceLevel)
 
-	// Do a set of transaction operations through the writers, and confirm the results are correct
-	ctx, p, _, done := initTestPSQL(t, func(dbconf config.Section) {
-		dbconf.Set(ConfigTXWriterCount, 1)            // send them all to one worker
-		dbconf.Set(ConfigTXWriterBatchTimeout, "10s") // ensure it triggers with the whole thing
-		dbconf.Set(ConfigTXWriterBatchSize, 16)       // this must exactly match the number of ops
-	})
+	ctx, p, _, done := initTestPSQL(t)
 	defer done()
 
 	var eventStreams []*apitypes.EventStream

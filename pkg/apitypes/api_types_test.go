@@ -378,3 +378,39 @@ func TestWebhookConfigSerialization(t *testing.T) {
 	assert.Nil(t, wc3)
 
 }
+
+func TestListenerFields(t *testing.T) {
+
+	l := &Listener{
+		ID: fftypes.NewUUID(),
+	}
+	assert.Equal(t, l.ID.String(), l.GetID())
+	t1 := fftypes.Now()
+	l.SetCreated(t1)
+	assert.Equal(t, t1, l.Created)
+	t2 := fftypes.Now()
+	l.SetUpdated(t2)
+	assert.Equal(t, t2, l.Updated)
+
+	assert.Empty(t, l.SignatureString())
+	sv := "sig"
+	l.Signature = &sv
+	assert.Equal(t, "sig", l.SignatureString())
+
+	v, err := l.Filters.Value()
+	assert.NoError(t, err)
+	assert.Nil(t, v)
+
+	l.Filters = ListenerFilters{
+		*fftypes.JSONAnyPtr(`{"some":"data"}`),
+	}
+	v, err = l.Filters.Value()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, v, v.([]byte))
+
+	l2 := &Listener{Filters: ListenerFilters{}}
+	err = l2.Filters.Scan(v)
+	assert.NoError(t, err)
+	assert.Equal(t, l.Filters, l2.Filters)
+
+}

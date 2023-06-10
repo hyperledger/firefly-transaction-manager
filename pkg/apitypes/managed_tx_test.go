@@ -70,6 +70,8 @@ func TestManagedTX(t *testing.T) {
 	t2 := fftypes.Now()
 	mtx.SetUpdated(t2)
 	assert.Equal(t, t2, mtx.Updated)
+	mtx.SetSequence(12345)
+	assert.Equal(t, "000000012345", mtx.SequenceID)
 }
 
 func TestReceiptRecord(t *testing.T) {

@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTransactionConfirmationsOrderPSQ(t *testing.T) {
+func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 	logrus.SetLevel(logrus.TraceLevel)
 
 	// Do a set of transaction operations through the writers, and confirm the results are correct
@@ -173,5 +173,5 @@ func TestGetTransactionConfirmationsFailQuery(t *testing.T) {
 	_, err := p.GetTransactionConfirmations(ctx, "tx1")
 	assert.Regexp(t, "FF00176", err)
 
-	mdb.ExpectationsWereMet()
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }

@@ -18,6 +18,7 @@ package postgres
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
@@ -114,19 +115,59 @@ func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.Ma
 }
 
 func (p *sqlPersistence) ListTransactions(ctx context.Context, filter ffapi.Filter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error) {
-	return nil, nil, nil
+	return p.transactions.GetMany(ctx, filter)
 }
 
 func (p *sqlPersistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
-	return nil, nil
+	var afterSeq *int64
+	if after != nil {
+		seq, err := strconv.ParseInt(after.SequenceID, 10, 64)
+		if err != nil {
+			// This shouldn't happen - we always calculate and store this from the persisted DB sequence
+			return nil, err
+		}
+		afterSeq = &seq
+	}
+	filter := p.seqAfterFilter(ctx, persistence.TransactionFilters, afterSeq, limit, dir)
+	transactions, _, err := p.transactions.GetMany(ctx, filter)
+	return transactions, err
+
 }
 
 func (p *sqlPersistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
-	return nil, nil
+	fb := persistence.TransactionFilters.NewFilterLimit(ctx, uint64(limit))
+	var conditions []ffapi.Filter
+	if after != nil {
+		if dir == persistence.SortDirectionDescending {
+			conditions = append(conditions, fb.Lt("nonce", after))
+		} else {
+			conditions = append(conditions, fb.Gt("nonce", after))
+		}
+	}
+	var filter ffapi.Filter = fb.And(conditions...)
+	if dir == persistence.SortDirectionDescending {
+		filter = filter.Sort("-nonce")
+	} else {
+		filter = filter.Sort("nonce")
+	}
+	transactions, _, err := p.transactions.GetMany(ctx, filter)
+	return transactions, err
 }
 
 func (p *sqlPersistence) ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
-	return nil, nil
+	var afterSeq *int64
+	if afterSequenceID != "" {
+		seq, err := strconv.ParseInt(afterSequenceID, 10, 64)
+		if err != nil {
+			// This shouldn't happen - we always calculate and store this from the persisted DB sequence
+			return nil, err
+		}
+		afterSeq = &seq
+	}
+	filter := p.seqAfterFilter(ctx, persistence.TransactionFilters, afterSeq, limit, dir,
+		persistence.TransactionFilters.NewFilter(ctx).Eq("status", apitypes.TxStatusPending))
+	transactions, _, err := p.transactions.GetMany(ctx, filter)
+	return transactions, err
 }
 
 func (p *sqlPersistence) GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
@@ -163,7 +204,16 @@ func (p *sqlPersistence) GetTransactionByIDWithHistory(ctx context.Context, txID
 }
 
 func (p *sqlPersistence) GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error) {
-	return nil, nil
+	fb := persistence.TransactionFilters.NewFilterLimit(ctx, 1)
+	filter := fb.And(
+		fb.Eq("from", signer),
+		fb.Eq("nonce", nonce),
+	)
+	transactions, _, err := p.transactions.GetMany(ctx, filter)
+	if len(transactions) == 0 || err != nil {
+		return nil, err
+	}
+	return transactions[0], err
 }
 
 func (p *sqlPersistence) InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error {

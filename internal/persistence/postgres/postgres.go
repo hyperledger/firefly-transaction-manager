@@ -48,10 +48,6 @@ func NewPostgresPersistence(bgCtx context.Context, conf config.Section) (persist
 	return newSQLPersistence(bgCtx, &psql.Database, conf)
 }
 
-func (psql *Postgres) Init(ctx context.Context, config config.Section) error {
-	return psql.Database.Init(ctx, psql, config)
-}
-
 func (psql *Postgres) Name() string {
 	return "postgres"
 }

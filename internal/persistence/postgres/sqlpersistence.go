@@ -45,6 +45,7 @@ type sqlPersistence struct {
 	receipts      *dbsql.CrudBase[*apitypes.ReceiptRecord]
 	txHistory     *dbsql.CrudBase[*apitypes.TXHistoryRecord]
 	eventStreams  *dbsql.CrudBase[*apitypes.EventStream]
+	listeners     *dbsql.CrudBase[*apitypes.Listener]
 
 	historySummaryLimit int
 }
@@ -72,6 +73,7 @@ func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Se
 	p.receipts = p.newReceiptsCollection()
 	p.txHistory = p.newTXHistoryCollection()
 	p.eventStreams = p.newEventStreamsCollection()
+	p.listeners = p.newListenersCollection()
 
 	p.historySummaryLimit = conf.GetInt(ConfigTXWriterHistorySummaryLimit)
 	if p.writer, err = newTransactionWriter(bgCtx, p, conf); err != nil {
@@ -84,20 +86,20 @@ func (p *sqlPersistence) RichQuery() persistence.RichQuery {
 	return p
 }
 
-func (p *sqlPersistence) seqAfterFilter(ctx context.Context, qf *ffapi.QueryFields, after *int64, limit int, dir persistence.SortDirection) (filter ffapi.Filter) {
+func (p *sqlPersistence) seqAfterFilter(ctx context.Context, qf *ffapi.QueryFields, after *int64, limit int, dir persistence.SortDirection, conditions ...ffapi.Filter) (filter ffapi.Filter) {
 	fb := qf.NewFilterLimit(ctx, uint64(limit))
 	if after != nil {
 		if dir == persistence.SortDirectionDescending {
-			filter = fb.Lt("sequence", *after).Sort("-sequence")
+			conditions = append(conditions, fb.Lt("sequence", *after))
 		} else {
-			filter = fb.Gt("sequence", *after).Sort("sequence")
+			conditions = append(conditions, fb.Gt("sequence", *after))
 		}
+	}
+	filter = fb.And(conditions...)
+	if dir == persistence.SortDirectionDescending {
+		filter = filter.Sort("-sequence")
 	} else {
-		if dir == persistence.SortDirectionDescending {
-			filter = fb.And().Sort("-sequence")
-		} else {
-			filter = fb.And().Sort("sequence")
-		}
+		filter = filter.Sort("sequence")
 	}
 	return filter
 }
