@@ -301,3 +301,80 @@ func TestConfirmationFromBlock(t *testing.T) {
 	assert.Equal(t, bi.ParentHash, c.ParentHash)
 
 }
+
+func TestEventStreamFields(t *testing.T) {
+
+	es := &EventStream{
+		ID: fftypes.NewUUID(),
+	}
+	assert.Equal(t, es.ID.String(), es.GetID())
+	t1 := fftypes.Now()
+	es.SetCreated(t1)
+	assert.Equal(t, t1, es.Created)
+	t2 := fftypes.Now()
+	es.SetUpdated(t2)
+	assert.Equal(t, t2, es.Updated)
+}
+
+func TestWebSocketConfigSerialization(t *testing.T) {
+
+	var wc *WebSocketConfig
+	v, err := wc.Value()
+	assert.Nil(t, v)
+	assert.NoError(t, err)
+
+	wc = &WebSocketConfig{
+		DistributionMode: &DistributionModeBroadcast,
+	}
+	v, err = wc.Value()
+	assert.NotNil(t, v)
+	assert.NoError(t, err)
+
+	wc1 := &WebSocketConfig{}
+	err = wc1.Scan(v)
+	assert.NoError(t, err)
+	assert.Equal(t, DistributionModeBroadcast, *wc1.DistributionMode)
+
+	wc2 := &WebSocketConfig{}
+	err = wc2.Scan(string(v.([]byte)))
+	assert.NoError(t, err)
+	assert.Equal(t, DistributionModeBroadcast, *wc1.DistributionMode)
+
+	var wc3 *WebSocketConfig
+	err = wc3.Scan(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, wc3)
+
+}
+
+func TestWebhookConfigSerialization(t *testing.T) {
+
+	var wc *WebhookConfig
+	v, err := wc.Value()
+	assert.Nil(t, v)
+	assert.NoError(t, err)
+
+	u := "http://example.com"
+	wc = &WebhookConfig{
+		URL: &u,
+	}
+	v, err = wc.Value()
+	assert.NotNil(t, v)
+	assert.NoError(t, err)
+
+	wc1 := &WebhookConfig{}
+	err = wc1.Scan(v)
+	assert.NoError(t, err)
+	assert.Equal(t, "http://example.com", *wc1.URL)
+
+	wc2 := &WebhookConfig{}
+	err = wc2.Scan(string(v.([]byte)))
+	assert.NoError(t, err)
+	assert.Equal(t, "http://example.com", *wc1.URL)
+
+	var wc3 *WebhookConfig
+	err = wc3.Scan(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, wc3)
+
+}

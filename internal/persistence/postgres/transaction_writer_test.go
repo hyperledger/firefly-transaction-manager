@@ -243,6 +243,8 @@ func TestFlushOpClosedContext(t *testing.T) {
 func TestQueueClosedBGContext(t *testing.T) {
 	_, p, _, done := newMockSQLPersistence(t)
 	done()
+	p.writer.workQueues = []chan *transactionOperation{make(chan *transactionOperation)}
+	p.writer.workerCount = 1
 
 	op := newTransactionOperation("tx1")
 	p.writer.queue(context.Background(), op)
@@ -254,6 +256,8 @@ func TestQueueClosedBGContext(t *testing.T) {
 func TestQueueClosedContext(t *testing.T) {
 	_, p, _, done := newMockSQLPersistence(t)
 	done()
+	p.writer.workQueues = []chan *transactionOperation{make(chan *transactionOperation)}
+	p.writer.workerCount = 1
 	p.writer.bgCtx = context.Background()
 
 	closedCtx, cancelCtx := context.WithCancel(context.Background())

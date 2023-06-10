@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCheckpointsE2E(t *testing.T) {
+func TestCheckpointsPSQ(t *testing.T) {
 
 	ctx, p, _, done := initTestPSQL(t)
 	defer done()

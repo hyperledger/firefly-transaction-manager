@@ -40,11 +40,11 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 			"parent_hash",
 		},
 		FilterFieldMap: map[string]string{
-			"sequence":     p.db.SequenceColumn(),
-			"transaction":  "tx_id",
-			"block_number": "block_number",
-			"block_hash":   "block_hash",
-			"parent_hash":  "parent_hash",
+			"sequence":    p.db.SequenceColumn(),
+			"transaction": "tx_id",
+			"blocknumber": "block_number",
+			"blockhash":   "block_hash",
+			"parenthash":  "parent_hash",
 		},
 		PatchDisabled: true,
 		NilValue:      func() *apitypes.ConfirmationRecord { return nil },
@@ -114,7 +114,7 @@ func (p *sqlPersistence) AddTransactionConfirmations(ctx context.Context, txID s
 func (p *sqlPersistence) ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.Filter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error) {
 	fb := persistence.ConfirmationFilters.NewFilter(ctx)
 	return p.confirmations.GetMany(ctx, fb.And(
-		fb.Eq("id", txID),
+		fb.Eq("transaction", txID),
 		filter,
 	))
 }

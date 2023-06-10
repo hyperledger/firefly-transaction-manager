@@ -31,11 +31,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func initTestPSQL(t *testing.T) (context.Context, *sqlPersistence, *migrate.Migrate, func()) {
+func initTestPSQL(t *testing.T, initFunc ...func(config.Section)) (context.Context, *sqlPersistence, *migrate.Migrate, func()) {
 
+	config.RootConfigReset()
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	dbconf := config.RootSection("utdb")
 	InitConfig(dbconf)
+	for _, f := range initFunc {
+		f(dbconf)
+	}
 
 	dbURL := func(dbname string) string {
 		hostname := os.Getenv("POSTGRES_HOSTNAME")

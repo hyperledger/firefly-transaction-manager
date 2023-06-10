@@ -19,28 +19,108 @@ package postgres
 import (
 	"context"
 
+	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
+func (p *sqlPersistence) newEventStreamsCollection() *dbsql.CrudBase[*apitypes.EventStream] {
+	collection := &dbsql.CrudBase[*apitypes.EventStream]{
+		DB:    p.db,
+		Table: "eventstreams",
+		Columns: []string{
+			dbsql.ColumnID,
+			dbsql.ColumnCreated,
+			dbsql.ColumnUpdated,
+			"name",
+			"suspended",
+			"stream_type",
+			"error_handling",
+			"batch_size",
+			"batch_timeout",
+			"retry_timeout",
+			"blocked_retry_timeout",
+			"webhook_config",
+			"websocket_config",
+		},
+		FilterFieldMap: map[string]string{
+			"sequence":            p.db.SequenceColumn(),
+			"type":                "stream_type",
+			"errorhandling":       "error_handling",
+			"batchsize":           "batch_size",
+			"batchtimeout":        "batch_timeout",
+			"retrytimeout":        "retry_timeout",
+			"blockedretrytimeout": "blocked_retry_timeout",
+			"webhook":             "webhook_config",
+			"websocket":           "webhsocket_config",
+		},
+		NilValue:    func() *apitypes.EventStream { return nil },
+		NewInstance: func() *apitypes.EventStream { return &apitypes.EventStream{} },
+		GetFieldPtr: func(inst *apitypes.EventStream, col string) interface{} {
+			switch col {
+			case dbsql.ColumnID:
+				return &inst.ID
+			case dbsql.ColumnCreated:
+				return &inst.Created
+			case dbsql.ColumnUpdated:
+				return &inst.Updated
+			case "name":
+				return &inst.Name
+			case "suspended":
+				return &inst.Suspended
+			case "stream_type":
+				return &inst.Type
+			case "error_handling":
+				return &inst.ErrorHandling
+			case "batch_size":
+				return &inst.BatchSize
+			case "batch_timeout":
+				return &inst.BatchTimeout
+			case "retry_timeout":
+				return &inst.RetryTimeout
+			case "blocked_retry_timeout":
+				return &inst.BlockedRetryDelay
+			case "webhook_config":
+				return &inst.Webhook
+			case "websocket_config":
+				return &inst.WebSocket
+			}
+			return nil
+		},
+	}
+	collection.Validate()
+	return collection
+}
+
 func (p *sqlPersistence) ListStreams(ctx context.Context, filter ffapi.Filter) ([]*apitypes.EventStream, *ffapi.FilterResult, error) {
-	return nil, nil, nil
+	return p.eventStreams.GetMany(ctx, filter)
 }
 
 func (p *sqlPersistence) ListStreamsByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir persistence.SortDirection) ([]*apitypes.EventStream, error) {
-	return nil, nil
+	var afterSeq *int64
+	if after != nil {
+		seq, err := p.eventStreams.GetSequenceForID(ctx, after.String())
+		if err != nil {
+			return nil, err
+		}
+		afterSeq = &seq
+	}
+	filter := p.seqAfterFilter(ctx, persistence.EventStreamFilters, afterSeq, limit, dir)
+	streams, _, err := p.eventStreams.GetMany(ctx, filter)
+	return streams, err
 }
 
 func (p *sqlPersistence) GetStream(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStream, error) {
-	return nil, nil
+	return p.eventStreams.GetByID(ctx, streamID.String())
 }
 
 func (p *sqlPersistence) WriteStream(ctx context.Context, spec *apitypes.EventStream) error {
-	return nil
+	_, err := p.eventStreams.Upsert(ctx, spec, dbsql.UpsertOptimizationNew)
+	return err
 }
 
 func (p *sqlPersistence) DeleteStream(ctx context.Context, streamID *fftypes.UUID) error {
-	return nil
+	return p.eventStreams.Delete(ctx, streamID.String())
 }

@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTransactionBasicValidationE2E(t *testing.T) {
+func TestTransactionBasicValidationPSQ(t *testing.T) {
 	logrus.SetLevel(logrus.TraceLevel)
 
 	// Do a set of transaction operations through the writers, and confirm the results are correct
@@ -59,6 +59,7 @@ func TestTransactionBasicValidationE2E(t *testing.T) {
 	}
 	err := p.InsertTransaction(ctx, tx)
 	assert.NoError(t, err)
+	assert.NotEmpty(t, tx.SequenceID)
 	origTXJson, err := json.Marshal(tx)
 	assert.NoError(t, err)
 
@@ -131,8 +132,9 @@ func TestTransactionBasicValidationE2E(t *testing.T) {
 	mtxExpected := &apitypes.TXWithStatus{
 		ManagedTX: &apitypes.ManagedTX{
 			ID:              txID,
-			Created:         tx.Created,  // will not have changed
-			Updated:         mtx.Updated, // will have changed
+			SequenceID:      tx.SequenceID, // will not have changed
+			Created:         tx.Created,    // will not have changed
+			Updated:         mtx.Updated,   // will have changed
 			Status:          *txUpdates.Status,
 			DeleteRequested: txUpdates.DeleteRequested,
 			TransactionHeaders: ffcapi.TransactionHeaders{
@@ -203,8 +205,4 @@ func TestTransactionBasicValidationE2E(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Zero(t, count)
 
-}
-
-func strPtr(s string) *string {
-	return &s
 }

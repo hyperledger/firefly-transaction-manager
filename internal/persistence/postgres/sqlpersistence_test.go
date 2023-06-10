@@ -19,10 +19,12 @@ package postgres
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,4 +45,16 @@ func newMockSQLPersistence(t *testing.T) (context.Context, *sqlPersistence, sqlm
 		p.Close(ctx)
 	}
 
+}
+
+func strPtr(s string) *string {
+	return &s
+}
+
+func u64Ptr(i uint64) *uint64 {
+	return &i
+}
+
+func ffDurationPtr(d time.Duration) *fftypes.FFDuration {
+	return (*fftypes.FFDuration)(&d)
 }

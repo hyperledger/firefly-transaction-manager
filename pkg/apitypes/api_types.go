@@ -74,6 +74,18 @@ type EventStream struct {
 	WebSocket *WebSocketConfig `ffstruct:"eventstream" json:"websocket,omitempty"`
 }
 
+func (es *EventStream) GetID() string {
+	return es.ID.String()
+}
+
+func (es *EventStream) SetCreated(t *fftypes.FFTime) {
+	es.Created = t
+}
+
+func (es *EventStream) SetUpdated(t *fftypes.FFTime) {
+	es.Updated = t
+}
+
 type EventStreamStatus string
 
 const (
@@ -97,19 +109,29 @@ type EventStreamCheckpoint struct {
 	Listeners       CheckpointListeners `json:"listeners"`
 }
 
-func (l *CheckpointListeners) Scan(val any) error {
-	switch vt := val.(type) {
+func jsonScan(src, target interface{}) error {
+	switch src := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(src), target)
 	case []byte:
-		return json.Unmarshal(vt, &l)
+		return json.Unmarshal(src, target)
 	case nil:
 		return nil
 	default:
-		return i18n.NewError(context.Background(), tmmsgs.MsgSQLScanFailed, val)
+		return i18n.NewError(context.Background(), tmmsgs.MsgSQLScanFailed, src)
 	}
 }
 
+func jsonValue(target interface{}) (driver.Value, error) {
+	return json.Marshal(target)
+}
+
+func (l *CheckpointListeners) Scan(val any) error {
+	return jsonScan(val, l)
+}
+
 func (l CheckpointListeners) Value() (driver.Value, error) {
-	return json.Marshal(l)
+	return jsonValue(l)
 }
 
 func (cp *EventStreamCheckpoint) GetID() string {
@@ -132,23 +154,51 @@ type WebhookConfig struct {
 	EthCompatRequestTimeoutSec *int64              `ffstruct:"whconfig" json:"requestTimeoutSec,omitempty"` // input only, for backwards compatibility
 }
 
+// Store in DB as JSON
+func (wc *WebhookConfig) Scan(src interface{}) error {
+	return jsonScan(src, wc)
+}
+
+// Store in DB as JSON
+func (wc *WebhookConfig) Value() (driver.Value, error) {
+	if wc == nil {
+		return nil, nil
+	}
+	return jsonValue(wc)
+}
+
 type WebSocketConfig struct {
 	DistributionMode *DistributionMode `ffstruct:"wsconfig" json:"distributionMode,omitempty"`
 }
 
+// Store in DB as JSON
+func (wc *WebSocketConfig) Scan(src interface{}) error {
+	return jsonScan(src, wc)
+}
+
+// Store in DB as JSON
+func (wc *WebSocketConfig) Value() (driver.Value, error) {
+	if wc == nil {
+		return nil, nil
+	}
+	return jsonValue(wc)
+}
+
+type ListenerFilters []fftypes.JSONAny
+
 type Listener struct {
-	ID               *fftypes.UUID     `ffstruct:"listener" json:"id,omitempty"`
-	Created          *fftypes.FFTime   `ffstruct:"listener" json:"created"`
-	Updated          *fftypes.FFTime   `ffstruct:"listener" json:"updated"`
-	Name             *string           `ffstruct:"listener" json:"name"`
-	StreamID         *fftypes.UUID     `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
-	EthCompatAddress *string           `ffstruct:"listener" json:"address,omitempty"`
-	EthCompatEvent   *fftypes.JSONAny  `ffstruct:"listener" json:"event,omitempty"`
-	EthCompatMethods *fftypes.JSONAny  `ffstruct:"listener" json:"methods,omitempty"`
-	Filters          []fftypes.JSONAny `ffstruct:"listener" json:"filters"`
-	Options          *fftypes.JSONAny  `ffstruct:"listener" json:"options"`
-	Signature        string            `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
-	FromBlock        *string           `ffstruct:"listener" json:"fromBlock,omitempty"`
+	ID               *fftypes.UUID    `ffstruct:"listener" json:"id,omitempty"`
+	Created          *fftypes.FFTime  `ffstruct:"listener" json:"created"`
+	Updated          *fftypes.FFTime  `ffstruct:"listener" json:"updated"`
+	Name             *string          `ffstruct:"listener" json:"name"`
+	StreamID         *fftypes.UUID    `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
+	EthCompatAddress *string          `ffstruct:"listener" json:"address,omitempty"`
+	EthCompatEvent   *fftypes.JSONAny `ffstruct:"listener" json:"event,omitempty"`
+	EthCompatMethods *fftypes.JSONAny `ffstruct:"listener" json:"methods,omitempty"`
+	Filters          ListenerFilters  `ffstruct:"listener" json:"filters"`
+	Options          *fftypes.JSONAny `ffstruct:"listener" json:"options"`
+	Signature        string           `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
+	FromBlock        *string          `ffstruct:"listener" json:"fromBlock,omitempty"`
 }
 
 type ListenerWithStatus struct {

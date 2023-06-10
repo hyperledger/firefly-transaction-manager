@@ -48,7 +48,20 @@ type Persistence interface {
 }
 
 var EventStreamFilters = &ffapi.QueryFields{
-	// TODO: complete
+	"sequence":            &ffapi.Int64Field{},
+	"id":                  &ffapi.UUIDField{},
+	"name":                &ffapi.StringField{},
+	"created":             &ffapi.TimeField{},
+	"updated":             &ffapi.TimeField{},
+	"suspended":           &ffapi.BoolField{},
+	"type":                &ffapi.StringField{},
+	"errorhandling":       &ffapi.StringField{},
+	"batchsize":           &ffapi.Int64Field{},
+	"batchtimeout":        &ffapi.Int64Field{},
+	"retrytimeout":        &ffapi.Int64Field{},
+	"blockedretrytimeout": &ffapi.Int64Field{},
+	"webhook":             &ffapi.JSONField{},
+	"websocket":           &ffapi.JSONField{},
 }
 
 var ListenerFilters = &ffapi.QueryFields{

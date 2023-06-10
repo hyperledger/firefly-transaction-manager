@@ -21,6 +21,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
@@ -43,6 +44,7 @@ type sqlPersistence struct {
 	confirmations *dbsql.CrudBase[*apitypes.ConfirmationRecord]
 	receipts      *dbsql.CrudBase[*apitypes.ReceiptRecord]
 	txHistory     *dbsql.CrudBase[*apitypes.TXHistoryRecord]
+	eventStreams  *dbsql.CrudBase[*apitypes.EventStream]
 
 	historySummaryLimit int
 }
@@ -63,11 +65,14 @@ func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Se
 	p = &sqlPersistence{
 		db: db,
 	}
+
 	p.transactions = p.newTransactionCollection()
 	p.checkpoints = p.newCheckpointCollection()
 	p.confirmations = p.newConfirmationsCollection()
 	p.receipts = p.newReceiptsCollection()
 	p.txHistory = p.newTXHistoryCollection()
+	p.eventStreams = p.newEventStreamsCollection()
+
 	p.historySummaryLimit = conf.GetInt(ConfigTXWriterHistorySummaryLimit)
 	if p.writer, err = newTransactionWriter(bgCtx, p, conf); err != nil {
 		return nil, err
@@ -77,6 +82,24 @@ func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Se
 
 func (p *sqlPersistence) RichQuery() persistence.RichQuery {
 	return p
+}
+
+func (p *sqlPersistence) seqAfterFilter(ctx context.Context, qf *ffapi.QueryFields, after *int64, limit int, dir persistence.SortDirection) (filter ffapi.Filter) {
+	fb := qf.NewFilterLimit(ctx, uint64(limit))
+	if after != nil {
+		if dir == persistence.SortDirectionDescending {
+			filter = fb.Lt("sequence", *after).Sort("-sequence")
+		} else {
+			filter = fb.Gt("sequence", *after).Sort("sequence")
+		}
+	} else {
+		if dir == persistence.SortDirectionDescending {
+			filter = fb.And().Sort("-sequence")
+		} else {
+			filter = fb.And().Sort("sequence")
+		}
+	}
+	return filter
 }
 
 func (p *sqlPersistence) Close(_ context.Context) {
