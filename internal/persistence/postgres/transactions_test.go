@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -29,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTransactionBasicValidationPSQ(t *testing.T) {
+func TestTransactionBasicValidationPSQL(t *testing.T) {
 	logrus.SetLevel(logrus.TraceLevel)
 
 	// Do a set of transaction operations through the writers, and confirm the results are correct
@@ -205,4 +206,257 @@ func TestTransactionBasicValidationPSQ(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Zero(t, count)
 
+}
+
+func TestTransactionListByCreateTimePSQL(t *testing.T) {
+	logrus.SetLevel(logrus.TraceLevel)
+
+	ctx, p, _, done := initTestPSQL(t)
+	defer done()
+
+	// Write transactions with increasing nonces across two signers
+	var txs []*apitypes.ManagedTX
+	for i := int64(0); i < 10; i++ {
+		signer := fmt.Sprintf("signer_%d", i%2) // alternate between two signers
+		txID := fmt.Sprintf("ns1:%s", fftypes.NewUUID())
+		tx := &apitypes.ManagedTX{
+			ID:              txID,
+			Status:          apitypes.TxStatusPending,
+			DeleteRequested: nil,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From:  signer,
+				Nonce: fftypes.NewFFBigInt(i / 2),
+			},
+		}
+		err := p.InsertTransaction(ctx, tx)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, tx.SequenceID)
+		txs = append(txs, tx)
+	}
+
+	// List all the transactions - default is created time descending on the standard filter
+	list1, _, err := p.ListTransactions(ctx, persistence.TransactionFilters.NewFilter(ctx).And())
+	assert.NoError(t, err)
+	assert.Len(t, list1, 10)
+	for i := 0; i < 10; i++ {
+		assert.Equal(t, fmt.Sprintf("signer_%d", (9-i)%2), list1[i].From)
+		assert.Equal(t, int64((9-i)/2), list1[i].Nonce.Int64())
+	}
+
+	// Use the function to limit this list to three ascending, after the 2nd
+	list2, err := p.ListTransactionsByCreateTime(ctx, txs[1], 3, persistence.SortDirectionAscending)
+	assert.NoError(t, err)
+	assert.Len(t, list2, 3)
+	for i := 0; i < 3; i++ {
+		assert.Equal(t, fmt.Sprintf("signer_%d", (i+2)%2), list2[i].From)
+		assert.Equal(t, int64((i+2)/2), list2[i].Nonce.Int64())
+	}
+
+	// bad sequence string
+	_, err = p.ListTransactionsByCreateTime(ctx, &apitypes.ManagedTX{SequenceID: "!wrong"}, 0, persistence.SortDirectionAscending)
+	assert.Error(t, err)
+
+}
+
+func TestTransactionListByNoncePSQL(t *testing.T) {
+	logrus.SetLevel(logrus.TraceLevel)
+
+	ctx, p, _, done := initTestPSQL(t)
+	defer done()
+
+	// Write transactions with increasing nonces across two signers
+	var txs []*apitypes.ManagedTX
+	for i := int64(0); i < 50; i++ {
+		signer := fmt.Sprintf("signer_%d", i%2) // alternate between two signers
+		txID := fmt.Sprintf("ns1:%s", fftypes.NewUUID())
+		tx := &apitypes.ManagedTX{
+			ID:              txID,
+			Status:          apitypes.TxStatusPending,
+			DeleteRequested: nil,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From:  signer,
+				Nonce: fftypes.NewFFBigInt(i / 2),
+			},
+		}
+		err := p.InsertTransaction(ctx, tx)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, tx.SequenceID)
+		txs = append(txs, tx)
+	}
+
+	// List all the transactions by nonce for the first signer ascending, these we promise order on
+	list2, err := p.ListTransactionsByNonce(ctx, "signer_0", nil, 0, persistence.SortDirectionAscending)
+	assert.NoError(t, err)
+	assert.Len(t, list2, 25)
+	for i := 0; i < 25; i++ {
+		assert.Equal(t, "signer_0", list2[i].From)
+		assert.Equal(t, int64(i), list2[i].Nonce.Int64())
+	}
+
+	// List all the transactions by nonce for the second signer descending, before 5
+	list3, err := p.ListTransactionsByNonce(ctx, "signer_1", fftypes.NewFFBigInt(5), 0, persistence.SortDirectionDescending)
+	assert.NoError(t, err)
+	assert.Len(t, list3, 5)
+	for i := 0; i < 4; i++ {
+		assert.Equal(t, "signer_1", list3[i].From)
+		assert.Equal(t, int64(4-i), list3[i].Nonce.Int64())
+	}
+
+	// List just two nonces after 3 for signer_0
+	list4, err := p.ListTransactionsByNonce(ctx, "signer_0", fftypes.NewFFBigInt(3), 2, persistence.SortDirectionAscending)
+	assert.NoError(t, err)
+	assert.Len(t, list4, 2)
+	assert.Equal(t, "signer_0", list4[0].From)
+	assert.Equal(t, int64(4), list4[0].Nonce.Int64())
+	assert.Equal(t, "signer_0", list4[1].From)
+	assert.Equal(t, int64(5), list4[1].Nonce.Int64())
+
+	// Get individual by nonce, ok
+	tx, err := p.GetTransactionByNonce(ctx, "signer_0", txs[2].Nonce)
+	assert.NoError(t, err)
+	assert.Equal(t, txs[2].Nonce, tx.Nonce)
+
+	// Get individual by nonce, not found
+	tx, err = p.GetTransactionByNonce(ctx, "signer_9999", txs[2].Nonce)
+	assert.NoError(t, err)
+	assert.Nil(t, tx)
+
+}
+
+func TestTransactionPendingPSQL(t *testing.T) {
+	logrus.SetLevel(logrus.TraceLevel)
+
+	ctx, p, _, done := initTestPSQL(t)
+	defer done()
+
+	// Write transactions with increasing nonces across two signers
+	var txs []*apitypes.ManagedTX
+	for i := int64(0); i < 10; i++ {
+		signer := "signer_0" // all pending from one signer
+		status := apitypes.TxStatusPending
+		if i%2 == 0 {
+			status = apitypes.TxStatusSucceeded
+			signer = "signer_1"
+		}
+		txID := fmt.Sprintf("ns1:%s", fftypes.NewUUID())
+		tx := &apitypes.ManagedTX{
+			ID:              txID,
+			Status:          status,
+			DeleteRequested: nil,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From:  signer,
+				Nonce: fftypes.NewFFBigInt(i / 2),
+			},
+		}
+		err := p.InsertTransaction(ctx, tx)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, tx.SequenceID)
+		txs = append(txs, tx)
+	}
+
+	// List all the pending TX
+	list1, err := p.ListTransactionsPending(ctx, "", 0, persistence.SortDirectionAscending)
+	assert.NoError(t, err)
+	assert.Len(t, list1, 5)
+	for i := 0; i < 5; i++ {
+		assert.Equal(t, apitypes.TxStatusPending, list1[i].Status)
+		assert.Equal(t, int64(i), list1[i].Nonce.Int64())
+	}
+
+	// List before given sequence with a limit
+	list2, err := p.ListTransactionsPending(ctx, txs[7].SequenceID, 2, persistence.SortDirectionDescending)
+	assert.NoError(t, err)
+	assert.Len(t, list2, 2)
+	assert.Equal(t, apitypes.TxStatusPending, list2[0].Status)
+	assert.Equal(t, int64(2), list2[0].Nonce.Int64())
+	assert.Equal(t, apitypes.TxStatusPending, list2[1].Status)
+	assert.Equal(t, int64(1), list2[1].Nonce.Int64())
+
+	// bad sequence string
+	_, err = p.ListTransactionsPending(ctx, "!wrong", 0, persistence.SortDirectionAscending)
+	assert.Error(t, err)
+
+}
+
+func newTXRow(p *sqlPersistence) *sqlmock.Rows {
+	return sqlmock.NewRows(append([]string{p.db.SequenceColumn()}, p.transactions.Columns...)).AddRow(
+		12345,                  // seq
+		"tx1",                  // dbsql.ColumnID,
+		fftypes.Now().String(), // dbsql.ColumnCreated,
+		fftypes.Now().String(), // dbsql.ColumnUpdated,
+		"Pending",              // "status",
+		fftypes.Now().String(), // "delete",
+		"0x12345",              // "tx_from",
+		"0x23456",              // "tx_to",
+		"11111",                // "tx_nonce",
+		"22222",                // "tx_gas",
+		"33333",                // "tx_value",
+		"44444",                // "tx_gasprice",
+		"0xffffff",             // "tx_data",
+		"0xeeeeee",             // "tx_hash",
+		nil,                    // "policy_info",
+		nil,                    // "first_submit",
+		nil,                    // "last_submit",
+		"",                     // "error_message",
+	)
+}
+
+func TestGetTransactionByIDWithHistoryHistorySummaryFail(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	mdb.ExpectQuery("SELECT.*transactions").WillReturnRows(newTXRow(p))
+	mdb.ExpectQuery("SELECT.*receipts").WillReturnRows(
+		sqlmock.NewRows(append([]string{p.db.SequenceColumn()}, p.receipts.Columns...)),
+	)
+	mdb.ExpectQuery("SELECT.*confirmations").WillReturnRows(
+		sqlmock.NewRows(append([]string{p.db.SequenceColumn()}, p.confirmations.Columns...)),
+	)
+	mdb.ExpectQuery("SELECT.*txhistory").WillReturnError(fmt.Errorf("pop"))
+
+	_, err := p.GetTransactionByIDWithHistory(ctx, "tx1")
+	assert.Regexp(t, "FF00176", err)
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
+}
+
+func TestGetTransactionByIDWithHistoryConfirmationsFail(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	mdb.ExpectQuery("SELECT.*transactions").WillReturnRows(newTXRow(p))
+	mdb.ExpectQuery("SELECT.*receipts").WillReturnRows(
+		sqlmock.NewRows(append([]string{p.db.SequenceColumn()}, p.receipts.Columns...)),
+	)
+	mdb.ExpectQuery("SELECT.*confirmations").WillReturnError(fmt.Errorf("pop"))
+
+	_, err := p.GetTransactionByIDWithHistory(ctx, "tx1")
+	assert.Regexp(t, "FF00176", err)
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
+}
+
+func TestGetTransactionByIDWithHistoryReceiptFail(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	mdb.ExpectQuery("SELECT.*transactions").WillReturnRows(newTXRow(p))
+	mdb.ExpectQuery("SELECT.*receipts").WillReturnError(fmt.Errorf("pop"))
+
+	_, err := p.GetTransactionByIDWithHistory(ctx, "tx1")
+	assert.Regexp(t, "FF00176", err)
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
+}
+
+func TestGetTransactionByIDTXFail(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	mdb.ExpectQuery("SELECT.*transactions").WillReturnError(fmt.Errorf("pop"))
+
+	_, err := p.GetTransactionByIDWithHistory(ctx, "tx1")
+	assert.Regexp(t, "FF00176", err)
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }

@@ -136,7 +136,9 @@ func (p *sqlPersistence) ListTransactionsByCreateTime(ctx context.Context, after
 
 func (p *sqlPersistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
 	fb := persistence.TransactionFilters.NewFilterLimit(ctx, uint64(limit))
-	var conditions []ffapi.Filter
+	conditions := []ffapi.Filter{
+		fb.Eq("from", signer),
+	}
 	if after != nil {
 		if dir == persistence.SortDirectionDescending {
 			conditions = append(conditions, fb.Lt("nonce", after))
