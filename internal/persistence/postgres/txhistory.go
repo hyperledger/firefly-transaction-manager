@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
@@ -32,12 +33,12 @@ func (p *sqlPersistence) newTXHistoryCollection() *dbsql.CrudBase[*apitypes.TXHi
 		Table: "txhistory",
 		Columns: []string{
 			dbsql.ColumnID,
-			dbsql.ColumnCreated,
-			dbsql.ColumnUpdated,
 			"tx_id",
 			"status",
 			"action",
 			"count",
+			"time",
+			"last_occurrence",
 			"error",
 			"error_time",
 			"info",
@@ -46,23 +47,19 @@ func (p *sqlPersistence) newTXHistoryCollection() *dbsql.CrudBase[*apitypes.TXHi
 			"sequence":       p.db.SequenceColumn(),
 			"transaction":    "tx_id",
 			"substatus":      "status",
-			"time":           dbsql.ColumnCreated,
-			"lastoccurrence": dbsql.ColumnUpdated,
+			"lastoccurrence": "last_occurrence",
 			"lasterror":      "error",
 			"lasterrortime":  "error_time",
 			"lastinfo":       "info",
 		},
 		PatchDisabled: true,
+		TimesDisabled: true,
 		NilValue:      func() *apitypes.TXHistoryRecord { return nil },
 		NewInstance:   func() *apitypes.TXHistoryRecord { return &apitypes.TXHistoryRecord{} },
 		GetFieldPtr: func(inst *apitypes.TXHistoryRecord, col string) interface{} {
 			switch col {
 			case dbsql.ColumnID:
 				return &inst.ID
-			case dbsql.ColumnCreated:
-				return &inst.Time
-			case dbsql.ColumnUpdated:
-				return &inst.LastOccurrence
 			case "tx_id":
 				return &inst.TransactionID
 			case "status":
@@ -71,6 +68,10 @@ func (p *sqlPersistence) newTXHistoryCollection() *dbsql.CrudBase[*apitypes.TXHi
 				return &inst.Action
 			case "count":
 				return &inst.Count
+			case "time":
+				return &inst.Time
+			case "last_occurrence":
+				return &inst.LastOccurrence
 			case "error":
 				return &inst.LastError
 			case "error_time":
@@ -85,34 +86,49 @@ func (p *sqlPersistence) newTXHistoryCollection() *dbsql.CrudBase[*apitypes.TXHi
 	return collection
 }
 
-func (p *sqlPersistence) SetSubStatus(ctx context.Context, txID string, subStatus apitypes.TxSubStatus) error {
-	// TODO: Consider
-	return p.AddSubStatusAction(ctx, txID, subStatus, apitypes.TxActionStateTransition, nil, nil)
+func (p *sqlPersistence) ListTransactionHistory(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.TXHistoryRecord, *ffapi.FilterResult, error) {
+	return p.txHistory.GetMany(ctx, filter.Condition(filter.Builder().Eq("transaction", txID)))
 }
 
-func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error {
+func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
 	// Dispatch to TX writer
+	now := fftypes.Now()
 	op := newTransactionOperation(txID)
 	op.historyRecord = &apitypes.TXHistoryRecord{
 		ID:            fftypes.NewUUID(),
 		TransactionID: txID,
 		SubStatus:     subStatus,
 		TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
-			Count:     1,
-			Action:    action,
-			LastInfo:  info,
-			LastError: err,
+			Count:          1,
+			Time:           now,
+			LastOccurrence: now,
+			Action:         action,
+			LastInfo:       info,
+			LastError:      errInfo,
 		},
 	}
-	if err != nil {
+	if errInfo != nil {
 		op.historyRecord.LastErrorTime = fftypes.Now()
 	}
 	p.writer.queue(ctx, op)
 	return nil // completely async
 }
 
+func (p *sqlPersistence) compressHistory(ctx context.Context, txID string) error {
+	_, err := p.buildHistorySummary(ctx, txID, 0, func(from, to *apitypes.TXHistoryRecord) error {
+		update := persistence.TXHistoryFilters.NewUpdate(ctx).
+			Set("count", to.Count+1). // increment the count
+			Set("time", from.Time)    // move the time on the newer record to be the time of the older record merged in
+		if err := p.txHistory.Update(ctx, to.ID.String(), update); err != nil {
+			return err
+		}
+		return p.txHistory.Delete(ctx, from.ID.String())
+	})
+	return err
+}
+
 // buildHistorySummary builds a compressed summary of actions, grouped within subStatus changes, and with redundant actions removed.
-func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, resultLimit int, mergeCallback func(from, to *apitypes.TXHistoryRecord) error) ([]*apitypes.TxHistoryStateTransitionEntry, error) {
+func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, resultLimit int, persistMerge func(from, to *apitypes.TXHistoryRecord) error) ([]*apitypes.TxHistoryStateTransitionEntry, error) {
 	result := []*apitypes.TxHistoryStateTransitionEntry{}
 	skip := 0
 	pageSize := 50
@@ -142,26 +158,26 @@ func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, r
 					LastOccurrence: h.LastOccurrence,
 					Action:         h.Action,
 					Count:          h.Count,
+					LastInfo:       h.LastInfo,
+					LastError:      h.LastError,
+					LastErrorTime:  h.LastErrorTime,
 				}
 				statusEntry.Actions = append(statusEntry.Actions, actionEntry)
+				// We've moved forwards
+				lastEntrySameSubStatus = h
 			} else {
 				// We can compress these records together. We might have a callback to persist this, if we're
 				// running this function as part of a history compression.
-				if mergeCallback != nil {
-					if err := mergeCallback(h, lastEntrySameSubStatus); err != nil {
+				if persistMerge != nil {
+					if err := persistMerge(h, lastEntrySameSubStatus); err != nil {
 						log.L(ctx).Errorf("Merging status record %s into %s failed: %s", h.ID, lastEntrySameSubStatus.ID, err)
 					}
 				}
+				lastEntrySameSubStatus.Count++
 				actionEntry = statusEntry.Actions[len(statusEntry.Actions)-1]
 				actionEntry.Count++
-				actionEntry.LastOccurrence = h.LastOccurrence
+				actionEntry.Time = h.Time
 			}
-			actionEntry.LastInfo = h.LastInfo
-			if h.LastErrorTime != nil {
-				actionEntry.LastErrorTime = h.LastErrorTime
-				actionEntry.LastError = h.LastError
-			}
-			lastEntrySameSubStatus = h
 		}
 		// We're done when we run out of input, or we hit the target maximum output records
 		if len(page) != pageSize || (resultLimit > 0 && len(result) >= resultLimit) {

@@ -111,10 +111,6 @@ func (p *sqlPersistence) AddTransactionConfirmations(ctx context.Context, txID s
 	return nil // we do this async for performance
 }
 
-func (p *sqlPersistence) ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.Filter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error) {
-	fb := persistence.ConfirmationFilters.NewFilter(ctx)
-	return p.confirmations.GetMany(ctx, fb.And(
-		fb.Eq("transaction", txID),
-		filter,
-	))
+func (p *sqlPersistence) ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error) {
+	return p.confirmations.GetMany(ctx, filter.Condition(filter.Builder().Eq("transaction", txID)))
 }

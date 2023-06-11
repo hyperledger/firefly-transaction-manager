@@ -76,16 +76,12 @@ func (p *sqlPersistence) newListenersCollection() *dbsql.CrudBase[*apitypes.List
 	return collection
 }
 
-func (p *sqlPersistence) ListListeners(ctx context.Context, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
+func (p *sqlPersistence) ListListeners(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
 	return p.listeners.GetMany(ctx, filter)
 }
 
-func (p *sqlPersistence) ListStreamListeners(ctx context.Context, streamID *fftypes.UUID, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
-	fb := persistence.ListenerFilters.NewFilter(ctx)
-	return p.listeners.GetMany(ctx, fb.And(
-		fb.Eq("streamid", streamID),
-		filter,
-	))
+func (p *sqlPersistence) ListStreamListeners(ctx context.Context, streamID *fftypes.UUID, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
+	return p.listeners.GetMany(ctx, filter.Condition(filter.Builder().Eq("streamid", streamID)))
 }
 
 func (p *sqlPersistence) ListListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir persistence.SortDirection) ([]*apitypes.Listener, error) {

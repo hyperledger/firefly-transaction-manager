@@ -48,10 +48,8 @@ func TestTxHistoryRecord(t *testing.T) {
 	assert.Equal(t, r.ID.String(), r.GetID())
 	t1 := fftypes.Now()
 	r.SetCreated(t1)
-	assert.Equal(t, t1, r.Time)
-	t2 := fftypes.Now()
-	r.SetUpdated(t2)
-	assert.Equal(t, t2, r.LastOccurrence)
+	assert.Equal(t, t1, r.LastOccurrence)
+	r.SetUpdated(fftypes.Now()) //no-op
 }
 
 func TestManagedTX(t *testing.T) {

@@ -158,7 +158,8 @@ func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 	}, confirmations)
 
 	// Filter just one
-	crs, _, err := p.ListTransactionConfirmations(ctx, tx2ID, persistence.ConfirmationFilters.NewFilter(ctx).Eq("blocknumber", 1))
+	fb := persistence.ConfirmationFilters.NewFilter(ctx)
+	crs, _, err := p.ListTransactionConfirmations(ctx, tx2ID, fb.And(fb.Eq("blocknumber", 1)))
 	assert.Len(t, crs, 1)
 	assert.Equal(t, crs[0].BlockNumber.Uint64(), uint64(1))
 

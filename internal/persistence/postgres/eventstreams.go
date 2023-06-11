@@ -94,7 +94,7 @@ func (p *sqlPersistence) newEventStreamsCollection() *dbsql.CrudBase[*apitypes.E
 	return collection
 }
 
-func (p *sqlPersistence) ListStreams(ctx context.Context, filter ffapi.Filter) ([]*apitypes.EventStream, *ffapi.FilterResult, error) {
+func (p *sqlPersistence) ListStreams(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.EventStream, *ffapi.FilterResult, error) {
 	return p.eventStreams.GetMany(ctx, filter)
 }
 

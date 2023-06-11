@@ -99,7 +99,7 @@ const (
 type TxHistoryActionEntry struct {
 	Time           *fftypes.FFTime  `json:"time"`
 	Action         TxAction         `json:"action"`
-	LastOccurrence *fftypes.FFTime  `json:"lastOccurrence"`
+	LastOccurrence *fftypes.FFTime  `json:"lastOccurrence,omitempty"`
 	Count          int              `json:"count"`
 	LastError      *fftypes.JSONAny `json:"lastError,omitempty"`
 	LastErrorTime  *fftypes.FFTime  `json:"lastErrorTime,omitempty"`
@@ -120,12 +120,10 @@ func (r *TXHistoryRecord) GetID() string {
 }
 
 func (r *TXHistoryRecord) SetCreated(t *fftypes.FFTime) {
-	r.Time = t
-}
-
-func (r *TXHistoryRecord) SetUpdated(t *fftypes.FFTime) {
 	r.LastOccurrence = t
 }
+
+func (r *TXHistoryRecord) SetUpdated(t *fftypes.FFTime) {}
 
 // ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
 //
