@@ -101,7 +101,11 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 	// A couple of transaction history entries
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"11111"}`), nil)
 	assert.NoError(t, err)
-	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit"`))
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 1"`))
+	assert.NoError(t, err)
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 2"`))
+	assert.NoError(t, err)
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"txhash":"0x12345"}`), nil)
 	assert.NoError(t, err)
 
 	// Finally the update - do a comprehensive one
@@ -157,7 +161,7 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 		Confirmations: confirmations,
 		History: []*apitypes.TxHistoryStateTransitionEntry{
 			{
-				Status: apitypes.TxSubStatusReceived,
+				Status: apitypes.TxSubStatusTracking,
 				Time:   mtx.History[0].Time,
 				Actions: []*apitypes.TxHistoryActionEntry{ // newest first
 					{
@@ -165,14 +169,29 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 						Time:           mtx.History[0].Actions[0].Time,
 						LastOccurrence: mtx.History[0].Actions[0].LastOccurrence,
 						Count:          1,
+						LastInfo:       fftypes.JSONAnyPtr(`{"txhash":"0x12345"}`),
+						LastError:      nil,
+						LastErrorTime:  nil,
+					},
+				},
+			},
+			{
+				Status: apitypes.TxSubStatusReceived,
+				Time:   mtx.History[1].Time,
+				Actions: []*apitypes.TxHistoryActionEntry{ // newest first
+					{
+						Action:         apitypes.TxActionSubmitTransaction,
+						Time:           mtx.History[1].Actions[0].Time,
+						LastOccurrence: mtx.History[1].Actions[0].LastOccurrence,
+						Count:          2,
 						LastInfo:       nil,
-						LastError:      fftypes.JSONAnyPtr(`"failed to submit"`),
-						LastErrorTime:  mtx.History[0].Actions[0].LastErrorTime,
+						LastError:      fftypes.JSONAnyPtr(`"failed to submit 2"`),
+						LastErrorTime:  mtx.History[1].Actions[0].LastErrorTime,
 					},
 					{
 						Action:         apitypes.TxActionAssignNonce,
-						Time:           mtx.History[0].Actions[1].Time,
-						LastOccurrence: mtx.History[0].Actions[1].LastOccurrence,
+						Time:           mtx.History[1].Actions[1].Time,
+						LastOccurrence: mtx.History[1].Actions[1].LastOccurrence,
 						Count:          1,
 						LastInfo:       fftypes.JSONAnyPtr(`{"nonce":"11111"}`),
 						LastError:      nil,

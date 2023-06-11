@@ -115,7 +115,7 @@ func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, su
 }
 
 func (p *sqlPersistence) compressHistory(ctx context.Context, txID string) error {
-	_, err := p.buildHistorySummary(ctx, txID, 0, func(from, to *apitypes.TXHistoryRecord) error {
+	result, err := p.buildHistorySummary(ctx, txID, false, 0, func(from, to *apitypes.TXHistoryRecord) error {
 		update := persistence.TXHistoryFilters.NewUpdate(ctx).
 			Set("count", to.Count+1). // increment the count
 			Set("time", from.Time)    // move the time on the newer record to be the time of the older record merged in
@@ -124,14 +124,25 @@ func (p *sqlPersistence) compressHistory(ctx context.Context, txID string) error
 		}
 		return p.txHistory.Delete(ctx, from.ID.String())
 	})
+	log.L(ctx).Infof("Compressed history for %s complete: before=%d after=%d", txID, result.recordsBefore, result.recordsAfter)
 	return err
 }
 
+type historyResult struct {
+	entries       []*apitypes.TxHistoryStateTransitionEntry
+	recordsBefore int
+	recordsAfter  int
+}
+
 // buildHistorySummary builds a compressed summary of actions, grouped within subStatus changes, and with redundant actions removed.
-func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, resultLimit int, persistMerge func(from, to *apitypes.TXHistoryRecord) error) ([]*apitypes.TxHistoryStateTransitionEntry, error) {
-	result := []*apitypes.TxHistoryStateTransitionEntry{}
+func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, buildResult bool, resultLimit int, persistMerge func(from, to *apitypes.TXHistoryRecord) error) (*historyResult, error) {
+	r := &historyResult{}
+	if buildResult {
+		r.entries = []*apitypes.TxHistoryStateTransitionEntry{}
+	}
 	skip := 0
 	pageSize := 50
+	var lastRecordSameSubStatus *apitypes.TXHistoryRecord
 	for {
 		filter := persistence.TXHistoryFilters.
 			NewFilterLimit(ctx, uint64(pageSize)).Eq("transaction", txID).
@@ -140,50 +151,59 @@ func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, r
 		if err != nil {
 			return nil, err
 		}
-		var lastEntrySameSubStatus *apitypes.TXHistoryRecord
 		for _, h := range page {
-			if len(result) == 0 || result[len(result)-1].Status != h.SubStatus {
-				lastEntrySameSubStatus = nil // we've changed subStatus
-				result = append(result, &apitypes.TxHistoryStateTransitionEntry{
-					Time:    h.Time,
-					Status:  h.SubStatus,
-					Actions: []*apitypes.TxHistoryActionEntry{},
-				})
-			}
-			statusEntry := result[len(result)-1]
-			var actionEntry *apitypes.TxHistoryActionEntry
-			if lastEntrySameSubStatus == nil || lastEntrySameSubStatus.Action != h.Action {
-				actionEntry = &apitypes.TxHistoryActionEntry{
-					Time:           h.Time,
-					LastOccurrence: h.LastOccurrence,
-					Action:         h.Action,
-					Count:          h.Count,
-					LastInfo:       h.LastInfo,
-					LastError:      h.LastError,
-					LastErrorTime:  h.LastErrorTime,
+			if lastRecordSameSubStatus == nil || lastRecordSameSubStatus.SubStatus != h.SubStatus {
+				lastRecordSameSubStatus = nil // we've changed subStatus
+				if buildResult {
+					r.entries = append(r.entries, &apitypes.TxHistoryStateTransitionEntry{
+						Time:    h.Time,
+						Status:  h.SubStatus,
+						Actions: []*apitypes.TxHistoryActionEntry{},
+					})
 				}
-				statusEntry.Actions = append(statusEntry.Actions, actionEntry)
+			}
+			r.recordsBefore++
+			if lastRecordSameSubStatus == nil || lastRecordSameSubStatus.Action != h.Action {
+				// Actions are also in descending order
+				if buildResult {
+					actionEntry := &apitypes.TxHistoryActionEntry{
+						Time:           h.Time,
+						LastOccurrence: h.LastOccurrence,
+						Action:         h.Action,
+						Count:          h.Count,
+						LastInfo:       h.LastInfo,
+						LastError:      h.LastError,
+						LastErrorTime:  h.LastErrorTime,
+					}
+					statusEntry := r.entries[len(r.entries)-1]
+					statusEntry.Actions = append(statusEntry.Actions, actionEntry)
+				}
 				// We've moved forwards
-				lastEntrySameSubStatus = h
+				r.recordsAfter++
+				lastRecordSameSubStatus = h
 			} else {
 				// We can compress these records together. We might have a callback to persist this, if we're
 				// running this function as part of a history compression.
 				if persistMerge != nil {
-					if err := persistMerge(h, lastEntrySameSubStatus); err != nil {
-						log.L(ctx).Errorf("Merging status record %s into %s failed: %s", h.ID, lastEntrySameSubStatus.ID, err)
+					if err := persistMerge(h, lastRecordSameSubStatus); err != nil {
+						log.L(ctx).Errorf("Merging status record %s into %s failed: %s", h.ID, lastRecordSameSubStatus.ID, err)
 					}
 				}
-				lastEntrySameSubStatus.Count++
-				actionEntry = statusEntry.Actions[len(statusEntry.Actions)-1]
-				actionEntry.Count++
-				actionEntry.Time = h.Time
+				lastRecordSameSubStatus.Count++
+				if buildResult {
+					statusEntry := r.entries[len(r.entries)-1]
+					actionEntry := statusEntry.Actions[len(statusEntry.Actions)-1]
+					actionEntry.Count++
+					actionEntry.Time = h.Time
+				}
 			}
 		}
-		// We're done when we run out of input, or we hit the target maximum output records
-		if len(page) != pageSize || (resultLimit > 0 && len(result) >= resultLimit) {
-			return result, nil
-		}
+		// Done with this page
 		skip += pageSize
+		// We return when we run out of input, or we hit the target maximum output records
+		if len(page) != pageSize || (resultLimit > 0 && len(r.entries) >= resultLimit) {
+			return r, nil
+		}
 	}
 
 }

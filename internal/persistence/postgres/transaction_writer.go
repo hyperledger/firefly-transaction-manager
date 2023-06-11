@@ -48,20 +48,20 @@ type transactionOperation struct {
 }
 
 type txCacheEntry struct {
-	// lastCompacted time.Time
-	// count         int
+	lastCompacted *fftypes.FFTime
 }
 
 type transactionWriter struct {
-	p            *sqlPersistence
-	txMetaCache  *lru.Cache[string, *txCacheEntry]
-	bgCtx        context.Context
-	cancelCtx    context.CancelFunc
-	batchTimeout time.Duration
-	batchMaxSize int
-	workerCount  uint32
-	workQueues   []chan *transactionOperation
-	workersDone  []chan struct{}
+	p                   *sqlPersistence
+	txMetaCache         *lru.Cache[string, *txCacheEntry]
+	compressionInterval time.Duration
+	bgCtx               context.Context
+	cancelCtx           context.CancelFunc
+	batchTimeout        time.Duration
+	batchMaxSize        int
+	workerCount         uint32
+	workQueues          []chan *transactionOperation
+	workersDone         []chan struct{}
 }
 
 type transactionWriterBatch struct {
@@ -75,6 +75,7 @@ type transactionWriterBatch struct {
 	txDeletes           []string
 	receiptInserts      map[string]*apitypes.ReceiptRecord
 	historyInserts      []*apitypes.TXHistoryRecord
+	compressionChecks   map[string]bool
 	confirmationInserts []*apitypes.ConfirmationRecord
 	confirmationResets  map[string]bool
 }
@@ -89,13 +90,14 @@ func newTransactionWriter(bgCtx context.Context, p *sqlPersistence, conf config.
 	workerCount := conf.GetInt(ConfigTXWriterCount)
 	batchMaxSize := conf.GetInt(ConfigTXWriterBatchSize)
 	tw := &transactionWriter{
-		p:            p,
-		txMetaCache:  txMetaCache,
-		workerCount:  uint32(workerCount),
-		batchTimeout: conf.GetDuration(ConfigTXWriterBatchTimeout),
-		batchMaxSize: batchMaxSize,
-		workersDone:  make([]chan struct{}, workerCount),
-		workQueues:   make([]chan *transactionOperation, workerCount),
+		p:                   p,
+		txMetaCache:         txMetaCache,
+		workerCount:         uint32(workerCount),
+		batchTimeout:        conf.GetDuration(ConfigTXWriterBatchTimeout),
+		batchMaxSize:        batchMaxSize,
+		workersDone:         make([]chan struct{}, workerCount),
+		workQueues:          make([]chan *transactionOperation, workerCount),
+		compressionInterval: conf.GetDuration(ConfigTXWriterHistoryCompactionInterval),
 	}
 	tw.bgCtx, tw.cancelCtx = context.WithCancel(bgCtx)
 	for i := 0; i < workerCount; i++ {
@@ -192,6 +194,7 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 		// Build all the batch insert operations
 		b.confirmationResets = make(map[string]bool)
 		b.receiptInserts = make(map[string]*apitypes.ReceiptRecord)
+		b.compressionChecks = make(map[string]bool)
 		for _, op := range b.ops {
 			switch {
 			case op.txInsert != nil:
@@ -200,11 +203,13 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 				b.txUpdates = append(b.txUpdates, op)
 			case op.txDelete != nil:
 				b.txDeletes = append(b.txDeletes, *op.txDelete)
+				delete(b.compressionChecks, op.txID)
 			case op.receipt != nil:
 				// Last one wins in the receipts (can't insert the same TXID twice in one InsertMany)
 				b.receiptInserts[op.txID] = op.receipt
 			case op.historyRecord != nil:
 				b.historyInserts = append(b.historyInserts, op.historyRecord)
+				b.compressionChecks[op.txID] = true
 			case op.confirmation != nil:
 				if op.clearConfirmations {
 					// We need to purge any previous confirmation inserts for the same TX,
@@ -245,6 +250,10 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 			log.L(ctx).Errorf("InsertMany transactions (%d) failed: %s", len(b.historyInserts), err)
 			return err
 		}
+		// Add to our metadata cache, in the fresh new state
+		for _, t := range b.txInserts {
+			_ = tw.txMetaCache.Add(t.ID, &txCacheEntry{lastCompacted: fftypes.Now()})
+		}
 	}
 	// Do all the transaction updates
 	for _, op := range b.txUpdates {
@@ -272,13 +281,6 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 			}
 		}
 	}
-	// Then the history entries
-	if len(b.historyInserts) > 0 {
-		if err := tw.p.txHistory.InsertMany(ctx, b.historyInserts, false); err != nil {
-			log.L(ctx).Errorf("InsertMany history records (%d) failed: %s", len(b.historyInserts), err)
-			return err
-		}
-	}
 	// Then do any confirmation clears
 	for txID := range b.confirmationResets {
 		if err := tw.p.confirmations.DeleteMany(ctx, persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID)); err != nil {
@@ -290,6 +292,20 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 	if len(b.confirmationInserts) > 0 {
 		if err := tw.p.confirmations.InsertMany(ctx, b.confirmationInserts, false); err != nil {
 			log.L(ctx).Errorf("InsertMany confirmation records (%d) failed: %s", len(b.confirmationInserts), err)
+			return err
+		}
+	}
+	// Then the history entries
+	if len(b.historyInserts) > 0 {
+		if err := tw.p.txHistory.InsertMany(ctx, b.historyInserts, false); err != nil {
+			log.L(ctx).Errorf("InsertMany history records (%d) failed: %s", len(b.historyInserts), err)
+			return err
+		}
+	}
+	// Do the compression checks
+	for txID := range b.compressionChecks {
+		if err := tw.compressionCheck(ctx, txID); err != nil {
+			log.L(ctx).Errorf("Compression check for %s failed: %s", txID, err)
 			return err
 		}
 	}
@@ -316,6 +332,26 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 			return err
 		}
 	}
+	return nil
+}
+
+func (tw *transactionWriter) compressionCheck(ctx context.Context, txID string) error {
+	txMeta, ok := tw.txMetaCache.Get(txID)
+	if ok {
+		sinceCompaction := time.Since(*txMeta.lastCompacted.Time())
+		if sinceCompaction < tw.compressionInterval {
+			// Nothing to do
+			return nil
+		}
+		log.L(ctx).Debugf("Compressing history for TX '%s' after %s", txID, sinceCompaction.String())
+	} else {
+		txMeta = &txCacheEntry{}
+	}
+	if err := tw.p.compressHistory(ctx, txID); err != nil {
+		return err
+	}
+	txMeta.lastCompacted = fftypes.Now()
+	_ = tw.txMetaCache.Add(txID, txMeta)
 	return nil
 }
 

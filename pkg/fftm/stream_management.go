@@ -406,7 +406,7 @@ func (m *manager) getStreamListenersByCreateTime(ctx context.Context, afterStr, 
 	return m.persistence.ListStreamListenersByCreateTime(ctx, after, limit, persistence.SortDirectionDescending, id)
 }
 
-func (m *manager) getStreamListenersRich(ctx context.Context, streamID string, filter ffapi.Filter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
+func (m *manager) getStreamListenersRich(ctx context.Context, streamID string, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
 	id, err := fftypes.ParseUUID(ctx, streamID)
 	if err != nil {
 		return nil, nil, err

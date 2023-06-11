@@ -193,7 +193,7 @@ func (p *sqlPersistence) GetTransactionByIDWithHistory(ctx context.Context, txID
 	if err != nil {
 		return nil, err
 	}
-	history, err := p.buildHistorySummary(ctx, txID, p.historySummaryLimit, nil)
+	history, err := p.buildHistorySummary(ctx, txID, true, p.historySummaryLimit, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func (p *sqlPersistence) GetTransactionByIDWithHistory(ctx context.Context, txID
 		ManagedTX:     tx,
 		Receipt:       receipt,
 		Confirmations: confirmations,
-		History:       history,
+		History:       history.entries,
 	}, nil
 }
 
