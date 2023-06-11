@@ -21,24 +21,24 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
-var getTransaction = func(m *manager) *ffapi.Route {
-	return &ffapi.Route{
-		Name:   "getTransaction",
-		Path:   "/transactions/{transactionId}",
+var getTransactionReceipt = func(m *manager) *ffapi.Route {
+	route := &ffapi.Route{
+		Name:   "getTransactionReceipt",
+		Path:   "/transactions/{transactionId}/receipt",
 		Method: http.MethodGet,
 		PathParams: []*ffapi.PathParam{
 			{Name: "transactionId", Description: tmmsgs.APIParamTransactionID},
 		},
-		QueryParams:     nil,
-		Description:     tmmsgs.APIEndpointGetTransaction,
+		Description:     tmmsgs.APIEndpointGetTransactionReceipt,
 		JSONInputValue:  nil,
-		JSONOutputValue: func() interface{} { return &apitypes.ManagedTX{} },
+		JSONOutputValue: func() interface{} { return &ffcapi.TransactionReceiptResponse{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getTransactionByID(r.Req.Context(), r.PP["transactionId"])
+			return m.persistence.GetTransactionReceipt(r.Req.Context(), r.PP["transactionId"])
 		},
 	}
+	return route
 }

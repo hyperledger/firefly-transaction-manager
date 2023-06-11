@@ -261,6 +261,12 @@ func TestSendInvalidDeployBadTXType(t *testing.T) {
 
 func TestSwaggerEndpoints(t *testing.T) {
 
+	// TODO: Add field descriptions
+	// testDescriptions = true
+	// defer func() {
+	// 	testDescriptions = false
+	// }()
+
 	url, m, cancel := newTestManager(t)
 	defer cancel()
 	m.Start()

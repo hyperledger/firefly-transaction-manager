@@ -99,4 +99,5 @@ var (
 	MsgSQLScanFailed                           = ffe("FF21082", "Failed to read value from DB (%T)")
 	MsgShuttingDown                            = ffe("FF21083", "Connector shutdown initiated", 500)
 	MsgTransactionPersistenceError             = ffe("FF21084", "Failed to persist transaction data", 500)
+	MsgOpNotSupportedWithoutRichQuery          = ffe("FF21085", "Not supported: The connector must be configured with a rich query database to support this operation", 405)
 )

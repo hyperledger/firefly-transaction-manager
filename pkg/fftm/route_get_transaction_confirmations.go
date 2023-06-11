@@ -18,41 +18,35 @@ package fftm
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var getTransactions = func(m *manager) *ffapi.Route {
+var getTransactionConfirmations = func(m *manager) *ffapi.Route {
 	route := &ffapi.Route{
-		Name:            "getTransactions",
-		Path:            "/transactions",
-		Method:          http.MethodGet,
-		PathParams:      nil,
-		Description:     tmmsgs.APIEndpointGetTransactions,
+		Name:   "getTransactionConfirmations",
+		Path:   "/transactions/{transactionId}/confirmations",
+		Method: http.MethodGet,
+		PathParams: []*ffapi.PathParam{
+			{Name: "transactionId", Description: tmmsgs.APIParamTransactionID},
+		},
+		Description:     tmmsgs.APIEndpointGetTransactionConfirmations,
 		JSONInputValue:  nil,
-		JSONOutputValue: func() interface{} { return []*apitypes.ManagedTX{} },
+		JSONOutputValue: func() interface{} { return []*apitypes.ConfirmationRecord{} },
 		JSONOutputCodes: []int{http.StatusOK},
 	}
 	if m.richQueryAPI {
-		route.FilterFactory = persistence.TransactionFilters
+		route.FilterFactory = persistence.ConfirmationFilters
 		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return r.FilterResult(m.persistence.RichQuery().ListTransactions(r.Req.Context(), r.Filter))
+			return r.FilterResult(m.persistence.RichQuery().ListTransactionConfirmations(r.Req.Context(), r.PP["transactionId"], r.Filter))
 		}
 	} else {
-		// Very limited query support
-		route.QueryParams = []*ffapi.QueryParam{
-			{Name: "limit", Description: tmmsgs.APIParamLimit},
-			{Name: "after", Description: tmmsgs.APIParamAfter},
-			{Name: "signer", Description: tmmsgs.APIParamTXSigner},
-			{Name: "pending", Description: tmmsgs.APIParamTXPending, IsBool: true},
-			{Name: "direction", Description: tmmsgs.APIParamSortDirection},
-		}
 		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getTransactions(r.Req.Context(), r.QP["after"], r.QP["limit"], r.QP["signer"], strings.EqualFold(r.QP["pending"], "true"), r.QP["direction"])
+			return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgOpNotSupportedWithoutRichQuery)
 		}
 	}
 	return route
