@@ -354,3 +354,14 @@ func TestStartBlockListenerFail(t *testing.T) {
 	assert.Regexp(t, "pop", err)
 
 }
+
+func TestPSQLInitFail(t *testing.T) {
+
+	_ = testManagerCommonInit(t, false)
+
+	m := newManager(context.Background(), &ffcapimocks.API{})
+	config.Set(tmconfig.PersistenceType, "postgres")
+
+	err := m.initPersistence(context.Background())
+	assert.Regexp(t, "FF21049", err)
+}

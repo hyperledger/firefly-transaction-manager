@@ -346,6 +346,7 @@ func (tw *transactionWriter) compressionCheck(ctx context.Context, txID string) 
 		log.L(ctx).Debugf("Compressing history for TX '%s' after %s", txID, sinceCompaction.String())
 	} else {
 		txMeta = &txCacheEntry{}
+		log.L(ctx).Debugf("Compressing history for TX '%s' after cache miss", txID)
 	}
 	if err := tw.p.compressHistory(ctx, txID); err != nil {
 		return err

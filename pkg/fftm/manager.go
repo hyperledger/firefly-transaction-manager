@@ -32,6 +32,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/leveldb"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/postgres"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
@@ -147,13 +148,15 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 	pType := config.GetString(tmconfig.PersistenceType)
 	switch pType {
 	case "leveldb":
+		m.richQueryAPI = false
 		if m.persistence, err = leveldb.NewLevelDBPersistence(ctx); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
-		m.richQueryAPI = false
 	case "postgres":
-		// TODO: init
 		m.richQueryAPI = !config.GetBool(tmconfig.APISimpleQuery)
+		if m.persistence, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection); err != nil {
+			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
+		}
 	default:
 		return i18n.NewError(ctx, tmmsgs.MsgUnknownPersistence, pType)
 	}

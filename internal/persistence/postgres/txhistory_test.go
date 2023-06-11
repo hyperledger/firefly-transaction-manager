@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -175,4 +177,85 @@ func TestTXHistoryCompressionPSQL(t *testing.T) {
 		},
 	}, history)
 
+}
+
+func TestCompactionFail(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	longAgo := time.Now().Add(-1000 * time.Hour)
+	p.writer.txMetaCache.Add("tx1", &txCacheEntry{
+		lastCompacted: (*fftypes.FFTime)(&longAgo),
+	})
+	b := &transactionWriterBatch{
+		compressionChecks: map[string]bool{
+			"tx1": true,
+		},
+	}
+
+	// Simulate two duplicate rows to compress
+	mdb.ExpectBegin()
+	mdb.ExpectQuery("SELECT.*txhistory").WillReturnRows(
+		sqlmock.NewRows(append([]string{p.db.SequenceColumn()}, p.txHistory.Columns...)).
+			AddRow(
+				1111,
+				fftypes.NewUUID().String(),
+				"tx1",
+				"status1",
+				"action1",
+				1,
+				fftypes.Now().String(),
+				fftypes.Now().String(),
+				nil,
+				nil,
+				nil,
+			).
+			AddRow(
+				2222,
+				fftypes.NewUUID().String(),
+				"tx1",
+				"status1",
+				"action1",
+				1,
+				fftypes.Now().String(),
+				fftypes.Now().String(),
+				nil,
+				nil,
+				nil,
+			),
+	)
+	mdb.ExpectExec("UPDATE.*txhistory").WillReturnError(fmt.Errorf("pop"))
+	mdb.ExpectRollback()
+
+	err := p.db.RunAsGroup(ctx, func(ctx context.Context) error {
+		return p.writer.executeBatchOps(ctx, b)
+	})
+	assert.Regexp(t, "FF00178", err)
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
+}
+
+func TestCompactionOnCacheMiss(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	b := &transactionWriterBatch{
+		compressionChecks: map[string]bool{
+			"tx1": true,
+		},
+	}
+
+	// Simulate two duplicate rows to compress
+	mdb.ExpectBegin()
+	mdb.ExpectQuery("SELECT.*txhistory").WillReturnRows(
+		sqlmock.NewRows(append([]string{p.db.SequenceColumn()}, p.txHistory.Columns...)),
+	)
+	mdb.ExpectCommit()
+
+	err := p.db.RunAsGroup(ctx, func(ctx context.Context) error {
+		return p.writer.executeBatchOps(ctx, b)
+	})
+	assert.NoError(t, err)
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
 }

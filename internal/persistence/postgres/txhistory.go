@@ -124,8 +124,11 @@ func (p *sqlPersistence) compressHistory(ctx context.Context, txID string) error
 		}
 		return p.txHistory.Delete(ctx, from.ID.String())
 	})
+	if err != nil {
+		return err
+	}
 	log.L(ctx).Infof("Compressed history for %s complete: before=%d after=%d", txID, result.recordsBefore, result.recordsAfter)
-	return err
+	return nil
 }
 
 type historyResult struct {
@@ -187,6 +190,7 @@ func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, b
 				if persistMerge != nil {
 					if err := persistMerge(h, lastRecordSameSubStatus); err != nil {
 						log.L(ctx).Errorf("Merging status record %s into %s failed: %s", h.ID, lastRecordSameSubStatus.ID, err)
+						return nil, err
 					}
 				}
 				lastRecordSameSubStatus.Count++
