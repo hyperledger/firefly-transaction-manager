@@ -34,13 +34,13 @@ func TestGetTransaction(t *testing.T) {
 
 	txIn := newTestTxn(t, m, "0xaaaaa", 10001, apitypes.TxStatusSucceeded)
 
-	var txOut *apitypes.ManagedTX
+	var txOut *apitypes.TXWithStatus
 	res, err := resty.New().R().
 		SetResult(&txOut).
 		Get(fmt.Sprintf("%s/transactions/%s", url, txIn.ID))
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
-	assert.Equal(t, *txIn, *txOut)
+	assert.Equal(t, *txIn, *txOut.ManagedTX)
 
 }
 
@@ -51,7 +51,7 @@ func TestGetTransactionError(t *testing.T) {
 	err := m.Start()
 	assert.NoError(t, err)
 
-	var txOut *apitypes.ManagedTX
+	var txOut *apitypes.TXWithStatus
 	res, err := resty.New().R().
 		SetResult(&txOut).
 		Get(fmt.Sprintf("%s/transactions/%s", url, "does not exist"))

@@ -130,7 +130,7 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Get back the merged object to check everything
-	mtx, err := p.GetTransactionByIDWithHistory(ctx, txID)
+	mtx, err := p.GetTransactionByIDWithStatus(ctx, txID)
 	assert.NoError(t, err)
 	assert.NotEqual(t, tx.Updated.String(), mtx.Updated.String())
 
@@ -420,7 +420,7 @@ func newTXRow(p *sqlPersistence) *sqlmock.Rows {
 	)
 }
 
-func TestGetTransactionByIDWithHistoryHistorySummaryFail(t *testing.T) {
+func TestGetTransactionByIDWithStatusHistorySummaryFail(t *testing.T) {
 	ctx, p, mdb, done := newMockSQLPersistence(t)
 	defer done()
 
@@ -433,13 +433,13 @@ func TestGetTransactionByIDWithHistoryHistorySummaryFail(t *testing.T) {
 	)
 	mdb.ExpectQuery("SELECT.*txhistory").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithHistory(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
-func TestGetTransactionByIDWithHistoryConfirmationsFail(t *testing.T) {
+func TestGetTransactionByIDWithStatusConfirmationsFail(t *testing.T) {
 	ctx, p, mdb, done := newMockSQLPersistence(t)
 	defer done()
 
@@ -449,20 +449,20 @@ func TestGetTransactionByIDWithHistoryConfirmationsFail(t *testing.T) {
 	)
 	mdb.ExpectQuery("SELECT.*confirmations").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithHistory(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
-func TestGetTransactionByIDWithHistoryReceiptFail(t *testing.T) {
+func TestGetTransactionByIDWithStatusReceiptFail(t *testing.T) {
 	ctx, p, mdb, done := newMockSQLPersistence(t)
 	defer done()
 
 	mdb.ExpectQuery("SELECT.*transactions").WillReturnRows(newTXRow(p))
 	mdb.ExpectQuery("SELECT.*receipts").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithHistory(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
@@ -474,7 +474,7 @@ func TestGetTransactionByIDTXFail(t *testing.T) {
 
 	mdb.ExpectQuery("SELECT.*transactions").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithHistory(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())

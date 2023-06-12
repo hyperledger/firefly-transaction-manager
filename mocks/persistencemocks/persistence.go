@@ -221,8 +221,8 @@ func (_m *Persistence) GetTransactionByID(ctx context.Context, txID string) (*ap
 	return r0, r1
 }
 
-// GetTransactionByIDWithHistory provides a mock function with given fields: ctx, txID
-func (_m *Persistence) GetTransactionByIDWithHistory(ctx context.Context, txID string) (*apitypes.TXWithStatus, error) {
+// GetTransactionByIDWithStatus provides a mock function with given fields: ctx, txID
+func (_m *Persistence) GetTransactionByIDWithStatus(ctx context.Context, txID string) (*apitypes.TXWithStatus, error) {
 	ret := _m.Called(ctx, txID)
 
 	var r0 *apitypes.TXWithStatus

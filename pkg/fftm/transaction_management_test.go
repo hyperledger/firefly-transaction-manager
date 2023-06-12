@@ -33,8 +33,8 @@ func TestGetTransactionErrors(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
-	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, nil).Once()
+	mp.On("GetTransactionByIDWithStatus", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
+	mp.On("GetTransactionByIDWithStatus", m.ctx, mock.Anything).Return(nil, nil).Once()
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
 	_, err := m.getTransactionByID(m.ctx, "id")

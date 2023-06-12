@@ -170,7 +170,7 @@ type TransactionPersistence interface {
 	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
 	ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                 // reverse insertion order, only those in pending state
 	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
-	GetTransactionByIDWithHistory(ctx context.Context, txID string) (*apitypes.TXWithStatus, error)
+	GetTransactionByIDWithStatus(ctx context.Context, txID string) (*apitypes.TXWithStatus, error)
 	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
 	InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error
 	UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error

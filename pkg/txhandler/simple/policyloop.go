@@ -335,6 +335,7 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 				ctx.UpdateType = Update
 				errMsg := policyError.Error()
 				// Keep storing the latest error message onto the TX (sub-status updates handled in the processTransaction handler)
+				mtx.ErrorMessage = errMsg
 				ctx.TXUpdates.ErrorMessage = &errMsg
 			} else {
 				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, ctx.UpdateType, mtx.Status, mtx.TransactionHash)

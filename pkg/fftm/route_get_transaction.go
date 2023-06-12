@@ -35,7 +35,7 @@ var getTransaction = func(m *manager) *ffapi.Route {
 		QueryParams:     nil,
 		Description:     tmmsgs.APIEndpointGetTransaction,
 		JSONInputValue:  nil,
-		JSONOutputValue: func() interface{} { return &apitypes.ManagedTX{} },
+		JSONOutputValue: func() interface{} { return &apitypes.TXWithStatus{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
 			return m.getTransactionByID(r.Req.Context(), r.PP["transactionId"])

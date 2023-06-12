@@ -176,7 +176,7 @@ func (p *sqlPersistence) GetTransactionByID(ctx context.Context, txID string) (*
 	return p.transactions.GetByID(ctx, txID)
 }
 
-func (p *sqlPersistence) GetTransactionByIDWithHistory(ctx context.Context, txID string) (*apitypes.TXWithStatus, error) {
+func (p *sqlPersistence) GetTransactionByIDWithStatus(ctx context.Context, txID string) (*apitypes.TXWithStatus, error) {
 	tx, err := p.transactions.GetByID(ctx, txID)
 	if tx == nil || err != nil {
 		return nil, err
