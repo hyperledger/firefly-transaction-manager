@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestCheckReceiptNotFound(t *testing.T) {
+func TestCheckReceiptNotFoundErr(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
@@ -34,6 +34,32 @@ func TestCheckReceiptNotFound(t *testing.T) {
 			bcm.receiptChecker.closed = true // to exit
 		}).
 		Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
+
+	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
+	pending := &pendingItem{
+		pType:           pendingTypeTransaction,
+		transactionHash: txHash,
+	}
+	bcm.receiptChecker.schedule(pending, false)
+
+	// We can run a worker loop and it will exit immediately, after the transaction receipt closes the receipt checker
+	bcm.receiptChecker.workersDone = []chan struct{}{make(chan struct{})}
+	bcm.receiptChecker.run(0)
+
+	// We should have removed it
+	assert.Zero(t, bcm.receiptChecker.entries.Len())
+
+}
+
+func TestCheckReceiptNotFoundNil(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager(t, false)
+
+	mca.On("TransactionReceipt", mock.Anything, mock.Anything).
+		Run(func(args mock.Arguments) {
+			bcm.receiptChecker.closed = true // to exit
+		}).
+		Return(nil, ffcapi.ErrorReasonNotFound, nil)
 
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 	pending := &pendingItem{

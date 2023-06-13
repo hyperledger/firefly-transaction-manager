@@ -100,8 +100,8 @@ func (rc *receiptChecker) run(i int) {
 			res, reason, receiptErr := rc.bcm.connector.TransactionReceipt(ctx, &ffcapi.TransactionReceiptRequest{
 				TransactionHash: pending.transactionHash,
 			})
-			if receiptErr != nil {
-				if reason != ffcapi.ErrorReasonNotFound {
+			if receiptErr != nil || res == nil {
+				if receiptErr != nil && reason != ffcapi.ErrorReasonNotFound {
 					log.L(ctx).Debugf("Failed to query receipt for transaction %s: %s", pending.transactionHash, receiptErr)
 					// It's possible though that the node will return a non-recoverable error for this item.
 					// So we push it to the back of the queue (we already removed it in waitNext, but left
@@ -111,7 +111,7 @@ func (rc *receiptChecker) run(i int) {
 					rc.cond.L.Unlock()
 					return true /* drive the retry delay mechanism before next de-queue */, receiptErr
 				}
-				log.L(ctx).Debugf("Receipt for transaction %s not yet available: %s", pending.transactionHash, receiptErr)
+				log.L(ctx).Debugf("Receipt for transaction %s not yet available: %v", pending.transactionHash, receiptErr)
 			}
 			// Regardless of whether we got a receipt, update the pending item
 			rc.cond.L.Lock()
@@ -119,7 +119,7 @@ func (rc *receiptChecker) run(i int) {
 			pending.lastReceiptCheck = time.Now()
 			rc.cond.L.Unlock()
 
-			// Dispatch the receipt back to the main routine
+			// Dispatch the receipt back to the main routine.
 			rc.notify(pending, res)
 			return false, nil
 		})
