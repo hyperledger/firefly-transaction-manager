@@ -40,6 +40,8 @@ func TestGetTransaction(t *testing.T) {
 		Get(fmt.Sprintf("%s/transactions/%s", url, txIn.ID))
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
+	assert.NotNil(t, txOut.DeprecatedTransactionHeaders.From) // migration compatibility when using LevelDB
+	txOut.DeprecatedTransactionHeaders = nil
 	assert.Equal(t, *txIn, *txOut.ManagedTX)
 
 }

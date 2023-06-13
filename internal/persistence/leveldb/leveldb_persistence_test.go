@@ -691,14 +691,14 @@ func TestManagedTXDeprecatedTransactionHeadersMigration(t *testing.T) {
 	defer done()
 
 	txh := apitypes.TXWithStatus{
-		DeprecatedTransactionHeaders: &ffcapi.TransactionHeaders{
-			From:  "0x12345",
-			To:    "0x23456",
-			Nonce: fftypes.NewFFBigInt(11111),
-			Gas:   fftypes.NewFFBigInt(22222),
-			Value: fftypes.NewFFBigInt(33333),
-		},
 		ManagedTX: &apitypes.ManagedTX{
+			DeprecatedTransactionHeaders: &ffcapi.TransactionHeaders{
+				From:  "0x12345",
+				To:    "0x23456",
+				Nonce: fftypes.NewFFBigInt(11111),
+				Gas:   fftypes.NewFFBigInt(22222),
+				Value: fftypes.NewFFBigInt(33333),
+			},
 			ID:      fftypes.NewUUID().String(),
 			Created: fftypes.Now(),
 			Status:  apitypes.TxStatusPending,
@@ -715,6 +715,12 @@ func TestManagedTXDeprecatedTransactionHeadersMigration(t *testing.T) {
 	assert.Equal(t, int64(11111), tx.Nonce.Int64())
 	assert.Equal(t, int64(22222), tx.Gas.Int64())
 	assert.Equal(t, int64(33333), tx.Value.Int64())
+
+	assert.Equal(t, "0x12345", tx.DeprecatedTransactionHeaders.From)
+	assert.Equal(t, "0x23456", tx.DeprecatedTransactionHeaders.To)
+	assert.Equal(t, int64(11111), tx.DeprecatedTransactionHeaders.Nonce.Int64())
+	assert.Equal(t, int64(22222), tx.DeprecatedTransactionHeaders.Gas.Int64())
+	assert.Equal(t, int64(33333), tx.DeprecatedTransactionHeaders.Value.Int64())
 }
 
 func TestManagedTXUpdate(t *testing.T) {
@@ -749,6 +755,7 @@ func TestManagedTXUpdate(t *testing.T) {
 	tx, err := p.GetTransactionByID(ctx, mtx.ID)
 	assert.NoError(t, err)
 	tx.Updated = nil // for compare
+	tx.DeprecatedTransactionHeaders = nil
 	assert.Equal(t, mtx, tx)
 
 	newStatus := apitypes.TxStatusFailed

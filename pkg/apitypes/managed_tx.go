@@ -150,13 +150,14 @@ type ManagedTX struct {
 	DeleteRequested *fftypes.FFTime `json:"deleteRequested,omitempty"`
 	SequenceID      string          `json:"sequenceId,omitempty"`
 	ffcapi.TransactionHeaders
-	GasPrice        *fftypes.JSONAny `json:"gasPrice"`
-	TransactionData string           `json:"transactionData"`
-	TransactionHash string           `json:"transactionHash,omitempty"`
-	PolicyInfo      *fftypes.JSONAny `json:"policyInfo"`
-	FirstSubmit     *fftypes.FFTime  `json:"firstSubmit,omitempty"`
-	LastSubmit      *fftypes.FFTime  `json:"lastSubmit,omitempty"`
-	ErrorMessage    string           `json:"errorMessage,omitempty"`
+	GasPrice                     *fftypes.JSONAny           `json:"gasPrice"`
+	TransactionData              string                     `json:"transactionData"`
+	TransactionHash              string                     `json:"transactionHash,omitempty"`
+	PolicyInfo                   *fftypes.JSONAny           `json:"policyInfo"`
+	FirstSubmit                  *fftypes.FFTime            `json:"firstSubmit,omitempty"`
+	LastSubmit                   *fftypes.FFTime            `json:"lastSubmit,omitempty"`
+	ErrorMessage                 string                     `json:"errorMessage,omitempty"`
+	DeprecatedTransactionHeaders *ffcapi.TransactionHeaders `json:"transactionHeaders,omitempty"` // LevelDB only: for lost-in-time historical reasons we duplicate these fields at the base too on this query structure
 }
 
 func (mtx *ManagedTX) GetID() string {
@@ -210,11 +211,10 @@ type TXUpdates struct {
 // Note that in LevelDB persistence this is the stored form of the single document object.
 type TXWithStatus struct {
 	*ManagedTX
-	Receipt                      *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
-	Confirmations                []*Confirmation                    `json:"confirmations,omitempty"`
-	DeprecatedTransactionHeaders *ffcapi.TransactionHeaders         `json:"transactionHeaders,omitempty"` // LevelDB only: for historical reasons we duplicate these fields at the base too on this query structure
-	DeprecatedHistorySummary     []*TxHistorySummaryEntry           `json:"historySummary,omitempty"`     // LevelDB only: maintains a summary to retain data while limiting single JSON payload size
-	History                      []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
+	Receipt                  *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
+	Confirmations            []*Confirmation                    `json:"confirmations,omitempty"`
+	DeprecatedHistorySummary []*TxHistorySummaryEntry           `json:"historySummary,omitempty"` // LevelDB only: maintains a summary to retain data while limiting single JSON payload size
+	History                  []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
 }
 
 func (mtx *ManagedTX) Namespace(ctx context.Context) string {
