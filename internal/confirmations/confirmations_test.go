@@ -42,8 +42,9 @@ func newTestBlockConfirmationManager(t *testing.T, enabled bool) (*blockConfirma
 func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmationManager, *ffcapimocks.API) {
 	logrus.SetLevel(logrus.DebugLevel)
 	mca := &ffcapimocks.API{}
-	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut")
-	return bcm.(*blockConfirmationManager), mca
+	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut").(*blockConfirmationManager)
+	bcm.receiptChecker = newReceiptChecker(bcm, 0) // no workers, but non-nil
+	return bcm, mca
 }
 
 func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
@@ -934,6 +935,11 @@ func TestNotificationValidation(t *testing.T) {
 	})
 	assert.Regexp(t, "FF21016", err)
 
+	err = bcm.Notify(&Notification{
+		NotificationType: receiptArrived,
+	})
+	assert.Regexp(t, "FF21016", err)
+
 	bcm.cancelFunc()
 	err = bcm.Notify(&Notification{
 		NotificationType: NewTransaction,
@@ -946,38 +952,18 @@ func TestNotificationValidation(t *testing.T) {
 
 }
 
-func TestCheckReceiptNotFound(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-
-	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
-
-	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-	pending := &pendingItem{
-		pType:           pendingTypeTransaction,
-		transactionHash: txHash,
-	}
-	bcm.pending[pending.getKey()] = pending
-	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
-	blocks := bcm.newBlockState()
-	bcm.checkReceipt(pending, blocks)
-
-	assert.False(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
-
-}
-
 func TestCheckReceiptImmediateConfirm(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, _ := newTestBlockConfirmationManager(t, false)
 	bcm.requiredConfirmations = 0
 
-	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(&ffcapi.TransactionReceiptResponse{
+	receipt := &ffcapi.TransactionReceiptResponse{
 		BlockHash:        fftypes.NewRandB32().String(),
 		BlockNumber:      fftypes.NewFFBigInt(1001),
 		TransactionIndex: fftypes.NewFFBigInt(0),
 		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
 		Success:          true,
-	}, ffcapi.ErrorReasonNotFound, nil)
+	}
 
 	done := make(chan struct{})
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
@@ -988,43 +974,22 @@ func TestCheckReceiptImmediateConfirm(t *testing.T) {
 			close(done)
 		},
 	}
-	bcm.pending[pending.getKey()] = pending
 	blocks := bcm.newBlockState()
-	go bcm.checkReceipt(pending, blocks)
+	go bcm.dispatchReceipt(pending, receipt, blocks)
 
 	<-done
-}
-
-func TestCheckReceiptFail(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-
-	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
-
-	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-	pending := &pendingItem{
-		pType:           pendingTypeTransaction,
-		transactionHash: txHash,
-	}
-	bcm.pending[pending.getKey()] = pending
-	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
-	blocks := bcm.newBlockState()
-	bcm.checkReceipt(pending, blocks)
-
-	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
-
 }
 
 func TestCheckReceiptWalkFail(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
-	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(&ffcapi.TransactionReceiptResponse{
+	receipt := &ffcapi.TransactionReceiptResponse{
 		BlockNumber:      fftypes.NewFFBigInt(12345),
 		BlockHash:        "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 		TransactionIndex: fftypes.NewFFBigInt(10),
 		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-	}, ffcapi.ErrorReason(""), nil)
+	}
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 12346
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
@@ -1033,19 +998,18 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 	pending := &pendingItem{
 		pType:           pendingTypeTransaction,
 		transactionHash: txHash,
+		confirmationsCallback: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+			panic("should not be called")
+		},
 	}
-	bcm.pending[pending.getKey()] = pending
-	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
 	blocks := bcm.newBlockState()
-	bcm.checkReceipt(pending, blocks)
-
-	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
-
+	bcm.dispatchReceipt(pending, receipt, blocks)
 }
 
 func TestStaleReceiptCheck(t *testing.T) {
 
 	bcm, _ := newTestBlockConfirmationManager(t, false)
+	bcm.receiptChecker = newReceiptChecker(bcm, 0)
 
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 	pending := &pendingItem{
@@ -1056,7 +1020,7 @@ func TestStaleReceiptCheck(t *testing.T) {
 	bcm.pending[pending.getKey()] = pending
 	bcm.staleReceiptCheck()
 
-	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
+	assert.Equal(t, bcm.receiptChecker.entries.Len(), 1)
 
 }
 

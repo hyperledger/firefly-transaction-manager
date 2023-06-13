@@ -33,6 +33,8 @@ const (
 	ConfigTXWriterCount                     = "txwriter.count"
 	ConfigTXWriterBatchTimeout              = "txwriter.batchTimeout"
 	ConfigTXWriterBatchSize                 = "txwriter.batchSize"
+
+	defaultConnectionLimitPostgreSQL = 50
 )
 
 type sqlPersistence struct {
@@ -54,6 +56,8 @@ type sqlPersistence struct {
 func InitConfig(conf config.Section) {
 	psql = &Postgres{}
 	psql.Database.InitConfig(psql, conf)
+	conf.SetDefault(dbsql.SQLConfMaxConnections, defaultConnectionLimitPostgreSQL)
+
 	conf.AddKnownKey(ConfigTXWriterHistoryCacheSlots, 1000)
 	conf.AddKnownKey(ConfigTXWriterHistorySummaryLimit, 50) // returned on TX status
 	conf.AddKnownKey(ConfigTXWriterHistoryCompactionInterval, "5m")

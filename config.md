@@ -44,8 +44,17 @@
 |---|-----------|----|-------------|
 |blockQueueLength|Internal queue length for notifying the confirmations manager of new blocks|`int`|`50`
 |notificationQueueLength|Internal queue length for notifying the confirmations manager of new transactions/events|`int`|`50`
+|receiptWorkers|Number of workers to use to query in parallel for receipts|`int`|`10`
 |required|Number of confirmations required to consider a transaction/event final|`int`|`20`
 |staleReceiptTimeout|Duration after which to force a receipt check for a pending transaction|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1m`
+
+## confirmations.retry
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|factor|The retry backoff factor|`float32`|`2`
+|initialDelay|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`100ms`
+|maxDelay|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
 
 ## cors
 
@@ -179,7 +188,7 @@
 |---|-----------|----|-------------|
 |maxConnIdleTime|The maximum amount of time a database connection can be idle|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1m`
 |maxConnLifetime|The maximum amount of time to keep a database connection open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
-|maxConns|Maximum connections to the database|`int`|`<nil>`
+|maxConns|Maximum connections to the database|`int`|`50`
 |maxIdleConns|The maximum number of idle connections to the database|`int`|`<nil>`
 |url|The PostgreSQL connection string for the database|`string`|`<nil>`
 
