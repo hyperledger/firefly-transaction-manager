@@ -52,6 +52,9 @@ type API interface {
 	// TransactionReceipt queries to see if a receipt is available for a given transaction hash
 	TransactionReceipt(ctx context.Context, req *TransactionReceiptRequest) (*TransactionReceiptResponse, ErrorReason, error)
 
+	// TransactionReceiptBatch queries to see if multiple receipts are available for a batch of transaction hashes
+	TransactionReceiptBatch(ctx context.Context, req *BatchTransactionReceiptRequests) (*BatchTransactionReceiptResponses, ErrorReason, error)
+
 	// TransactionPrepare validates transaction inputs against the supplied schema/ABI and performs any binary serialization required (prior to signing) to encode a transaction from JSON into the native blockchain format
 	TransactionPrepare(ctx context.Context, req *TransactionPrepareRequest) (*TransactionPrepareResponse, ErrorReason, error)
 

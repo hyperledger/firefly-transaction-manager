@@ -33,3 +33,11 @@ type TransactionReceiptResponse struct {
 	ExtraInfo        *fftypes.JSONAny  `json:"extraInfo"`
 	ContractLocation *fftypes.JSONAny  `json:"contractLocation"`
 }
+
+type BatchTransactionReceiptRequests struct {
+	TransactionReceiptRequests []TransactionReceiptRequest `json:"transactionReceiptRequests"`
+}
+
+type BatchTransactionReceiptResponses struct {
+	TransactionReceiptResponses []TransactionReceiptResponse `json:"transactionReceiptResponses"`
+}
