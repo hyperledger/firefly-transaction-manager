@@ -425,14 +425,10 @@ func (bcm *blockConfirmationManager) dispatchReceipt(pending *pendingItem, recei
 		pending.receiptCallback(bcm.ctx, receipt)
 	}
 
-	if bcm.requiredConfirmations == 0 {
-		bcm.dispatchConfirmations(pending)
-	} else {
-		// Need to walk the chain for this new receipt
-		if err := bcm.walkChainForItem(pending, blocks); err != nil {
-			log.L(bcm.ctx).Debugf("Failed to walk chain for transaction %s: %s", pending.transactionHash, err)
-			return
-		}
+	// Need to walk the chain for this new receipt
+	if err := bcm.walkChainForItem(pending, blocks); err != nil {
+		log.L(bcm.ctx).Debugf("Failed to walk chain for transaction %s: %s", pending.transactionHash, err)
+		return
 	}
 }
 
@@ -545,7 +541,7 @@ func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 			if len(pending.confirmations) >= bcm.requiredConfirmations {
 				pending.confirmed = true
 			}
-			if pending.confirmed || newConfirmations {
+			if bcm.requiredConfirmations > 0 && (pending.confirmed || newConfirmations) {
 				notifications = append(notifications, pending)
 			}
 		}
@@ -672,32 +668,36 @@ func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem, bloc
 	blockNumber := pending.blockNumber + 1
 	expectedParentHash := pending.blockHash
 	pending.confirmations = pending.confirmations[:0]
-	for {
-		// No point in walking past the highest block we've seen via the notifier
-		if bcm.highestBlockSeen > 0 && blockNumber > bcm.highestBlockSeen {
-			log.L(bcm.ctx).Debugf("Waiting for confirmation after block %d event=%s", bcm.highestBlockSeen, pendingKey)
-			break
+	if bcm.requiredConfirmations == 0 {
+		pending.confirmed = true
+	} else {
+		for {
+			// No point in walking past the highest block we've seen via the notifier
+			if bcm.highestBlockSeen > 0 && blockNumber > bcm.highestBlockSeen {
+				log.L(bcm.ctx).Debugf("Waiting for confirmation after block %d event=%s", bcm.highestBlockSeen, pendingKey)
+				break
+			}
+			block, err := blocks.getByNumber(blockNumber, expectedParentHash)
+			if err != nil {
+				return err
+			}
+			if block == nil {
+				log.L(bcm.ctx).Infof("Block %d unavailable walking chain event=%s", blockNumber, pendingKey)
+				break
+			}
+			candidateParentHash := block.ParentHash
+			if candidateParentHash != expectedParentHash {
+				log.L(bcm.ctx).Infof("Block mismatch in confirmations: block=%d expected=%s actual=%s confirmations=%d event=%s", blockNumber, expectedParentHash, candidateParentHash, len(pending.confirmations), pendingKey)
+				break
+			}
+			pending.confirmations = append(pending.confirmations, apitypes.ConfirmationFromBlock(block))
+			if len(pending.confirmations) >= bcm.requiredConfirmations {
+				pending.confirmed = true
+				break
+			}
+			blockNumber++
+			expectedParentHash = block.BlockHash
 		}
-		block, err := blocks.getByNumber(blockNumber, expectedParentHash)
-		if err != nil {
-			return err
-		}
-		if block == nil {
-			log.L(bcm.ctx).Infof("Block %d unavailable walking chain event=%s", blockNumber, pendingKey)
-			break
-		}
-		candidateParentHash := block.ParentHash
-		if candidateParentHash != expectedParentHash {
-			log.L(bcm.ctx).Infof("Block mismatch in confirmations: block=%d expected=%s actual=%s confirmations=%d event=%s", blockNumber, expectedParentHash, candidateParentHash, len(pending.confirmations), pendingKey)
-			break
-		}
-		pending.confirmations = append(pending.confirmations, apitypes.ConfirmationFromBlock(block))
-		if len(pending.confirmations) >= bcm.requiredConfirmations {
-			pending.confirmed = true
-			break
-		}
-		blockNumber++
-		expectedParentHash = block.BlockHash
 	}
 	// Notify the new confirmation set
 	if pending.confirmed || len(pending.confirmations) > 0 {
