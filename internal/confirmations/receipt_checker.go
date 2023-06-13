@@ -120,7 +120,9 @@ func (rc *receiptChecker) run(i int) {
 			rc.cond.L.Unlock()
 
 			// Dispatch the receipt back to the main routine.
-			rc.notify(pending, res)
+			if res != nil {
+				rc.notify(pending, res)
+			}
 			return false, nil
 		})
 		// Error means the context has closed
