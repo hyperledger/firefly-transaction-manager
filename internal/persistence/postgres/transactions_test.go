@@ -17,6 +17,7 @@
 package postgres
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -46,7 +47,6 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From:  "0x111111",
 			To:    "0x222222",
-			Nonce: fftypes.NewFFBigInt(333333),
 			Gas:   fftypes.NewFFBigInt(555555),
 			Value: fftypes.NewFFBigInt(666666),
 		},
@@ -58,7 +58,9 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 		LastSubmit:      fftypes.Now(),
 		ErrorMessage:    "error bbbbbb",
 	}
-	err := p.InsertTransaction(ctx, tx)
+	err := p.InsertTransactionWithNextNonce(ctx, tx, func(ctx context.Context, signer string) (uint64, error) {
+		return 333333, nil
+	})
 	assert.NoError(t, err)
 	assert.NotEmpty(t, tx.SequenceID)
 	origTXJson, err := json.Marshal(tx)
@@ -243,11 +245,12 @@ func TestTransactionListByCreateTimePSQL(t *testing.T) {
 			Status:          apitypes.TxStatusPending,
 			DeleteRequested: nil,
 			TransactionHeaders: ffcapi.TransactionHeaders{
-				From:  signer,
-				Nonce: fftypes.NewFFBigInt(i / 2),
+				From: signer,
 			},
 		}
-		err := p.InsertTransaction(ctx, tx)
+		err := p.InsertTransactionWithNextNonce(ctx, tx, func(ctx context.Context, signer string) (uint64, error) {
+			return 0, nil
+		})
 		assert.NoError(t, err)
 		assert.NotEmpty(t, tx.SequenceID)
 		txs = append(txs, tx)
@@ -297,7 +300,9 @@ func TestTransactionListByNoncePSQL(t *testing.T) {
 				Nonce: fftypes.NewFFBigInt(i / 2),
 			},
 		}
-		err := p.InsertTransaction(ctx, tx)
+		err := p.InsertTransactionWithNextNonce(ctx, tx, func(ctx context.Context, signer string) (uint64, error) {
+			return 0, nil
+		})
 		assert.NoError(t, err)
 		assert.NotEmpty(t, tx.SequenceID)
 		txs = append(txs, tx)
@@ -367,7 +372,9 @@ func TestTransactionPendingPSQL(t *testing.T) {
 				Nonce: fftypes.NewFFBigInt(i / 2),
 			},
 		}
-		err := p.InsertTransaction(ctx, tx)
+		err := p.InsertTransactionWithNextNonce(ctx, tx, func(ctx context.Context, signer string) (uint64, error) {
+			return 0, nil
+		})
 		assert.NoError(t, err)
 		assert.NotEmpty(t, tx.SequenceID)
 		txs = append(txs, tx)
@@ -407,10 +414,10 @@ func newTXRow(p *sqlPersistence) *sqlmock.Rows {
 		fftypes.Now().String(), // "delete",
 		"0x12345",              // "tx_from",
 		"0x23456",              // "tx_to",
-		"11111",                // "tx_nonce",
-		"22222",                // "tx_gas",
-		"33333",                // "tx_value",
-		"44444",                // "tx_gasprice",
+		"11111",                // "tx_nonce", (hex)
+		"22222",                // "tx_gas", (hex)
+		"33333",                // "tx_value", (hex)
+		"44444",                // "tx_gasprice", (hex)
 		"0xffffff",             // "tx_data",
 		"0xeeeeee",             // "tx_hash",
 		nil,                    // "policy_info",

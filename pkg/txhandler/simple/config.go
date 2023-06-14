@@ -25,8 +25,7 @@ import (
 )
 
 const (
-	MaxInFlight       = "maxInFlight"
-	NonceStateTimeout = "nonceStateTimeout"
+	MaxInFlight = "maxInFlight"
 
 	Interval       = "interval"
 	RetryInitDelay = "retry.initialDelay"
@@ -67,7 +66,6 @@ func (f *TransactionHandlerFactory) InitConfig(conf config.Section) {
 	conf.AddKnownKey(ResubmitInterval, defaultResubmitInterval)
 
 	conf.AddKnownKey(MaxInFlight, defaultMaxInFlight)
-	conf.AddKnownKey(NonceStateTimeout, defaultNonceStateTimeout)
 	conf.AddKnownKey(Interval, defaultInterval)
 	conf.AddKnownKey(RetryInitDelay, defaultRetryInitDelay)
 	conf.AddKnownKey(RetryMaxDelay, defaultRetryMaxDelay)

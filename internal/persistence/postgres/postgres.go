@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"database/sql"
 
@@ -41,11 +42,11 @@ type Postgres struct {
 
 var psql *Postgres
 
-func NewPostgresPersistence(bgCtx context.Context, conf config.Section) (persistence.Persistence, error) {
+func NewPostgresPersistence(bgCtx context.Context, conf config.Section, nonceStateTimeout time.Duration) (persistence.Persistence, error) {
 	if err := psql.Database.Init(bgCtx, psql, conf); err != nil {
 		return nil, err
 	}
-	return newSQLPersistence(bgCtx, &psql.Database, conf)
+	return newSQLPersistence(bgCtx, &psql.Database, conf, nonceStateTimeout)
 }
 
 func (psql *Postgres) Name() string {

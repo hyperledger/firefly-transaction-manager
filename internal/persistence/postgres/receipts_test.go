@@ -17,6 +17,7 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -42,10 +43,11 @@ func TestReceiptsInsertTwoInOneCyclePSQL(t *testing.T) {
 
 	// Write initial transactions
 	tx1ID := fmt.Sprintf("ns1:%s", fftypes.NewUUID())
-	tx1 := &apitypes.ManagedTX{ID: tx1ID, Status: apitypes.TxStatusPending}
+	tx1 := &apitypes.ManagedTX{ID: tx1ID, Status: apitypes.TxStatusPending, TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"}}
 	// deliberately do not wait for the inserts
 	insertOp := newTransactionOperation(tx1ID)
 	insertOp.txInsert = tx1
+	insertOp.nextNonceCB = func(ctx context.Context, signer string) (uint64, error) { return 0, nil }
 	p.writer.queue(ctx, insertOp)
 
 	// Insert receipt
@@ -87,10 +89,11 @@ func TestReceiptsReplaceInAnotherCyclePSQL(t *testing.T) {
 
 	// Write initial transactions
 	tx1ID := fmt.Sprintf("ns1:%s", fftypes.NewUUID())
-	tx1 := &apitypes.ManagedTX{ID: tx1ID, Status: apitypes.TxStatusPending}
+	tx1 := &apitypes.ManagedTX{ID: tx1ID, Status: apitypes.TxStatusPending, TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"}}
 	// deliberately do not wait for the inserts
 	insertOp := newTransactionOperation(tx1ID)
 	insertOp.txInsert = tx1
+	insertOp.nextNonceCB = func(ctx context.Context, signer string) (uint64, error) { return 0, nil }
 	p.writer.queue(ctx, insertOp)
 
 	// Insert receipt

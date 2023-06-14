@@ -18,6 +18,7 @@ package postgres
 
 import (
 	"context"
+	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
@@ -27,7 +28,7 @@ import (
 )
 
 const (
-	ConfigTXWriterHistoryCacheSlots         = "txwriter.cacheSlots"
+	ConfigTXWriterCacheSlots                = "txwriter.cacheSlots"
 	ConfigTXWriterHistorySummaryLimit       = "txwriter.historySummaryLimit"
 	ConfigTXWriterHistoryCompactionInterval = "txwriter.historyCompactionInterval"
 	ConfigTXWriterCount                     = "txwriter.count"
@@ -50,6 +51,7 @@ type sqlPersistence struct {
 	listeners     *dbsql.CrudBase[*apitypes.Listener]
 
 	historySummaryLimit int
+	nonceStateTimeout   time.Duration
 }
 
 // InitConfig gets called after config reset to initialize the config structure
@@ -58,7 +60,7 @@ func InitConfig(conf config.Section) {
 	psql.Database.InitConfig(psql, conf)
 	conf.SetDefault(dbsql.SQLConfMaxConnections, defaultConnectionLimitPostgreSQL)
 
-	conf.AddKnownKey(ConfigTXWriterHistoryCacheSlots, 1000)
+	conf.AddKnownKey(ConfigTXWriterCacheSlots, 1000)
 	conf.AddKnownKey(ConfigTXWriterHistorySummaryLimit, 50) // returned on TX status
 	conf.AddKnownKey(ConfigTXWriterHistoryCompactionInterval, "5m")
 	conf.AddKnownKey(ConfigTXWriterCount, 5)
@@ -66,7 +68,7 @@ func InitConfig(conf config.Section) {
 	conf.AddKnownKey(ConfigTXWriterBatchSize, 100)
 }
 
-func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Section) (p *sqlPersistence, err error) {
+func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Section, nonceStateTimeout time.Duration) (p *sqlPersistence, err error) {
 	p = &sqlPersistence{
 		db: db,
 	}
@@ -80,6 +82,8 @@ func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Se
 	p.listeners = p.newListenersCollection()
 
 	p.historySummaryLimit = conf.GetInt(ConfigTXWriterHistorySummaryLimit)
+	p.nonceStateTimeout = nonceStateTimeout
+
 	if p.writer, err = newTransactionWriter(bgCtx, p, conf); err != nil {
 		return nil, err
 	}

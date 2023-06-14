@@ -21,25 +21,137 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"testing"
+	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestExecuteBatchOpsInsertBadOp(t *testing.T) {
+	ctx, p, _, done := newMockSQLPersistence(t)
+	defer done()
+
+	txOp := &transactionOperation{
+		txID: "1",
+		txInsert: &apitypes.ManagedTX{
+			TransactionHeaders: ffcapi.TransactionHeaders{From: "" /* missing */},
+		},
+		done: make(chan error, 1),
+	}
+	p.writer.queue(ctx, txOp)
+	err := txOp.flush(ctx)
+	assert.Regexp(t, "FF21086", err)
+}
 
 func TestExecuteBatchOpsInsertTXFailWrapped(t *testing.T) {
 	ctx, p, mdb, done := newMockSQLPersistence(t)
 	defer done()
 
 	mdb.ExpectBegin()
+	mdb.ExpectQuery("SELECT.*").WillReturnRows(sqlmock.NewRows([]string{"seq"}))
 	mdb.ExpectExec("INSERT.*").WillReturnError(fmt.Errorf("pop"))
 	mdb.ExpectRollback()
 
 	p.writer.runBatch(ctx, &transactionWriterBatch{
 		ops: []*transactionOperation{
-			{txID: "1", txInsert: &apitypes.ManagedTX{}, done: make(chan error, 1)},
+			{
+				txID: "1",
+				txInsert: &apitypes.ManagedTX{
+					TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"},
+				},
+				nextNonceCB: func(ctx context.Context, signer string) (uint64, error) { return 0, nil },
+				done:        make(chan error, 1)},
 		},
 	})
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
+}
+
+func TestExecuteBatchOpsInsertCacheExpiredTXNextNonceFail(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	oldTime := fftypes.FFTime(time.Now().Add(-10000 * time.Hour))
+	p.writer.nextNonceCache.Add("0x12345", &nonceCacheEntry{
+		cachedTime: &oldTime,
+	})
+
+	mdb.ExpectBegin()
+	mdb.ExpectRollback()
+
+	called := make(chan struct{})
+	op := &transactionOperation{
+		txID: "1",
+		txInsert: &apitypes.ManagedTX{
+			TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"},
+		},
+		nextNonceCB: func(ctx context.Context, signer string) (uint64, error) {
+			close(called)
+			return 0, fmt.Errorf("pop")
+		},
+		done: make(chan error, 1),
+	}
+	p.writer.runBatch(ctx, &transactionWriterBatch{
+		ops: []*transactionOperation{op},
+	})
+
+	err := op.flush(ctx)
+	assert.Regexp(t, "FF21084", err)
+	<-called
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
+}
+
+func TestExecuteBatchOpsInsertTXFailQueryExistingNonce(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	mdb.ExpectBegin()
+	mdb.ExpectQuery("SELECT.*").WillReturnError(fmt.Errorf("pop"))
+	mdb.ExpectRollback()
+
+	p.writer.runBatch(ctx, &transactionWriterBatch{
+		ops: []*transactionOperation{
+			{
+				txID: "1",
+				txInsert: &apitypes.ManagedTX{
+					TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"},
+				},
+				nextNonceCB: func(ctx context.Context, signer string) (uint64, error) { return 0, nil },
+				done:        make(chan error, 1)},
+		},
+	})
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
+}
+
+func TestExecuteBatchOpsInsertTXFailOverrideNonceBelowTx(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	mdb.ExpectBegin()
+	mdb.ExpectQuery("SELECT.*").WillReturnRows(newTXRow(p))
+	mdb.ExpectExec("INSERT.*").WillReturnResult(driver.ResultNoRows)
+	mdb.ExpectCommit()
+
+	tx := &apitypes.ManagedTX{
+		TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"},
+	}
+	p.writer.runBatch(ctx, &transactionWriterBatch{
+		ops: []*transactionOperation{
+			{
+				txID:     "1",
+				txInsert: tx,
+				nextNonceCB: func(ctx context.Context, signer string) (uint64, error) {
+					return 1 /* below nonce 11111 in the row queried back */, nil
+				},
+				done: make(chan error, 1)},
+		},
+	})
+	assert.Equal(t, uint64(0x11112), tx.Nonce.Uint64())
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
 }

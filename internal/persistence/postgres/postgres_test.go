@@ -23,6 +23,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/hyperledger/firefly-common/pkg/config"
@@ -69,7 +70,7 @@ func initTestPSQL(t *testing.T, initFunc ...func(config.Section)) (context.Conte
 	dbconf.Set(dbsql.SQLConfDatasourceURL, dbURL(utdbName))
 	dbconf.Set(dbsql.SQLConfMigrationsDirectory, path.Join("..", "..", "db", "migrations", "postgres"))
 
-	p, err := NewPostgresPersistence(ctx, dbconf)
+	p, err := NewPostgresPersistence(ctx, dbconf, 1*time.Hour)
 	assert.NoError(t, err)
 
 	driver, err := psql.GetMigrationDriver(psql.DB())
@@ -116,7 +117,7 @@ func TestDBInitFail(t *testing.T) {
 	dbconf := config.RootSection("utdb")
 	InitConfig(dbconf)
 
-	_, err := NewPostgresPersistence(context.Background(), dbconf)
+	_, err := NewPostgresPersistence(context.Background(), dbconf, 1*time.Hour)
 	assert.Regexp(t, "FF00183", err)
 
 }

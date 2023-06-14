@@ -48,7 +48,7 @@ func strPtr(s string) *string { return &s }
 func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 
 	InitConfig()
-	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
+	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "simple")
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").SubSection(simple.GasOracleConfig).Set(simple.GasOracleMode, simple.GasOracleModeDisabled)
 
@@ -301,7 +301,7 @@ func TestNewManagerInvalidTransactionHandlerName(t *testing.T) {
 	defer os.RemoveAll(dir)
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
-	config.Set(tmconfig.TransactionHandlerName, "wrong")
+	config.Set(tmconfig.TransactionsHandlerName, "wrong")
 
 	_, err = NewManager(context.Background(), nil)
 	assert.Regexp(t, "FF21070", err)
@@ -328,7 +328,7 @@ func TestNewManagerWithMetrics(t *testing.T) {
 func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 
 	tmconfig.Reset()
-	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
+	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "simple")
 
 	tmconfig.MetricsConfig.Set("enabled", true)
 	tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "::::")

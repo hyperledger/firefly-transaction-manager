@@ -118,12 +118,12 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	}
 
 	// check whether a policy engine name is provided
-	if config.GetString(tmconfig.TransactionHandlerName) == "" {
+	if config.GetString(tmconfig.TransactionsHandlerName) == "" {
 		log.L(ctx).Warnf("The 'policyengine' config key has been deprecated. Please use 'transactions.handler' instead")
 		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.DeprecatedPolicyEngineBaseConfig, config.GetString(tmconfig.DeprecatedPolicyEngineName))
 	} else {
 		// if not, fall back to use the deprecated policy engine
-		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.TransactionHandlerBaseConfig, config.GetString(tmconfig.TransactionHandlerName))
+		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.TransactionHandlerBaseConfig, config.GetString(tmconfig.TransactionsHandlerName))
 	}
 
 	if err != nil {
@@ -146,15 +146,16 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 
 func (m *manager) initPersistence(ctx context.Context) (err error) {
 	pType := config.GetString(tmconfig.PersistenceType)
+	nonceStateTimeout := config.GetDuration(tmconfig.TransactionsNonceStateTimeout)
 	switch pType {
 	case "leveldb":
 		m.richQueryAPI = false
-		if m.persistence, err = leveldb.NewLevelDBPersistence(ctx); err != nil {
+		if m.persistence, err = leveldb.NewLevelDBPersistence(ctx, nonceStateTimeout); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
 	case "postgres":
 		m.richQueryAPI = !config.GetBool(tmconfig.APISimpleQuery)
-		if m.persistence, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection); err != nil {
+		if m.persistence, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection, nonceStateTimeout); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
 	default:

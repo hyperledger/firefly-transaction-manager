@@ -44,7 +44,9 @@ func genTestTxn(signer string, nonce int64, status apitypes.TxStatus) *apitypes.
 
 func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	tx := genTestTxn(signer, nonce, status)
-	err := m.persistence.InsertTransaction(context.Background(), tx)
+	err := m.persistence.InsertTransactionWithNextNonce(context.Background(), tx, func(ctx context.Context, signer string) (uint64, error) {
+		return uint64(nonce), nil
+	})
 	assert.NoError(t, err)
 	return tx
 }

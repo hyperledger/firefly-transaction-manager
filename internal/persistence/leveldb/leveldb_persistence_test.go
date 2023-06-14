@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -44,7 +45,7 @@ func newTestLevelDBPersistence(t *testing.T) (context.Context, *leveldbPersisten
 	tmconfig.Reset()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
-	pp, err := NewLevelDBPersistence(ctx)
+	pp, err := NewLevelDBPersistence(ctx, 1*time.Hour)
 	assert.NoError(t, err)
 
 	// Write some random stuff to the DB
@@ -79,7 +80,7 @@ func TestLevelDBInitMissingPath(t *testing.T) {
 
 	tmconfig.Reset()
 
-	_, err := NewLevelDBPersistence(context.Background())
+	_, err := NewLevelDBPersistence(context.Background(), 1*time.Hour)
 	assert.Regexp(t, "FF21050", err)
 
 }
@@ -93,7 +94,7 @@ func TestLevelDBInitFail(t *testing.T) {
 	tmconfig.Reset()
 	config.Set(tmconfig.PersistenceLevelDBPath, file.Name())
 
-	_, err = NewLevelDBPersistence(context.Background())
+	_, err = NewLevelDBPersistence(context.Background(), 1*time.Hour)
 	assert.Error(t, err)
 
 }
@@ -270,13 +271,12 @@ func TestReadWriteCheckpoints(t *testing.T) {
 	assert.Equal(t, cp2.StreamID, cp.StreamID)
 }
 
-func newTestTX(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
+func newTestTX(signer string, status apitypes.TxStatus) *apitypes.ManagedTX {
 	return &apitypes.ManagedTX{
 		ID:      fmt.Sprintf("ns1/%s", fftypes.NewUUID()),
 		Created: fftypes.Now(),
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From:  signer,
-			Nonce: fftypes.NewFFBigInt(nonce),
+			From: signer,
 		},
 		Status: status,
 	}
@@ -288,8 +288,9 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	defer done()
 
 	submitNewTX := func(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
-		tx := newTestTX(signer, nonce, status)
-		err := p.InsertTransaction(ctx, tx)
+		tx := newTestTX(signer, status)
+		tx.Nonce = fftypes.NewFFBigInt(nonce)
+		err := p.writeTransaction(ctx, &apitypes.TXWithStatus{ManagedTX: tx}, true)
 		assert.NoError(t, err)
 		return tx
 	}
@@ -300,12 +301,12 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	s1t3 := submitNewTX("0xaaaaa", 10003, apitypes.TxStatusPending)
 
 	// Check new transaction should not have a sequenceID
-	err := p.InsertTransaction(ctx, s1t1)
+	err := p.writeTransaction(ctx, &apitypes.TXWithStatus{ManagedTX: s1t1}, true)
 	assert.Regexp(t, "FF21075", err)
 
 	// Check dup
 	s1t1.SequenceID = ""
-	err = p.InsertTransaction(ctx, s1t1)
+	err = p.writeTransaction(ctx, &apitypes.TXWithStatus{ManagedTX: s1t1}, true)
 	assert.Regexp(t, "FF21065", err)
 
 	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
@@ -366,6 +367,18 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	assert.Nil(t, v)
 }
 
+func TestInsertTransactionsDupCheckFail(t *testing.T) {
+
+	ctx, p, done := newTestLevelDBPersistence(t)
+	done()
+
+	tx := newTestTX("0x12345", apitypes.TxStatusPending)
+	tx.Nonce = fftypes.NewFFBigInt(12345)
+	err := p.writeTransaction(ctx, &apitypes.TXWithStatus{ManagedTX: tx}, true)
+	assert.Regexp(t, "FF21055", err)
+
+}
+
 func TestListStreamsBadJSON(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
@@ -412,9 +425,9 @@ func TestReadWriteTXFail(t *testing.T) {
 
 	p.db.Close()
 
-	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
+	tx := newTestTX("0x1234", apitypes.TxStatusPending)
 
-	err := p.InsertTransaction(ctx, tx)
+	err := p.InsertTransactionWithNextNonce(ctx, tx, func(ctx context.Context, signer string) (uint64, error) { return 1000, nil })
 	assert.Error(t, err)
 
 	_, err = p.GetTransactionByID(ctx, tx.ID)
@@ -434,7 +447,7 @@ func TestUpdateTXFail(t *testing.T) {
 
 	p.db.Close()
 
-	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
+	tx := newTestTX("0x1234", apitypes.TxStatusPending)
 
 	err := p.UpdateTransaction(ctx, tx.ID, &apitypes.TXUpdates{})
 	assert.Error(t, err)
@@ -447,7 +460,7 @@ func TestAddSubStatusActionFail(t *testing.T) {
 
 	p.db.Close()
 
-	tx := newTestTX("0x1234", 1000, apitypes.TxStatusPending)
+	tx := newTestTX("0x1234", apitypes.TxStatusPending)
 
 	err := p.AddSubStatusAction(ctx, tx.ID, apitypes.TxSubStatusTracking, apitypes.TxActionAssignNonce, nil, nil)
 	assert.Error(t, err)
@@ -671,7 +684,7 @@ func TestWriteTransactionIncomplete(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	err := p.InsertTransaction(ctx, &apitypes.ManagedTX{})
+	err := p.InsertTransactionWithNextNonce(ctx, &apitypes.ManagedTX{}, func(ctx context.Context, signer string) (uint64, error) { return 1000, nil })
 	assert.Regexp(t, "FF21059", err)
 
 }
@@ -733,7 +746,6 @@ func TestManagedTXUpdate(t *testing.T) {
 		TransactionHeaders: ffcapi.TransactionHeaders{
 			From:  "0x11111",
 			To:    "0x22222",
-			Nonce: fftypes.NewFFBigInt(11111),
 			Gas:   fftypes.NewFFBigInt(22222),
 			Value: fftypes.NewFFBigInt(33333),
 		},
@@ -746,7 +758,7 @@ func TestManagedTXUpdate(t *testing.T) {
 	err := p.UpdateTransaction(ctx, mtx.ID, &apitypes.TXUpdates{})
 	assert.Regexp(t, "FF21067", err)
 
-	err = p.InsertTransaction(ctx, mtx)
+	err = p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 11111, nil })
 	assert.NoError(t, err)
 
 	err = p.UpdateTransaction(ctx, mtx.ID, &apitypes.TXUpdates{}) // no-op
@@ -818,7 +830,7 @@ func TestManagedTXSubStatus(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	err := p.InsertTransaction(ctx, mtx)
+	err := p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
 	// Adding the same sub-status lots of times in succession should only result
@@ -860,8 +872,8 @@ func TestManagedTXSubStatus(t *testing.T) {
 func TestManagedTXSubStatusRepeat(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
-	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
-	err := p.InsertTransaction(ctx, mtx)
+	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
+	err := p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
 	// Add a sub-status
@@ -890,12 +902,12 @@ func TestManagedTXSubStatusRepeat(t *testing.T) {
 func TestManagedTXSubStatusAction(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
-	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
 
 	err := p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil)
 	assert.Regexp(t, "FF21067", err)
 
-	err = p.InsertTransaction(ctx, mtx)
+	err = p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
 	// Add an action
@@ -993,7 +1005,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 func TestSetReceipt(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
-	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
 
 	receipt := &ffcapi.TransactionReceiptResponse{
 		Success: true,
@@ -1002,7 +1014,7 @@ func TestSetReceipt(t *testing.T) {
 	err := p.SetTransactionReceipt(ctx, mtx.ID, receipt)
 	assert.Regexp(t, "FF21067", err)
 
-	err = p.InsertTransaction(ctx, mtx)
+	err = p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
 	err = p.SetTransactionReceipt(ctx, mtx.ID, receipt)
@@ -1016,7 +1028,7 @@ func TestSetReceipt(t *testing.T) {
 func TestAddConfirmations(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
-	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
+	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
 
 	conf1 := &apitypes.Confirmation{
 		BlockNumber: fftypes.FFuint64(11111),
@@ -1028,7 +1040,7 @@ func TestAddConfirmations(t *testing.T) {
 	err := p.AddTransactionConfirmations(ctx, mtx.ID, false, conf1, conf2)
 	assert.Regexp(t, "FF21067", err)
 
-	err = p.InsertTransaction(ctx, mtx)
+	err = p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
 	err = p.AddTransactionConfirmations(ctx, mtx.ID, false, conf1)
@@ -1053,8 +1065,8 @@ func TestAddConfirmations(t *testing.T) {
 func TestManagedTXSubStatusInvalidJSON(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
-	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
-	err := p.InsertTransaction(ctx, mtx)
+	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
+	err := p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
 	reason := "\"cannot-marshall\""
@@ -1076,8 +1088,8 @@ func TestManagedTXSubStatusMaxEntries(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 
-	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
-	err := p.InsertTransaction(ctx, mtx)
+	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
+	err := p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 	var nextSubStatus apitypes.TxSubStatus
 
@@ -1100,8 +1112,8 @@ func TestMaxHistoryCountSetToZero(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 	defer done()
 	p.maxHistoryCount = 0
-	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
-	err := p.InsertTransaction(ctx, mtx)
+	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
+	err := p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
 	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, nil)
@@ -1118,8 +1130,8 @@ func TestAddReceivedStatusWhenNothingSet(t *testing.T) {
 	ctx, p, done := newTestLevelDBPersistence(t)
 
 	defer done()
-	mtx := newTestTX("0x12345", 12345, apitypes.TxStatusPending)
-	err := p.InsertTransaction(ctx, mtx)
+	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
+	err := p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
 	txh, err := p.GetTransactionByIDWithStatus(ctx, mtx.ID)

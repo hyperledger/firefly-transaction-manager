@@ -39,6 +39,7 @@ type transactionOperation struct {
 	done chan error
 
 	txInsert           *apitypes.ManagedTX
+	nextNonceCB        persistence.NextNonceCallback
 	txUpdate           *apitypes.TXUpdates
 	txDelete           *string
 	clearConfirmations bool
@@ -51,9 +52,15 @@ type txCacheEntry struct {
 	lastCompacted *fftypes.FFTime
 }
 
+type nonceCacheEntry struct {
+	cachedTime *fftypes.FFTime
+	nextNonce  uint64
+}
+
 type transactionWriter struct {
 	p                   *sqlPersistence
 	txMetaCache         *lru.Cache[string, *txCacheEntry]
+	nextNonceCache      *lru.Cache[string, *nonceCacheEntry]
 	compressionInterval time.Duration
 	bgCtx               context.Context
 	cancelCtx           context.CancelFunc
@@ -71,6 +78,7 @@ type transactionWriterBatch struct {
 	timeoutCancel  func()
 
 	txInserts           []*apitypes.ManagedTX
+	txInsertsByFrom     map[string][]*transactionOperation
 	txUpdates           []*transactionOperation
 	txDeletes           []string
 	receiptInserts      map[string]*apitypes.ReceiptRecord
@@ -80,24 +88,25 @@ type transactionWriterBatch struct {
 	confirmationResets  map[string]bool
 }
 
-func newTransactionWriter(bgCtx context.Context, p *sqlPersistence, conf config.Section) (*transactionWriter, error) {
-	txMetaCache, err := lru.New[string, *txCacheEntry](
-		conf.GetInt(ConfigTXWriterHistoryCacheSlots),
-	)
-	if err != nil {
-		return nil, err
-	}
+func newTransactionWriter(bgCtx context.Context, p *sqlPersistence, conf config.Section) (tw *transactionWriter, err error) {
 	workerCount := conf.GetInt(ConfigTXWriterCount)
 	batchMaxSize := conf.GetInt(ConfigTXWriterBatchSize)
-	tw := &transactionWriter{
+	cacheSlots := conf.GetInt(ConfigTXWriterCacheSlots)
+	tw = &transactionWriter{
 		p:                   p,
-		txMetaCache:         txMetaCache,
 		workerCount:         uint32(workerCount),
 		batchTimeout:        conf.GetDuration(ConfigTXWriterBatchTimeout),
 		batchMaxSize:        batchMaxSize,
 		workersDone:         make([]chan struct{}, workerCount),
 		workQueues:          make([]chan *transactionOperation, workerCount),
 		compressionInterval: conf.GetDuration(ConfigTXWriterHistoryCompactionInterval),
+	}
+	tw.txMetaCache, err = lru.New[string, *txCacheEntry](cacheSlots)
+	if err == nil {
+		tw.nextNonceCache, err = lru.New[string, *nonceCacheEntry](cacheSlots)
+	}
+	if err != nil {
+		return nil, err
 	}
 	tw.bgCtx, tw.cancelCtx = context.WithCancel(bgCtx)
 	for i := 0; i < workerCount; i++ {
@@ -125,15 +134,33 @@ func (op *transactionOperation) flush(ctx context.Context) error {
 }
 
 func (tw *transactionWriter) queue(ctx context.Context, op *transactionOperation) {
-	// All operations for a given transaction, deterministically go to the same worker.
+	// All insert/nonce-allocation requests for the same signer go to the same work - allowing nonce
+	// allocation to function deterministically, while still allowing batch insertion of many
+	// transaction object within a single DB transaction.
+	//
+	// After insert update operations for a given txID address, deterministically go to the same worker.
 	// This ensures that all sequenced items (like history records) are written in the right order.
 	//
-	// Note the insertion order of the transactions themselves does not matter, as the
+	// NOTE: This requires that all transaction inserts operations wait for completion before doing updates.
+	//
+	// Note the insertion order of the transactions across different signing keys does not matter, as the
 	// caller waits for "done" on these inserts before returning to the caller (FireFly Core).
 	// So if multiple transactions are queued for insert concurrently with different IDs,
 	// then there is no deterministic ordering guarantee possible regardless.
+
+	var hashKey string
+	if op.txInsert != nil {
+		hashKey = op.txInsert.From
+	} else {
+		hashKey = op.txID
+	}
+	if hashKey == "" {
+		op.done <- i18n.NewError(ctx, tmmsgs.MsgTransactionOpInvalid)
+		return
+	}
+
 	h := fnv.New32a() // simple non-cryptographic hash algo
-	_, _ = h.Write([]byte(op.txID))
+	_, _ = h.Write([]byte(hashKey))
 	routine := h.Sum32() % tw.workerCount
 	select {
 	case tw.workQueues[routine] <- op: // it's queued
@@ -192,6 +219,7 @@ func (tw *transactionWriter) worker(i int) {
 func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterBatch) {
 	err := tw.p.db.RunAsGroup(ctx, func(ctx context.Context) error {
 		// Build all the batch insert operations
+		b.txInsertsByFrom = make(map[string][]*transactionOperation)
 		b.confirmationResets = make(map[string]bool)
 		b.receiptInserts = make(map[string]*apitypes.ReceiptRecord)
 		b.compressionChecks = make(map[string]bool)
@@ -199,6 +227,7 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 			switch {
 			case op.txInsert != nil:
 				b.txInserts = append(b.txInserts, op.txInsert)
+				b.txInsertsByFrom[op.txInsert.From] = append(b.txInsertsByFrom[op.txInsert.From], op)
 			case op.txUpdate != nil:
 				b.txUpdates = append(b.txUpdates, op)
 			case op.txDelete != nil:
@@ -243,11 +272,69 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 
 }
 
+func (tw *transactionWriter) assignNonces(ctx context.Context, txInsertsByFrom map[string][]*transactionOperation) error {
+	for signer, txs := range txInsertsByFrom {
+		cacheEntry, isCached := tw.nextNonceCache.Get(signer)
+		if isCached {
+			timeSinceCached := time.Since(*cacheEntry.cachedTime.Time())
+			if timeSinceCached > tw.p.nonceStateTimeout {
+				log.L(ctx).Errorf("Nonce cache expired for signer '%s' after %s", signer, timeSinceCached.String())
+				cacheEntry = nil
+			}
+		}
+		for _, op := range txs {
+			if cacheEntry == nil {
+				nextNonce, err := op.nextNonceCB(ctx, signer)
+				if err != nil {
+					return err
+				}
+				// At this point we need to check the highest nonce in our DB, and take the higher of the two values
+				filter := persistence.TransactionFilters.NewFilterLimit(ctx, 1).Eq("from", signer).Sort("-nonce")
+				existingTXs, _, err := tw.p.transactions.GetMany(ctx, filter)
+				if err != nil {
+					log.L(ctx).Errorf("Failed to query highest persisted nonce for '%s': %s", signer, err)
+					return err
+				}
+				if len(existingTXs) > 0 {
+					existingNonce := existingTXs[0].Nonce.Uint64()
+					if existingNonce > nextNonce {
+						log.L(ctx).Infof("Using next nonce %s / %d instead of queried next %d due to transaction %s", signer, existingNonce+1, nextNonce, existingTXs[0].ID)
+						nextNonce = existingNonce + 1
+					}
+				}
+				// Now we can cache the newly calculated value, and just increment as we go through all the TX in this batch
+				cacheEntry = &nonceCacheEntry{
+					cachedTime: fftypes.Now(),
+					nextNonce:  nextNonce,
+				}
+			}
+			log.L(ctx).Infof("Assigned nonce %s / %d to %s", signer, cacheEntry.nextNonce, op.txInsert.ID)
+			op.txInsert.Nonce = fftypes.NewFFBigInt(int64(cacheEntry.nextNonce))
+			cacheEntry.nextNonce++
+			tw.nextNonceCache.Add(signer, cacheEntry)
+		}
+	}
+	return nil
+}
+
+func (tw *transactionWriter) clearCachedNonces(ctx context.Context, txInsertsByFrom map[string][]*transactionOperation) {
+	for signer := range txInsertsByFrom {
+		log.L(ctx).Warnf("Clearing cache for '%s' after insert failure", signer)
+		_ = tw.nextNonceCache.Remove(signer)
+	}
+}
+
 func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transactionWriterBatch) error {
 	// Insert all the transactions
 	if len(b.txInserts) > 0 {
+		if err := tw.assignNonces(ctx, b.txInsertsByFrom); err != nil {
+			log.L(ctx).Errorf("InsertMany transactions (%d) nonce assignment failed: %s", len(b.historyInserts), err)
+			return err
+		}
 		if err := tw.p.transactions.InsertMany(ctx, b.txInserts, false); err != nil {
 			log.L(ctx).Errorf("InsertMany transactions (%d) failed: %s", len(b.historyInserts), err)
+			// Clear any cached nonces
+			tw.clearCachedNonces(ctx, b.txInsertsByFrom)
 			return err
 		}
 		// Add to our metadata cache, in the fresh new state
@@ -258,7 +345,7 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 	// Do all the transaction updates
 	for _, op := range b.txUpdates {
 		if err := tw.p.updateTransaction(ctx, op.txID, op.txUpdate); err != nil {
-			log.L(ctx).Errorf("Updata transaction %s failed: %s", op.txID, err)
+			log.L(ctx).Errorf("Update transaction %s failed: %s", op.txID, err)
 			return err
 		}
 	}

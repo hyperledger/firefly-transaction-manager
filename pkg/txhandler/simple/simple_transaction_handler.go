@@ -106,15 +106,13 @@ func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, c
 		gasOracleQueryInterval: gasOracleConfig.GetDuration(GasOracleQueryInterval),
 		gasOracleMode:          gasOracleConfig.GetString(GasOracleMode),
 
-		lockedNonces:   make(map[string]*lockedNonce),
 		inflightStale:  make(chan bool, 1),
 		inflightUpdate: make(chan bool, 1),
 	}
 
 	// check whether we are using deprecated configuration
-	if config.GetString(tmconfig.TransactionHandlerName) == "" {
+	if config.GetString(tmconfig.TransactionsHandlerName) == "" {
 		log.L(ctx).Warnf("Initializing transaction handler with deprecated configurations. Please use 'transactions.handler' instead")
-		sth.nonceStateTimeout = config.GetDuration(tmconfig.DeprecatedTransactionsNonceStateTimeout)
 		sth.maxInFlight = config.GetInt(tmconfig.DeprecatedTransactionsMaxInFlight)
 		sth.policyLoopInterval = config.GetDuration(tmconfig.DeprecatedPolicyLoopInterval)
 		sth.retry = &retry.Retry{
@@ -124,7 +122,6 @@ func (f *TransactionHandlerFactory) NewTransactionHandler(ctx context.Context, c
 		}
 	} else {
 		// if not, use the new transaction handler configurations
-		sth.nonceStateTimeout = conf.GetDuration(NonceStateTimeout)
 		sth.maxInFlight = conf.GetInt(MaxInFlight)
 		sth.policyLoopInterval = conf.GetDuration(Interval)
 		sth.retry = &retry.Retry{
@@ -174,10 +171,8 @@ type simpleTransactionHandler struct {
 	gasOracleQueryValue    *fftypes.JSONAny
 	gasOracleLastQueryTime *fftypes.FFTime
 
-	lockedNonces            map[string]*lockedNonce
 	policyLoopInterval      time.Duration
 	policyLoopDone          chan struct{}
-	nonceStateTimeout       time.Duration
 	inflightStale           chan bool
 	inflightUpdate          chan bool
 	mux                     sync.Mutex
@@ -265,21 +260,6 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 		txID = fftypes.NewUUID().String()
 	}
 
-	// First job is to assign the next nonce to this request.
-	// We block any further sends on this nonce until we've got this one successfully into the node, or
-	// fail deterministically in a way that allows us to return it.
-	lockedNonce, err := sth.assignAndLockNonce(ctx, txID, txHeaders.From)
-	if err != nil {
-		return nil, err
-	}
-	// We will call markSpent() once we reach the point the nonce has been used
-	defer lockedNonce.complete(ctx)
-
-	// Next we update FireFly core with the pre-submitted record pending record, with the allocated nonce.
-	// From this point on, we will guide this transaction through to submission.
-	// We return an "ack" at this point, and dispatch the work of getting the transaction submitted
-	// to the background worker.
-	txHeaders.Nonce = fftypes.NewFFBigInt(int64(lockedNonce.nonce))
 	if gas != nil {
 		txHeaders.Gas = gas
 	}
@@ -297,7 +277,15 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 	// Sequencing ID will be added as part of persistence logic - so we have a deterministic order of transactions
 	// Note: We must ensure persistence happens this within the nonce lock, to ensure that the nonce sequence and the
 	//       global transaction sequence line up.
-	err = sth.toolkit.TXPersistence.InsertTransaction(ctx, mtx)
+	err := sth.toolkit.TXPersistence.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) {
+		nextNonceRes, _, err := sth.toolkit.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
+			Signer: signer,
+		})
+		if err != nil {
+			return 0, err
+		}
+		return nextNonceRes.Nonce.Uint64(), nil
+	})
 	if err == nil {
 		err = sth.toolkit.TXHistory.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
 	}
@@ -307,10 +295,6 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 	log.L(ctx).Infof("Tracking transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
 	sth.markInflightStale()
 
-	// Ok - we've spent it. The rest of the processing will be triggered off of lockedNonce
-	// completion adding this transaction to the pool (and/or the change event that comes in from
-	// FireFly core from the update to the transaction)
-	lockedNonce.spent = mtx
 	return mtx, nil
 }
 

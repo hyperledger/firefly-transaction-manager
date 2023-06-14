@@ -17,6 +17,7 @@
 package postgres
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -41,15 +43,17 @@ func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 
 	// Write initial transactions
 	tx1ID := fmt.Sprintf("ns1:%s", fftypes.NewUUID())
-	tx1 := &apitypes.ManagedTX{ID: tx1ID, Status: apitypes.TxStatusPending}
+	tx1 := &apitypes.ManagedTX{ID: tx1ID, Status: apitypes.TxStatusPending, TransactionHeaders: ffcapi.TransactionHeaders{From: "0x122345"}}
 	tx2ID := fmt.Sprintf("ns1:%s", fftypes.NewUUID())
-	tx2 := &apitypes.ManagedTX{ID: tx2ID, Status: apitypes.TxStatusPending}
-	// deliberately do not wait for the inserts
+	tx2 := &apitypes.ManagedTX{ID: tx2ID, Status: apitypes.TxStatusPending, TransactionHeaders: ffcapi.TransactionHeaders{From: "0x122345"}}
+	// deliberately do not wait for the inserts (there is only one worker, so they will go there too)
 	insertOp := newTransactionOperation(tx1ID)
 	insertOp.txInsert = tx1
+	insertOp.nextNonceCB = func(ctx context.Context, signer string) (uint64, error) { return 0, nil }
 	p.writer.queue(ctx, insertOp)
 	insertOp = newTransactionOperation(tx2ID)
 	insertOp.txInsert = tx2
+	insertOp.nextNonceCB = func(ctx context.Context, signer string) (uint64, error) { return 0, nil }
 	p.writer.queue(ctx, insertOp)
 
 	// A few confirmations for tx1 - we'll zap these later with a fork

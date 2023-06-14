@@ -36,6 +36,7 @@ import (
 	// Internal packages are used in the tests for e2e tests with more coverage
 	// If you are developing a customized transaction handler, you'll need to mock the toolkit APIs instead
 	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/leveldb"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
@@ -53,7 +54,7 @@ import (
 func newTestTransactionHandlerFactory(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, config.Section) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
-	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
+	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "simple")
 
 	f := &TransactionHandlerFactory{}
 	f.InitConfig(conf)
@@ -84,7 +85,7 @@ func newTestRunContext(mtx *apitypes.ManagedTX, receipt *ffcapi.TransactionRecei
 func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, config.Section, func()) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
-	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
+	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "simple")
 
 	f := &TransactionHandlerFactory{}
 	f.InitConfig(conf)
@@ -94,7 +95,7 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 	dir, err := ioutil.TempDir("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
-	filePersistence, err := leveldb.NewLevelDBPersistence(context.Background())
+	filePersistence, err := leveldb.NewLevelDBPersistence(context.Background(), 1*time.Hour)
 	assert.NoError(t, err)
 
 	mockEventHandler := &txhandlermocks.ManagedTxEventHandler{}
@@ -122,7 +123,7 @@ func newTestTransactionHandler(t *testing.T) txhandler.TransactionHandler {
 
 func TestSupportDeprecatedPolicyEngineConfiguration(t *testing.T) {
 	f, _, _, conf := newTestTransactionHandlerFactory(t)
-	viper.SetDefault(string(tmconfig.TransactionHandlerName), "")
+	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "")
 	viper.SetDefault(string(tmconfig.DeprecatedTransactionsMaxInFlight), 23412412)
 
 	conf.Set(FixedGasPrice, `12345`)
@@ -839,7 +840,43 @@ func TestSendTXPersistFail(t *testing.T) {
 				Nonce: fftypes.NewFFBigInt(1000),
 			}},
 		}, nil)
-	mp.On("InsertTransaction", sth.ctx, mock.Anything).Return(fmt.Errorf("pop"))
+	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(fmt.Errorf("pop"))
+	sth.Init(sth.ctx, tk)
+	var txReq *ffcapi.TransactionSendRequest
+	err = json.Unmarshal([]byte(sampleSendTX), &txReq)
+	assert.NoError(t, err)
+
+	_, err = sth.createManagedTx(sth.ctx, "id1", &txReq.TransactionHeaders, fftypes.NewFFBigInt(12345), "0x123456")
+	assert.Regexp(t, "pop", err)
+
+}
+
+func TestSendGetNextNonceFail(t *testing.T) {
+
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+	conf.Set(ResubmitInterval, "100s")
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	mp := tk.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return([]*apitypes.ManagedTX{
+			{ID: "id12345", Created: fftypes.Now(), Status: apitypes.TxStatusSucceeded, TransactionHeaders: ffcapi.TransactionHeaders{
+				Nonce: fftypes.NewFFBigInt(1000),
+			}},
+		}, nil)
+	insertMock := mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything)
+	mockFFCAPI.On("NextNonceForSigner", mock.Anything, mock.Anything).
+		Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+	insertMock.Run(func(args mock.Arguments) {
+		ctx := args[0].(context.Context)
+		mtx := args[1].(*apitypes.ManagedTX)
+		nextNonceCB := args[2].(persistence.NextNonceCallback)
+		_, err := nextNonceCB(ctx, mtx.From)
+		insertMock.Return(err)
+	})
 	sth.Init(sth.ctx, tk)
 	var txReq *ffcapi.TransactionSendRequest
 	err = json.Unmarshal([]byte(sampleSendTX), &txReq)

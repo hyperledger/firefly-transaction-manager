@@ -48,7 +48,9 @@ func TestTXHistoryCompressionPSQL(t *testing.T) {
 			Nonce: fftypes.NewFFBigInt(333333),
 		},
 	}
-	err := p.InsertTransaction(ctx, tx)
+	err := p.InsertTransactionWithNextNonce(ctx, tx, func(ctx context.Context, signer string) (uint64, error) {
+		return 0, nil
+	})
 	assert.NoError(t, err)
 	assert.NotEmpty(t, tx.SequenceID)
 

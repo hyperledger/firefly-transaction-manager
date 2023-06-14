@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -39,13 +40,16 @@ import (
 )
 
 type leveldbPersistence struct {
-	db              *leveldb.DB
-	syncWrites      bool
-	maxHistoryCount int
-	txMux           sync.RWMutex // allows us to draw conclusions on the cleanup of indexes
+	db                *leveldb.DB
+	syncWrites        bool
+	maxHistoryCount   int
+	nonceMux          sync.Mutex
+	lockedNonces      map[string]*lockedNonce
+	nonceStateTimeout time.Duration
+	txMux             sync.RWMutex // allows us to draw conclusions on the cleanup of indexes
 }
 
-func NewLevelDBPersistence(ctx context.Context) (persistence.Persistence, error) {
+func NewLevelDBPersistence(ctx context.Context, nonceStateTimeout time.Duration) (persistence.Persistence, error) {
 	dbPath := config.GetString(tmconfig.PersistenceLevelDBPath)
 	if dbPath == "" {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgLevelDBPathMissing)
@@ -57,9 +61,11 @@ func NewLevelDBPersistence(ctx context.Context) (persistence.Persistence, error)
 		return nil, i18n.WrapError(ctx, err, tmmsgs.MsgPersistenceInitFailed, dbPath)
 	}
 	return &leveldbPersistence{
-		db:              db,
-		syncWrites:      config.GetBool(tmconfig.PersistenceLevelDBSyncWrites),
-		maxHistoryCount: config.GetInt(tmconfig.TransactionsMaxHistoryCount),
+		db:                db,
+		syncWrites:        config.GetBool(tmconfig.PersistenceLevelDBSyncWrites),
+		maxHistoryCount:   config.GetInt(tmconfig.TransactionsMaxHistoryCount),
+		nonceStateTimeout: nonceStateTimeout,
+		lockedNonces:      map[string]*lockedNonce{},
 	}, nil
 }
 
@@ -231,7 +237,7 @@ itLoop:
 		}
 	}
 	log.L(ctx).Debugf("Listed %d items", count)
-	return orphanedIdxKeys, nil
+	return orphanedIdxKeys, it.Error()
 }
 
 func (p *leveldbPersistence) deleteKeys(ctx context.Context, keys ...[]byte) error {
@@ -439,10 +445,35 @@ func (p *leveldbPersistence) GetTransactionByNonce(ctx context.Context, signer s
 	return tx, err
 }
 
-func (p *leveldbPersistence) InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) (err error) {
-	return p.writeTransaction(ctx, &apitypes.TXWithStatus{
+func (p *leveldbPersistence) InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, nextNonceCB persistence.NextNonceCallback) (err error) {
+	// First job is to assign the next nonce to this request.
+	// We block any further sends on this nonce until we've got this one successfully into the node, or
+	// fail deterministically in a way that allows us to return it.
+	lockedNonce, err := p.assignAndLockNonce(ctx, tx.ID, tx.From, nextNonceCB)
+	if err != nil {
+		return err
+	}
+	// We will call markSpent() once we reach the point the nonce has been used
+	defer lockedNonce.complete(ctx)
+
+	// Next we update FireFly core with the pre-submitted record pending record, with the allocated nonce.
+	// From this point on, we will guide this transaction through to submission.
+	// We return an "ack" at this point, and dispatch the work of getting the transaction submitted
+	// to the background worker.
+	tx.Nonce = fftypes.NewFFBigInt(int64(lockedNonce.nonce))
+
+	if err = p.writeTransaction(ctx, &apitypes.TXWithStatus{
 		ManagedTX: tx,
-	}, true)
+	}, true); err != nil {
+		return err
+	}
+
+	// Ok - we've spent it. The rest of the processing will be triggered off of lockedNonce
+	// completion adding this transaction to the pool (and/or the change event that comes in from
+	// FireFly core from the update to the transaction)
+	lockedNonce.spent = true
+	return nil
+
 }
 
 func (p *leveldbPersistence) getPersistedTX(ctx context.Context, txID string) (tx *apitypes.TXWithStatus, err error) {

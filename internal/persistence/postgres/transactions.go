@@ -218,10 +218,11 @@ func (p *sqlPersistence) GetTransactionByNonce(ctx context.Context, signer strin
 	return transactions[0], err
 }
 
-func (p *sqlPersistence) InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error {
+func (p *sqlPersistence) InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, nextNonceCB persistence.NextNonceCallback) error {
 	// Dispatch to TX writer
 	op := newTransactionOperation(tx.ID)
 	op.txInsert = tx
+	op.nextNonceCB = nextNonceCB
 	p.writer.queue(ctx, op)
 	return op.flush(ctx) // wait for completion
 }

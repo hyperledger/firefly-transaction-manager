@@ -35,7 +35,6 @@ var (
 	ConfirmationsRetryInitDelay                   = ffc("confirmations.retry.initialDelay")
 	ConfirmationsRetryMaxDelay                    = ffc("confirmations.retry.maxDelay")
 	ConfirmationsRetryFactor                      = ffc("confirmations.retry.factor")
-	TransactionsMaxHistoryCount                   = ffc("transactions.maxHistoryCount")
 	EventStreamsDefaultsBatchSize                 = ffc("eventstreams.defaults.batchSize")
 	EventStreamsDefaultsBatchTimeout              = ffc("eventstreams.defaults.batchTimeout")
 	EventStreamsDefaultsErrorHandling             = ffc("eventstreams.defaults.errorHandling")
@@ -59,16 +58,17 @@ var (
 	DebugPort                                     = ffc("debug.port")
 	MetricsEnabled                                = ffc("metrics.enabled")
 	MetricsPath                                   = ffc("metrics.path")
-	TransactionHandlerName                        = ffc("transactions.handler.name")
+	TransactionsHandlerName                       = ffc("transactions.handler.name")
+	TransactionsMaxHistoryCount                   = ffc("transactions.maxHistoryCount")
+	TransactionsNonceStateTimeout                 = ffc("transactions.nonceStateTimeout")
 
 	// Deprecated Configurations for transaction handling
-	DeprecatedTransactionsMaxInFlight       = ffc("transactions.maxInFlight")
-	DeprecatedTransactionsNonceStateTimeout = ffc("transactions.nonceStateTimeout")
-	DeprecatedPolicyLoopInterval            = ffc("policyloop.interval")
-	DeprecatedPolicyLoopRetryInitDelay      = ffc("policyloop.retry.initialDelay")
-	DeprecatedPolicyLoopRetryMaxDelay       = ffc("policyloop.retry.maxDelay")
-	DeprecatedPolicyLoopRetryFactor         = ffc("policyloop.retry.factor")
-	DeprecatedPolicyEngineName              = ffc("policyengine.name")
+	DeprecatedTransactionsMaxInFlight  = ffc("transactions.maxInFlight")
+	DeprecatedPolicyLoopInterval       = ffc("policyloop.interval")
+	DeprecatedPolicyLoopRetryInitDelay = ffc("policyloop.retry.initialDelay")
+	DeprecatedPolicyLoopRetryMaxDelay  = ffc("policyloop.retry.maxDelay")
+	DeprecatedPolicyLoopRetryFactor    = ffc("policyloop.retry.factor")
+	DeprecatedPolicyEngineName         = ffc("policyengine.name")
 )
 
 var PersistenceSection config.Section
@@ -127,7 +127,7 @@ func setDefaults() {
 
 	// Deprecated default values for transaction handling configurations
 	viper.SetDefault(string(DeprecatedTransactionsMaxInFlight), 100)
-	viper.SetDefault(string(DeprecatedTransactionsNonceStateTimeout), "1h")
+	viper.SetDefault(string(TransactionsNonceStateTimeout), "1h")
 	viper.SetDefault(string(DeprecatedPolicyLoopInterval), "10s")
 	viper.SetDefault(string(DeprecatedPolicyLoopRetryInitDelay), "250ms")
 	viper.SetDefault(string(DeprecatedPolicyLoopRetryMaxDelay), "30s")

@@ -784,8 +784,7 @@ func TestExecPolicyGetTxFail(t *testing.T) {
 	sth.Init(sth.ctx, tk)
 
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
-	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("InsertTransaction", sth.ctx, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	mp.On("GetTransactionByID", sth.ctx, tx.ID).Return(nil, fmt.Errorf("pop"))
@@ -819,8 +818,7 @@ func TestExecPolicyDeleteFail(t *testing.T) {
 	sth.Init(sth.ctx, tk)
 
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
-	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("InsertTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	mp.On("GetTransactionByID", sth.ctx, tx.ID).Return(tx, nil)
@@ -865,8 +863,7 @@ func TestExecPolicyDeleteInflightSync(t *testing.T) {
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
-	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("InsertTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	sth.inflight = []*pendingState{{mtx: tx}}
@@ -1009,8 +1006,7 @@ func TestExecPolicyDeleteNotFound(t *testing.T) {
 	sth.ctx = context.Background()
 	sth.Init(sth.ctx, tk)
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
-	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("InsertTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	sth.inflight = []*pendingState{{mtx: tx}}
@@ -1043,8 +1039,7 @@ func TestBadTransactionAPIRequest(t *testing.T) {
 	sth.ctx = context.Background()
 	sth.Init(sth.ctx, tk)
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
-	mp.On("ListTransactionsByNonce", sth.ctx, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]*apitypes.ManagedTX{}, nil).Once()
-	mp.On("InsertTransaction", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
 	sth.inflight = []*pendingState{{mtx: tx}}

@@ -135,6 +135,8 @@ var TXHistoryFilters = &ffapi.QueryFields{
 	"lastinfo":       &ffapi.JSONField{},
 }
 
+type NextNonceCallback func(ctx context.Context, signer string) (uint64, error)
+
 type RichQuery interface {
 	ListStreams(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.EventStream, *ffapi.FilterResult, error)
 	ListListeners(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
@@ -172,7 +174,7 @@ type TransactionPersistence interface {
 	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
 	GetTransactionByIDWithStatus(ctx context.Context, txID string) (*apitypes.TXWithStatus, error)
 	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
-	InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error
+	InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, lookupNextNonce NextNonceCallback) error
 	UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error
 	DeleteTransaction(ctx context.Context, txID string) error
 

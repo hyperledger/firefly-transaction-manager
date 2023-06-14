@@ -186,13 +186,13 @@ func (_m *TransactionPersistence) GetTransactionReceipt(ctx context.Context, txI
 	return r0, r1
 }
 
-// InsertTransaction provides a mock function with given fields: ctx, tx
-func (_m *TransactionPersistence) InsertTransaction(ctx context.Context, tx *apitypes.ManagedTX) error {
-	ret := _m.Called(ctx, tx)
+// InsertTransactionWithNextNonce provides a mock function with given fields: ctx, tx, lookupNextNonce
+func (_m *TransactionPersistence) InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, lookupNextNonce persistence.NextNonceCallback) error {
+	ret := _m.Called(ctx, tx, lookupNextNonce)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX) error); ok {
-		r0 = rf(ctx, tx)
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX, persistence.NextNonceCallback) error); ok {
+		r0 = rf(ctx, tx, lookupNextNonce)
 	} else {
 		r0 = ret.Error(0)
 	}

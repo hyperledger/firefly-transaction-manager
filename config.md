@@ -309,7 +309,6 @@
 |fixedGasPrice|A fixed gasPrice value/structure to pass to the connector|Raw JSON|`<nil>`
 |interval|Interval at which to invoke the transaction handler loop to evaluate outstanding transactions|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |maxInFlight|The maximum number of transactions to have in-flight with the transaction handler / blockchain transaction pool|`int`|`<nil>`
-|nonceStateTimeout|How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |resubmitInterval|The time between warning and re-sending a transaction (same nonce) when a blockchain transaction has not been allocated a receipt|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
 ## transactions.handler.simple.gasOracle
