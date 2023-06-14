@@ -46,12 +46,11 @@ const (
 	GasOracleModeRESTAPI   = "restapi"
 	GasOracleModeConnector = "connector"
 
-	defaultMaxInFlight       = 100
-	defaultNonceStateTimeout = "1h"
-	defaultInterval          = "10s"
-	defaultRetryInitDelay    = "250ms"
-	defaultRetryMaxDelay     = "30s"
-	defaultRetryFactor       = 2.0
+	defaultMaxInFlight    = 100
+	defaultInterval       = "10s"
+	defaultRetryInitDelay = "250ms"
+	defaultRetryMaxDelay  = "30s"
+	defaultRetryFactor    = 2.0
 )
 
 const (
