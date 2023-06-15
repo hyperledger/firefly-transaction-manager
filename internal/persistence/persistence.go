@@ -18,6 +18,7 @@ package persistence
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -187,4 +188,22 @@ type TransactionPersistence interface {
 
 type TransactionHistoryPersistence interface {
 	AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error
+}
+
+// Takes a string that might be valid JSON, and returns valid JSON that is either:
+// a) The original JSON if it is valid
+// b) An escaped string
+func JSONOrString(value *fftypes.JSONAny) *fftypes.JSONAny {
+	if value == nil {
+		return nil
+	}
+
+	if json.Valid([]byte(*value)) {
+		// Already valid
+		return value
+	}
+
+	// Quote it as a string
+	b, _ := json.Marshal((string)(*value))
+	return fftypes.JSONAnyPtrBytes(b)
 }

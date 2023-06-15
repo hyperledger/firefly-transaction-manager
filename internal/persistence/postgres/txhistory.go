@@ -103,8 +103,8 @@ func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, su
 			Time:           now,
 			LastOccurrence: now,
 			Action:         action,
-			LastInfo:       fftypes.JSONAnyPtr(info.String()),    // guard against bad JSON
-			LastError:      fftypes.JSONAnyPtr(errInfo.String()), // guard against bad JSON
+			LastInfo:       persistence.JSONOrString(info),    // guard against bad JSON
+			LastError:      persistence.JSONOrString(errInfo), // guard against bad JSON
 		},
 	}
 	if errInfo != nil {

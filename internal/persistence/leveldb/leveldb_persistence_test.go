@@ -1148,7 +1148,3 @@ func TestAddReceivedStatusWhenNothingSet(t *testing.T) {
 	assert.Equal(t, apitypes.TxSubStatusReceived, txh.History[0].Status)
 	assert.Equal(t, apitypes.TxActionSubmitTransaction, txh.History[0].Actions[0].Action)
 }
-
-func TestJSONOrStringNull(t *testing.T) {
-	assert.Nil(t, jsonOrString(nil))
-}

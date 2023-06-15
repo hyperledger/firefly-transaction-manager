@@ -702,12 +702,12 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 			entry.LastOccurrence = fftypes.Now()
 
 			if errInfo != nil {
-				entry.LastError = jsonOrString(errInfo)
+				entry.LastError = persistence.JSONOrString(errInfo)
 				entry.LastErrorTime = fftypes.Now()
 			}
 
 			if info != nil {
-				entry.LastInfo = jsonOrString(info)
+				entry.LastInfo = persistence.JSONOrString(info)
 			}
 			break
 		}
@@ -723,12 +723,12 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 		}
 
 		if errInfo != nil {
-			newAction.LastError = jsonOrString(errInfo)
+			newAction.LastError = persistence.JSONOrString(errInfo)
 			newAction.LastErrorTime = fftypes.Now()
 		}
 
 		if info != nil {
-			newAction.LastInfo = jsonOrString(info)
+			newAction.LastInfo = persistence.JSONOrString(info)
 		}
 
 		currentSubStatus.Actions = append(currentSubStatus.Actions, newAction)
@@ -756,22 +756,4 @@ func (p *leveldbPersistence) Close(ctx context.Context) {
 	if err != nil {
 		log.L(ctx).Warnf("Error closing leveldb: %s", err)
 	}
-}
-
-// Takes a string that might be valid JSON, and returns valid JSON that is either:
-// a) The original JSON if it is valid
-// b) An escaped string
-func jsonOrString(value *fftypes.JSONAny) *fftypes.JSONAny {
-	if value == nil {
-		return nil
-	}
-
-	if json.Valid([]byte(*value)) {
-		// Already valid
-		return value
-	}
-
-	// Quote it as a string
-	b, _ := json.Marshal((string)(*value))
-	return fftypes.JSONAnyPtrBytes(b)
 }
