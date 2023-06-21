@@ -357,7 +357,11 @@ func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collec
 	transactions := make([]*apitypes.ManagedTX, 0)
 	orphanedIdxKeys, err := p.listJSON(ctx, collectionPrefix, collectionEnd, afterStr, limit, dir,
 		func() interface{} { var v *apitypes.ManagedTX; return &v },
-		func(v interface{}) { transactions = append(transactions, *(v.(**apitypes.ManagedTX))) },
+		func(v interface{}) {
+			tx := *(v.(**apitypes.ManagedTX))
+			migrateTX(tx)
+			transactions = append(transactions, tx)
+		},
 		p.indexLookupCallback,
 	)
 	p.txMux.RUnlock()
@@ -421,19 +425,23 @@ func (p *leveldbPersistence) GetTransactionConfirmations(ctx context.Context, tx
 	return txh.Confirmations, err
 }
 
+func migrateTX(tx *apitypes.ManagedTX) {
+	// For historical reasons we had some fields stored twice in V1.2
+	// We now consistently tread the top level objects as the source of truth, but for any
+	// read of an old object (LevelDB problem only) we need to do a migration to the new place.
+	if tx.DeprecatedTransactionHeaders != nil && tx.DeprecatedTransactionHeaders.From != "" {
+		tx.TransactionHeaders = *tx.DeprecatedTransactionHeaders
+	}
+	// We then for API queries copy them all for read - but never stored again here.
+	tx.DeprecatedTransactionHeaders = &tx.TransactionHeaders
+}
+
 func (p *leveldbPersistence) GetTransactionByIDWithStatus(ctx context.Context, txID string) (tx *apitypes.TXWithStatus, err error) {
 	p.txMux.RLock()
 	defer p.txMux.RUnlock()
 	err = p.readJSON(ctx, txDataKey(txID), &tx)
 	if tx != nil {
-		// For historical reasons we had some fields stored twice in V1.2
-		// We now consistently tread the top level objects as the source of truth, but for any
-		// read of an old object (LevelDB problem only) we need to do a migration to the new place.
-		if tx.DeprecatedTransactionHeaders != nil && tx.DeprecatedTransactionHeaders.From != "" {
-			tx.TransactionHeaders = *tx.DeprecatedTransactionHeaders
-		}
-		// We then for API queries copy them all for read - but never stored again here.
-		tx.DeprecatedTransactionHeaders = &tx.TransactionHeaders
+		migrateTX(tx.ManagedTX)
 	}
 	return tx, err
 }
