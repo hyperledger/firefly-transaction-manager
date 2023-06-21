@@ -12,6 +12,4 @@ CREATE TABLE txhistory (
   error_time        BIGINT,
   info              TEXT
 );
-CREATE UNIQUE INDEX txhistory_id ON confirmations(id);
-CREATE INDEX txhistory_txid ON confirmations(tx_id);
 COMMIT;
