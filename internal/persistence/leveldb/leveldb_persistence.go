@@ -429,8 +429,20 @@ func migrateTX(tx *apitypes.ManagedTX) {
 	// For historical reasons we had some fields stored twice in V1.2
 	// We now consistently tread the top level objects as the source of truth, but for any
 	// read of an old object (LevelDB problem only) we need to do a migration to the new place.
-	if tx.DeprecatedTransactionHeaders != nil && tx.DeprecatedTransactionHeaders.From != "" {
-		tx.TransactionHeaders = *tx.DeprecatedTransactionHeaders
+	if tx.DeprecatedTransactionHeaders != nil && tx.DeprecatedTransactionHeaders.From != "" && tx.From == "" {
+		tx.From = tx.DeprecatedTransactionHeaders.From
+	}
+	if tx.DeprecatedTransactionHeaders != nil && tx.DeprecatedTransactionHeaders.To != "" && tx.To == "" {
+		tx.To = tx.DeprecatedTransactionHeaders.To
+	}
+	if tx.DeprecatedTransactionHeaders != nil && tx.DeprecatedTransactionHeaders.Nonce != nil && tx.Nonce == nil {
+		tx.Nonce = tx.DeprecatedTransactionHeaders.Nonce
+	}
+	if tx.DeprecatedTransactionHeaders != nil && tx.DeprecatedTransactionHeaders.Gas != nil && tx.Gas == nil {
+		tx.Gas = tx.DeprecatedTransactionHeaders.Gas
+	}
+	if tx.DeprecatedTransactionHeaders != nil && tx.DeprecatedTransactionHeaders.Value != nil && tx.Value == nil {
+		tx.Value = tx.DeprecatedTransactionHeaders.Value
 	}
 	// We then for API queries copy them all for read - but never stored again here.
 	tx.DeprecatedTransactionHeaders = &tx.TransactionHeaders
