@@ -886,3 +886,86 @@ func TestSendGetNextNonceFail(t *testing.T) {
 	assert.Regexp(t, "pop", err)
 
 }
+
+func TestIdempotencyIDPreCheckError(t *testing.T) {
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	th.Init(context.Background(), tk)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+
+	mp := tk.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", mock.Anything, "reused").Return(nil, fmt.Errorf("pop"))
+
+	_, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
+		Headers: apitypes.RequestHeaders{
+			ID: "reused",
+		},
+	})
+	assert.Regexp(t, "pop", err)
+}
+
+func TestIdempotencyIDPreCheckDuplicate(t *testing.T) {
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	th.Init(context.Background(), tk)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+
+	existingTX := &apitypes.ManagedTX{
+		ID: "reused",
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+		},
+	}
+
+	mp := tk.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", mock.Anything, "reused").Return(existingTX, nil)
+
+	_, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
+		Headers: apitypes.RequestHeaders{
+			ID: "reused",
+		},
+	})
+	assert.Regexp(t, "FF21065", err)
+}
+
+func TestIdempotencyIDPreCheckDuplicateDeploy(t *testing.T) {
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	th.Init(context.Background(), tk)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+
+	existingTX := &apitypes.ManagedTX{
+		ID: "reused",
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+		},
+	}
+
+	mp := tk.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("GetTransactionByID", mock.Anything, "reused").Return(existingTX, nil)
+
+	_, err = sth.HandleNewContractDeployment(sth.ctx, &apitypes.ContractDeployRequest{
+		Headers: apitypes.RequestHeaders{
+			ID: "reused",
+		},
+	})
+	assert.Regexp(t, "FF21065", err)
+}

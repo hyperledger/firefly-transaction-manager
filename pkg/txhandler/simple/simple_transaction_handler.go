@@ -217,7 +217,34 @@ func (sth *simpleTransactionHandler) Start(ctx context.Context) (done <-chan str
 	return sth.policyLoopDone, nil
 }
 
+func (sth *simpleTransactionHandler) requestIDPreCheck(ctx context.Context, reqHeaders *apitypes.RequestHeaders) (string, error) {
+	// The request ID is the primary ID, and should be supplied by the user for idempotence.
+	txID := reqHeaders.ID
+	if txID == "" {
+		// However, we will generate one for them if not supplied
+		txID = fftypes.NewUUID().String()
+		return txID, nil
+	}
+
+	// If it's supplied, we take the cost of a pre-check against the database for idempotency
+	// before we do any processing.
+	// The DB layer will protect us, but between now and then we might query the blockchain
+	// to estimate gas and return unexpected 500 failures (rather than 409s)
+	existing, err := sth.toolkit.TXPersistence.GetTransactionByID(ctx, txID)
+	if err != nil {
+		return "", err
+	}
+	if existing != nil {
+		return "", i18n.NewError(ctx, tmmsgs.MsgDuplicateID, txID)
+	}
+	return txID, nil
+}
+
 func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error) {
+	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
+	if err != nil {
+		return nil, err
+	}
 
 	// Prepare the transaction, which will mean we have a transaction that should be submittable.
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
@@ -229,10 +256,14 @@ func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, t
 		return nil, err
 	}
 
-	return sth.createManagedTx(ctx, txReq.Headers.ID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	return sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
 }
 
 func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error) {
+	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
+	if err != nil {
+		return nil, err
+	}
 
 	// Prepare the transaction, which will mean we have a transaction that should be submittable.
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
@@ -242,7 +273,7 @@ func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Con
 		return nil, err
 	}
 
-	return sth.createManagedTx(ctx, txReq.Headers.ID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	return sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
 }
 
 func (sth *simpleTransactionHandler) HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
@@ -254,11 +285,6 @@ func (sth *simpleTransactionHandler) HandleCancelTransaction(ctx context.Context
 }
 
 func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) (*apitypes.ManagedTX, error) {
-
-	// The request ID is the primary ID, and should be supplied by the user for idempotence
-	if txID == "" {
-		txID = fftypes.NewUUID().String()
-	}
 
 	if gas != nil {
 		txHeaders.Gas = gas

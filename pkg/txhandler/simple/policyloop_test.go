@@ -40,7 +40,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func sendSampleTX(t *testing.T, sth *simpleTransactionHandler, signer string, nonce int64) *apitypes.ManagedTX {
+func sendSampleTX(t *testing.T, sth *simpleTransactionHandler, signer string, nonce int64, txID string) *apitypes.ManagedTX {
 
 	txInput := ffcapi.TransactionInput{
 		TransactionHeaders: ffcapi.TransactionHeaders{
@@ -62,6 +62,9 @@ func sendSampleTX(t *testing.T, sth *simpleTransactionHandler, signer string, no
 	}, ffcapi.ErrorReason(""), nil).Once()
 
 	mtx, err := sth.HandleNewTransaction(ctx, &apitypes.TransactionRequest{
+		Headers: apitypes.RequestHeaders{
+			ID: txID,
+		},
 		TransactionInput: txInput,
 	})
 	assert.NoError(t, err)
@@ -142,7 +145,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
 
-	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345)
+	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 	// Run the policy once to do the send
 	<-sth.inflightStale // from sending the TX
 	sth.policyLoopCycle(sth.ctx, true)
@@ -324,7 +327,9 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
 
-	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345)
+	txID := fmt.Sprintf("ns1:%s", fftypes.NewUUID())
+	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345, txID)
+	assert.Equal(t, txID, mtx.ID)
 	// Run the policy once to do the send
 	<-sth.inflightStale // from sending the TX
 	sth.policyLoopCycle(sth.ctx, true)
@@ -407,7 +412,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
 
-	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345)
+	mtx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 
 	// Run the policy once to do the send with the first hash
 	<-sth.inflightStale // from sending the TX
@@ -500,7 +505,7 @@ func TestNotifyConfirmationMgrFail(t *testing.T) {
 	eh.WsServer = mws
 	sth.toolkit.EventHandler = eh
 
-	_ = sendSampleTX(t, sth, "0xaaaaa", 12345)
+	_ = sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 
 	// should emit 1 event to confirmation manager
 	sth.policyLoopCycle(sth.ctx, true)
@@ -728,7 +733,7 @@ func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
 		Run(func(args mock.Arguments) {
 			close(done2)
 		})
-	_ = sendSampleTX(t, sth, "0xaaaaa", 12345)
+	_ = sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 	sth.policyLoopInterval = 1 * time.Hour
 	policyLoopComplete, err := sth.Start(ctx)
 
@@ -786,7 +791,7 @@ func TestExecPolicyGetTxFail(t *testing.T) {
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
-	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
+	tx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 	mp.On("GetTransactionByID", sth.ctx, tx.ID).Return(nil, fmt.Errorf("pop"))
 
 	req := &policyEngineAPIRequest{
@@ -820,7 +825,7 @@ func TestExecPolicyDeleteFail(t *testing.T) {
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
-	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
+	tx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 	mp.On("GetTransactionByID", sth.ctx, tx.ID).Return(tx, nil)
 	mp.On("DeleteTransaction", mock.Anything, tx.ID).Return(fmt.Errorf("pop"))
 
@@ -865,7 +870,7 @@ func TestExecPolicyDeleteInflightSync(t *testing.T) {
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
-	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
+	tx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 	sth.inflight = []*pendingState{{mtx: tx}}
 	mp.On("DeleteTransaction", mock.Anything, tx.ID).Return(nil)
 
@@ -1008,7 +1013,7 @@ func TestExecPolicyDeleteNotFound(t *testing.T) {
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
-	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
+	tx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 	sth.inflight = []*pendingState{{mtx: tx}}
 	mp.On("GetTransactionByID", sth.ctx, "bad-id").Return(nil, nil)
 
@@ -1041,7 +1046,7 @@ func TestBadTransactionAPIRequest(t *testing.T) {
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
-	tx := sendSampleTX(t, sth, "0xaaaaa", 12345)
+	tx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 	sth.inflight = []*pendingState{{mtx: tx}}
 
 	req := &policyEngineAPIRequest{
