@@ -161,13 +161,48 @@ func TestExecuteBatchOpsInsertTXFail(t *testing.T) {
 	defer done()
 
 	mdb.ExpectBegin()
+	mdb.ExpectQuery("SELECT.*transactions").WillReturnRows(sqlmock.NewRows([]string{}))
 	mdb.ExpectExec("INSERT.*").WillReturnError(fmt.Errorf("pop"))
 	mdb.ExpectRollback()
 
-	err := p.writer.executeBatchOps(ctx, &transactionWriterBatch{
-		txInserts: []*apitypes.ManagedTX{{}},
+	err := p.db.RunAsGroup(ctx, func(ctx context.Context) error {
+		return p.writer.executeBatchOps(ctx, &transactionWriterBatch{
+			txInsertsByFrom: map[string][]*transactionOperation{
+				"0x12345": {{
+					txID:        "111222333",
+					txInsert:    &apitypes.ManagedTX{},
+					nextNonceCB: func(ctx context.Context, signer string) (uint64, error) { return 1, nil },
+				}},
+			},
+		})
 	})
 	assert.Regexp(t, "FF00177", err)
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
+}
+
+func TestExecuteBatchOpsIdempotencyPreCheckFail(t *testing.T) {
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	p.writer.txMetaCache.Add("111222333", &txCacheEntry{})
+
+	mdb.ExpectBegin()
+	mdb.ExpectQuery("SELECT.*transactions").WillReturnError(fmt.Errorf("pop"))
+	mdb.ExpectRollback()
+
+	err := p.db.RunAsGroup(ctx, func(ctx context.Context) error {
+		return p.writer.executeBatchOps(ctx, &transactionWriterBatch{
+			txInsertsByFrom: map[string][]*transactionOperation{
+				"0x12345": {{
+					txID:        "111222333",
+					txInsert:    &apitypes.ManagedTX{},
+					nextNonceCB: func(ctx context.Context, signer string) (uint64, error) { return 1, nil },
+				}},
+			},
+		})
+	})
+	assert.Regexp(t, "FF00176.*pop", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
 }

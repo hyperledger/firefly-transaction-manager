@@ -35,8 +35,9 @@ import (
 )
 
 type transactionOperation struct {
-	txID string
-	done chan error
+	txID         string
+	sentConflict bool
+	done         chan error
 
 	txInsert           *apitypes.ManagedTX
 	nextNonceCB        persistence.NextNonceCallback
@@ -77,7 +78,6 @@ type transactionWriterBatch struct {
 	timeoutContext context.Context
 	timeoutCancel  func()
 
-	txInserts           []*apitypes.ManagedTX
 	txInsertsByFrom     map[string][]*transactionOperation
 	txUpdates           []*transactionOperation
 	txDeletes           []string
@@ -226,7 +226,6 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 		for _, op := range b.ops {
 			switch {
 			case op.txInsert != nil:
-				b.txInserts = append(b.txInserts, op.txInsert)
 				b.txInsertsByFrom[op.txInsert.From] = append(b.txInsertsByFrom[op.txInsert.From], op)
 			case op.txUpdate != nil:
 				b.txUpdates = append(b.txUpdates, op)
@@ -267,7 +266,9 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 		err = i18n.NewError(ctx, tmmsgs.MsgTransactionPersistenceError)
 	}
 	for _, op := range b.ops {
-		op.done <- err
+		if !op.sentConflict {
+			op.done <- err
+		}
 	}
 
 }
@@ -324,21 +325,57 @@ func (tw *transactionWriter) clearCachedNonces(ctx context.Context, txInsertsByF
 	}
 }
 
+func (tw *transactionWriter) preInsertIdempotencyCheck(ctx context.Context, b *transactionWriterBatch) (validInserts []*apitypes.ManagedTX, err error) {
+	// We want to return 409s (not 500s) for idempotency checks, and only fail the individual TX.
+	// There should have been a pre-check when the transaction came in on the API, so we're in
+	// a small window here where we had multiple API calls running concurrently.
+	// So we choose to optimize the check using the txMetaCache we add new inserts to - meaning
+	// a very edge case of a 500 in cache expiry, if we somehow expired it from that cache in this
+	// small window.
+	for _, txOps := range b.txInsertsByFrom {
+		for _, txOp := range txOps {
+			var existing *apitypes.ManagedTX
+			_, inCache := tw.txMetaCache.Get(txOp.txID)
+			if inCache {
+				existing, err = tw.p.GetTransactionByID(ctx, txOp.txID)
+				if err != nil {
+					log.L(ctx).Errorf("Pre-insert idempotency check failed for transaction %s: %s", txOp.txID, err)
+					return nil, err
+				}
+			}
+			if existing != nil {
+				// Send a conflict, and do not add it to the list
+				txOp.sentConflict = true
+				txOp.done <- i18n.NewError(ctx, tmmsgs.MsgDuplicateID, txOp.txID)
+			} else {
+				validInserts = append(validInserts, txOp.txInsert)
+			}
+		}
+	}
+
+	return validInserts, nil
+}
+
 func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transactionWriterBatch) error {
+	txInserts, err := tw.preInsertIdempotencyCheck(ctx, b)
+	if err != nil {
+		return err
+	}
+
 	// Insert all the transactions
-	if len(b.txInserts) > 0 {
+	if len(txInserts) > 0 {
 		if err := tw.assignNonces(ctx, b.txInsertsByFrom); err != nil {
 			log.L(ctx).Errorf("InsertMany transactions (%d) nonce assignment failed: %s", len(b.historyInserts), err)
 			return err
 		}
-		if err := tw.p.transactions.InsertMany(ctx, b.txInserts, false); err != nil {
+		if err := tw.p.transactions.InsertMany(ctx, txInserts, false); err != nil {
 			log.L(ctx).Errorf("InsertMany transactions (%d) failed: %s", len(b.historyInserts), err)
 			// Clear any cached nonces
 			tw.clearCachedNonces(ctx, b.txInsertsByFrom)
 			return err
 		}
 		// Add to our metadata cache, in the fresh new state
-		for _, t := range b.txInserts {
+		for _, t := range txInserts {
 			_ = tw.txMetaCache.Add(t.ID, &txCacheEntry{lastCompacted: fftypes.Now()})
 		}
 	}

@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -401,6 +402,60 @@ func TestTransactionPendingPSQL(t *testing.T) {
 	// bad sequence string
 	_, err = p.ListTransactionsPending(ctx, "!wrong", 0, persistence.SortDirectionAscending)
 	assert.Error(t, err)
+
+}
+
+func TestTransactionMixConflictAndOkPSQL(t *testing.T) {
+	logrus.SetLevel(logrus.TraceLevel)
+
+	// Do a set of transaction operations through the writers, and confirm the results are correct
+	ctx, p, _, done := initTestPSQL(t, func(dbconf config.Section) {
+		dbconf.Set(ConfigTXWriterCount, 1)            // send them all to one worker
+		dbconf.Set(ConfigTXWriterBatchTimeout, "10s") // ensure it triggers with the whole thing
+		dbconf.Set(ConfigTXWriterBatchSize, 2)        // this must exactly match the number of ops
+	})
+	defer done()
+
+	nonce := uint64(1000)
+	nextNonceCB := func(ctx context.Context, signer string) (uint64, error) {
+		nonce++
+		return nonce, nil
+	}
+	newTX := func(i int64) *apitypes.ManagedTX {
+		return &apitypes.ManagedTX{
+			ID:              fmt.Sprintf("ns1:%.9d", i),
+			Status:          apitypes.TxStatusPending,
+			DeleteRequested: nil,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From:  "signer_0",
+				Nonce: fftypes.NewFFBigInt(i),
+			},
+		}
+	}
+	mtx1 := newTX(1)
+	mtx2 := newTX(2)
+	mtx3 := newTX(3)
+
+	// Do a successful insert of TX1 and TX2 in the first batch
+	op1 := newTransactionOperation(mtx1.ID)
+	op1.txInsert = mtx1
+	op1.nextNonceCB = nextNonceCB
+	p.writer.queue(ctx, op1)
+	op2 := newTransactionOperation(mtx2.ID)
+	op2.txInsert = mtx2
+	p.writer.queue(ctx, op2)
+	assert.NoError(t, <-op1.done)
+	assert.NoError(t, <-op2.done)
+
+	// Now try and do mtx2 again - which should 409, and mtx3 - which should succeed
+	op3 := newTransactionOperation(mtx2.ID)
+	op3.txInsert = mtx2
+	p.writer.queue(ctx, op3)
+	op4 := newTransactionOperation(mtx3.ID)
+	op4.txInsert = mtx3
+	p.writer.queue(ctx, op4)
+	assert.Regexp(t, "FF21065", <-op3.done)
+	assert.NoError(t, <-op4.done)
 
 }
 
