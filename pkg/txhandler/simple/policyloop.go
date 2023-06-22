@@ -400,21 +400,22 @@ func (sth *simpleTransactionHandler) flushChanges(ctx *RunContext, pending *pend
 			pending.remove = true // for the next time round the loop
 			log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
 			sth.markInflightStale()
-		}
-		// if and only if the transaction is now resolved dispatch an event to event handler
-		// and discard any handling errors
-		if mtx.Status == apitypes.TxStatusSucceeded {
-			_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
-				Type:    apitypes.ManagedTXProcessSucceeded,
-				Tx:      mtx,
-				Receipt: ctx.Receipt,
-			})
-		} else if mtx.Status == apitypes.TxStatusFailed {
-			_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
-				Type:    apitypes.ManagedTXProcessFailed,
-				Tx:      mtx,
-				Receipt: ctx.Receipt,
-			})
+
+			// if and only if the transaction is now resolved dispatch an event to event handler
+			// and discard any handling errors
+			if mtx.Status == apitypes.TxStatusSucceeded {
+				_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+					Type:    apitypes.ManagedTXProcessSucceeded,
+					Tx:      mtx,
+					Receipt: ctx.Receipt,
+				})
+			} else if mtx.Status == apitypes.TxStatusFailed {
+				_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+					Type:    apitypes.ManagedTXProcessFailed,
+					Tx:      mtx,
+					Receipt: ctx.Receipt,
+				})
+			}
 		}
 	case Delete:
 		err := sth.toolkit.TXPersistence.DeleteTransaction(ctx, mtx.ID)
