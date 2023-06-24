@@ -27,6 +27,7 @@ import (
 
 type TransactionPersistence interface {
 	persistence.TransactionPersistence
+	RichQuery() persistence.RichQuery
 }
 
 type TransactionHistoryPersistence interface {
