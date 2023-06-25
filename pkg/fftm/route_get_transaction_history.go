@@ -39,7 +39,7 @@ var getTransactionHistory = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return []*apitypes.TXHistoryRecord{} },
 		JSONOutputCodes: []int{http.StatusOK},
 	}
-	if m.richQueryAPI {
+	if m.richQueryEnabled {
 		route.FilterFactory = persistence.TXHistoryFilters
 		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
 			return r.FilterResult(m.persistence.RichQuery().ListTransactionHistory(r.Req.Context(), r.PP["transactionId"], r.Filter))

@@ -37,7 +37,7 @@ var getTransactions = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return []*apitypes.ManagedTX{} },
 		JSONOutputCodes: []int{http.StatusOK},
 	}
-	if m.richQueryAPI {
+	if m.richQueryEnabled {
 		route.FilterFactory = persistence.TransactionFilters
 		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
 			return r.FilterResult(m.persistence.RichQuery().ListTransactions(r.Req.Context(), r.Filter))

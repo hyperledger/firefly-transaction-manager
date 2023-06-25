@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
@@ -111,7 +112,7 @@ func newTestManagerMockNoRichDB(t *testing.T) (string, *manager, func()) {
 	mpm := &persistencemocks.Persistence{}
 	mpm.On("Close", mock.Anything).Return(nil)
 	m.persistence = mpm
-	m.richQueryAPI = false
+	m.richQueryEnabled = false
 	mcm := &confirmationsmocks.Manager{}
 	m.confirmations = mcm
 
@@ -141,7 +142,7 @@ func newTestManagerMockRichDB(t *testing.T) (string, *manager, *persistencemocks
 	mrq := &persistencemocks.RichQuery{}
 	mpm.On("RichQuery").Return(mrq)
 	m.persistence = mpm
-	m.richQueryAPI = true
+	m.richQueryEnabled = true
 	mcm := &confirmationsmocks.Manager{}
 	m.confirmations = mcm
 
@@ -386,10 +387,26 @@ func TestStartBlockListenerFail(t *testing.T) {
 func TestPSQLInitFail(t *testing.T) {
 
 	_ = testManagerCommonInit(t, false)
+	config.Set(tmconfig.PersistenceType, "postgres")
 
 	m := newManager(context.Background(), &ffcapimocks.API{})
-	config.Set(tmconfig.PersistenceType, "postgres")
 
 	err := m.initPersistence(context.Background())
 	assert.Regexp(t, "FF21049", err)
+}
+
+func TestPSQLInitRichQueryEnabled(t *testing.T) {
+
+	_ = testManagerCommonInit(t, false)
+	config.Set(tmconfig.PersistenceType, "postgres")
+	tmconfig.PostgresSection.Set(dbsql.SQLConfDatasourceURL, "unused")
+
+	m := newManager(context.Background(), &ffcapimocks.API{})
+
+	err := m.initPersistence(context.Background())
+	assert.NoError(t, err)
+	defer m.Close()
+
+	assert.True(t, m.richQueryEnabled)
+	assert.NotNil(t, m.toolkit.RichQuery)
 }

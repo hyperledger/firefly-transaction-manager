@@ -47,15 +47,15 @@ type Manager interface {
 }
 
 type manager struct {
-	ctx           context.Context
-	cancelCtx     func()
-	confirmations confirmations.Manager
-	txHandler     txhandler.TransactionHandler
-	apiServer     httpserver.HTTPServer
-	metricsServer httpserver.HTTPServer
-	wsServer      ws.WebSocketServer
-	persistence   persistence.Persistence
-	richQueryAPI  bool
+	ctx              context.Context
+	cancelCtx        func()
+	confirmations    confirmations.Manager
+	txHandler        txhandler.TransactionHandler
+	apiServer        httpserver.HTTPServer
+	metricsServer    httpserver.HTTPServer
+	wsServer         ws.WebSocketServer
+	persistence      persistence.Persistence
+	richQueryEnabled bool
 
 	connector ffcapi.API
 	toolkit   *txhandler.Toolkit
@@ -149,14 +149,16 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 	nonceStateTimeout := config.GetDuration(tmconfig.TransactionsNonceStateTimeout)
 	switch pType {
 	case "leveldb":
-		m.richQueryAPI = false
 		if m.persistence, err = leveldb.NewLevelDBPersistence(ctx, nonceStateTimeout); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
 	case "postgres":
-		m.richQueryAPI = !config.GetBool(tmconfig.APISimpleQuery)
 		if m.persistence, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection, nonceStateTimeout); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
+		}
+		if !config.GetBool(tmconfig.APISimpleQuery) {
+			m.richQueryEnabled = true
+			m.toolkit.RichQuery = m.persistence.RichQuery()
 		}
 	default:
 		return i18n.NewError(ctx, tmmsgs.MsgUnknownPersistence, pType)

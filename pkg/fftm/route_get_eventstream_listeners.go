@@ -38,7 +38,7 @@ var getEventStreamListeners = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return []*apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 	}
-	if m.richQueryAPI {
+	if m.richQueryEnabled {
 		route.FilterFactory = persistence.ListenerFilters
 		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
 			return r.FilterResult(m.getStreamListenersRich(r.Req.Context(), r.PP["streamId"], r.Filter))

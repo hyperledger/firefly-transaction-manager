@@ -39,7 +39,7 @@ var getTransactionConfirmations = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return []*apitypes.ConfirmationRecord{} },
 		JSONOutputCodes: []int{http.StatusOK},
 	}
-	if m.richQueryAPI {
+	if m.richQueryEnabled {
 		route.FilterFactory = persistence.ConfirmationFilters
 		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
 			return r.FilterResult(m.persistence.RichQuery().ListTransactionConfirmations(r.Req.Context(), r.PP["transactionId"], r.Filter))

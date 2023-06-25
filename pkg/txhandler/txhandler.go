@@ -29,6 +29,10 @@ type TransactionPersistence interface {
 	persistence.TransactionPersistence
 }
 
+type RichQuery interface {
+	persistence.RichQuery
+}
+
 type TransactionHistoryPersistence interface {
 	persistence.TransactionHistoryPersistence
 }
@@ -46,6 +50,10 @@ type Toolkit struct {
 
 	// TransactionPersistence toolkit contains methods to persist Managed Transaction objects into the plugged-in persistence service
 	TXPersistence TransactionPersistence
+
+	// When a rich-query enabled Database is available (PSQL) the full rich query interface for all objects is passed to the policy engine.
+	// If not available, this will be nil.
+	RichQuery RichQuery
 
 	// Metric toolkit contains methods to emit Managed Transaction specific metrics using the plugged-in metrics service
 	MetricsManager TransactionMetrics
