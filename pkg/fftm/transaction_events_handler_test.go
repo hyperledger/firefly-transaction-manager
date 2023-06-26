@@ -173,8 +173,8 @@ func TestHandleTransactionHashUpdateEventSwallowErrors(t *testing.T) {
 	}
 	eh := newTestManagedTransactionEventHandler()
 	mth := txhandlermocks.TransactionHandler{}
-	mth.On("HandleTransactionReceiptReceived", mock.Anything, testTx.ID, mock.Anything).Return(fmt.Errorf("boo")).Once()
-	mth.On("HandleTransactionConfirmations", mock.Anything, testTx.ID, mock.Anything).Return(fmt.Errorf("boo")).Once()
+	mth.On("HandleTransactionReceiptReceived", mock.Anything, testTx, mock.Anything).Return(fmt.Errorf("boo")).Once()
+	mth.On("HandleTransactionConfirmations", mock.Anything, testTx, mock.Anything).Return(fmt.Errorf("boo")).Once()
 	eh.TxHandler = &mth
 	mc := &confirmationsmocks.Manager{}
 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {

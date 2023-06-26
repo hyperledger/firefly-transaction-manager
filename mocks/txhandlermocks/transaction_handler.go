@@ -97,13 +97,13 @@ func (_m *TransactionHandler) HandleNewTransaction(ctx context.Context, txReq *a
 	return r0, r1
 }
 
-// HandleTransactionConfirmations provides a mock function with given fields: ctx, txID, notification
-func (_m *TransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) error {
-	ret := _m.Called(ctx, txID, notification)
+// HandleTransactionConfirmations provides a mock function with given fields: ctx, mtx, notification
+func (_m *TransactionHandler) HandleTransactionConfirmations(ctx context.Context, mtx *apitypes.ManagedTX, notification *apitypes.ConfirmationsNotification) error {
+	ret := _m.Called(ctx, mtx, notification)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *apitypes.ConfirmationsNotification) error); ok {
-		r0 = rf(ctx, txID, notification)
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX, *apitypes.ConfirmationsNotification) error); ok {
+		r0 = rf(ctx, mtx, notification)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -111,13 +111,13 @@ func (_m *TransactionHandler) HandleTransactionConfirmations(ctx context.Context
 	return r0
 }
 
-// HandleTransactionReceiptReceived provides a mock function with given fields: ctx, txID, receipt
-func (_m *TransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error {
-	ret := _m.Called(ctx, txID, receipt)
+// HandleTransactionReceiptReceived provides a mock function with given fields: ctx, mtx, receipt
+func (_m *TransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, mtx *apitypes.ManagedTX, receipt *ffcapi.TransactionReceiptResponse) error {
+	ret := _m.Called(ctx, mtx, receipt)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.TransactionReceiptResponse) error); ok {
-		r0 = rf(ctx, txID, receipt)
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX, *ffcapi.TransactionReceiptResponse) error); ok {
+		r0 = rf(ctx, mtx, receipt)
 	} else {
 		r0 = ret.Error(0)
 	}
