@@ -145,6 +145,12 @@ type RichQuery interface {
 	ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error)
 	ListTransactionHistory(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.TXHistoryRecord, *ffapi.FilterResult, error)
 	ListStreamListeners(ctx context.Context, streamID *fftypes.UUID, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
+
+	GetStreamFilter(ctx context.Context) *ffapi.QueryFields
+	GetListenerFilter(ctx context.Context) *ffapi.QueryFields
+	GetTransactionFilter(ctx context.Context) *ffapi.QueryFields
+	GetConfirmationFilter(ctx context.Context) *ffapi.QueryFields
+	GetTxHistoryFilter(ctx context.Context) *ffapi.QueryFields
 }
 
 type CheckpointPersistence interface {

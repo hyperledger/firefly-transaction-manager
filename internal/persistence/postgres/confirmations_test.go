@@ -23,7 +23,6 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/sirupsen/logrus"
@@ -162,7 +161,8 @@ func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 	}, confirmations)
 
 	// Filter just one
-	fb := persistence.ConfirmationFilters.NewFilter(ctx)
+	confirmationFilter := p.GetConfirmationFilter(ctx)
+	fb := confirmationFilter.NewFilter(ctx)
 	crs, _, err := p.ListTransactionConfirmations(ctx, tx2ID, fb.And(fb.Eq("blocknumber", 1)))
 	assert.Len(t, crs, 1)
 	assert.Equal(t, crs[0].BlockNumber.Uint64(), uint64(1))

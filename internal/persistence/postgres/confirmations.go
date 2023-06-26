@@ -77,6 +77,14 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 	return collection
 }
 
+func (p *sqlPersistence) GetConfirmationFilter(ctx context.Context) *ffapi.QueryFields {
+	return persistence.ConfirmationFilters
+}
+
+func (p *sqlPersistence) ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error) {
+	return p.confirmations.GetMany(ctx, filter.Condition(filter.Builder().Eq("transaction", txID)))
+}
+
 func (p *sqlPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error) {
 	// We query in increasing insertion order
 	filter := persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID).Sort("sequence").Ascending()
@@ -109,8 +117,4 @@ func (p *sqlPersistence) AddTransactionConfirmations(ctx context.Context, txID s
 		p.writer.queue(ctx, op)
 	}
 	return nil // we do this async for performance
-}
-
-func (p *sqlPersistence) ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error) {
-	return p.confirmations.GetMany(ctx, filter.Condition(filter.Builder().Eq("transaction", txID)))
 }
