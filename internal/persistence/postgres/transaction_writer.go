@@ -262,6 +262,10 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 	})
 	if err != nil {
 		log.L(ctx).Errorf("Transaction persistence batch failed: %s", err)
+
+		// Clear any cached nonces
+		tw.clearCachedNonces(ctx, b.txInsertsByFrom)
+
 		// All ops in the batch get a single generic error
 		err = i18n.NewError(ctx, tmmsgs.MsgTransactionPersistenceError)
 	}
@@ -279,11 +283,16 @@ func (tw *transactionWriter) assignNonces(ctx context.Context, txInsertsByFrom m
 		if isCached {
 			timeSinceCached := time.Since(*cacheEntry.cachedTime.Time())
 			if timeSinceCached > tw.p.nonceStateTimeout {
-				log.L(ctx).Errorf("Nonce cache expired for signer '%s' after %s", signer, timeSinceCached.String())
+				log.L(ctx).Infof("Nonce cache expired for signer '%s' after %s", signer, timeSinceCached.String())
 				cacheEntry = nil
 			}
 		}
 		for _, op := range txs {
+			if op.sentConflict {
+				// This has been excluded in preInsertIdempotencyCheck, we must not allocate a nonce
+				log.L(ctx).Debugf("Skipped nonce assignment to duplicate TX %s", op.txInsert.ID)
+				continue
+			}
 			if cacheEntry == nil {
 				nextNonce, err := op.nextNonceCB(ctx, signer)
 				if err != nil {
@@ -370,8 +379,6 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 		}
 		if err := tw.p.transactions.InsertMany(ctx, txInserts, false); err != nil {
 			log.L(ctx).Errorf("InsertMany transactions (%d) failed: %s", len(b.historyInserts), err)
-			// Clear any cached nonces
-			tw.clearCachedNonces(ctx, b.txInsertsByFrom)
 			return err
 		}
 		// Add to our metadata cache, in the fresh new state
