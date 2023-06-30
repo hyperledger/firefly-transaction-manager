@@ -32,6 +32,8 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 )
 
+var testDescriptions = false
+
 func (m *manager) router(metricsEnabled bool) *mux.Router {
 	mux := mux.NewRouter()
 
@@ -56,7 +58,8 @@ func (m *manager) router(metricsEnabled bool) *mux.Router {
 		u := req.URL
 		u.Path = ""
 		swaggerGen := ffapi.NewSwaggerGen(&ffapi.Options{
-			BaseURL: u.String(),
+			BaseURL:                   u.String(),
+			PanicOnMissingDescription: testDescriptions,
 		})
 		doc := swaggerGen.Generate(req.Context(), routes)
 		res.Header().Add("Content-Type", "application/x-yaml")

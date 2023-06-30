@@ -43,10 +43,10 @@ func TestHandleTransactionProcessSuccessEvent(t *testing.T) {
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
 		SequenceID: apitypes.NewULID().String(),
-		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusSucceeded,
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From: "0x0000",
+			From:  "0x0000",
+			Nonce: fftypes.NewFFBigInt(1),
 		},
 		TransactionHash: "0x1111",
 	}
@@ -73,16 +73,16 @@ func TestHandleTransactionProcessFailEvent(t *testing.T) {
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
 		SequenceID: apitypes.NewULID().String(),
-		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusFailed,
-		Receipt: &ffcapi.TransactionReceiptResponse{
-			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
-		},
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From: "0x0000",
+			From:  "0x0000",
+			Nonce: fftypes.NewFFBigInt(1),
 		},
 		TransactionHash: "0x1111",
+	}
+	receipt := &ffcapi.TransactionReceiptResponse{
+		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+		ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
 	}
 	eh := newTestManagedTransactionEventHandler()
 	mws := &wsmocks.WebSocketServer{}
@@ -91,14 +91,15 @@ func TestHandleTransactionProcessFailEvent(t *testing.T) {
 			r.Headers.Type == apitypes.TransactionUpdateFailure &&
 			r.Status == testTx.Status &&
 			r.TransactionHash == testTx.TransactionHash &&
-			r.ContractLocation == testTx.Receipt.ContractLocation &&
-			r.ProtocolID == testTx.Receipt.ProtocolID
+			r.ContractLocation == receipt.ContractLocation &&
+			r.ProtocolID == receipt.ProtocolID
 	})).Return(nil).Once()
 	eh.WsServer = mws
 
 	eh.HandleEvent(context.Background(), apitypes.ManagedTransactionEvent{
-		Type: apitypes.ManagedTXProcessFailed,
-		Tx:   testTx,
+		Type:    apitypes.ManagedTXProcessFailed,
+		Tx:      testTx,
+		Receipt: receipt,
 	})
 
 	mws.AssertExpectations(t)
@@ -115,10 +116,10 @@ func TestHandleTransactionHashUpdateEventAddHash(t *testing.T) {
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
 		SequenceID: apitypes.NewULID().String(),
-		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusPending,
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From: "0x0000",
+			From:  "0x0000",
+			Nonce: fftypes.NewFFBigInt(1),
 		},
 		TransactionHash: "0x1111",
 	}
@@ -142,10 +143,10 @@ func TestHandleTransactionHashUpdateEventRemoveHash(t *testing.T) {
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
 		SequenceID: apitypes.NewULID().String(),
-		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusPending,
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From: "0x0000",
+			From:  "0x0000",
+			Nonce: fftypes.NewFFBigInt(1),
 		},
 		TransactionHash: "0x1111",
 	}
@@ -163,17 +164,17 @@ func TestHandleTransactionHashUpdateEventSwallowErrors(t *testing.T) {
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
 		SequenceID: apitypes.NewULID().String(),
-		Nonce:      fftypes.NewFFBigInt(1),
 		Status:     apitypes.TxStatusPending,
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From: "0x0000",
+			From:  "0x0000",
+			Nonce: fftypes.NewFFBigInt(1),
 		},
 		TransactionHash: "0x2222",
 	}
 	eh := newTestManagedTransactionEventHandler()
 	mth := txhandlermocks.TransactionHandler{}
 	mth.On("HandleTransactionReceiptReceived", mock.Anything, testTx.ID, mock.Anything).Return(fmt.Errorf("boo")).Once()
-	mth.On("HandleTransactionConfirmed", mock.Anything, testTx.ID, mock.Anything).Return(fmt.Errorf("boo")).Once()
+	mth.On("HandleTransactionConfirmations", mock.Anything, testTx.ID, mock.Anything).Return(fmt.Errorf("boo")).Once()
 	eh.TxHandler = &mth
 	mc := &confirmationsmocks.Manager{}
 	mc.On("Notify", mock.MatchedBy(func(n *confirmations.Notification) bool {
@@ -181,7 +182,9 @@ func TestHandleTransactionHashUpdateEventSwallowErrors(t *testing.T) {
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{})
-		n.Transaction.Confirmed(context.Background(), []apitypes.BlockInfo{})
+		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{
+			Confirmed: true,
+		})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 

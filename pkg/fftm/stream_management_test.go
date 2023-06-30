@@ -81,7 +81,7 @@ func TestRestoreStreamsReadFailed(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreams", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamsByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
 
 	err := m.restoreStreams()
 	assert.Regexp(t, "pop", err)
@@ -95,10 +95,10 @@ func TestRestoreListenersReadFailed(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreams", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{
+	mp.On("ListStreamsByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{
 		{ID: fftypes.NewUUID()},
 	}, nil)
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), 0, persistence.SortDirectionAscending, mock.Anything).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), 0, persistence.SortDirectionAscending, mock.Anything).Return(nil, fmt.Errorf("pop"))
 
 	err := m.restoreStreams()
 	assert.Regexp(t, "pop", err)
@@ -183,7 +183,7 @@ func TestDeleteStartedListenerFail(t *testing.T) {
 	esID := apitypes.NewULID()
 	lID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{
 		{ID: lID, StreamID: esID},
 	}, nil)
 	mp.On("DeleteListener", m.ctx, lID).Return(fmt.Errorf("pop"))
@@ -211,7 +211,7 @@ func TestDeleteStreamListenerPersistenceFail(t *testing.T) {
 
 	esID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return(nil, fmt.Errorf("pop"))
 
 	err := m.deleteStream(m.ctx, esID.String())
 	assert.Regexp(t, "pop", err)
@@ -226,7 +226,7 @@ func TestDeleteStreamPersistenceFail(t *testing.T) {
 
 	esID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(fmt.Errorf("pop"))
 
 	err := m.deleteStream(m.ctx, esID.String())
@@ -242,7 +242,7 @@ func TestDeleteStreamNotInitialized(t *testing.T) {
 
 	esID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamListeners", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(nil)
 
 	err := m.deleteStream(m.ctx, esID.String())
@@ -599,12 +599,21 @@ func TestGetListenerNotFound(t *testing.T) {
 
 }
 
-func TestGetStreamListenersBadLimit(t *testing.T) {
+func TestGetStreamListenersByCreateTimeBadLimit(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.getStreamListeners(m.ctx, "", "!bad limit", apitypes.NewULID().String())
+	_, err := m.getStreamListenersByCreateTime(m.ctx, "", "!bad limit", apitypes.NewULID().String())
 	assert.Regexp(t, "FF21044", err)
+
+}
+
+func TestGetStreamListenersByCreateTimeBadStreamID(t *testing.T) {
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	_, err := m.getStreamListenersByCreateTime(m.ctx, "", "", "bad ID")
+	assert.Regexp(t, "FF00138", err)
 
 }
 
@@ -612,7 +621,7 @@ func TestGetStreamListenersBadStreamID(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.getStreamListeners(m.ctx, "", "", "bad ID")
+	_, _, err := m.getStreamListenersRich(m.ctx, "", nil)
 	assert.Regexp(t, "FF00138", err)
 
 }

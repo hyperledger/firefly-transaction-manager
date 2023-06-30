@@ -18,11 +18,16 @@ package apitypes
 
 import (
 	"bytes"
+	"context"
+	"database/sql/driver"
 	"encoding/json"
 	"reflect"
 
+	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/jsonmap"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
@@ -69,6 +74,18 @@ type EventStream struct {
 	WebSocket *WebSocketConfig `ffstruct:"eventstream" json:"websocket,omitempty"`
 }
 
+func (es *EventStream) GetID() string {
+	return es.ID.String()
+}
+
+func (es *EventStream) SetCreated(t *fftypes.FFTime) {
+	es.Created = t
+}
+
+func (es *EventStream) SetUpdated(t *fftypes.FFTime) {
+	es.Updated = t
+}
+
 type EventStreamStatus string
 
 const (
@@ -83,10 +100,50 @@ type EventStreamWithStatus struct {
 	Status EventStreamStatus `ffstruct:"eventstream" json:"status"`
 }
 
+type CheckpointListeners map[fftypes.UUID]json.RawMessage
+
 type EventStreamCheckpoint struct {
-	StreamID  *fftypes.UUID                    `json:"streamId"`
-	Time      *fftypes.FFTime                  `json:"time"`
-	Listeners map[fftypes.UUID]json.RawMessage `json:"listeners"`
+	StreamID        *fftypes.UUID       `json:"streamId"`
+	Time            *fftypes.FFTime     `json:"time"`            // this is the latest checkpoint time
+	FirstCheckpoint *fftypes.FFTime     `json:"firstCheckpoint"` // this is the initial create time
+	Listeners       CheckpointListeners `json:"listeners"`
+}
+
+func jsonScan(src, target interface{}) error {
+	switch src := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(src), target)
+	case []byte:
+		return json.Unmarshal(src, target)
+	case nil:
+		return nil
+	default:
+		return i18n.NewError(context.Background(), tmmsgs.MsgSQLScanFailed, src)
+	}
+}
+
+func jsonValue(target interface{}) (driver.Value, error) {
+	return json.Marshal(target)
+}
+
+func (l *CheckpointListeners) Scan(val any) error {
+	return jsonScan(val, l)
+}
+
+func (l CheckpointListeners) Value() (driver.Value, error) {
+	return jsonValue(l)
+}
+
+func (cp *EventStreamCheckpoint) GetID() string {
+	return cp.StreamID.String()
+}
+
+func (cp *EventStreamCheckpoint) SetCreated(t *fftypes.FFTime) {
+	cp.FirstCheckpoint = t
+}
+
+func (cp *EventStreamCheckpoint) SetUpdated(t *fftypes.FFTime) {
+	cp.Time = t
 }
 
 type WebhookConfig struct {
@@ -97,23 +154,83 @@ type WebhookConfig struct {
 	EthCompatRequestTimeoutSec *int64              `ffstruct:"whconfig" json:"requestTimeoutSec,omitempty"` // input only, for backwards compatibility
 }
 
+// Store in DB as JSON
+func (wc *WebhookConfig) Scan(src interface{}) error {
+	return jsonScan(src, wc)
+}
+
+// Store in DB as JSON
+func (wc *WebhookConfig) Value() (driver.Value, error) {
+	if wc == nil {
+		return nil, nil
+	}
+	return jsonValue(wc)
+}
+
 type WebSocketConfig struct {
 	DistributionMode *DistributionMode `ffstruct:"wsconfig" json:"distributionMode,omitempty"`
 }
 
+// Store in DB as JSON
+func (wc *WebSocketConfig) Scan(src interface{}) error {
+	return jsonScan(src, wc)
+}
+
+// Store in DB as JSON
+func (wc *WebSocketConfig) Value() (driver.Value, error) {
+	if wc == nil {
+		return nil, nil
+	}
+	return jsonValue(wc)
+}
+
+type ListenerFilters []fftypes.JSONAny
+
+// Store in DB as JSON
+func (lf *ListenerFilters) Scan(src interface{}) error {
+	return jsonScan(src, lf)
+}
+
+// Store in DB as JSON
+func (lf ListenerFilters) Value() (driver.Value, error) {
+	if lf == nil {
+		return nil, nil
+	}
+	return jsonValue(lf)
+}
+
 type Listener struct {
-	ID               *fftypes.UUID     `ffstruct:"listener" json:"id,omitempty"`
-	Created          *fftypes.FFTime   `ffstruct:"listener" json:"created"`
-	Updated          *fftypes.FFTime   `ffstruct:"listener" json:"updated"`
-	Name             *string           `ffstruct:"listener" json:"name"`
-	StreamID         *fftypes.UUID     `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
-	EthCompatAddress *string           `ffstruct:"listener" json:"address,omitempty"`
-	EthCompatEvent   *fftypes.JSONAny  `ffstruct:"listener" json:"event,omitempty"`
-	EthCompatMethods *fftypes.JSONAny  `ffstruct:"listener" json:"methods,omitempty"`
-	Filters          []fftypes.JSONAny `ffstruct:"listener" json:"filters"`
-	Options          *fftypes.JSONAny  `ffstruct:"listener" json:"options"`
-	Signature        string            `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
-	FromBlock        *string           `ffstruct:"listener" json:"fromBlock,omitempty"`
+	ID               *fftypes.UUID    `ffstruct:"listener" json:"id,omitempty"`
+	Created          *fftypes.FFTime  `ffstruct:"listener" json:"created"`
+	Updated          *fftypes.FFTime  `ffstruct:"listener" json:"updated"`
+	Name             *string          `ffstruct:"listener" json:"name"`
+	StreamID         *fftypes.UUID    `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
+	EthCompatAddress *string          `ffstruct:"listener" json:"address,omitempty"`
+	EthCompatEvent   *fftypes.JSONAny `ffstruct:"listener" json:"event,omitempty"`
+	EthCompatMethods *fftypes.JSONAny `ffstruct:"listener" json:"methods,omitempty"`
+	Filters          ListenerFilters  `ffstruct:"listener" json:"filters"`
+	Options          *fftypes.JSONAny `ffstruct:"listener" json:"options"`
+	Signature        *string          `ffstruct:"listener" json:"signature,omitempty" ffexcludeinput:"true"`
+	FromBlock        *string          `ffstruct:"listener" json:"fromBlock,omitempty"`
+}
+
+func (l *Listener) SignatureString() string {
+	if l.Signature == nil {
+		return ""
+	}
+	return *l.Signature
+}
+
+func (l *Listener) GetID() string {
+	return l.ID.String()
+}
+
+func (l *Listener) SetCreated(t *fftypes.FFTime) {
+	l.Created = t
+}
+
+func (l *Listener) SetUpdated(t *fftypes.FFTime) {
+	l.Updated = t
 }
 
 type ListenerWithStatus struct {
@@ -279,4 +396,34 @@ func (e *EventWithContext) UnmarshalJSON(b []byte) error {
 		}
 	}
 	return err
+}
+
+func ConfirmationFromBlock(block *BlockInfo) *Confirmation {
+	return &Confirmation{
+		BlockNumber: block.BlockNumber,
+		BlockHash:   block.BlockHash,
+		ParentHash:  block.ParentHash,
+	}
+}
+
+type ConfirmationsNotification struct {
+	// Confirmed marks we've reached the confirmation threshold
+	Confirmed bool
+	// NewFork is true when NewConfirmations is a complete list of confirmations.
+	// Otherwise, Confirmations is an additive delta on top of a previous list of confirmations.
+	NewFork bool
+	// Confirmations is the list of confirmations being notified - assured to be non-nil, but might be empty.
+	Confirmations []*Confirmation
+}
+
+type Confirmation struct {
+	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
+	BlockHash   string           `json:"blockHash"`
+	ParentHash  string           `json:"parentHash"`
+}
+
+type ConfirmationRecord struct {
+	dbsql.ResourceBase        // default persistence headers for this micro object
+	TransactionID      string `json:"transaction"` // owning transaction
+	*Confirmation
 }

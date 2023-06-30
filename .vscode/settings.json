@@ -89,6 +89,7 @@
     "txid",
     "txns",
     "txtype",
+    "txwriter",
     "unflushed",
     "unmarshalled",
     "unmarshalling",
@@ -102,5 +103,5 @@
     "wsconfig",
     "wsmocks"
   ],
-  "go.testTimeout": "10s"
+  "go.testTimeout": "20s"
 }

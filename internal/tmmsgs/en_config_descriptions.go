@@ -36,6 +36,7 @@ var (
 	ConfigAPIWriteTimeout          = ffc("config.api.writeTimeout", "The maximum time to wait when writing to a HTTP connection", i18n.TimeDurationType)
 	ConfigAPIShutdownTimeout       = ffc("config.api.shutdownTimeout", "The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server", i18n.TimeDurationType)
 	ConfigAPIPassthroughHeaders    = ffc("config.api.passthroughHeaders", "A list of HTTP request headers to pass through to dependency microservices", i18n.ArrayStringType)
+	ConfigAPISimpleQuery           = ffc("config.api.simpleQuery", "Force use of original limited API query syntax, even if rich query is supported in the database", i18n.BooleanType)
 
 	ConfigDebugPort = ffc("config.debug.port", "An HTTP port on which to enable the go debugger", i18n.IntType)
 
@@ -44,11 +45,12 @@ var (
 	ConfigConfirmationsNotificationsQueueLength = ffc("config.confirmations.notificationQueueLength", "Internal queue length for notifying the confirmations manager of new transactions/events", i18n.IntType)
 	ConfigConfirmationsRequired                 = ffc("config.confirmations.required", "Number of confirmations required to consider a transaction/event final", i18n.IntType)
 	ConfigConfirmationsStaleReceiptTimeout      = ffc("config.confirmations.staleReceiptTimeout", "Duration after which to force a receipt check for a pending transaction", i18n.TimeDurationType)
+	ConfigConfirmationsReceiptWorkers           = ffc("config.confirmations.receiptWorkers", "Number of workers to use to query in parallel for receipts", i18n.IntType)
 
-	ConfigTransactionsMaxHistoryCount = ffc("config.transactions.maxHistoryCount", "The number of historical status updates to retain in the operation", i18n.IntType)
+	ConfigTransactionsNonceStateTimeout = ffc("config.transactions.nonceStateTimeout", "How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address", i18n.TimeDurationType)
+	ConfigTransactionsMaxHistoryCount   = ffc("config.transactions.maxHistoryCount", "The number of historical status updates to retain in the operation", i18n.IntType)
 
 	DeprecatedConfigTransactionsMaxInflight                  = ffc("config.transactions.maxInFlight", "Deprecated: Please use 'transactions.handler.simple.maxInFlight' instead", i18n.IntType)
-	DeprecatedConfigTransactionsNonceStateTimeout            = ffc("config.transactions.nonceStateTimeout", "Deprecated: Please use 'transactions.handler.simple.nonceStateTimeout' instead", i18n.TimeDurationType)
 	DeprecatedConfigPolicyEngineName                         = ffc("config.policyengine.name", "Deprecated: Please use 'transactions.handler.name' instead", i18n.StringType)
 	DeprecatedConfigLoopInterval                             = ffc("config.policyloop.interval", "Deprecated: Please use 'transactions.handler.simple.interval' instead", i18n.TimeDurationType)
 	DeprecatedConfigPolicyEngineSimpleFixedGasPrice          = ffc("config.policyengine.simple.fixedGasPrice", "Deprecated: Please use 'transactions.handler.simple.fixedGasPrice' instead", "Raw JSON")
@@ -62,10 +64,10 @@ var (
 	DeprecatedConfigLoopRetryInitDelay                       = ffc("config.policyloop.retry.initialDelay", "Deprecated: Please use 'transactions.handler.simple.interval' instead", i18n.TimeDurationType)
 	DeprecatedConfigLoopRetryMaxDelay                        = ffc("config.policyloop.retry.maxDelay", "Deprecated: Please use 'transactions.handler.simple.interval' instead", i18n.TimeDurationType)
 	DeprecatedConfigLoopRetryFactor                          = ffc("config.policyloop.retry.factor", "Deprecated: Please use 'transactions.handler.simple.interval' instead", i18n.TimeDurationType)
+	DeprecatedConfigTXHandlerNonceStateTimeout               = ffc("config.transactions.handler.simple.nonceStateTimeout", "Deprecated: Please use 'transactions.handler.simple.nonceStateTimeout' instead", i18n.TimeDurationType)
 
-	ConfigTXHandlerName              = ffc("config.transactions.handler.name", "The name of the transaction handler to use", i18n.StringType)
-	ConfigTXHandlerMaxInflight       = ffc("config.transactions.handler.simple.maxInFlight", "The maximum number of transactions to have in-flight with the transaction handler / blockchain transaction pool", i18n.IntType)
-	ConfigTXHandlerNonceStateTimeout = ffc("config.transactions.handler.simple.nonceStateTimeout", "How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address", i18n.TimeDurationType)
+	ConfigTXHandlerName        = ffc("config.transactions.handler.name", "The name of the transaction handler to use", i18n.StringType)
+	ConfigTXHandlerMaxInflight = ffc("config.transactions.handler.simple.maxInFlight", "The maximum number of transactions to have in-flight with the transaction handler / blockchain transaction pool", i18n.IntType)
 
 	ConfigTXHandlerSimpleInterval               = ffc("config.transactions.handler.simple.interval", "Interval at which to invoke the transaction handler loop to evaluate outstanding transactions", i18n.TimeDurationType)
 	ConfigTXHandlerSimpleFixedGasPrice          = ffc("config.transactions.handler.simple.fixedGasPrice", "A fixed gasPrice value/structure to pass to the connector", "Raw JSON")
@@ -109,4 +111,18 @@ var (
 	ConfigMetricsReadTimeout     = ffc("config.metrics.readTimeout", "The maximum time to wait when reading from an HTTP connection", i18n.TimeDurationType)
 	ConfigMetricsWriteTimeout    = ffc("config.metrics.writeTimeout", "The maximum time to wait when writing to an HTTP connection", i18n.TimeDurationType)
 	ConfigMetricsShutdownTimeout = ffc("config.metrics.shutdownTimeout", "The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server", i18n.TimeDurationType)
+
+	ConfigDatabasePostgresMaxConnIdleTime   = ffc("config.persistence.postgres.maxConnIdleTime", "The maximum amount of time a database connection can be idle", i18n.TimeDurationType)
+	ConfigDatabasePostgresMaxConnLifetime   = ffc("config.persistence.postgres.maxConnLifetime", "The maximum amount of time to keep a database connection open", i18n.TimeDurationType)
+	ConfigDatabasePostgresMaxConns          = ffc("config.persistence.postgres.maxConns", "Maximum connections to the database", i18n.IntType)
+	ConfigDatabasePostgresMaxIdleConns      = ffc("config.persistence.postgres.maxIdleConns", "The maximum number of idle connections to the database", i18n.IntType)
+	ConfigDatabasePostgresURL               = ffc("config.persistence.postgres.url", "The PostgreSQL connection string for the database", i18n.StringType)
+	ConfigGlobalMigrationsAuto              = ffc("config.global.migrations.auto", "Enables automatic database migrations", i18n.BooleanType)
+	ConfigGlobalMigrationsDirectory         = ffc("config.global.migrations.directory", "The directory containing the numerically ordered migration DDL files to apply to the database", i18n.StringType)
+	ConfigTXWriterBatchSize                 = ffc("config.global.txwriter.batchSize", "Number of persistence operations on transactions to attempt to group into a DB transaction", i18n.IntType)
+	ConfigTXWriterBatchTimeout              = ffc("config.global.txwriter.batchTimeout", "Duration to hold batch open for new transaction operations before flushing to the DB", i18n.TimeDurationType)
+	ConfigTXWriterCacheSlots                = ffc("config.global.txwriter.cacheSlots", "Number of transactions to hold cached metadata for to avoid DB read operations to calculate history", i18n.IntType)
+	ConfigTXWriterCount                     = ffc("config.global.txwriter.count", "Number of transactions writing routines to start", i18n.IntType)
+	ConfigTXWriterHistoryCompactionInterval = ffc("config.global.txwriter.historyCompactionInterval", "Duration between cleanup activities on the DB for a transaction with a large history", i18n.TimeDurationType)
+	ConfigTXWriterHistorySummaryLimit       = ffc("config.global.txwriter.historySummaryLimit", "Maximum number of action entries to return embedded in the JSON response object when querying a transaction summary", i18n.IntType)
 )

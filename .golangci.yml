@@ -35,7 +35,6 @@ linters:
   disable-all: false
   enable:
     - bodyclose
-    - depguard
     - dogsled
     - errcheck
     - goconst

@@ -17,9 +17,11 @@
 package fftm
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -58,5 +60,24 @@ func TestGetEventStreams(t *testing.T) {
 
 	assert.Len(t, ess, 1)
 	assert.Equal(t, es1.ID, ess[0].ID)
+
+}
+
+func TestGetEventStreamsRich(t *testing.T) {
+
+	url, _, mrq, done := newTestManagerMockRichDB(t)
+	defer done()
+	e1 := fftypes.NewUUID()
+	mrq.On("ListStreams", mock.Anything, mock.Anything, mock.Anything).Return(
+		[]*apitypes.EventStream{{ID: e1}}, nil, nil,
+	)
+
+	var streams []*apitypes.EventStream
+	res, err := resty.New().R().
+		SetResult(&streams).
+		Get(fmt.Sprintf("%s/eventstreams", url))
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+	assert.Equal(t, e1, streams[0].ID)
 
 }

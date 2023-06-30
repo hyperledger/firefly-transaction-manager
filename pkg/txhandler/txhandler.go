@@ -23,11 +23,18 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
 type TransactionPersistence interface {
 	persistence.TransactionPersistence
+}
+
+type RichQuery interface {
+	persistence.RichQuery
+}
+
+type TransactionHistoryPersistence interface {
+	persistence.TransactionHistoryPersistence
 }
 
 type TransactionMetrics interface {
@@ -39,10 +46,14 @@ type Toolkit struct {
 	Connector ffcapi.API
 
 	// Transaction History toolkit contains methods to easily manage and set historical status of a Managed Transaction
-	TXHistory txhistory.Manager
+	TXHistory TransactionHistoryPersistence
 
 	// TransactionPersistence toolkit contains methods to persist Managed Transaction objects into the plugged-in persistence service
 	TXPersistence TransactionPersistence
+
+	// When a rich-query enabled Database is available (PSQL) the full rich query interface for all objects is passed to the policy engine.
+	// If not available, this will be nil.
+	RichQuery RichQuery
 
 	// Metric toolkit contains methods to emit Managed Transaction specific metrics using the plugged-in metrics service
 	MetricsManager TransactionMetrics
@@ -98,8 +109,8 @@ type TransactionHandler interface {
 	HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
 
 	// Informational events:
-	// HandleTransactionConfirmed - handles confirmations of blockchain transactions for a managed transaction
-	HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) (err error)
+	// HandleTransactionConfirmations - handles confirmations of blockchain transactions for a managed transaction
+	HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error)
 	// HandleTransactionReceiptReceived - handles receipt of blockchain transactions for a managed transaction
 	HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
 }

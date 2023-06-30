@@ -42,14 +42,15 @@ func newTestBlockConfirmationManager(t *testing.T, enabled bool) (*blockConfirma
 func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmationManager, *ffcapimocks.API) {
 	logrus.SetLevel(logrus.DebugLevel)
 	mca := &ffcapimocks.API{}
-	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut")
-	return bcm.(*blockConfirmationManager), mca
+	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut").(*blockConfirmationManager)
+	bcm.receiptChecker = newReceiptChecker(bcm, 0) // no workers, but non-nil
+	return bcm, mca
 }
 
 func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
 
-	confirmed := make(chan []apitypes.BlockInfo, 1)
+	confirmed := make(chan []*apitypes.Confirmation, 1)
 	eventToConfirm := &EventInfo{
 		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
@@ -59,8 +60,10 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmed: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
-			confirmed <- confirmations
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+			if notification.Confirmed {
+				confirmed <- notification.Confirmations
+			}
 		},
 	}
 
@@ -146,10 +149,10 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 	bcm.Start()
 
 	dispatched := <-confirmed
-	assert.Equal(t, []apitypes.BlockInfo{
-		*block1002,
-		*block1003,
-		*block1004,
+	assert.Equal(t, []*apitypes.Confirmation{
+		apitypes.ConfirmationFromBlock(block1002),
+		apitypes.ConfirmationFromBlock(block1003),
+		apitypes.ConfirmationFromBlock(block1004),
 	}, dispatched)
 
 	bcm.Stop()
@@ -160,7 +163,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
 
-	confirmed := make(chan []apitypes.BlockInfo, 1)
+	confirmed := make(chan []*apitypes.Confirmation, 1)
 	eventToConfirm := &EventInfo{
 		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
@@ -170,8 +173,10 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmed: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
-			confirmed <- confirmations
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+			if notification.Confirmed {
+				confirmed <- notification.Confirmations
+			}
 		},
 	}
 
@@ -276,10 +281,10 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 	bcm.Start()
 
 	dispatched := <-confirmed
-	assert.Equal(t, []apitypes.BlockInfo{
-		*block1002,
-		*block1003b,
-		*block1004,
+	assert.Equal(t, []*apitypes.Confirmation{
+		apitypes.ConfirmationFromBlock(block1002),
+		apitypes.ConfirmationFromBlock(block1003b),
+		apitypes.ConfirmationFromBlock(block1004),
 	}, dispatched)
 
 	bcm.Stop()
@@ -291,12 +296,14 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
 
-	confirmed := make(chan []apitypes.BlockInfo, 1)
+	confirmed := make(chan []*apitypes.Confirmation, 1)
 	receiptReceived := make(chan *ffcapi.TransactionReceiptResponse, 1)
 	txToConfirmForkA := &TransactionInfo{
 		TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-		Confirmed: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
-			confirmed <- confirmations
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+			if notification.Confirmed {
+				confirmed <- notification.Confirmations
+			}
 		},
 		Receipt: func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse) {
 			receiptReceived <- receipt
@@ -448,10 +455,10 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	assert.True(t, receipt.Success)
 
 	dispatched := <-confirmed
-	assert.Equal(t, []apitypes.BlockInfo{
-		*block1002b,
-		*block1003,
-		*block1004,
+	assert.Equal(t, []*apitypes.Confirmation{
+		apitypes.ConfirmationFromBlock(block1002b),
+		apitypes.ConfirmationFromBlock(block1003),
+		apitypes.ConfirmationFromBlock(block1004),
 	}, dispatched)
 
 	bcm.Stop()
@@ -463,7 +470,7 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
 
-	confirmed := make(chan []apitypes.BlockInfo, 1)
+	confirmed := make(chan []*apitypes.Confirmation, 1)
 	eventToConfirm := &EventInfo{
 		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
@@ -473,8 +480,10 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmed: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
-			confirmed <- confirmations
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+			if notification.Confirmed {
+				confirmed <- notification.Confirmations
+			}
 		},
 	}
 
@@ -531,10 +540,10 @@ func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
 	bcm.Start()
 
 	dispatched := <-confirmed
-	assert.Equal(t, []apitypes.BlockInfo{
-		*block1002,
-		*block1003,
-		*block1004,
+	assert.Equal(t, []*apitypes.Confirmation{
+		apitypes.ConfirmationFromBlock(block1002),
+		apitypes.ConfirmationFromBlock(block1003),
+		apitypes.ConfirmationFromBlock(block1004),
 	}, dispatched)
 
 	bcm.Stop()
@@ -594,7 +603,7 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 	bcm.done = make(chan struct{})
 
-	confirmed := make(chan []apitypes.BlockInfo, 1)
+	confirmed := make(chan []*apitypes.Confirmation, 1)
 	eventToConfirm := &EventInfo{
 		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
@@ -604,8 +613,10 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 			TransactionIndex: 5,
 			LogIndex:         10,
 		},
-		Confirmed: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
-			confirmed <- confirmations
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+			if notification.Confirmed {
+				confirmed <- notification.Confirmations
+			}
 		},
 	}
 	err := bcm.Notify(&Notification{
@@ -924,97 +935,61 @@ func TestNotificationValidation(t *testing.T) {
 	})
 	assert.Regexp(t, "FF21016", err)
 
+	err = bcm.Notify(&Notification{
+		NotificationType: receiptArrived,
+	})
+	assert.Regexp(t, "FF21016", err)
+
 	bcm.cancelFunc()
 	err = bcm.Notify(&Notification{
 		NotificationType: NewTransaction,
 		Transaction: &TransactionInfo{
 			TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
-			Confirmed:       func(ctx context.Context, confirmations []apitypes.BlockInfo) {},
+			Confirmations:   func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {},
 		},
 	})
 	assert.NoError(t, err)
 
 }
 
-func TestCheckReceiptNotFound(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-
-	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
-
-	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-	pending := &pendingItem{
-		pType:           pendingTypeTransaction,
-		transactionHash: txHash,
-	}
-	bcm.pending[pending.getKey()] = pending
-	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
-	blocks := bcm.newBlockState()
-	bcm.checkReceipt(pending, blocks)
-
-	assert.False(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
-
-}
-
 func TestCheckReceiptImmediateConfirm(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, _ := newTestBlockConfirmationManager(t, false)
 	bcm.requiredConfirmations = 0
 
-	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(&ffcapi.TransactionReceiptResponse{
+	receipt := &ffcapi.TransactionReceiptResponse{
 		BlockHash:        fftypes.NewRandB32().String(),
 		BlockNumber:      fftypes.NewFFBigInt(1001),
 		TransactionIndex: fftypes.NewFFBigInt(0),
 		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
 		Success:          true,
-	}, ffcapi.ErrorReasonNotFound, nil)
+	}
 
 	done := make(chan struct{})
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 	pending := &pendingItem{
 		pType:           pendingTypeTransaction,
 		transactionHash: txHash,
-		confirmedCallback: func(ctx context.Context, confirmations []apitypes.BlockInfo) {
+		confirmationsCallback: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
 			close(done)
 		},
 	}
-	bcm.pending[pending.getKey()] = pending
 	blocks := bcm.newBlockState()
-	go bcm.checkReceipt(pending, blocks)
+	go bcm.dispatchReceipt(pending, receipt, blocks)
 
 	<-done
-}
-
-func TestCheckReceiptFail(t *testing.T) {
-
-	bcm, mca := newTestBlockConfirmationManager(t, false)
-
-	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
-
-	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-	pending := &pendingItem{
-		pType:           pendingTypeTransaction,
-		transactionHash: txHash,
-	}
-	bcm.pending[pending.getKey()] = pending
-	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
-	blocks := bcm.newBlockState()
-	bcm.checkReceipt(pending, blocks)
-
-	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
-
 }
 
 func TestCheckReceiptWalkFail(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager(t, false)
 
-	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(&ffcapi.TransactionReceiptResponse{
+	receipt := &ffcapi.TransactionReceiptResponse{
 		BlockNumber:      fftypes.NewFFBigInt(12345),
 		BlockHash:        "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
 		TransactionIndex: fftypes.NewFFBigInt(10),
 		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-	}, ffcapi.ErrorReason(""), nil)
+	}
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 12346
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
@@ -1023,19 +998,18 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 	pending := &pendingItem{
 		pType:           pendingTypeTransaction,
 		transactionHash: txHash,
+		confirmationsCallback: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+			panic("should not be called")
+		},
 	}
-	bcm.pending[pending.getKey()] = pending
-	bcm.staleReceipts[pendingKeyForTX(txHash)] = true
 	blocks := bcm.newBlockState()
-	bcm.checkReceipt(pending, blocks)
-
-	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
-
+	bcm.dispatchReceipt(pending, receipt, blocks)
 }
 
 func TestStaleReceiptCheck(t *testing.T) {
 
 	bcm, _ := newTestBlockConfirmationManager(t, false)
+	bcm.receiptChecker = newReceiptChecker(bcm, 0)
 
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 	pending := &pendingItem{
@@ -1046,7 +1020,7 @@ func TestStaleReceiptCheck(t *testing.T) {
 	bcm.pending[pending.getKey()] = pending
 	bcm.staleReceiptCheck()
 
-	assert.True(t, bcm.staleReceipts[pendingKeyForTX(txHash)])
+	assert.Equal(t, bcm.receiptChecker.entries.Len(), 1)
 
 }
 

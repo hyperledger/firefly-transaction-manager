@@ -31,13 +31,14 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
 	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/leveldb"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/postgres"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/txhistory"
 )
 
 type Manager interface {
@@ -46,16 +47,16 @@ type Manager interface {
 }
 
 type manager struct {
-	ctx           context.Context
-	cancelCtx     func()
-	confirmations confirmations.Manager
-	txHandler     txhandler.TransactionHandler
-	apiServer     httpserver.HTTPServer
-	metricsServer httpserver.HTTPServer
-	wsServer      ws.WebSocketServer
-	persistence   persistence.Persistence
+	ctx              context.Context
+	cancelCtx        func()
+	confirmations    confirmations.Manager
+	txHandler        txhandler.TransactionHandler
+	apiServer        httpserver.HTTPServer
+	metricsServer    httpserver.HTTPServer
+	wsServer         ws.WebSocketServer
+	persistence      persistence.Persistence
+	richQueryEnabled bool
 
-	txhistory txhistory.Manager
 	connector ffcapi.API
 	toolkit   *txhandler.Toolkit
 
@@ -99,11 +100,9 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 		eventStreams:      make(map[fftypes.UUID]events.Stream),
 		streamsByName:     make(map[string]*fftypes.UUID),
 		metricsManager:    metrics.NewMetricsManager(ctx),
-		txhistory:         txhistory.NewTxHistoryManager(ctx),
 	}
 	m.toolkit = &txhandler.Toolkit{
 		Connector:      m.connector,
-		TXHistory:      m.txhistory,
 		MetricsManager: m.metricsManager,
 	}
 	m.ctx, m.cancelCtx = context.WithCancel(ctx)
@@ -119,12 +118,12 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	}
 
 	// check whether a policy engine name is provided
-	if config.GetString(tmconfig.TransactionHandlerName) == "" {
+	if config.GetString(tmconfig.TransactionsHandlerName) == "" {
 		log.L(ctx).Warnf("The 'policyengine' config key has been deprecated. Please use 'transactions.handler' instead")
 		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.DeprecatedPolicyEngineBaseConfig, config.GetString(tmconfig.DeprecatedPolicyEngineName))
 	} else {
 		// if not, fall back to use the deprecated policy engine
-		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.TransactionHandlerBaseConfig, config.GetString(tmconfig.TransactionHandlerName))
+		m.txHandler, err = txRegistry.NewTransactionHandler(ctx, tmconfig.TransactionHandlerBaseConfig, config.GetString(tmconfig.TransactionsHandlerName))
 	}
 
 	if err != nil {
@@ -147,16 +146,26 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 
 func (m *manager) initPersistence(ctx context.Context) (err error) {
 	pType := config.GetString(tmconfig.PersistenceType)
+	nonceStateTimeout := config.GetDuration(tmconfig.TransactionsNonceStateTimeout)
 	switch pType {
 	case "leveldb":
-		if m.persistence, err = persistence.NewLevelDBPersistence(ctx); err != nil {
+		if m.persistence, err = leveldb.NewLevelDBPersistence(ctx, nonceStateTimeout); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
-		m.toolkit.TXPersistence = m.persistence
-		return nil
+	case "postgres":
+		if m.persistence, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection, nonceStateTimeout); err != nil {
+			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
+		}
+		if !config.GetBool(tmconfig.APISimpleQuery) {
+			m.richQueryEnabled = true
+			m.toolkit.RichQuery = m.persistence.RichQuery()
+		}
 	default:
 		return i18n.NewError(ctx, tmmsgs.MsgUnknownPersistence, pType)
 	}
+	m.toolkit.TXPersistence = m.persistence
+	m.toolkit.TXHistory = m.persistence
+	return nil
 }
 
 func (m *manager) Start() error {

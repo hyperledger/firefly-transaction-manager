@@ -25,8 +25,7 @@ import (
 )
 
 const (
-	MaxInFlight       = "maxInFlight"
-	NonceStateTimeout = "nonceStateTimeout"
+	MaxInFlight = "maxInFlight"
 
 	Interval       = "interval"
 	RetryInitDelay = "retry.initialDelay"
@@ -47,12 +46,11 @@ const (
 	GasOracleModeRESTAPI   = "restapi"
 	GasOracleModeConnector = "connector"
 
-	defaultMaxInFlight       = 100
-	defaultNonceStateTimeout = "1h"
-	defaultInterval          = "10s"
-	defaultRetryInitDelay    = "250ms"
-	defaultRetryMaxDelay     = "30s"
-	defaultRetryFactor       = 2.0
+	defaultMaxInFlight    = 100
+	defaultInterval       = "10s"
+	defaultRetryInitDelay = "250ms"
+	defaultRetryMaxDelay  = "30s"
+	defaultRetryFactor    = 2.0
 )
 
 const (
@@ -67,7 +65,6 @@ func (f *TransactionHandlerFactory) InitConfig(conf config.Section) {
 	conf.AddKnownKey(ResubmitInterval, defaultResubmitInterval)
 
 	conf.AddKnownKey(MaxInFlight, defaultMaxInFlight)
-	conf.AddKnownKey(NonceStateTimeout, defaultNonceStateTimeout)
 	conf.AddKnownKey(Interval, defaultInterval)
 	conf.AddKnownKey(RetryInitDelay, defaultRetryInitDelay)
 	conf.AddKnownKey(RetryMaxDelay, defaultRetryMaxDelay)

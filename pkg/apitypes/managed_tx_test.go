@@ -18,6 +18,7 @@ package apitypes
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -38,4 +39,49 @@ func TestManagedTxNamespace(t *testing.T) {
 	mtx.ID = fftypes.NewNamespacedUUIDString(ctx, "ns1", fftypes.NewUUID())
 	ns = mtx.Namespace(ctx)
 	assert.Equal(t, "ns1", ns)
+}
+
+func TestTxHistoryRecord(t *testing.T) {
+	r := &TXHistoryRecord{
+		ID: fftypes.NewUUID(),
+	}
+	assert.Equal(t, r.ID.String(), r.GetID())
+	t1 := fftypes.Now()
+	r.SetCreated(t1)
+	assert.Equal(t, t1, r.LastOccurrence)
+	r.SetUpdated(fftypes.Now()) //no-op
+}
+
+func TestManagedTX(t *testing.T) {
+	u1 := fftypes.NewUUID()
+	mtx := &ManagedTX{
+		ID: fmt.Sprintf("ns1:%s", u1),
+	}
+	ns, id, err := fftypes.ParseNamespacedUUID(context.Background(), mtx.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, "ns1", ns)
+	assert.Equal(t, u1, id)
+	assert.Equal(t, mtx.ID, mtx.GetID())
+	t1 := fftypes.Now()
+	mtx.SetCreated(t1)
+	assert.Equal(t, t1, mtx.Created)
+	t2 := fftypes.Now()
+	mtx.SetUpdated(t2)
+	assert.Equal(t, t2, mtx.Updated)
+	mtx.SetSequence(12345)
+	assert.Equal(t, "000000012345", mtx.SequenceID)
+}
+
+func TestReceiptRecord(t *testing.T) {
+	u1 := fftypes.NewUUID()
+	r := &ReceiptRecord{
+		TransactionID: fmt.Sprintf("ns1:%s", u1),
+	}
+	assert.Equal(t, r.TransactionID, r.GetID())
+	t1 := fftypes.Now()
+	r.SetCreated(t1)
+	assert.Equal(t, t1, r.Created)
+	t2 := fftypes.Now()
+	r.SetUpdated(t2)
+	assert.Equal(t, t2, r.Updated)
 }

@@ -46,6 +46,14 @@ The framework is currently constrained to blockchains that adhere to certain bas
 4. Has finality for transactions & events that can be expressed as a level of confidence over time
   - Confirmations: A number of sequential blocks in the canonical chain that contain the transaction
 
+## Developer setup
+
+To run the postgres tests, you need to have a local database started as follows:
+
+```bash
+docker run -d --name postgres -e POSTGRES_PASSWORD=f1refly -p 5432:5432 postgres
+```
+
 ## Nonce management in the simple transaction handler
 
 The nonces for transactions is assigned as early as possible in the flow:
@@ -109,6 +117,14 @@ One of the most sophisticated parts of the FireFly Connector Framework is the ha
 > TODO: More detail to back up this diagram.
 
 [![Event Streams](./images/fftm_event_streams_architecture.jpg)](./images/fftm_event_streams_architecture.jpg)
+
+# Persistence
+
+Simple filesystem (LevelDB) or remote database (PostgreSQL) persistence is supported.
+
+The SQL based persistence implementation includes some additional features, including:
+- Flush-writers for transaction persistence, to optimize database commits when writing new transactions in parallel
+- Rich query support on the API
 
 # Configuration
 

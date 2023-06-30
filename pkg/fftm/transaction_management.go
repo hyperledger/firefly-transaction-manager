@@ -28,8 +28,8 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-func (m *manager) getTransactionByID(ctx context.Context, txID string) (transaction *apitypes.ManagedTX, err error) {
-	tx, err := m.persistence.GetTransactionByID(ctx, txID)
+func (m *manager) getTransactionByID(ctx context.Context, txID string) (transaction *apitypes.TXWithStatus, err error) {
+	tx, err := m.persistence.GetTransactionByIDWithStatus(ctx, txID)
 	if err != nil {
 		return nil, err
 	}

@@ -252,3 +252,165 @@ func TestUnmarshalFail(t *testing.T) {
 	assert.Error(t, err)
 
 }
+
+func TestEventStreamCheckpoint(t *testing.T) {
+
+	cp := &EventStreamCheckpoint{
+		StreamID: fftypes.NewUUID(),
+		Listeners: CheckpointListeners{
+			*fftypes.NewUUID(): json.RawMessage([]byte(`{"some":"data"}`)),
+		},
+	}
+	assert.Equal(t, cp.StreamID.String(), cp.GetID())
+	t1 := fftypes.Now()
+	cp.SetCreated(t1)
+	assert.Equal(t, t1, cp.FirstCheckpoint)
+	t2 := fftypes.Now()
+	cp.SetUpdated(t2)
+	assert.Equal(t, t2, cp.Time)
+
+	v, err := cp.Listeners.Value()
+	assert.NoError(t, err)
+
+	cp1 := &EventStreamCheckpoint{}
+	err = cp1.Listeners.Scan(v)
+	assert.NoError(t, err)
+	assert.Equal(t, cp.Listeners, cp1.Listeners)
+
+	cp1 = &EventStreamCheckpoint{}
+	err = cp1.Listeners.Scan(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, cp1.Listeners)
+
+	cp1 = &EventStreamCheckpoint{}
+	err = cp1.Listeners.Scan(12345)
+	assert.Regexp(t, "FF21082", err)
+
+}
+
+func TestConfirmationFromBlock(t *testing.T) {
+
+	bi := &BlockInfo{
+		BlockNumber: fftypes.FFuint64(12345),
+		BlockHash:   "hash1",
+		ParentHash:  "parent1",
+	}
+	c := ConfirmationFromBlock(bi)
+	assert.Equal(t, bi.BlockNumber, c.BlockNumber)
+	assert.Equal(t, bi.BlockHash, c.BlockHash)
+	assert.Equal(t, bi.ParentHash, c.ParentHash)
+
+}
+
+func TestEventStreamFields(t *testing.T) {
+
+	es := &EventStream{
+		ID: fftypes.NewUUID(),
+	}
+	assert.Equal(t, es.ID.String(), es.GetID())
+	t1 := fftypes.Now()
+	es.SetCreated(t1)
+	assert.Equal(t, t1, es.Created)
+	t2 := fftypes.Now()
+	es.SetUpdated(t2)
+	assert.Equal(t, t2, es.Updated)
+}
+
+func TestWebSocketConfigSerialization(t *testing.T) {
+
+	var wc *WebSocketConfig
+	v, err := wc.Value()
+	assert.Nil(t, v)
+	assert.NoError(t, err)
+
+	wc = &WebSocketConfig{
+		DistributionMode: &DistributionModeBroadcast,
+	}
+	v, err = wc.Value()
+	assert.NotNil(t, v)
+	assert.NoError(t, err)
+
+	wc1 := &WebSocketConfig{}
+	err = wc1.Scan(v)
+	assert.NoError(t, err)
+	assert.Equal(t, DistributionModeBroadcast, *wc1.DistributionMode)
+
+	wc2 := &WebSocketConfig{}
+	err = wc2.Scan(string(v.([]byte)))
+	assert.NoError(t, err)
+	assert.Equal(t, DistributionModeBroadcast, *wc1.DistributionMode)
+
+	var wc3 *WebSocketConfig
+	err = wc3.Scan(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, wc3)
+
+}
+
+func TestWebhookConfigSerialization(t *testing.T) {
+
+	var wc *WebhookConfig
+	v, err := wc.Value()
+	assert.Nil(t, v)
+	assert.NoError(t, err)
+
+	u := "http://example.com"
+	wc = &WebhookConfig{
+		URL: &u,
+	}
+	v, err = wc.Value()
+	assert.NotNil(t, v)
+	assert.NoError(t, err)
+
+	wc1 := &WebhookConfig{}
+	err = wc1.Scan(v)
+	assert.NoError(t, err)
+	assert.Equal(t, "http://example.com", *wc1.URL)
+
+	wc2 := &WebhookConfig{}
+	err = wc2.Scan(string(v.([]byte)))
+	assert.NoError(t, err)
+	assert.Equal(t, "http://example.com", *wc1.URL)
+
+	var wc3 *WebhookConfig
+	err = wc3.Scan(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, wc3)
+
+}
+
+func TestListenerFields(t *testing.T) {
+
+	l := &Listener{
+		ID: fftypes.NewUUID(),
+	}
+	assert.Equal(t, l.ID.String(), l.GetID())
+	t1 := fftypes.Now()
+	l.SetCreated(t1)
+	assert.Equal(t, t1, l.Created)
+	t2 := fftypes.Now()
+	l.SetUpdated(t2)
+	assert.Equal(t, t2, l.Updated)
+
+	assert.Empty(t, l.SignatureString())
+	sv := "sig"
+	l.Signature = &sv
+	assert.Equal(t, "sig", l.SignatureString())
+
+	v, err := l.Filters.Value()
+	assert.NoError(t, err)
+	assert.Nil(t, v)
+
+	l.Filters = ListenerFilters{
+		*fftypes.JSONAnyPtr(`{"some":"data"}`),
+	}
+	v, err = l.Filters.Value()
+	assert.NoError(t, err)
+	assert.NotEmpty(t, v, v.([]byte))
+
+	l2 := &Listener{Filters: ListenerFilters{}}
+	err = l2.Filters.Scan(v)
+	assert.NoError(t, err)
+	assert.Equal(t, l.Filters, l2.Filters)
+
+}

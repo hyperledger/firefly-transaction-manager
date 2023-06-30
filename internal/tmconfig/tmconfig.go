@@ -20,6 +20,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffresty"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/postgres"
 	"github.com/spf13/viper"
 )
 
@@ -30,7 +31,10 @@ var (
 	ConfirmationsBlockQueueLength                 = ffc("confirmations.blockQueueLength")
 	ConfirmationsStaleReceiptTimeout              = ffc("confirmations.staleReceiptTimeout")
 	ConfirmationsNotificationQueueLength          = ffc("confirmations.notificationQueueLength")
-	TransactionsMaxHistoryCount                   = ffc("transactions.maxHistoryCount")
+	ConfirmationsReceiptWorkers                   = ffc("confirmations.receiptWorkers")
+	ConfirmationsRetryInitDelay                   = ffc("confirmations.retry.initialDelay")
+	ConfirmationsRetryMaxDelay                    = ffc("confirmations.retry.maxDelay")
+	ConfirmationsRetryFactor                      = ffc("confirmations.retry.factor")
 	EventStreamsDefaultsBatchSize                 = ffc("eventstreams.defaults.batchSize")
 	EventStreamsDefaultsBatchTimeout              = ffc("eventstreams.defaults.batchTimeout")
 	EventStreamsDefaultsErrorHandling             = ffc("eventstreams.defaults.errorHandling")
@@ -50,20 +54,26 @@ var (
 	APIDefaultRequestTimeout                      = ffc("api.defaultRequestTimeout")
 	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
 	APIPassthroughHeaders                         = ffc("api.passthroughHeaders")
+	APISimpleQuery                                = ffc("api.simpleQuery")
 	DebugPort                                     = ffc("debug.port")
 	MetricsEnabled                                = ffc("metrics.enabled")
 	MetricsPath                                   = ffc("metrics.path")
-	TransactionHandlerName                        = ffc("transactions.handler.name")
+	TransactionsHandlerName                       = ffc("transactions.handler.name")
+	TransactionsMaxHistoryCount                   = ffc("transactions.maxHistoryCount")
+	TransactionsNonceStateTimeout                 = ffc("transactions.nonceStateTimeout")
 
 	// Deprecated Configurations for transaction handling
-	DeprecatedTransactionsMaxInFlight       = ffc("transactions.maxInFlight")
-	DeprecatedTransactionsNonceStateTimeout = ffc("transactions.nonceStateTimeout")
-	DeprecatedPolicyLoopInterval            = ffc("policyloop.interval")
-	DeprecatedPolicyLoopRetryInitDelay      = ffc("policyloop.retry.initialDelay")
-	DeprecatedPolicyLoopRetryMaxDelay       = ffc("policyloop.retry.maxDelay")
-	DeprecatedPolicyLoopRetryFactor         = ffc("policyloop.retry.factor")
-	DeprecatedPolicyEngineName              = ffc("policyengine.name")
+	DeprecatedTransactionsMaxInFlight  = ffc("transactions.maxInFlight")
+	DeprecatedPolicyLoopInterval       = ffc("policyloop.interval")
+	DeprecatedPolicyLoopRetryInitDelay = ffc("policyloop.retry.initialDelay")
+	DeprecatedPolicyLoopRetryMaxDelay  = ffc("policyloop.retry.maxDelay")
+	DeprecatedPolicyLoopRetryFactor    = ffc("policyloop.retry.factor")
+	DeprecatedPolicyEngineName         = ffc("policyengine.name")
 )
+
+var PersistenceSection config.Section
+
+var PostgresSection config.Section
 
 var APIConfig config.Section
 
@@ -83,6 +93,10 @@ func setDefaults() {
 	viper.SetDefault(string(ConfirmationsBlockQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsNotificationQueueLength), 50)
 	viper.SetDefault(string(ConfirmationsStaleReceiptTimeout), "1m")
+	viper.SetDefault(string(ConfirmationsReceiptWorkers), 10)
+	viper.SetDefault(string(ConfirmationsRetryInitDelay), "100ms")
+	viper.SetDefault(string(ConfirmationsRetryMaxDelay), "15s")
+	viper.SetDefault(string(ConfirmationsRetryFactor), 2.0)
 
 	viper.SetDefault(string(EventStreamsDefaultsBatchSize), 50)
 	viper.SetDefault(string(EventStreamsDefaultsBatchTimeout), "5s")
@@ -110,10 +124,10 @@ func setDefaults() {
 
 	viper.SetDefault(string(APIPassthroughHeaders), []string{})
 	viper.SetDefault(string(DeprecatedPolicyEngineName), "simple")
+	viper.SetDefault(string(TransactionsNonceStateTimeout), "1h")
 
 	// Deprecated default values for transaction handling configurations
 	viper.SetDefault(string(DeprecatedTransactionsMaxInFlight), 100)
-	viper.SetDefault(string(DeprecatedTransactionsNonceStateTimeout), "1h")
 	viper.SetDefault(string(DeprecatedPolicyLoopInterval), "10s")
 	viper.SetDefault(string(DeprecatedPolicyLoopRetryInitDelay), "250ms")
 	viper.SetDefault(string(DeprecatedPolicyLoopRetryMaxDelay), "30s")
@@ -131,6 +145,10 @@ func Reset() {
 
 	WebhookPrefix = config.RootSection("webhooks")
 	ffresty.InitConfig(WebhookPrefix)
+
+	PersistenceSection = config.RootSection("persistence")
+	PostgresSection = PersistenceSection.SubSection("postgres")
+	postgres.InitConfig(PostgresSection)
 
 	DeprecatedPolicyEngineBaseConfig = config.RootSection("policyengine") // Deprecated! policy engines must be registered outside of this package
 

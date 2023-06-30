@@ -18,6 +18,7 @@ package simple
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -131,7 +132,20 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 		}
 		for _, mtx := range additional {
 			sth.incTransactionOperationCounter(ctx, mtx.Namespace(ctx), "polled")
-			sth.inflight = append(sth.inflight, &pendingState{mtx: mtx})
+			// Note at this point we don't have a receipt, even if one is already stored.
+			// So if this was already submitted, we rely on the transactionHash and go
+			// re-request the receipt.
+			var info simplePolicyInfo
+			_ = json.Unmarshal(mtx.PolicyInfo.Bytes(), &info)
+			inflight := &pendingState{
+				mtx:       mtx,
+				info:      &info,
+				subStatus: apitypes.TxSubStatusTracking,
+			}
+			if mtx.TransactionHash == "" {
+				inflight.subStatus = apitypes.TxSubStatusReceived
+			}
+			sth.inflight = append(sth.inflight, inflight)
 		}
 		newLen := len(sth.inflight)
 		if newLen > 0 {
@@ -202,7 +216,7 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 			}
 			// This transaction was valid, but outside of our in-flight set - we still evaluate the policy engine in-line for it.
 			// This does NOT cause it to be added to the in-flight set
-			pending = &pendingState{mtx: mtx}
+			pending = &pendingState{mtx: mtx, subStatus: apitypes.TxSubStatusReceived}
 		}
 
 		switch request.requestType {
@@ -225,42 +239,85 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 
 }
 
-func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pendingState, syncDeleteRequest bool) (err error) {
+func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context, pending *pendingState, syncDeleteRequest bool) (ctx *RunContext, err error) {
 
-	update := UpdateNo
-	completed := false
-	var receiptProtocolID string
-	var lastStatusChange *fftypes.FFTime
-	currentSubStatus := sth.toolkit.TXHistory.CurrentSubStatus(ctx, pending.mtx)
-
-	if currentSubStatus != nil {
-		lastStatusChange = currentSubStatus.Time
-	}
-
-	// Check whether this has been confirmed by the confirmation manager
+	// Take a snapshot of the pending state under the lock
 	sth.mux.Lock()
 	mtx := pending.mtx
-	if mtx.Receipt != nil {
-		receiptProtocolID = mtx.Receipt.ProtocolID
-	} else {
-		receiptProtocolID = ""
+	ctx = &RunContext{
+		Context:       baseCtx,
+		TX:            mtx,
+		Confirmed:     pending.confirmed,
+		Confirmations: pending.confirmations,
+		Receipt:       pending.receipt,
+		Info:          pending.info,
 	}
-	confirmed := pending.confirmed
+	confirmNotify := pending.confirmNotify
+	receiptNotify := pending.receiptNotify
 	if syncDeleteRequest && mtx.DeleteRequested == nil {
 		mtx.DeleteRequested = fftypes.Now()
+		ctx.UpdateType = Update // might change to delete later
+		ctx.TXUpdates.DeleteRequested = mtx.DeleteRequested
 	}
 	sth.mux.Unlock()
 
-	var updateErr error
-	var updateReason ffcapi.ErrorReason
+	// Process any state updates that were queued to us from notifications from the confirmation manager
+	if receiptNotify != nil {
+		log.L(ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
+		if err := sth.toolkit.TXPersistence.SetTransactionReceipt(ctx, mtx.ID, ctx.Receipt); err != nil {
+			return nil, err
+		}
+		ctx.AddSubStatusAction(apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+ctx.Receipt.ProtocolID+`"}`), nil)
+		sth.incTransactionOperationCounter(ctx, pending.mtx.Namespace(ctx), "received_receipt")
+
+		// Clear the notification (as long as no other came through)
+		sth.mux.Lock()
+		if pending.receiptNotify == receiptNotify {
+			pending.receiptNotify = nil
+		}
+		sth.mux.Unlock()
+	}
+
+	if confirmNotify != nil && ctx.Confirmations != nil {
+		log.L(ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
+		if err := sth.toolkit.TXPersistence.AddTransactionConfirmations(ctx, mtx.ID, ctx.Confirmations.NewFork, ctx.Confirmations.Confirmations...); err != nil {
+			return nil, err
+		}
+		if ctx.Confirmed {
+			ctx.AddSubStatusAction(apitypes.TxActionConfirmTransaction, nil, nil)
+			ctx.SetSubStatus(apitypes.TxSubStatusConfirmed)
+		}
+
+		// Clear the notification (as long as no other came through)
+		sth.mux.Lock()
+		if pending.confirmNotify == confirmNotify {
+			pending.confirmNotify = nil
+		}
+		sth.mux.Unlock()
+	}
+
+	return ctx, nil
+}
+
+func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending *pendingState, syncDeleteRequest bool) (err error) {
+
+	ctx, err := sth.pendingToRunContext(baseCtx, pending, syncDeleteRequest)
+	if err != nil {
+		return nil
+	}
+	mtx := ctx.TX
+
+	completed := false
 	switch {
-	case receiptProtocolID != "" && confirmed && !syncDeleteRequest:
-		update = UpdateYes
+	case ctx.Confirmed && !syncDeleteRequest:
 		completed = true
-		if pending.mtx.Receipt.Success {
+		ctx.UpdateType = Update
+		if ctx.Receipt != nil && ctx.Receipt.Success {
 			mtx.Status = apitypes.TxStatusSucceeded
+			ctx.TXUpdates.Status = &mtx.Status
 		} else {
 			mtx.Status = apitypes.TxStatusFailed
+			ctx.TXUpdates.Status = &mtx.Status
 		}
 
 	default:
@@ -272,41 +329,25 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 			// such as submitting for the first time, or raising the gas etc.
 
-			update, updateReason, updateErr = sth.processTransaction(ctx, pending.mtx)
-			if updateErr != nil {
-				log.L(ctx).Errorf("Policy engine returned error for transaction %s reason=%s: %s", mtx.ID, updateReason, err)
-				update = UpdateYes
+			policyError := sth.processTransaction(ctx)
+			if policyError != nil {
+				log.L(ctx).Errorf("Policy engine returned error for transaction %s: %s", mtx.ID, policyError)
+				ctx.UpdateType = Update
+				errMsg := policyError.Error()
+				// Keep storing the latest error message onto the TX (sub-status updates handled in the processTransaction handler)
+				mtx.ErrorMessage = errMsg
+				ctx.TXUpdates.ErrorMessage = &errMsg
 			} else {
-				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, update, mtx.Status, mtx.TransactionHash)
-				if mtx.FirstSubmit != nil &&
-					pending.trackingTransactionHash != mtx.TransactionHash {
+				log.L(ctx).Debugf("Policy engine executed for tx %s (update=%d,status=%s,hash=%s)", mtx.ID, ctx.UpdateType, mtx.Status, mtx.TransactionHash)
+				if mtx.FirstSubmit != nil && pending.trackingTransactionHash != mtx.TransactionHash {
 
 					if pending.trackingTransactionHash != "" {
 						// if had a previous transaction hash, emit an event to for transaction hash removal
+						eventTX := *mtx
+						eventTX.TransactionHash = pending.trackingTransactionHash // using the previous hash
 						if err = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 							Type: apitypes.ManagedTXTransactionHashRemoved,
-							Tx: &apitypes.ManagedTX{
-								ID:                 mtx.ID,
-								Created:            mtx.Created,
-								Updated:            mtx.Updated,
-								Status:             mtx.Status,
-								DeleteRequested:    mtx.DeleteRequested,
-								SequenceID:         mtx.SequenceID,
-								Nonce:              mtx.Nonce,
-								Gas:                mtx.Gas,
-								TransactionHeaders: mtx.TransactionHeaders,
-								TransactionData:    mtx.TransactionData,
-								TransactionHash:    pending.trackingTransactionHash, // using the previous hash
-								GasPrice:           mtx.GasPrice,
-								PolicyInfo:         mtx.PolicyInfo,
-								FirstSubmit:        mtx.FirstSubmit,
-								LastSubmit:         mtx.LastSubmit,
-								Receipt:            mtx.Receipt,
-								ErrorMessage:       mtx.ErrorMessage,
-								Confirmations:      mtx.Confirmations,
-								History:            mtx.History,
-								HistorySummary:     mtx.HistorySummary,
-							},
+							Tx:   &eventTX,
 						}); err != nil {
 							log.L(ctx).Infof("Error detected notifying confirmation manager to remove old transaction hash: %s", err.Error())
 						}
@@ -330,16 +371,27 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			}
 		}
 	}
+	return sth.flushChanges(ctx, pending, completed)
+}
 
-	if sth.toolkit.TXHistory.CurrentSubStatus(ctx, mtx) != nil {
-		if !sth.toolkit.TXHistory.CurrentSubStatus(ctx, mtx).Time.Equal(lastStatusChange) {
-			update = UpdateYes
+func (sth *simpleTransactionHandler) flushChanges(ctx *RunContext, pending *pendingState, completed bool) (err error) {
+	// flush any sub-status changes
+	pending.subStatus = ctx.SubStatus
+	for _, historyUpdate := range ctx.HistoryUpdates {
+		if err := historyUpdate(sth.toolkit.TXHistory); err != nil {
+			return err
 		}
 	}
+	mtx := ctx.TX
 
-	switch update {
-	case UpdateYes:
-		err := sth.toolkit.TXPersistence.WriteTransaction(ctx, mtx, false)
+	// flush any transaction update
+	switch ctx.UpdateType {
+	case Update:
+		if ctx.UpdatedInfo {
+			infoBytes, _ := json.Marshal(ctx.Info)
+			ctx.TXUpdates.PolicyInfo = fftypes.JSONAnyPtrBytes(infoBytes)
+		}
+		err := sth.toolkit.TXPersistence.UpdateTransaction(ctx, ctx.TX.ID, &ctx.TXUpdates)
 		if err != nil {
 			log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
 			return err
@@ -348,21 +400,24 @@ func (sth *simpleTransactionHandler) execPolicy(ctx context.Context, pending *pe
 			pending.remove = true // for the next time round the loop
 			log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
 			sth.markInflightStale()
+
+			// if and only if the transaction is now resolved dispatch an event to event handler
+			// and discard any handling errors
+			if mtx.Status == apitypes.TxStatusSucceeded {
+				_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+					Type:    apitypes.ManagedTXProcessSucceeded,
+					Tx:      mtx,
+					Receipt: ctx.Receipt,
+				})
+			} else if mtx.Status == apitypes.TxStatusFailed {
+				_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
+					Type:    apitypes.ManagedTXProcessFailed,
+					Tx:      mtx,
+					Receipt: ctx.Receipt,
+				})
+			}
 		}
-		// if and only if the transaction is now resolved dispatch an event to event handler
-		// and discard any handling errors
-		if mtx.Status == apitypes.TxStatusSucceeded {
-			_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
-				Type: apitypes.ManagedTXProcessSucceeded,
-				Tx:   mtx,
-			})
-		} else if mtx.Status == apitypes.TxStatusFailed {
-			_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
-				Type: apitypes.ManagedTXProcessFailed,
-				Tx:   mtx,
-			})
-		}
-	case UpdateDelete:
+	case Delete:
 		err := sth.toolkit.TXPersistence.DeleteTransaction(ctx, mtx.ID)
 		if err != nil {
 			log.L(ctx).Errorf("Failed to delete transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
@@ -398,7 +453,7 @@ func (sth *simpleTransactionHandler) policyEngineAPIRequest(ctx context.Context,
 	}
 }
 
-func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Context, txID string, confirmations []apitypes.BlockInfo) (err error) {
+func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error) {
 	// Will be picked up on the next policy loop cycle
 	var pending *pendingState
 	for _, p := range sth.inflight {
@@ -412,12 +467,11 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmed(ctx context.Cont
 		return
 	}
 	sth.mux.Lock()
-	pending.confirmed = true
-	pending.mtx.Confirmations = confirmations
+	pending.confirmed = notification.Confirmed
+	pending.confirmNotify = fftypes.Now()
+	pending.confirmations = notification
 	sth.mux.Unlock()
-	log.L(ctx).Debugf("Confirmed transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
-	sth.toolkit.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionConfirmTransaction, nil, nil)
-	sth.toolkit.TXHistory.SetSubStatus(ctx, pending.mtx, apitypes.TxSubStatusConfirmed)
+
 	sth.markInflightUpdate()
 	return
 }
@@ -435,13 +489,9 @@ func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx contex
 	}
 	// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 	sth.mux.Lock()
-	pending.mtx.Receipt = receipt
+	pending.receiptNotify = fftypes.Now()
+	pending.receipt = receipt
 	sth.mux.Unlock()
-
-	log.L(ctx).Debugf("Receipt received for transaction %s at nonce %s / %d - hash: %s", pending.mtx.ID, pending.mtx.TransactionHeaders.From, pending.mtx.Nonce.Int64(), pending.mtx.TransactionHash)
-	sth.toolkit.TXHistory.AddSubStatusAction(ctx, pending.mtx, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+receipt.ProtocolID+`"}`), nil)
 	sth.markInflightUpdate()
-
-	sth.incTransactionOperationCounter(ctx, pending.mtx.Namespace(ctx), "received_receipt")
 	return
 }

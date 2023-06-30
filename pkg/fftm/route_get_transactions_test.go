@@ -26,25 +26,27 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func genTestTxn(signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	return &apitypes.ManagedTX{
 		ID:          fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:     fftypes.Now(),
-		Nonce:       fftypes.NewFFBigInt(nonce),
 		Status:      status,
 		FirstSubmit: fftypes.Now(),
 		TransactionHeaders: ffcapi.TransactionHeaders{
-			From: signer,
+			From:  signer,
+			Nonce: fftypes.NewFFBigInt(nonce),
 		},
-		History: []*apitypes.TxHistoryStateTransitionEntry{{Status: apitypes.TxSubStatusReceived, Time: fftypes.Now(), Actions: []*apitypes.TxHistoryActionEntry{}}},
 	}
 }
 
 func newTestTxn(t *testing.T, m *manager, signer string, nonce int64, status apitypes.TxStatus) *apitypes.ManagedTX {
 	tx := genTestTxn(signer, nonce, status)
-	err := m.persistence.WriteTransaction(context.Background(), tx, true)
+	err := m.persistence.InsertTransactionWithNextNonce(context.Background(), tx, func(ctx context.Context, signer string) (uint64, error) {
+		return uint64(nonce), nil
+	})
 	assert.NoError(t, err)
 	return tx
 }
@@ -115,5 +117,24 @@ func TestGetTransactionsError(t *testing.T) {
 	res, err := resty.New().R().
 		Get(url + "/transactions?limit=invalidLimit")
 	assert.Equal(t, 500, res.StatusCode())
+
+}
+
+func TestGetTransactionsRich(t *testing.T) {
+
+	url, _, mrq, done := newTestManagerMockRichDB(t)
+	defer done()
+	t1 := fftypes.NewUUID()
+	mrq.On("ListTransactions", mock.Anything, mock.Anything, mock.Anything).Return(
+		[]*apitypes.ManagedTX{{ID: t1.String()}}, nil, nil,
+	)
+
+	var txs []*apitypes.ManagedTX
+	res, err := resty.New().R().
+		SetResult(&txs).
+		Get(fmt.Sprintf("%s/transactions", url))
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+	assert.Equal(t, t1.String(), txs[0].ID)
 
 }

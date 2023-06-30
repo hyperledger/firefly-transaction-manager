@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
@@ -48,7 +49,7 @@ func strPtr(s string) *string { return &s }
 func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 
 	InitConfig()
-	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
+	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "simple")
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").SubSection(simple.GasOracleConfig).Set(simple.GasOracleMode, simple.GasOracleModeDisabled)
 
@@ -97,6 +98,66 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 		func() {
 			m.Close()
 			os.RemoveAll(dir)
+		}
+}
+
+func newTestManagerMockNoRichDB(t *testing.T) (string, *manager, func()) {
+
+	url := testManagerCommonInit(t, false)
+
+	mca := &ffcapimocks.API{}
+
+	m := newManager(context.Background(), mca)
+
+	mpm := &persistencemocks.Persistence{}
+	mpm.On("Close", mock.Anything).Return(nil)
+	m.persistence = mpm
+	m.richQueryEnabled = false
+	mcm := &confirmationsmocks.Manager{}
+	m.confirmations = mcm
+
+	err := m.initServices(m.ctx)
+	assert.NoError(t, err)
+
+	go m.runAPIServer()
+
+	return url,
+		m,
+		func() {
+			m.Close()
+			mpm.AssertExpectations(t)
+		}
+}
+
+func newTestManagerMockRichDB(t *testing.T) (string, *manager, *persistencemocks.RichQuery, func()) {
+
+	url := testManagerCommonInit(t, false)
+
+	mca := &ffcapimocks.API{}
+
+	m := newManager(context.Background(), mca)
+
+	mpm := &persistencemocks.Persistence{}
+	mpm.On("Close", mock.Anything).Return(nil)
+	mrq := &persistencemocks.RichQuery{}
+	mpm.On("RichQuery").Return(mrq)
+	m.persistence = mpm
+	m.richQueryEnabled = true
+	mcm := &confirmationsmocks.Manager{}
+	m.confirmations = mcm
+
+	err := m.initServices(m.ctx)
+	assert.NoError(t, err)
+
+	go m.runAPIServer()
+
+	return url,
+		m,
+		mrq,
+		func() {
+			m.Close()
+			mpm.AssertExpectations(t)
+			mrq.AssertExpectations(t)
 		}
 }
 
@@ -241,7 +302,7 @@ func TestNewManagerInvalidTransactionHandlerName(t *testing.T) {
 	defer os.RemoveAll(dir)
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
-	config.Set(tmconfig.TransactionHandlerName, "wrong")
+	config.Set(tmconfig.TransactionsHandlerName, "wrong")
 
 	_, err = NewManager(context.Background(), nil)
 	assert.Regexp(t, "FF21070", err)
@@ -268,7 +329,7 @@ func TestNewManagerWithMetrics(t *testing.T) {
 func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 
 	tmconfig.Reset()
-	viper.SetDefault(string(tmconfig.TransactionHandlerName), "simple")
+	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "simple")
 
 	tmconfig.MetricsConfig.Set("enabled", true)
 	tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "::::")
@@ -290,7 +351,7 @@ func TestStartListListenersFail(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamsByCreateTime", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
 
 	err := m.Start()
 	assert.Regexp(t, "pop", err)
@@ -313,7 +374,7 @@ func TestStartBlockListenerFail(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreams", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, nil)
+	mp.On("ListStreamsByCreateTime", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, nil)
 
 	mca := m.connector.(*ffcapimocks.API)
 	mca.On("NewBlockListener", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
@@ -321,4 +382,31 @@ func TestStartBlockListenerFail(t *testing.T) {
 	err := m.Start()
 	assert.Regexp(t, "pop", err)
 
+}
+
+func TestPSQLInitFail(t *testing.T) {
+
+	_ = testManagerCommonInit(t, false)
+	config.Set(tmconfig.PersistenceType, "postgres")
+
+	m := newManager(context.Background(), &ffcapimocks.API{})
+
+	err := m.initPersistence(context.Background())
+	assert.Regexp(t, "FF21049", err)
+}
+
+func TestPSQLInitRichQueryEnabled(t *testing.T) {
+
+	_ = testManagerCommonInit(t, false)
+	config.Set(tmconfig.PersistenceType, "postgres")
+	tmconfig.PostgresSection.Set(dbsql.SQLConfDatasourceURL, "unused")
+
+	m := newManager(context.Background(), &ffcapimocks.API{})
+
+	err := m.initPersistence(context.Background())
+	assert.NoError(t, err)
+	defer m.Close()
+
+	assert.True(t, m.richQueryEnabled)
+	assert.NotNil(t, m.toolkit.RichQuery)
 }
