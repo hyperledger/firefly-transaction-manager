@@ -124,10 +124,10 @@ func setDefaults() {
 
 	viper.SetDefault(string(APIPassthroughHeaders), []string{})
 	viper.SetDefault(string(DeprecatedPolicyEngineName), "simple")
+	viper.SetDefault(string(TransactionsNonceStateTimeout), "1h")
 
 	// Deprecated default values for transaction handling configurations
 	viper.SetDefault(string(DeprecatedTransactionsMaxInFlight), 100)
-	viper.SetDefault(string(TransactionsNonceStateTimeout), "1h")
 	viper.SetDefault(string(DeprecatedPolicyLoopInterval), "10s")
 	viper.SetDefault(string(DeprecatedPolicyLoopRetryInitDelay), "250ms")
 	viper.SetDefault(string(DeprecatedPolicyLoopRetryMaxDelay), "30s")

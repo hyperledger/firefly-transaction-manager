@@ -255,10 +255,7 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 				b.confirmationInserts = append(b.confirmationInserts, op.confirmation)
 			}
 		}
-		if err := tw.executeBatchOps(ctx, b); err != nil {
-			return err
-		}
-		return nil
+		return tw.executeBatchOps(ctx, b)
 	})
 	if err != nil {
 		log.L(ctx).Errorf("Transaction persistence batch failed: %s", err)

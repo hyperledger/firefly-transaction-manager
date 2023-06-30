@@ -59,6 +59,6 @@ func TestGetTransactionConfirmationsNoRichQuery(t *testing.T) {
 		SetError(&errorOut).
 		Get(fmt.Sprintf("%s/transactions/%s/confirmations", url, "tx1"))
 	assert.NoError(t, err)
-	assert.Equal(t, 405, res.StatusCode())
+	assert.Equal(t, 501, res.StatusCode())
 	assert.Regexp(t, "FF21085", errorOut.Error)
 }

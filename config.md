@@ -294,7 +294,7 @@
 |---|-----------|----|-------------|
 |maxHistoryCount|The number of historical status updates to retain in the operation|`int`|`50`
 |maxInFlight|Deprecated: Please use 'transactions.handler.simple.maxInFlight' instead|`int`|`100`
-|nonceStateTimeout|Deprecated: Please use 'transactions.handler.simple.nonceStateTimeout' instead|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1h`
+|nonceStateTimeout|How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1h`
 
 ## transactions.handler
 

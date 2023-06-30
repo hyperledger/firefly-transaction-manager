@@ -11,11 +11,6 @@ linters-settings:
   gosec:
     excludes:
       - G402
-  revive:
-    rules:
-      - name: unused-parameter
-        severity: warning
-        disabled: true  
   goheader:
     values:
       regexp:

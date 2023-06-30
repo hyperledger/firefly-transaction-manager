@@ -47,10 +47,10 @@ var (
 	ConfigConfirmationsStaleReceiptTimeout      = ffc("config.confirmations.staleReceiptTimeout", "Duration after which to force a receipt check for a pending transaction", i18n.TimeDurationType)
 	ConfigConfirmationsReceiptWorkers           = ffc("config.confirmations.receiptWorkers", "Number of workers to use to query in parallel for receipts", i18n.IntType)
 
-	ConfigTransactionsMaxHistoryCount = ffc("config.transactions.maxHistoryCount", "The number of historical status updates to retain in the operation", i18n.IntType)
+	ConfigTransactionsNonceStateTimeout = ffc("config.transactions.nonceStateTimeout", "How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address", i18n.TimeDurationType)
+	ConfigTransactionsMaxHistoryCount   = ffc("config.transactions.maxHistoryCount", "The number of historical status updates to retain in the operation", i18n.IntType)
 
 	DeprecatedConfigTransactionsMaxInflight                  = ffc("config.transactions.maxInFlight", "Deprecated: Please use 'transactions.handler.simple.maxInFlight' instead", i18n.IntType)
-	DeprecatedConfigTransactionsNonceStateTimeout            = ffc("config.transactions.nonceStateTimeout", "Deprecated: Please use 'transactions.handler.simple.nonceStateTimeout' instead", i18n.TimeDurationType)
 	DeprecatedConfigPolicyEngineName                         = ffc("config.policyengine.name", "Deprecated: Please use 'transactions.handler.name' instead", i18n.StringType)
 	DeprecatedConfigLoopInterval                             = ffc("config.policyloop.interval", "Deprecated: Please use 'transactions.handler.simple.interval' instead", i18n.TimeDurationType)
 	DeprecatedConfigPolicyEngineSimpleFixedGasPrice          = ffc("config.policyengine.simple.fixedGasPrice", "Deprecated: Please use 'transactions.handler.simple.fixedGasPrice' instead", "Raw JSON")
@@ -64,10 +64,10 @@ var (
 	DeprecatedConfigLoopRetryInitDelay                       = ffc("config.policyloop.retry.initialDelay", "Deprecated: Please use 'transactions.handler.simple.interval' instead", i18n.TimeDurationType)
 	DeprecatedConfigLoopRetryMaxDelay                        = ffc("config.policyloop.retry.maxDelay", "Deprecated: Please use 'transactions.handler.simple.interval' instead", i18n.TimeDurationType)
 	DeprecatedConfigLoopRetryFactor                          = ffc("config.policyloop.retry.factor", "Deprecated: Please use 'transactions.handler.simple.interval' instead", i18n.TimeDurationType)
+	DeprecatedConfigTXHandlerNonceStateTimeout               = ffc("config.transactions.handler.simple.nonceStateTimeout", "Deprecated: Please use 'transactions.handler.simple.nonceStateTimeout' instead", i18n.TimeDurationType)
 
-	ConfigTXHandlerName              = ffc("config.transactions.handler.name", "The name of the transaction handler to use", i18n.StringType)
-	ConfigTXHandlerMaxInflight       = ffc("config.transactions.handler.simple.maxInFlight", "The maximum number of transactions to have in-flight with the transaction handler / blockchain transaction pool", i18n.IntType)
-	ConfigTXHandlerNonceStateTimeout = ffc("config.transactions.handler.simple.nonceStateTimeout", "How old the most recently submitted transaction record in our local state needs to be, before we make a request to the node to query the next nonce for a signing address", i18n.TimeDurationType)
+	ConfigTXHandlerName        = ffc("config.transactions.handler.name", "The name of the transaction handler to use", i18n.StringType)
+	ConfigTXHandlerMaxInflight = ffc("config.transactions.handler.simple.maxInFlight", "The maximum number of transactions to have in-flight with the transaction handler / blockchain transaction pool", i18n.IntType)
 
 	ConfigTXHandlerSimpleInterval               = ffc("config.transactions.handler.simple.interval", "Interval at which to invoke the transaction handler loop to evaluate outstanding transactions", i18n.TimeDurationType)
 	ConfigTXHandlerSimpleFixedGasPrice          = ffc("config.transactions.handler.simple.fixedGasPrice", "A fixed gasPrice value/structure to pass to the connector", "Raw JSON")
