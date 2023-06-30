@@ -108,3 +108,15 @@ func (m *manager) requestTransactionSuspend(ctx context.Context, txID string) (s
 	return http.StatusAccepted, canceledTx, nil
 
 }
+
+func (m *manager) requestTransactionResume(ctx context.Context, txID string) (status int, transaction *apitypes.ManagedTX, err error) {
+
+	canceledTx, err := m.txHandler.HandleResumeTransaction(ctx, txID)
+
+	if err != nil {
+		return http.StatusInternalServerError, nil, err
+	}
+
+	return http.StatusAccepted, canceledTx, nil
+
+}

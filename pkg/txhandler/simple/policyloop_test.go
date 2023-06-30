@@ -795,7 +795,7 @@ func TestExecPolicyGetTxFail(t *testing.T) {
 	mp.On("GetTransactionByID", sth.ctx, tx.ID).Return(nil, fmt.Errorf("pop"))
 
 	req := &policyEngineAPIRequest{
-		requestType: policyEngineAPIRequestTypeDelete,
+		requestType: ActionDelete,
 		txID:        tx.ID,
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
@@ -830,7 +830,7 @@ func TestExecPolicyDeleteFail(t *testing.T) {
 	mp.On("DeleteTransaction", mock.Anything, tx.ID).Return(fmt.Errorf("pop"))
 
 	req := &policyEngineAPIRequest{
-		requestType: policyEngineAPIRequestTypeDelete,
+		requestType: ActionDelete,
 		txID:        tx.ID,
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
@@ -875,7 +875,7 @@ func TestExecPolicyDeleteInflightSync(t *testing.T) {
 	mp.On("DeleteTransaction", mock.Anything, tx.ID).Return(nil)
 
 	req := &policyEngineAPIRequest{
-		requestType: policyEngineAPIRequestTypeDelete,
+		requestType: ActionDelete,
 		txID:        tx.ID,
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
@@ -924,7 +924,7 @@ func TestExecPolicySuspendInflightSync(t *testing.T) {
 	})).Return(nil)
 
 	req := &policyEngineAPIRequest{
-		requestType: policyEngineAPIRequestTypeSuspend,
+		requestType: ActionSuspend,
 		txID:        tx.ID,
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
@@ -938,6 +938,180 @@ func TestExecPolicySuspendInflightSync(t *testing.T) {
 	assert.True(t, sth.inflight[0].remove)
 
 	mp.AssertExpectations(t)
+
+}
+
+func TestExecPolicyResumeSync(t *testing.T) {
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+	eh := &fftm.ManagedTransactionEventHandler{
+		Ctx:       context.Background(),
+		TxHandler: sth,
+	}
+	mc := &confirmationsmocks.Manager{}
+	mc.On("Notify", mock.Anything).Return(nil)
+	eh.ConfirmationManager = mc
+	mws := &wsmocks.WebSocketServer{}
+	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+	eh.WsServer = mws
+	sth.toolkit.EventHandler = eh
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything).Return(nil)
+	tx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
+	tx.Status = apitypes.TxStatusSuspended
+	mp.On("UpdateTransaction", mock.AnythingOfType("*simple.RunContext"), tx.ID, mock.MatchedBy(func(updates *apitypes.TXUpdates) bool {
+		tx.Status = apitypes.TxStatusPending
+		return updates.Status != nil && *updates.Status == apitypes.TxStatusPending
+	})).Return(nil)
+	mp.On("GetTransactionByID", mock.Anything, tx.ID).Return(tx, nil)
+
+	req := &policyEngineAPIRequest{
+		requestType: ActionResume,
+		txID:        tx.ID,
+		response:    make(chan policyEngineAPIResponse, 1),
+	}
+	sth.policyEngineAPIRequests = append(sth.policyEngineAPIRequests, req)
+
+	sth.processPolicyAPIRequests(sth.ctx)
+
+	res := <-req.response
+	assert.NoError(t, res.err)
+	assert.Equal(t, http.StatusOK, res.status)
+
+	mp.AssertExpectations(t)
+
+}
+
+func TestExecHandleResumeQueuesResumeOk(t *testing.T) {
+
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+
+	result := make(chan error)
+	go func() {
+		_, err := sth.HandleResumeTransaction(sth.ctx, "tx1")
+		result <- err
+	}()
+
+	for len(sth.policyEngineAPIRequests) == 0 {
+		time.Sleep(1 * time.Millisecond)
+	}
+	req := sth.policyEngineAPIRequests[0]
+	assert.Equal(t, ActionResume, req.requestType)
+	req.response <- policyEngineAPIResponse{}
+
+	err = <-result
+	assert.NoError(t, err)
+
+}
+
+func TestExecHandleResumeQueuesSuspendOk(t *testing.T) {
+
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+
+	result := make(chan error)
+	go func() {
+		_, err := sth.HandleSuspendTransaction(sth.ctx, "tx1")
+		result <- err
+	}()
+
+	for len(sth.policyEngineAPIRequests) == 0 {
+		time.Sleep(1 * time.Millisecond)
+	}
+	req := sth.policyEngineAPIRequests[0]
+	assert.Equal(t, ActionSuspend, req.requestType)
+	req.response <- policyEngineAPIResponse{}
+
+	err = <-result
+	assert.NoError(t, err)
+
+}
+
+func TestExecHandleResumeQueuesResumeErr(t *testing.T) {
+
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+
+	result := make(chan error)
+	go func() {
+		_, err := sth.HandleResumeTransaction(sth.ctx, "tx1")
+		result <- err
+	}()
+
+	for len(sth.policyEngineAPIRequests) == 0 {
+		time.Sleep(1 * time.Millisecond)
+	}
+	req := sth.policyEngineAPIRequests[0]
+	assert.Equal(t, ActionResume, req.requestType)
+	req.response <- policyEngineAPIResponse{
+		err: fmt.Errorf("pop"),
+	}
+
+	err = <-result
+	assert.Regexp(t, "pop", err)
+
+}
+
+func TestExecHandleResumeQueuesSuspendErr(t *testing.T) {
+
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+
+	result := make(chan error)
+	go func() {
+		_, err := sth.HandleSuspendTransaction(sth.ctx, "tx1")
+		result <- err
+	}()
+
+	for len(sth.policyEngineAPIRequests) == 0 {
+		time.Sleep(1 * time.Millisecond)
+	}
+	req := sth.policyEngineAPIRequests[0]
+	assert.Equal(t, ActionSuspend, req.requestType)
+	req.response <- policyEngineAPIResponse{
+		err: fmt.Errorf("pop"),
+	}
+
+	err = <-result
+	assert.Regexp(t, "pop", err)
 
 }
 
@@ -1032,7 +1206,7 @@ func TestPendingTransactionGetsRemoved(t *testing.T) {
 
 	// add a delete request
 	req := &policyEngineAPIRequest{
-		requestType: policyEngineAPIRequestTypeDelete,
+		requestType: ActionDelete,
 		txID:        testTxID.String(),
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
@@ -1067,7 +1241,7 @@ func TestExecPolicyDeleteNotFound(t *testing.T) {
 	mp.On("GetTransactionByID", sth.ctx, "bad-id").Return(nil, nil)
 
 	req := &policyEngineAPIRequest{
-		requestType: policyEngineAPIRequestTypeDelete,
+		requestType: ActionDelete,
 		txID:        "bad-id",
 		response:    make(chan policyEngineAPIResponse, 1),
 	}
@@ -1153,7 +1327,7 @@ func TestExecPolicyUpdateNewInfo(t *testing.T) {
 			FirstSubmit: fftypes.Now(),
 		},
 		receipt: &ffcapi.TransactionReceiptResponse{},
-	})
+	}, nil)
 	assert.NoError(t, err)
 
 }

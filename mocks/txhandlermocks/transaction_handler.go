@@ -97,6 +97,58 @@ func (_m *TransactionHandler) HandleNewTransaction(ctx context.Context, txReq *a
 	return r0, r1
 }
 
+// HandleResumeTransaction provides a mock function with given fields: ctx, txID
+func (_m *TransactionHandler) HandleResumeTransaction(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 *apitypes.ManagedTX
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.ManagedTX, error)); ok {
+		return rf(ctx, txID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.ManagedTX); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.ManagedTX)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// HandleSuspendTransaction provides a mock function with given fields: ctx, txID
+func (_m *TransactionHandler) HandleSuspendTransaction(ctx context.Context, txID string) (*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, txID)
+
+	var r0 *apitypes.ManagedTX
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.ManagedTX, error)); ok {
+		return rf(ctx, txID)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.ManagedTX); ok {
+		r0 = rf(ctx, txID)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.ManagedTX)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, txID)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // HandleTransactionConfirmations provides a mock function with given fields: ctx, txID, notification
 func (_m *TransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) error {
 	ret := _m.Called(ctx, txID, notification)

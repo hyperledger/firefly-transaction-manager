@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func TestPostTransactionSuspend(t *testing.T) {
+func TestPostTransactionResume(t *testing.T) {
 
 	url, m, done := newTestManager(t)
 	defer done()
@@ -41,27 +41,27 @@ func TestPostTransactionSuspend(t *testing.T) {
 	res, err := resty.New().R().
 		SetResult(&txOut).
 		SetBody(struct{}{}).
-		Post(fmt.Sprintf("%s/transactions/%s/suspend", url, txID))
+		Post(fmt.Sprintf("%s/transactions/%s/resume", url, txID))
 	assert.NoError(t, err)
 	assert.Equal(t, 202, res.StatusCode())
 	assert.Equal(t, txID, txOut.ID)
 }
 
-func TestPostTransactionSuspendFailed(t *testing.T) {
+func TestPostTransactionResumeFailed(t *testing.T) {
 	url, m, done := newTestManager(t)
 	defer done()
 
 	err := m.Start()
 	assert.NoError(t, err)
 	mth := txhandlermocks.TransactionHandler{}
-	mth.On("HandleSuspendTransaction", mock.Anything, "1234").Return(nil, fmt.Errorf("error")).Once()
+	mth.On("HandleResumeTransaction", mock.Anything, "1234").Return(nil, fmt.Errorf("error")).Once()
 	m.txHandler = &mth
 
 	var txOut *apitypes.ManagedTX
 	res, err := resty.New().R().
 		SetResult(&txOut).
 		SetBody(struct{}{}).
-		Post(fmt.Sprintf("%s/transactions/%s/suspend", url, "1234"))
+		Post(fmt.Sprintf("%s/transactions/%s/resume", url, "1234"))
 	assert.NoError(t, err)
 	assert.Equal(t, 500, res.StatusCode())
 }

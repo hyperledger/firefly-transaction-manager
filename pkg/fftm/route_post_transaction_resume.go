@@ -24,21 +24,21 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var postTransactionSuspend = func(m *manager) *ffapi.Route {
+var postTransactionResume = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:   "postTransactionSuspend",
-		Path:   "/transactions/{transactionId}/suspend",
+		Name:   "postTransactionResume",
+		Path:   "/transactions/{transactionId}/resume",
 		Method: http.MethodPost,
 		PathParams: []*ffapi.PathParam{
 			{Name: "transactionId", Description: tmmsgs.APIParamTransactionID},
 		},
 		QueryParams:     nil,
-		Description:     tmmsgs.APIEndpointPostTransactionSuspend,
+		Description:     tmmsgs.APIEndpointPostTransactionResume,
 		JSONInputValue:  func() interface{} { return &struct{}{} },
 		JSONOutputValue: func() interface{} { return &apitypes.ManagedTX{} },
 		JSONOutputCodes: []int{http.StatusOK, http.StatusAccepted},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			r.SuccessStatus, output, err = m.requestTransactionSuspend(r.Req.Context(), r.PP["transactionId"])
+			r.SuccessStatus, output, err = m.requestTransactionResume(r.Req.Context(), r.PP["transactionId"])
 			return output, err
 		},
 	}
