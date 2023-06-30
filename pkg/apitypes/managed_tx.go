@@ -34,6 +34,8 @@ const (
 	TxStatusSucceeded TxStatus = "Succeeded"
 	// TxStatusFailed happens when an error is reported by the infrastructure runtime
 	TxStatusFailed TxStatus = "Failed"
+	// TxStatusSuspended indicates we are not actively doing any work with this transaction right now, until it's resumed to pending again
+	TxStatusSuspended TxStatus = "Suspended"
 )
 
 // TxSubStatus is an intermediate status a transaction may go through

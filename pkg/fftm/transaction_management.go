@@ -96,3 +96,15 @@ func (m *manager) requestTransactionDeletion(ctx context.Context, txID string) (
 	return http.StatusAccepted, canceledTx, nil
 
 }
+
+func (m *manager) requestTransactionSuspend(ctx context.Context, txID string) (status int, transaction *apitypes.ManagedTX, err error) {
+
+	canceledTx, err := m.txHandler.HandleSuspendTransaction(ctx, txID)
+
+	if err != nil {
+		return http.StatusInternalServerError, nil, err
+	}
+
+	return http.StatusAccepted, canceledTx, nil
+
+}

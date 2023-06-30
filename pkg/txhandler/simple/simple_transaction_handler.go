@@ -66,6 +66,8 @@ type RunContext struct {
 	Receipt       *ffcapi.TransactionReceiptResponse
 	Confirmations *apitypes.ConfirmationsNotification
 	Confirmed     bool
+	Suspending    bool
+	Deleting      bool
 	// Input/output
 	SubStatus apitypes.TxSubStatus
 	Info      *simplePolicyInfo // must be updated in-place and set UpdatedInfo to true as well as UpdateType = Update
@@ -279,6 +281,14 @@ func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Con
 func (sth *simpleTransactionHandler) HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
 	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
 		requestType: policyEngineAPIRequestTypeDelete,
+		txID:        txID,
+	})
+	return res.tx, nil
+}
+
+func (sth *simpleTransactionHandler) HandleSuspendTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
+	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
+		requestType: policyEngineAPIRequestTypeSuspend,
 		txID:        txID,
 	})
 	return res.tx, nil

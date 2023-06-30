@@ -107,6 +107,8 @@ type TransactionHandler interface {
 	HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error)
 	// HandleCancelTransaction - handles event of cancelling a managed transaction
 	HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
+	// HandleSuspendTransaction - handles event of suspending a managed transaction
+	HandleSuspendTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
 
 	// Informational events:
 	// HandleTransactionConfirmations - handles confirmations of blockchain transactions for a managed transaction
