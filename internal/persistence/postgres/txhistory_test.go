@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -35,7 +36,9 @@ func TestTXHistoryCompressionPSQL(t *testing.T) {
 	logrus.SetLevel(logrus.TraceLevel)
 
 	// Do a set of transaction operations through the writers, and confirm the results are correct
-	ctx, p, _, done := initTestPSQL(t)
+	ctx, p, _, done := initTestPSQL(t, func(conf config.Section) {
+		conf.Set(ConfigTXWriterHistoryCompactionInterval, "5m")
+	})
 	defer done()
 
 	// Write an initial transaction
@@ -182,7 +185,9 @@ func TestTXHistoryCompressionPSQL(t *testing.T) {
 }
 
 func TestCompactionFail(t *testing.T) {
-	ctx, p, mdb, done := newMockSQLPersistence(t)
+	ctx, p, mdb, done := newMockSQLPersistence(t, func(dbconf config.Section) {
+		dbconf.Set(ConfigTXWriterHistoryCompactionInterval, "5m")
+	})
 	defer done()
 
 	longAgo := time.Now().Add(-1000 * time.Hour)
@@ -238,7 +243,9 @@ func TestCompactionFail(t *testing.T) {
 }
 
 func TestCompactionOnCacheMiss(t *testing.T) {
-	ctx, p, mdb, done := newMockSQLPersistence(t)
+	ctx, p, mdb, done := newMockSQLPersistence(t, func(dbconf config.Section) {
+		dbconf.Set(ConfigTXWriterHistoryCompactionInterval, "5m")
+	})
 	defer done()
 
 	b := &transactionWriterBatch{
