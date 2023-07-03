@@ -114,8 +114,8 @@ func TestTXHistoryCompressionPSQL(t *testing.T) {
 		if h.LastError != nil {
 			assert.NotNil(t, h.LastErrorTime)
 		}
-		assert.NotZero(t, h.Count)
-		if h.Count == 1 {
+		assert.NotZero(t, h.OccurrenceCount)
+		if h.OccurrenceCount == 1 {
 			assert.Equal(t, h.LastOccurrence.String(), h.Time.String())
 		} else {
 			assert.GreaterOrEqual(t, *h.LastOccurrence.Time(), *h.Time.Time())
@@ -130,54 +130,54 @@ func TestTXHistoryCompressionPSQL(t *testing.T) {
 			TransactionID: txID,
 			SubStatus:     apitypes.TxSubStatusConfirmed,
 			TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
-				Action:   apitypes.TxActionConfirmTransaction,
-				Count:    1,
-				LastInfo: fftypes.JSONAnyPtr(`{"confirmed":true}`),
+				Action:          apitypes.TxActionConfirmTransaction,
+				OccurrenceCount: 1,
+				LastInfo:        fftypes.JSONAnyPtr(`{"confirmed":true}`),
 			},
 		},
 		{
 			TransactionID: txID,
 			SubStatus:     apitypes.TxSubStatusTracking,
 			TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
-				Action:    apitypes.TxActionTimeout,
-				Count:     2,
-				LastError: fftypes.JSONAnyPtr(`"some error 555"`),
+				Action:          apitypes.TxActionTimeout,
+				OccurrenceCount: 2,
+				LastError:       fftypes.JSONAnyPtr(`"some error 555"`),
 			},
 		},
 		{
 			TransactionID: txID,
 			SubStatus:     apitypes.TxSubStatusTracking,
 			TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
-				Action:   apitypes.TxActionReceiveReceipt,
-				Count:    3,
-				LastInfo: fftypes.JSONAnyPtr(`{"transactionHash":"0x333333","blockNumber":"33333"}`),
+				Action:          apitypes.TxActionReceiveReceipt,
+				OccurrenceCount: 3,
+				LastInfo:        fftypes.JSONAnyPtr(`{"transactionHash":"0x333333","blockNumber":"33333"}`),
 			},
 		},
 		{
 			TransactionID: txID,
 			SubStatus:     apitypes.TxSubStatusTracking,
 			TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
-				Action:   apitypes.TxActionSubmitTransaction,
-				Count:    1,
-				LastInfo: fftypes.JSONAnyPtr(`{"transactionHash":"0x12345"}`),
+				Action:          apitypes.TxActionSubmitTransaction,
+				OccurrenceCount: 1,
+				LastInfo:        fftypes.JSONAnyPtr(`{"transactionHash":"0x12345"}`),
 			},
 		},
 		{
 			TransactionID: txID,
 			SubStatus:     apitypes.TxSubStatusReceived,
 			TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
-				Action:    apitypes.TxActionSubmitTransaction,
-				Count:     3,
-				LastError: fftypes.JSONAnyPtr(`"failed to submit 333"`),
+				Action:          apitypes.TxActionSubmitTransaction,
+				OccurrenceCount: 3,
+				LastError:       fftypes.JSONAnyPtr(`"failed to submit 333"`),
 			},
 		},
 		{
 			TransactionID: txID,
 			SubStatus:     apitypes.TxSubStatusReceived,
 			TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
-				Action:   apitypes.TxActionAssignNonce,
-				Count:    1,
-				LastInfo: fftypes.JSONAnyPtr(`{"nonce":"11111"}`),
+				Action:          apitypes.TxActionAssignNonce,
+				OccurrenceCount: 1,
+				LastInfo:        fftypes.JSONAnyPtr(`{"nonce":"11111"}`),
 			},
 		},
 	}, history)

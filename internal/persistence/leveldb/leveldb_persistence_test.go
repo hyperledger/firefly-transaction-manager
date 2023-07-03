@@ -933,7 +933,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(txh.History[0].Actions))
 	assert.Equal(t, txh.History[0].Actions[1].Action, apitypes.TxActionRetrieveGasPrice)
-	assert.Equal(t, 2, txh.History[0].Actions[1].Count)
+	assert.Equal(t, 2, txh.History[0].Actions[1].OccurrenceCount)
 
 	// Add the same action but with new error information should update the last error field
 	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=67890"}`))
@@ -952,7 +952,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(txh.History[0].Actions))
 	assert.Equal(t, txh.History[0].Actions[2].Action, apitypes.TxActionSubmitTransaction)
-	assert.Equal(t, 1, txh.History[0].Actions[2].Count)
+	assert.Equal(t, 1, txh.History[0].Actions[2].OccurrenceCount)
 	assert.Nil(t, txh.History[0].Actions[2].LastErrorTime)
 
 	// Add one more type of action
@@ -964,7 +964,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 4, len(txh.History[0].Actions))
 	assert.Equal(t, txh.History[0].Actions[3].Action, apitypes.TxActionReceiveReceipt)
-	assert.Equal(t, 1, txh.History[0].Actions[3].Count)
+	assert.Equal(t, 1, txh.History[0].Actions[3].OccurrenceCount)
 	assert.Nil(t, txh.History[0].Actions[3].LastErrorTime)
 
 	// History is the complete list of unique sub-status types and actions

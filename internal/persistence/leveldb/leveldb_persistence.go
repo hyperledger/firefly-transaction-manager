@@ -721,7 +721,7 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 	for _, entry := range currentSubStatus.Actions {
 		if entry.Action == action {
 			alreadyRecordedAction = true
-			entry.Count++
+			entry.OccurrenceCount++
 			entry.LastOccurrence = fftypes.Now()
 
 			if errInfo != nil {
@@ -739,10 +739,10 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 	if !alreadyRecordedAction {
 		// If this is an entirely new action for this status entry, add it to the list
 		newAction := &apitypes.TxHistoryActionEntry{
-			Time:           fftypes.Now(),
-			Action:         action,
-			LastOccurrence: fftypes.Now(),
-			Count:          1,
+			Time:            fftypes.Now(),
+			Action:          action,
+			LastOccurrence:  fftypes.Now(),
+			OccurrenceCount: 1,
 		}
 
 		if errInfo != nil {

@@ -99,13 +99,13 @@ const (
 // when they occur multiple times. So if we are retrying the same set of actions over and over
 // again the list of actions does not grow.
 type TxHistoryActionEntry struct {
-	Time           *fftypes.FFTime  `json:"time"`
-	Action         TxAction         `json:"action"`
-	LastOccurrence *fftypes.FFTime  `json:"lastOccurrence,omitempty"`
-	Count          int              `json:"count"`
-	LastError      *fftypes.JSONAny `json:"lastError,omitempty"`
-	LastErrorTime  *fftypes.FFTime  `json:"lastErrorTime,omitempty"`
-	LastInfo       *fftypes.JSONAny `json:"lastInfo,omitempty"`
+	Time            *fftypes.FFTime  `json:"time"`
+	Action          TxAction         `json:"action"`
+	LastOccurrence  *fftypes.FFTime  `json:"lastOccurrence,omitempty"`
+	OccurrenceCount int              `json:"count"` // serialized as count for historical reasons
+	LastError       *fftypes.JSONAny `json:"lastError,omitempty"`
+	LastErrorTime   *fftypes.FFTime  `json:"lastErrorTime,omitempty"`
+	LastInfo        *fftypes.JSONAny `json:"lastInfo,omitempty"`
 }
 
 // TXHistoryRecord are the sequential persisted records, which might be state transitions, or actions within the current state.
