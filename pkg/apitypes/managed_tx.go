@@ -123,7 +123,7 @@ func (r *TXHistoryRecord) SetCreated(t *fftypes.FFTime) {
 	r.LastOccurrence = t
 }
 
-func (r *TXHistoryRecord) SetUpdated(t *fftypes.FFTime) {}
+func (r *TXHistoryRecord) SetUpdated(_ *fftypes.FFTime) {}
 
 // ManagedTX is the structure stored for each new transaction request, using the external ID of the operation
 //
