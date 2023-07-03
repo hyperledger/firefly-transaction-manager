@@ -453,17 +453,17 @@ func (sth *simpleTransactionHandler) policyEngineAPIRequest(ctx context.Context,
 	}
 }
 
-func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.Context, tx *apitypes.ManagedTX, notification *apitypes.ConfirmationsNotification) (err error) {
+func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error) {
 	// Will be picked up on the next policy loop cycle
 	var pending *pendingState
 	for _, p := range sth.inflight {
-		if p.mtx.ID == tx.ID {
+		if p.mtx.ID == txID {
 			pending = p
 			break
 		}
 	}
 	if pending == nil {
-		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, tx.ID)
+		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 		return
 	}
 	sth.mux.Lock()
@@ -475,16 +475,16 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 	sth.markInflightUpdate()
 	return
 }
-func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, tx *apitypes.ManagedTX, receipt *ffcapi.TransactionReceiptResponse) (err error) {
+func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error) {
 	var pending *pendingState
 	for _, p := range sth.inflight {
-		if p.mtx.ID == tx.ID {
+		if p.mtx.ID == txID {
 			pending = p
 			break
 		}
 	}
 	if pending == nil {
-		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, tx.ID)
+		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 		return
 	}
 	// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed

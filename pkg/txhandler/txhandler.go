@@ -110,7 +110,7 @@ type TransactionHandler interface {
 
 	// Informational events:
 	// HandleTransactionConfirmations - handles confirmations of blockchain transactions for a managed transaction
-	HandleTransactionConfirmations(ctx context.Context, mtx *apitypes.ManagedTX, notification *apitypes.ConfirmationsNotification) (err error)
+	HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error)
 	// HandleTransactionReceiptReceived - handles receipt of blockchain transactions for a managed transaction
-	HandleTransactionReceiptReceived(ctx context.Context, mtx *apitypes.ManagedTX, receipt *ffcapi.TransactionReceiptResponse) (err error)
+	HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
 }
