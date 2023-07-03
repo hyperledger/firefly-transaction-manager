@@ -25,7 +25,6 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/sirupsen/logrus"
@@ -106,7 +105,8 @@ func TestTXHistoryCompressionPSQL(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Get the history
-	history, _, err := p.ListTransactionHistory(ctx, txID, persistence.TXHistoryFilters.NewFilter(ctx).And())
+	fb := p.NewTxHistoryFilter(ctx)
+	history, _, err := p.ListTransactionHistory(ctx, txID, fb.And())
 	assert.NoError(t, err)
 	// Time strip the history for compare
 	for _, h := range history {

@@ -114,6 +114,10 @@ func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.Ma
 	return collection
 }
 
+func (p *sqlPersistence) NewTransactionFilter(ctx context.Context) ffapi.FilterBuilder {
+	return persistence.TransactionFilters.NewFilter(ctx)
+}
+
 func (p *sqlPersistence) ListTransactions(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error) {
 	return p.transactions.GetMany(ctx, filter)
 }

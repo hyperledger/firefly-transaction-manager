@@ -157,7 +157,7 @@ func TestEventStreamAfterPaginatePSQL(t *testing.T) {
 	assert.Regexp(t, "FF00164", err)
 
 	// Find just one
-	fb := persistence.EventStreamFilters.NewFilter(ctx)
+	fb := p.NewStreamFilter(ctx)
 	list4, _, err := p.ListStreams(ctx, fb.And(fb.Eq("name", *eventStreams[15].Name)))
 	assert.NoError(t, err)
 	assert.Len(t, list4, 1)

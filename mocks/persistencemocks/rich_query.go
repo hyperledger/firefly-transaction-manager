@@ -229,6 +229,86 @@ func (_m *RichQuery) ListTransactions(ctx context.Context, filter ffapi.AndFilte
 	return r0, r1, r2
 }
 
+// NewConfirmationFilter provides a mock function with given fields: ctx
+func (_m *RichQuery) NewConfirmationFilter(ctx context.Context) ffapi.FilterBuilder {
+	ret := _m.Called(ctx)
+
+	var r0 ffapi.FilterBuilder
+	if rf, ok := ret.Get(0).(func(context.Context) ffapi.FilterBuilder); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(ffapi.FilterBuilder)
+		}
+	}
+
+	return r0
+}
+
+// NewListenerFilter provides a mock function with given fields: ctx
+func (_m *RichQuery) NewListenerFilter(ctx context.Context) ffapi.FilterBuilder {
+	ret := _m.Called(ctx)
+
+	var r0 ffapi.FilterBuilder
+	if rf, ok := ret.Get(0).(func(context.Context) ffapi.FilterBuilder); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(ffapi.FilterBuilder)
+		}
+	}
+
+	return r0
+}
+
+// NewStreamFilter provides a mock function with given fields: ctx
+func (_m *RichQuery) NewStreamFilter(ctx context.Context) ffapi.FilterBuilder {
+	ret := _m.Called(ctx)
+
+	var r0 ffapi.FilterBuilder
+	if rf, ok := ret.Get(0).(func(context.Context) ffapi.FilterBuilder); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(ffapi.FilterBuilder)
+		}
+	}
+
+	return r0
+}
+
+// NewTransactionFilter provides a mock function with given fields: ctx
+func (_m *RichQuery) NewTransactionFilter(ctx context.Context) ffapi.FilterBuilder {
+	ret := _m.Called(ctx)
+
+	var r0 ffapi.FilterBuilder
+	if rf, ok := ret.Get(0).(func(context.Context) ffapi.FilterBuilder); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(ffapi.FilterBuilder)
+		}
+	}
+
+	return r0
+}
+
+// NewTxHistoryFilter provides a mock function with given fields: ctx
+func (_m *RichQuery) NewTxHistoryFilter(ctx context.Context) ffapi.FilterBuilder {
+	ret := _m.Called(ctx)
+
+	var r0 ffapi.FilterBuilder
+	if rf, ok := ret.Get(0).(func(context.Context) ffapi.FilterBuilder); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(ffapi.FilterBuilder)
+		}
+	}
+
+	return r0
+}
+
 type mockConstructorTestingTNewRichQuery interface {
 	mock.TestingT
 	Cleanup(func())

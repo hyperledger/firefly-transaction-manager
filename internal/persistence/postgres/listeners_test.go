@@ -159,14 +159,14 @@ func TestListenerAfterPaginatePSQL(t *testing.T) {
 	assert.Regexp(t, "FF00164", err)
 
 	// Find just one
-	fb := persistence.ListenerFilters.NewFilter(ctx)
+	fb := p.NewListenerFilter(ctx)
 	list4, _, err := p.ListListeners(ctx, fb.And(fb.Eq("name", *listeners[15].Name)))
 	assert.NoError(t, err)
 	assert.Len(t, list4, 1)
 	assert.Equal(t, *listeners[15].Name, *list4[0].Name)
 
 	// Check search is scoped
-	fb = persistence.ListenerFilters.NewFilter(ctx)
+	fb = p.NewListenerFilter(ctx)
 	list5, _, err := p.ListStreamListeners(ctx, stream1, fb.And(fb.Eq("name", *listeners[15].Name)))
 	assert.NoError(t, err)
 	assert.Empty(t, list5)

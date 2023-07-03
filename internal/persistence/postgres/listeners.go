@@ -76,6 +76,10 @@ func (p *sqlPersistence) newListenersCollection() *dbsql.CrudBase[*apitypes.List
 	return collection
 }
 
+func (p *sqlPersistence) NewListenerFilter(ctx context.Context) ffapi.FilterBuilder {
+	return persistence.ListenerFilters.NewFilter(ctx)
+}
+
 func (p *sqlPersistence) ListListeners(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
 	return p.listeners.GetMany(ctx, filter)
 }
