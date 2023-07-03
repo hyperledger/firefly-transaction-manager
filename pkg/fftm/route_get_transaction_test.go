@@ -46,6 +46,27 @@ func TestGetTransaction(t *testing.T) {
 
 }
 
+func TestGetTransactionNoStatus(t *testing.T) {
+
+	url, m, done := newTestManager(t)
+	defer done()
+	err := m.Start()
+	assert.NoError(t, err)
+
+	txIn := newTestTxn(t, m, "0xaaaaa", 10001, apitypes.TxStatusSucceeded)
+
+	var txOut *apitypes.ManagedTX
+	res, err := resty.New().R().
+		SetResult(&txOut).
+		Get(fmt.Sprintf("%s/transactions/%s?nostatus", url, txIn.ID))
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+	assert.NotNil(t, txOut.DeprecatedTransactionHeaders.From) // migration compatibility when using LevelDB
+	txOut.DeprecatedTransactionHeaders = nil
+	assert.Equal(t, *txIn, *txOut)
+
+}
+
 func TestGetTransactionError(t *testing.T) {
 
 	url, m, done := newTestManager(t)

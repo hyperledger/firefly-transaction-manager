@@ -133,7 +133,7 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Get back the merged object to check everything
-	mtx, err := p.GetTransactionByIDWithStatus(ctx, txID)
+	mtx, err := p.GetTransactionByIDWithStatus(ctx, txID, true)
 	assert.NoError(t, err)
 	assert.NotEqual(t, tx.Updated.String(), mtx.Updated.String())
 
@@ -168,13 +168,13 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 				Time:   mtx.History[0].Time,
 				Actions: []*apitypes.TxHistoryActionEntry{ // newest first
 					{
-						Action:         apitypes.TxActionSubmitTransaction,
-						Time:           mtx.History[0].Actions[0].Time,
-						LastOccurrence: mtx.History[0].Actions[0].LastOccurrence,
-						Count:          1,
-						LastInfo:       fftypes.JSONAnyPtr(`{"txhash":"0x12345"}`),
-						LastError:      nil,
-						LastErrorTime:  nil,
+						Action:          apitypes.TxActionSubmitTransaction,
+						Time:            mtx.History[0].Actions[0].Time,
+						LastOccurrence:  mtx.History[0].Actions[0].LastOccurrence,
+						OccurrenceCount: 1,
+						LastInfo:        fftypes.JSONAnyPtr(`{"txhash":"0x12345"}`),
+						LastError:       nil,
+						LastErrorTime:   nil,
 					},
 				},
 			},
@@ -183,22 +183,22 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 				Time:   mtx.History[1].Time,
 				Actions: []*apitypes.TxHistoryActionEntry{ // newest first
 					{
-						Action:         apitypes.TxActionSubmitTransaction,
-						Time:           mtx.History[1].Actions[0].Time,
-						LastOccurrence: mtx.History[1].Actions[0].LastOccurrence,
-						Count:          2,
-						LastInfo:       nil,
-						LastError:      fftypes.JSONAnyPtr(`"failed to submit 2"`),
-						LastErrorTime:  mtx.History[1].Actions[0].LastErrorTime,
+						Action:          apitypes.TxActionSubmitTransaction,
+						Time:            mtx.History[1].Actions[0].Time,
+						LastOccurrence:  mtx.History[1].Actions[0].LastOccurrence,
+						OccurrenceCount: 2,
+						LastInfo:        nil,
+						LastError:       fftypes.JSONAnyPtr(`"failed to submit 2"`),
+						LastErrorTime:   mtx.History[1].Actions[0].LastErrorTime,
 					},
 					{
-						Action:         apitypes.TxActionAssignNonce,
-						Time:           mtx.History[1].Actions[1].Time,
-						LastOccurrence: mtx.History[1].Actions[1].LastOccurrence,
-						Count:          1,
-						LastInfo:       fftypes.JSONAnyPtr(`{"nonce":"11111"}`),
-						LastError:      nil,
-						LastErrorTime:  nil,
+						Action:          apitypes.TxActionAssignNonce,
+						Time:            mtx.History[1].Actions[1].Time,
+						LastOccurrence:  mtx.History[1].Actions[1].LastOccurrence,
+						OccurrenceCount: 1,
+						LastInfo:        fftypes.JSONAnyPtr(`{"nonce":"11111"}`),
+						LastError:       nil,
+						LastErrorTime:   nil,
 					},
 				},
 			},
@@ -495,7 +495,7 @@ func TestGetTransactionByIDWithStatusHistorySummaryFail(t *testing.T) {
 	)
 	mdb.ExpectQuery("SELECT.*txhistory").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1", true)
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
@@ -511,7 +511,7 @@ func TestGetTransactionByIDWithStatusConfirmationsFail(t *testing.T) {
 	)
 	mdb.ExpectQuery("SELECT.*confirmations").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1", true)
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
@@ -524,7 +524,7 @@ func TestGetTransactionByIDWithStatusReceiptFail(t *testing.T) {
 	mdb.ExpectQuery("SELECT.*transactions").WillReturnRows(newTXRow(p))
 	mdb.ExpectQuery("SELECT.*receipts").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1", true)
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
@@ -536,7 +536,7 @@ func TestGetTransactionByIDTXFail(t *testing.T) {
 
 	mdb.ExpectQuery("SELECT.*transactions").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1", true)
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())

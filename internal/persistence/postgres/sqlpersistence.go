@@ -62,7 +62,7 @@ func InitConfig(conf config.Section) {
 
 	conf.AddKnownKey(ConfigTXWriterCacheSlots, 1000)
 	conf.AddKnownKey(ConfigTXWriterHistorySummaryLimit, 50) // returned on TX status
-	conf.AddKnownKey(ConfigTXWriterHistoryCompactionInterval, "5m")
+	conf.AddKnownKey(ConfigTXWriterHistoryCompactionInterval, "0" /* disabled by default */)
 	conf.AddKnownKey(ConfigTXWriterCount, 5)
 	conf.AddKnownKey(ConfigTXWriterBatchTimeout, "10ms")
 	conf.AddKnownKey(ConfigTXWriterBatchSize, 100)

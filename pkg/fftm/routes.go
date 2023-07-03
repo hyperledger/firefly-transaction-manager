@@ -51,5 +51,7 @@ func (m *manager) routes() []*ffapi.Route {
 		postSubscriptions(m),
 		getAddressBalance(m),
 		getGasPrice(m),
+		postTransactionSuspend(m),
+		postTransactionResume(m),
 	}
 }

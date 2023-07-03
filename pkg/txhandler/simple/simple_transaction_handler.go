@@ -66,6 +66,7 @@ type RunContext struct {
 	Receipt       *ffcapi.TransactionReceiptResponse
 	Confirmations *apitypes.ConfirmationsNotification
 	Confirmed     bool
+	SyncAction    policyEngineAPIRequestType
 	// Input/output
 	SubStatus apitypes.TxSubStatus
 	Info      *simplePolicyInfo // must be updated in-place and set UpdatedInfo to true as well as UpdateType = Update
@@ -278,10 +279,26 @@ func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Con
 
 func (sth *simpleTransactionHandler) HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
 	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
-		requestType: policyEngineAPIRequestTypeDelete,
+		requestType: ActionDelete,
 		txID:        txID,
 	})
-	return res.tx, nil
+	return res.tx, res.err
+}
+
+func (sth *simpleTransactionHandler) HandleSuspendTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
+	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
+		requestType: ActionSuspend,
+		txID:        txID,
+	})
+	return res.tx, res.err
+}
+
+func (sth *simpleTransactionHandler) HandleResumeTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
+	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
+		requestType: ActionResume,
+		txID:        txID,
+	})
+	return res.tx, res.err
 }
 
 func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) (*apitypes.ManagedTX, error) {

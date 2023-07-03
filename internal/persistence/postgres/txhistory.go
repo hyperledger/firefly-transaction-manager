@@ -51,6 +51,7 @@ func (p *sqlPersistence) newTXHistoryCollection() *dbsql.CrudBase[*apitypes.TXHi
 			"lasterror":      "error",
 			"lasterrortime":  "error_time",
 			"lastinfo":       "info",
+			"occurrences":    "count",
 		},
 		PatchDisabled: true,
 		TimesDisabled: true,
@@ -67,7 +68,7 @@ func (p *sqlPersistence) newTXHistoryCollection() *dbsql.CrudBase[*apitypes.TXHi
 			case "action":
 				return &inst.Action
 			case "count":
-				return &inst.Count
+				return &inst.OccurrenceCount
 			case "time":
 				return &inst.Time
 			case "last_occurrence":
@@ -99,12 +100,12 @@ func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, su
 		TransactionID: txID,
 		SubStatus:     subStatus,
 		TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
-			Count:          1,
-			Time:           now,
-			LastOccurrence: now,
-			Action:         action,
-			LastInfo:       persistence.JSONOrString(info),    // guard against bad JSON
-			LastError:      persistence.JSONOrString(errInfo), // guard against bad JSON
+			OccurrenceCount: 1,
+			Time:            now,
+			LastOccurrence:  now,
+			Action:          action,
+			LastInfo:        persistence.JSONOrString(info),    // guard against bad JSON
+			LastError:       persistence.JSONOrString(errInfo), // guard against bad JSON
 		},
 	}
 	if errInfo != nil {
@@ -117,8 +118,8 @@ func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, su
 func (p *sqlPersistence) compressHistory(ctx context.Context, txID string) error {
 	result, err := p.buildHistorySummary(ctx, txID, false, 0, func(from, to *apitypes.TXHistoryRecord) error {
 		update := persistence.TXHistoryFilters.NewUpdate(ctx).
-			Set("count", to.Count+1). // increment the count
-			Set("time", from.Time)    // move the time on the newer record to be the time of the older record merged in
+			Set("occurrences", to.OccurrenceCount+1). // increment the count
+			Set("time", from.Time)                    // move the time on the newer record to be the time of the older record merged in
 		if err := p.txHistory.Update(ctx, to.ID.String(), update); err != nil {
 			return err
 		}
@@ -170,13 +171,13 @@ func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, b
 				// Actions are also in descending order
 				if buildResult {
 					actionEntry := &apitypes.TxHistoryActionEntry{
-						Time:           h.Time,
-						LastOccurrence: h.LastOccurrence,
-						Action:         h.Action,
-						Count:          h.Count,
-						LastInfo:       h.LastInfo,
-						LastError:      h.LastError,
-						LastErrorTime:  h.LastErrorTime,
+						Time:            h.Time,
+						LastOccurrence:  h.LastOccurrence,
+						Action:          h.Action,
+						OccurrenceCount: h.OccurrenceCount,
+						LastInfo:        h.LastInfo,
+						LastError:       h.LastError,
+						LastErrorTime:   h.LastErrorTime,
 					}
 					statusEntry := r.entries[len(r.entries)-1]
 					statusEntry.Actions = append(statusEntry.Actions, actionEntry)
@@ -193,11 +194,11 @@ func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, b
 						return nil, err
 					}
 				}
-				lastRecordSameSubStatus.Count++
+				lastRecordSameSubStatus.OccurrenceCount++
 				if buildResult {
 					statusEntry := r.entries[len(r.entries)-1]
 					actionEntry := statusEntry.Actions[len(statusEntry.Actions)-1]
-					actionEntry.Count++
+					actionEntry.OccurrenceCount++
 					actionEntry.Time = h.Time
 				}
 			}
