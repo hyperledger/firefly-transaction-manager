@@ -133,7 +133,7 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Get back the merged object to check everything
-	mtx, err := p.GetTransactionByIDWithStatus(ctx, txID)
+	mtx, err := p.GetTransactionByIDWithStatus(ctx, txID, true)
 	assert.NoError(t, err)
 	assert.NotEqual(t, tx.Updated.String(), mtx.Updated.String())
 
@@ -495,7 +495,7 @@ func TestGetTransactionByIDWithStatusHistorySummaryFail(t *testing.T) {
 	)
 	mdb.ExpectQuery("SELECT.*txhistory").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1", true)
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
@@ -511,7 +511,7 @@ func TestGetTransactionByIDWithStatusConfirmationsFail(t *testing.T) {
 	)
 	mdb.ExpectQuery("SELECT.*confirmations").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1", true)
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
@@ -524,7 +524,7 @@ func TestGetTransactionByIDWithStatusReceiptFail(t *testing.T) {
 	mdb.ExpectQuery("SELECT.*transactions").WillReturnRows(newTXRow(p))
 	mdb.ExpectQuery("SELECT.*receipts").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1", true)
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
@@ -536,7 +536,7 @@ func TestGetTransactionByIDTXFail(t *testing.T) {
 
 	mdb.ExpectQuery("SELECT.*transactions").WillReturnError(fmt.Errorf("pop"))
 
-	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1")
+	_, err := p.GetTransactionByIDWithStatus(ctx, "tx1", true)
 	assert.Regexp(t, "FF00176", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())

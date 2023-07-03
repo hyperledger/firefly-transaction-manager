@@ -34,17 +34,14 @@ var getTransaction = func(m *manager) *ffapi.Route {
 			{Name: "transactionId", Description: tmmsgs.APIParamTransactionID},
 		},
 		QueryParams: []*ffapi.QueryParam{
-			{Name: "nostatus", Description: tmmsgs.APIParamNoStatus, IsBool: true},
+			{Name: "history", Description: tmmsgs.APIParamHistory, IsBool: true},
 		},
 		Description:     tmmsgs.APIEndpointGetTransaction,
 		JSONInputValue:  nil,
 		JSONOutputValue: func() interface{} { return &apitypes.TXWithStatus{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			if strings.EqualFold(r.QP["nostatus"], "true") {
-				return m.getTransactionByIDPlain(r.Req.Context(), r.PP["transactionId"])
-			}
-			return m.getTransactionByIDWithStatus(r.Req.Context(), r.PP["transactionId"])
+			return m.getTransactionByIDWithStatus(r.Req.Context(), r.PP["transactionId"], strings.EqualFold(r.QP["history"], "true"))
 		},
 	}
 }

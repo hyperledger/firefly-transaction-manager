@@ -176,7 +176,7 @@ func (p *sqlPersistence) GetTransactionByID(ctx context.Context, txID string) (*
 	return p.transactions.GetByID(ctx, txID)
 }
 
-func (p *sqlPersistence) GetTransactionByIDWithStatus(ctx context.Context, txID string) (*apitypes.TXWithStatus, error) {
+func (p *sqlPersistence) GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (*apitypes.TXWithStatus, error) {
 	tx, err := p.transactions.GetByID(ctx, txID)
 	if tx == nil || err != nil {
 		return nil, err
@@ -193,16 +193,19 @@ func (p *sqlPersistence) GetTransactionByIDWithStatus(ctx context.Context, txID 
 	if err != nil {
 		return nil, err
 	}
-	history, err := p.buildHistorySummary(ctx, txID, true, p.historySummaryLimit, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &apitypes.TXWithStatus{
+	txh := &apitypes.TXWithStatus{
 		ManagedTX:     tx,
 		Receipt:       receipt,
 		Confirmations: confirmations,
-		History:       history.entries,
-	}, nil
+	}
+	if withHistory {
+		history, err := p.buildHistorySummary(ctx, txID, true, p.historySummaryLimit, nil)
+		if err != nil {
+			return nil, err
+		}
+		txh.History = history.entries
+	}
+	return txh, nil
 }
 
 func (p *sqlPersistence) GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error) {
