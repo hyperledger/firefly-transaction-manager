@@ -130,10 +130,10 @@ var TXHistoryFilters = &ffapi.QueryFields{
 	"lastoccurrence": &ffapi.TimeField{},
 	"substatus":      &ffapi.StringField{},
 	"action":         &ffapi.StringField{},
-	"count":          &ffapi.Int64Field{},
-	"lasterror":      &ffapi.JSONField{},
-	"lasterrortime":  &ffapi.TimeField{},
-	"lastinfo":       &ffapi.JSONField{},
+	// "count":          &ffapi.Int64Field{}, /* must not add this as count is a reserved word on the API */
+	"lasterror":     &ffapi.JSONField{},
+	"lasterrortime": &ffapi.TimeField{},
+	"lastinfo":      &ffapi.JSONField{},
 }
 
 type NextNonceCallback func(ctx context.Context, signer string) (uint64, error)
