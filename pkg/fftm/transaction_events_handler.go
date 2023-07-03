@@ -53,18 +53,28 @@ func (eh *ManagedTransactionEventHandler) HandleEvent(_ context.Context, e apity
 	case apitypes.ManagedTXDeleted:
 		eh.sendWSReply(e.Tx, nil /* receipt never sent with delete */)
 	case apitypes.ManagedTXTransactionHashAdded:
+		if e.ConfirmationHandler == nil {
+			// e.ConfirmationHandler was added to support extra variable passing to callbacks.
+			// Default to the previous interface on the TxHandler
+			e.ConfirmationHandler = eh.TxHandler.HandleTransactionConfirmations
+		}
+		if e.ReceiptHandler == nil {
+			// e.ReceiptHandler was added to support extra variable passing to callbacks.
+			// Default to the previous interface on the TxHandler
+			e.ReceiptHandler = eh.TxHandler.HandleTransactionReceiptReceived
+		}
 		txID := e.Tx.ID
 		return eh.ConfirmationManager.Notify(&confirmations.Notification{
 			NotificationType: confirmations.NewTransaction,
 			Transaction: &confirmations.TransactionInfo{
 				TransactionHash: e.Tx.TransactionHash,
 				Receipt: func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse) {
-					if err := eh.TxHandler.HandleTransactionReceiptReceived(ctx, txID, receipt); err != nil {
+					if err := e.ReceiptHandler(ctx, txID, receipt); err != nil {
 						log.L(ctx).Errorf("Receipt for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", e.Tx.ID, e.Tx.TransactionHeaders.From, e.Tx.Nonce.Int64(), e.Tx.TransactionHash, err.Error())
 					}
 				},
 				Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
-					if err := eh.TxHandler.HandleTransactionConfirmations(ctx, txID, notification); err != nil {
+					if err := e.ConfirmationHandler(ctx, txID, notification); err != nil {
 						log.L(ctx).Errorf("Confirmation for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", e.Tx.ID, e.Tx.TransactionHeaders.From, e.Tx.Nonce.Int64(), e.Tx.TransactionHash, err.Error())
 					}
 				},

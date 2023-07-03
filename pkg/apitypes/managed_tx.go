@@ -273,6 +273,10 @@ type ManagedTransactionEvent struct {
 	Type    ManagedTransactionEventType
 	Tx      *ManagedTX
 	Receipt *ffcapi.TransactionReceiptResponse
+	// ReceiptHandler can be passed on the event as a closure with extra variables
+	ReceiptHandler func(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error
+	// ConfirmationHandler can be passed on the event as a closure with extra variables
+	ConfirmationHandler func(ctx context.Context, txID string, notification *ConfirmationsNotification) error
 }
 
 type ReceiptRecord struct {
