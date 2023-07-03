@@ -18,6 +18,7 @@ package fftm
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
@@ -32,13 +33,18 @@ var getTransaction = func(m *manager) *ffapi.Route {
 		PathParams: []*ffapi.PathParam{
 			{Name: "transactionId", Description: tmmsgs.APIParamTransactionID},
 		},
-		QueryParams:     nil,
+		QueryParams: []*ffapi.QueryParam{
+			{Name: "nostatus", Description: tmmsgs.APIParamNoStatus, IsBool: true},
+		},
 		Description:     tmmsgs.APIEndpointGetTransaction,
 		JSONInputValue:  nil,
 		JSONOutputValue: func() interface{} { return &apitypes.TXWithStatus{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getTransactionByID(r.Req.Context(), r.PP["transactionId"])
+			if strings.EqualFold(r.QP["nostatus"], "true") {
+				return m.getTransactionByIDPlain(r.Req.Context(), r.PP["transactionId"])
+			}
+			return m.getTransactionByIDWithStatus(r.Req.Context(), r.PP["transactionId"])
 		},
 	}
 }

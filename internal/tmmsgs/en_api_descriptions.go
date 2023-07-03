@@ -71,4 +71,5 @@ var (
 	APIParamSortDirection = ffm("api.params.sortDirection", "Sort direction: 'asc'/'ascending' or 'desc'/'descending'")
 	APIParamSignerAddress = ffm("api.params.signerAddress", "A signing address, for example to get the gas token balance for")
 	APIParamBlocktag      = ffm("api.params.blocktag", "The optional block tag to use when making a gas token balance query")
+	APIParamNoStatus      = ffm("api.params.noStatus", "Do not include status information")
 )

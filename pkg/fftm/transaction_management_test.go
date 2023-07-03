@@ -35,12 +35,20 @@ func TestGetTransactionErrors(t *testing.T) {
 	mp := m.persistence.(*persistencemocks.Persistence)
 	mp.On("GetTransactionByIDWithStatus", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
 	mp.On("GetTransactionByIDWithStatus", m.ctx, mock.Anything).Return(nil, nil).Once()
+	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, fmt.Errorf("pop")).Once()
+	mp.On("GetTransactionByID", m.ctx, mock.Anything).Return(nil, nil).Once()
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
-	_, err := m.getTransactionByID(m.ctx, "id")
+	_, err := m.getTransactionByIDWithStatus(m.ctx, "id")
 	assert.Regexp(t, "pop", err)
 
-	_, err = m.getTransactionByID(m.ctx, "id")
+	_, err = m.getTransactionByIDWithStatus(m.ctx, "id")
+	assert.Regexp(t, "FF21067", err)
+
+	_, err = m.getTransactionByIDPlain(m.ctx, "id")
+	assert.Regexp(t, "pop", err)
+
+	_, err = m.getTransactionByIDPlain(m.ctx, "id")
 	assert.Regexp(t, "FF21067", err)
 
 	mp.AssertExpectations(t)
