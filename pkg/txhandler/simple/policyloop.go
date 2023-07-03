@@ -39,7 +39,10 @@ const metricsGaugeTransactionsInflightFreeDescription = "Number of transactions 
 type policyEngineAPIRequestType int
 
 const (
-	policyEngineAPIRequestTypeDelete policyEngineAPIRequestType = iota
+	ActionNone policyEngineAPIRequestType = iota
+	ActionDelete
+	ActionSuspend
+	ActionResume
 )
 
 type policyEngineAPIRequest struct {
@@ -170,7 +173,7 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 	// Go through executing the policy engine against them
 
 	for _, pending := range sth.inflight {
-		err := sth.execPolicy(ctx, pending, false)
+		err := sth.execPolicy(ctx, pending, nil)
 		if err != nil {
 			log.L(ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
 		}
@@ -220,12 +223,12 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 		}
 
 		switch request.requestType {
-		case policyEngineAPIRequestTypeDelete:
-			if err := sth.execPolicy(ctx, pending, true); err != nil {
+		case ActionDelete, ActionSuspend, ActionResume:
+			if err := sth.execPolicy(ctx, pending, &request.requestType); err != nil {
 				request.response <- policyEngineAPIResponse{err: err}
 			} else {
 				res := policyEngineAPIResponse{tx: pending.mtx, status: http.StatusAccepted}
-				if pending.remove {
+				if pending.remove || request.requestType == ActionResume /* always sync */ {
 					res.status = http.StatusOK // synchronously completed
 				}
 				request.response <- res
@@ -239,7 +242,7 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 
 }
 
-func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context, pending *pendingState, syncDeleteRequest bool) (ctx *RunContext, err error) {
+func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context, pending *pendingState, syncRequest *policyEngineAPIRequestType) (ctx *RunContext, err error) {
 
 	// Take a snapshot of the pending state under the lock
 	sth.mux.Lock()
@@ -254,7 +257,11 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 	}
 	confirmNotify := pending.confirmNotify
 	receiptNotify := pending.receiptNotify
-	if syncDeleteRequest && mtx.DeleteRequested == nil {
+	if syncRequest != nil {
+		ctx.SyncAction = *syncRequest
+	}
+
+	if ctx.SyncAction == ActionDelete && mtx.DeleteRequested == nil {
 		mtx.DeleteRequested = fftypes.Now()
 		ctx.UpdateType = Update // might change to delete later
 		ctx.TXUpdates.DeleteRequested = mtx.DeleteRequested
@@ -299,9 +306,9 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 	return ctx, nil
 }
 
-func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending *pendingState, syncDeleteRequest bool) (err error) {
+func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending *pendingState, syncRequest *policyEngineAPIRequestType) (err error) {
 
-	ctx, err := sth.pendingToRunContext(baseCtx, pending, syncDeleteRequest)
+	ctx, err := sth.pendingToRunContext(baseCtx, pending, syncRequest)
 	if err != nil {
 		return nil
 	}
@@ -309,7 +316,7 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 
 	completed := false
 	switch {
-	case ctx.Confirmed && !syncDeleteRequest:
+	case ctx.Confirmed && ctx.SyncAction != ActionDelete:
 		completed = true
 		ctx.UpdateType = Update
 		if ctx.Receipt != nil && ctx.Receipt.Success {
@@ -319,13 +326,27 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 			mtx.Status = apitypes.TxStatusFailed
 			ctx.TXUpdates.Status = &mtx.Status
 		}
-
+	case ctx.SyncAction == ActionSuspend:
+		// Whole cycle is a no-op if we're not pending
+		if mtx.Status == apitypes.TxStatusPending {
+			ctx.UpdateType = Update
+			completed = true // drop it out of the loop
+			mtx.Status = apitypes.TxStatusSuspended
+			ctx.TXUpdates.Status = &mtx.Status
+		}
+	case ctx.SyncAction == ActionResume:
+		// Whole cycle is a no-op if we're not suspended
+		if mtx.Status == apitypes.TxStatusSuspended {
+			ctx.UpdateType = Update
+			mtx.Status = apitypes.TxStatusPending
+			ctx.TXUpdates.Status = &mtx.Status
+		}
 	default:
 		// We get woken for lots of reasons to go through the policy loop, but we only want
 		// to drive the policy engine at regular intervals.
 		// So we track the last time we ran the policy engine against each pending item.
 		// We always call the policy engine on every loop, when deletion has been requested.
-		if syncDeleteRequest || time.Since(pending.lastPolicyCycle) > sth.policyLoopInterval {
+		if ctx.SyncAction == ActionDelete || time.Since(pending.lastPolicyCycle) > sth.policyLoopInterval {
 			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 			// such as submitting for the first time, or raising the gas etc.
 
@@ -396,13 +417,17 @@ func (sth *simpleTransactionHandler) flushChanges(ctx *RunContext, pending *pend
 			log.L(ctx).Errorf("Failed to update transaction %s (status=%s): %s", mtx.ID, mtx.Status, err)
 			return err
 		}
-		if completed {
+		if ctx.SyncAction == ActionResume {
+			log.L(ctx).Infof("Transaction %s resumed", mtx.ID)
+			sth.markInflightStale() // this won't be in the in-flight set, so we need to pull it in if there's space
+		} else if completed {
 			pending.remove = true // for the next time round the loop
-			log.L(ctx).Infof("Transaction %s marked complete (status=%s): %s", mtx.ID, mtx.Status, err)
+			log.L(ctx).Infof("Transaction %s removed from tracking (status=%s): %s", mtx.ID, mtx.Status, err)
 			sth.markInflightStale()
 
 			// if and only if the transaction is now resolved dispatch an event to event handler
-			// and discard any handling errors
+			// and discard any handling errors.
+			// Note that TxStatusSuspended has no action here.
 			if mtx.Status == apitypes.TxStatusSucceeded {
 				_ = sth.toolkit.EventHandler.HandleEvent(ctx, apitypes.ManagedTransactionEvent{
 					Type:    apitypes.ManagedTXProcessSucceeded,

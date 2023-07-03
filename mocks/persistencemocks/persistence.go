@@ -221,25 +221,25 @@ func (_m *Persistence) GetTransactionByID(ctx context.Context, txID string) (*ap
 	return r0, r1
 }
 
-// GetTransactionByIDWithStatus provides a mock function with given fields: ctx, txID
-func (_m *Persistence) GetTransactionByIDWithStatus(ctx context.Context, txID string) (*apitypes.TXWithStatus, error) {
-	ret := _m.Called(ctx, txID)
+// GetTransactionByIDWithStatus provides a mock function with given fields: ctx, txID, history
+func (_m *Persistence) GetTransactionByIDWithStatus(ctx context.Context, txID string, history bool) (*apitypes.TXWithStatus, error) {
+	ret := _m.Called(ctx, txID, history)
 
 	var r0 *apitypes.TXWithStatus
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) (*apitypes.TXWithStatus, error)); ok {
-		return rf(ctx, txID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool) (*apitypes.TXWithStatus, error)); ok {
+		return rf(ctx, txID, history)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) *apitypes.TXWithStatus); ok {
-		r0 = rf(ctx, txID)
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool) *apitypes.TXWithStatus); ok {
+		r0 = rf(ctx, txID, history)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*apitypes.TXWithStatus)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, txID)
+	if rf, ok := ret.Get(1).(func(context.Context, string, bool) error); ok {
+		r1 = rf(ctx, txID, history)
 	} else {
 		r1 = ret.Error(1)
 	}

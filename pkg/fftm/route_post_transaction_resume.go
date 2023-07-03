@@ -18,30 +18,28 @@ package fftm
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var getTransaction = func(m *manager) *ffapi.Route {
+var postTransactionResume = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:   "getTransaction",
-		Path:   "/transactions/{transactionId}",
-		Method: http.MethodGet,
+		Name:   "postTransactionResume",
+		Path:   "/transactions/{transactionId}/resume",
+		Method: http.MethodPost,
 		PathParams: []*ffapi.PathParam{
 			{Name: "transactionId", Description: tmmsgs.APIParamTransactionID},
 		},
-		QueryParams: []*ffapi.QueryParam{
-			{Name: "history", Description: tmmsgs.APIParamHistory, IsBool: true},
-		},
-		Description:     tmmsgs.APIEndpointGetTransaction,
-		JSONInputValue:  nil,
-		JSONOutputValue: func() interface{} { return &apitypes.TXWithStatus{} },
-		JSONOutputCodes: []int{http.StatusOK},
+		QueryParams:     nil,
+		Description:     tmmsgs.APIEndpointPostTransactionResume,
+		JSONInputValue:  func() interface{} { return &struct{}{} },
+		JSONOutputValue: func() interface{} { return &apitypes.ManagedTX{} },
+		JSONOutputCodes: []int{http.StatusOK, http.StatusAccepted},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getTransactionByIDWithStatus(r.Req.Context(), r.PP["transactionId"], strings.EqualFold(r.QP["history"], "true"))
+			r.SuccessStatus, output, err = m.requestTransactionResume(r.Req.Context(), r.PP["transactionId"])
+			return output, err
 		},
 	}
 }

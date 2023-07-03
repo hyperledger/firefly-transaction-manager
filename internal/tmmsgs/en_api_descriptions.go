@@ -58,6 +58,8 @@ var (
 	APIEndpointPostRootQueryOutput          = ffm("api.endpoints.post.root.query.output", "The data result of a query against a smart contract")
 	APIEndpointPostSubscriptionReset        = ffm("api.endpoints.post.subscription.reset", "Reset listener - route deprecated in favor of /eventstreams/{streamId}/listeners/{listenerId}/reset")
 	APIEndpointPostSubscriptions            = ffm("api.endpoints.post.subscriptions", "Create new listener - route deprecated in favor of /eventstreams/{streamId}/listeners")
+	APIEndpointPostTransactionSuspend       = ffm("api.endpoints.post.transactions.suspend", "Suspend processing on a pending transaction (no-op for completed transactions)")
+	APIEndpointPostTransactionResume        = ffm("api.endpoints.post.transactions.resume", "Resume processing on a suspended transaction")
 
 	APIParamStreamID      = ffm("api.params.streamId", "Event Stream ID")
 	APIParamListenerID    = ffm("api.params.listenerId", "Listener ID")
@@ -69,4 +71,5 @@ var (
 	APIParamSortDirection = ffm("api.params.sortDirection", "Sort direction: 'asc'/'ascending' or 'desc'/'descending'")
 	APIParamSignerAddress = ffm("api.params.signerAddress", "A signing address, for example to get the gas token balance for")
 	APIParamBlocktag      = ffm("api.params.blocktag", "The optional block tag to use when making a gas token balance query")
+	APIParamHistory       = ffm("api.params.history", "Include transaction history summary information")
 )

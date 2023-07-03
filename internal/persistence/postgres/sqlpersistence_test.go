@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func newMockSQLPersistence(t *testing.T) (context.Context, *sqlPersistence, sqlmock.Sqlmock, func()) {
+func newMockSQLPersistence(t *testing.T, init ...func(dbconf config.Section)) (context.Context, *sqlPersistence, sqlmock.Sqlmock, func()) {
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	db, dbm := dbsql.NewMockProvider().UTInit()
@@ -36,6 +36,9 @@ func newMockSQLPersistence(t *testing.T) (context.Context, *sqlPersistence, sqlm
 	config.RootConfigReset()
 	dbconf := config.RootSection("utdb")
 	InitConfig(dbconf)
+	for _, fn := range init {
+		fn(dbconf)
+	}
 
 	p, err := newSQLPersistence(ctx, &db.Database, dbconf, 1*time.Hour)
 	assert.NoError(t, err)

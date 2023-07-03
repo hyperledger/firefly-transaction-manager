@@ -431,10 +431,12 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 		}
 	}
 	// Do the compression checks
-	for txID := range b.compressionChecks {
-		if err := tw.compressionCheck(ctx, txID); err != nil {
-			log.L(ctx).Errorf("Compression check for %s failed: %s", txID, err)
-			return err
+	if tw.compressionInterval > 0 {
+		for txID := range b.compressionChecks {
+			if err := tw.compressionCheck(ctx, txID); err != nil {
+				log.L(ctx).Errorf("Compression check for %s failed: %s", txID, err)
+				return err
+			}
 		}
 	}
 	// Do all the transaction deletes

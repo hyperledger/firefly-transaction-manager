@@ -130,7 +130,7 @@ var TXHistoryFilters = &ffapi.QueryFields{
 	"lastoccurrence": &ffapi.TimeField{},
 	"substatus":      &ffapi.StringField{},
 	"action":         &ffapi.StringField{},
-	"count":          &ffapi.Int64Field{},
+	"occurrences":    &ffapi.Int64Field{},
 	"lasterror":      &ffapi.JSONField{},
 	"lasterrortime":  &ffapi.TimeField{},
 	"lastinfo":       &ffapi.JSONField{},
@@ -179,7 +179,7 @@ type TransactionPersistence interface {
 	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
 	ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                 // reverse insertion order, only those in pending state
 	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
-	GetTransactionByIDWithStatus(ctx context.Context, txID string) (*apitypes.TXWithStatus, error)
+	GetTransactionByIDWithStatus(ctx context.Context, txID string, history bool) (*apitypes.TXWithStatus, error)
 	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
 	InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, lookupNextNonce NextNonceCallback) error
 	UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error
