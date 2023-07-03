@@ -102,8 +102,8 @@ func TestTXHistoryCompressionPSQL(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Get the history
-	txHistoryFilter := p.GetTxHistoryFilter(ctx)
-	history, _, err := p.ListTransactionHistory(ctx, txID, txHistoryFilter.NewFilter(ctx).And())
+	fb := p.NewTxHistoryFilter(ctx)
+	history, _, err := p.ListTransactionHistory(ctx, txID, fb.And())
 	assert.NoError(t, err)
 	// Time strip the history for compare
 	for _, h := range history {

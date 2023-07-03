@@ -77,8 +77,8 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 	return collection
 }
 
-func (p *sqlPersistence) GetConfirmationFilter(ctx context.Context) *ffapi.QueryFields {
-	return persistence.ConfirmationFilters
+func (p *sqlPersistence) NewConfirmationFilter(ctx context.Context) ffapi.FilterBuilder {
+	return persistence.ConfirmationFilters.NewFilter(ctx)
 }
 
 func (p *sqlPersistence) ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error) {

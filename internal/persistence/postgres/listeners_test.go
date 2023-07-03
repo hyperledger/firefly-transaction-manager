@@ -158,16 +158,15 @@ func TestListenerAfterPaginatePSQL(t *testing.T) {
 	_, err = p.ListStreamsByCreateTime(ctx, fftypes.NewUUID(), 5, persistence.SortDirectionAscending)
 	assert.Regexp(t, "FF00164", err)
 
-	listenerFilter := p.GetListenerFilter(ctx)
 	// Find just one
-	fb := listenerFilter.NewFilter(ctx)
+	fb := p.NewListenerFilter(ctx)
 	list4, _, err := p.ListListeners(ctx, fb.And(fb.Eq("name", *listeners[15].Name)))
 	assert.NoError(t, err)
 	assert.Len(t, list4, 1)
 	assert.Equal(t, *listeners[15].Name, *list4[0].Name)
 
 	// Check search is scoped
-	fb = listenerFilter.NewFilter(ctx)
+	fb = p.NewListenerFilter(ctx)
 	list5, _, err := p.ListStreamListeners(ctx, stream1, fb.And(fb.Eq("name", *listeners[15].Name)))
 	assert.NoError(t, err)
 	assert.Empty(t, list5)

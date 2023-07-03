@@ -86,8 +86,8 @@ func (p *sqlPersistence) newTXHistoryCollection() *dbsql.CrudBase[*apitypes.TXHi
 	return collection
 }
 
-func (p *sqlPersistence) GetTxHistoryFilter(ctx context.Context) *ffapi.QueryFields {
-	return persistence.TXHistoryFilters
+func (p *sqlPersistence) NewTxHistoryFilter(ctx context.Context) ffapi.FilterBuilder {
+	return persistence.TXHistoryFilters.NewFilter(ctx)
 }
 
 func (p *sqlPersistence) ListTransactionHistory(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.TXHistoryRecord, *ffapi.FilterResult, error) {

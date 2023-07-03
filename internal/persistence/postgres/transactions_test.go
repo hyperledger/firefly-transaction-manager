@@ -257,10 +257,10 @@ func TestTransactionListByCreateTimePSQL(t *testing.T) {
 		txs = append(txs, tx)
 	}
 
-	txFilters := p.GetTransactionFilter(ctx)
+	fb := p.NewTransactionFilter(ctx)
 
 	// List all the transactions - default is created time descending on the standard filter
-	list1, _, err := p.ListTransactions(ctx, txFilters.NewFilter(ctx).And())
+	list1, _, err := p.ListTransactions(ctx, fb.And())
 	assert.NoError(t, err)
 	assert.Len(t, list1, 10)
 	for i := 0; i < 10; i++ {
