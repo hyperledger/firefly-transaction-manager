@@ -40,6 +40,7 @@ type transactionOperation struct {
 	done         chan error
 
 	txInsert           *apitypes.ManagedTX
+	noncePreAssigned   bool
 	nextNonceCB        persistence.NextNonceCallback
 	txUpdate           *apitypes.TXUpdates
 	txDelete           *string
@@ -285,6 +286,9 @@ func (tw *transactionWriter) assignNonces(ctx context.Context, txInsertsByFrom m
 			}
 		}
 		for _, op := range txs {
+			if op.noncePreAssigned {
+				continue
+			}
 			if op.sentConflict {
 				// This has been excluded in preInsertIdempotencyCheck, we must not allocate a nonce
 				log.L(ctx).Debugf("Skipped nonce assignment to duplicate TX %s", op.txInsert.ID)

@@ -181,6 +181,7 @@ type TransactionPersistence interface {
 	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
 	GetTransactionByIDWithStatus(ctx context.Context, txID string, history bool) (*apitypes.TXWithStatus, error)
 	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
+	InsertTransactionPreAssignedNonce(ctx context.Context, tx *apitypes.ManagedTX) error
 	InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, lookupNextNonce NextNonceCallback) error
 	UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error
 	DeleteTransaction(ctx context.Context, txID string) error

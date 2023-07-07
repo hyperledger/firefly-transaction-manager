@@ -499,6 +499,12 @@ func (p *leveldbPersistence) InsertTransactionWithNextNonce(ctx context.Context,
 
 }
 
+func (p *leveldbPersistence) InsertTransactionPreAssignedNonce(ctx context.Context, tx *apitypes.ManagedTX) (err error) {
+	return p.writeTransaction(ctx, &apitypes.TXWithStatus{
+		ManagedTX: tx,
+	}, true)
+}
+
 func (p *leveldbPersistence) getPersistedTX(ctx context.Context, txID string) (tx *apitypes.TXWithStatus, err error) {
 	tx, err = p.GetTransactionByIDWithStatus(ctx, txID, true)
 	if err != nil {

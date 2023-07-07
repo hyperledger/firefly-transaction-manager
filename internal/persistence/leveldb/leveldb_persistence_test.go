@@ -374,7 +374,7 @@ func TestInsertTransactionsDupCheckFail(t *testing.T) {
 
 	tx := newTestTX("0x12345", apitypes.TxStatusPending)
 	tx.Nonce = fftypes.NewFFBigInt(12345)
-	err := p.writeTransaction(ctx, &apitypes.TXWithStatus{ManagedTX: tx}, true)
+	err := p.InsertTransactionPreAssignedNonce(ctx, tx)
 	assert.Regexp(t, "FF21055", err)
 
 }

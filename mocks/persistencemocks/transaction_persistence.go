@@ -186,6 +186,20 @@ func (_m *TransactionPersistence) GetTransactionReceipt(ctx context.Context, txI
 	return r0, r1
 }
 
+// InsertTransactionPreAssignedNonce provides a mock function with given fields: ctx, tx
+func (_m *TransactionPersistence) InsertTransactionPreAssignedNonce(ctx context.Context, tx *apitypes.ManagedTX) error {
+	ret := _m.Called(ctx, tx)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.ManagedTX) error); ok {
+		r0 = rf(ctx, tx)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // InsertTransactionWithNextNonce provides a mock function with given fields: ctx, tx, lookupNextNonce
 func (_m *TransactionPersistence) InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, lookupNextNonce persistence.NextNonceCallback) error {
 	ret := _m.Called(ctx, tx, lookupNextNonce)

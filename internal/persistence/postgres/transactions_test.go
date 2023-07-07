@@ -246,12 +246,11 @@ func TestTransactionListByCreateTimePSQL(t *testing.T) {
 			Status:          apitypes.TxStatusPending,
 			DeleteRequested: nil,
 			TransactionHeaders: ffcapi.TransactionHeaders{
-				From: signer,
+				From:  signer,
+				Nonce: fftypes.NewFFBigInt(i / 2),
 			},
 		}
-		err := p.InsertTransactionWithNextNonce(ctx, tx, func(ctx context.Context, signer string) (uint64, error) {
-			return 0, nil
-		})
+		err := p.InsertTransactionPreAssignedNonce(ctx, tx)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, tx.SequenceID)
 		txs = append(txs, tx)
