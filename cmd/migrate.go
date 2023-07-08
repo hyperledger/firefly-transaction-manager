@@ -23,8 +23,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var cfgFile string
-
 func MigrateCommand(initConfig func() error) *cobra.Command {
 	return buildMigrateCommand(initConfig)
 }
@@ -34,8 +32,6 @@ func buildMigrateCommand(initConfig func() error) *cobra.Command {
 		Use:   "migrate <subcommand>",
 		Short: "Migration tools",
 	}
-	migrateCmd.PersistentFlags().StringVarP(&cfgFile, "config", "f", "", "config file")
-
 	migrateCmd.AddCommand(buildLeveldb2postgresCommand(initConfig))
 
 	return migrateCmd
