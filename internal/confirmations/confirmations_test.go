@@ -50,7 +50,7 @@ func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmati
 func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
 
-	confirmed := make(chan []*apitypes.Confirmation, 1)
+	confirmed := make(chan *apitypes.ConfirmationsNotification, 1)
 	eventToConfirm := &EventInfo{
 		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
@@ -61,9 +61,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 			LogIndex:         10,
 		},
 		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
-			if notification.Confirmed {
-				confirmed <- notification.Confirmations
-			}
+			confirmed <- notification
 		},
 	}
 
@@ -148,12 +146,22 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 
 	bcm.Start()
 
+	// First get the block 1002 & 1004 confirmation notifications - but we're not confirmed yet
 	dispatched := <-confirmed
 	assert.Equal(t, []*apitypes.Confirmation{
 		apitypes.ConfirmationFromBlock(block1002),
 		apitypes.ConfirmationFromBlock(block1003),
+	}, dispatched.Confirmations)
+	assert.True(t, dispatched.NewFork)
+	assert.False(t, dispatched.Confirmed)
+
+	// Then get the 1004 with the confirmed true
+	dispatched = <-confirmed
+	assert.Equal(t, []*apitypes.Confirmation{
 		apitypes.ConfirmationFromBlock(block1004),
-	}, dispatched)
+	}, dispatched.Confirmations)
+	assert.False(t, dispatched.NewFork)
+	assert.True(t, dispatched.Confirmed)
 
 	bcm.Stop()
 
@@ -163,7 +171,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
 
-	confirmed := make(chan []*apitypes.Confirmation, 1)
+	confirmed := make(chan *apitypes.ConfirmationsNotification, 1)
 	eventToConfirm := &EventInfo{
 		ID: &ffcapi.EventID{
 			ListenerID:       fftypes.NewUUID(),
@@ -174,9 +182,7 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 			LogIndex:         10,
 		},
 		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
-			if notification.Confirmed {
-				confirmed <- notification.Confirmations
-			}
+			confirmed <- notification
 		},
 	}
 
@@ -280,12 +286,162 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 
 	bcm.Start()
 
+	// Notified of 1002 - new fork as base
 	dispatched := <-confirmed
 	assert.Equal(t, []*apitypes.Confirmation{
 		apitypes.ConfirmationFromBlock(block1002),
+	}, dispatched.Confirmations)
+	assert.True(t, dispatched.NewFork)
+	assert.False(t, dispatched.Confirmed)
+
+	// Only notified of 1003b which is in the confirmation chain - not a new fork, and not confirmed
+	dispatched = <-confirmed
+	assert.Equal(t, []*apitypes.Confirmation{
 		apitypes.ConfirmationFromBlock(block1003b),
+	}, dispatched.Confirmations)
+	assert.False(t, dispatched.NewFork)
+	assert.False(t, dispatched.Confirmed)
+
+	// Notified of 1004 and confirmation
+	dispatched = <-confirmed
+	assert.Equal(t, []*apitypes.Confirmation{
 		apitypes.ConfirmationFromBlock(block1004),
-	}, dispatched)
+	}, dispatched.Confirmations)
+	assert.False(t, dispatched.NewFork)
+	assert.True(t, dispatched.Confirmed)
+
+	bcm.Stop()
+
+	mca.AssertExpectations(t)
+
+}
+
+func TestBlockConfirmationManagerE2EForkReNotifyConfirmations(t *testing.T) {
+	bcm, mca := newTestBlockConfirmationManager(t, true)
+
+	confirmed := make(chan *apitypes.ConfirmationsNotification, 3)
+	eventToConfirm := &EventInfo{
+		ID: &ffcapi.EventID{
+			ListenerID:       fftypes.NewUUID(),
+			TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+			BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+			BlockNumber:      1001,
+			TransactionIndex: 5,
+			LogIndex:         10,
+		},
+		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+			confirmed <- notification
+		},
+	}
+
+	// The next filter gives us 1002, and a first 1003 block - which will later be removed
+	block1002 := &apitypes.BlockInfo{
+		BlockNumber: 1002,
+		BlockHash:   "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
+		ParentHash:  "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+	}
+	block1003a := &apitypes.BlockInfo{
+		BlockNumber: 1003,
+		BlockHash:   "0x46210d224888265c269359529618bf2f6adb2697ff52c63c10f16a2391bdd295",
+		ParentHash:  "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
+	}
+
+	blockHashes := bcm.NewBlockHashes()
+
+	// Have the event notification in flight from the beginning
+	err := bcm.Notify(&Notification{
+		NotificationType: NewEventLog,
+		Event:            eventToConfirm,
+	})
+	assert.NoError(t, err)
+
+	// Then we get the final fork up to our confirmation
+	block1003b := &apitypes.BlockInfo{
+		BlockNumber: 1003,
+		BlockHash:   "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
+		ParentHash:  "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
+	}
+	block1004 := &apitypes.BlockInfo{
+		BlockNumber: 1004,
+		BlockHash:   "0x110282339db2dfe4bfd13d78375f7883048cac6bc12f8393bd080a4e263d5d21",
+		ParentHash:  "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8",
+	}
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
+		return r.BlockHash == block1003b.BlockHash
+	})).Return(&ffcapi.BlockInfoByHashResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1003b.BlockNumber)),
+			BlockHash:   block1003b.BlockHash,
+			ParentHash:  block1003b.ParentHash,
+		},
+	}, ffcapi.ErrorReason(""), nil).Once()
+	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
+		return r.BlockHash == block1004.BlockHash
+	})).Return(&ffcapi.BlockInfoByHashResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1004.BlockNumber)),
+			BlockHash:   block1004.BlockHash,
+			ParentHash:  block1004.ParentHash,
+		},
+	}, ffcapi.ErrorReason(""), nil).Once()
+
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1002
+	})).Return(&ffcapi.BlockInfoByNumberResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1002.BlockNumber)),
+			BlockHash:   block1002.BlockHash,
+			ParentHash:  block1002.ParentHash,
+		},
+	}, ffcapi.ErrorReason(""), nil)
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1003
+	})).Run(func(args mock.Arguments) {
+		// When we download 1003a, notify of 1003b
+		blockHashes <- &ffcapi.BlockHashEvent{
+			BlockHashes: []string{
+				block1003b.BlockHash,
+				block1004.BlockHash,
+			},
+		}
+	}).Return(&ffcapi.BlockInfoByNumberResponse{
+		BlockInfo: ffcapi.BlockInfo{
+			BlockNumber: fftypes.NewFFBigInt(int64(block1003a.BlockNumber)),
+			BlockHash:   block1003a.BlockHash,
+			ParentHash:  block1003a.ParentHash,
+		},
+	}, ffcapi.ErrorReason(""), nil)
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1004
+	})).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
+
+	bcm.Start()
+
+	// Notified of 1002 and the original 1003, as the initial fork
+	dispatched := <-confirmed
+	assert.Equal(t, []*apitypes.Confirmation{
+		apitypes.ConfirmationFromBlock(block1002),
+		apitypes.ConfirmationFromBlock(block1003a),
+	}, dispatched.Confirmations)
+	assert.True(t, dispatched.NewFork)
+	assert.False(t, dispatched.Confirmed)
+
+	// Then notified of the complete new fork - including 1002 again
+	dispatched = <-confirmed
+	assert.Equal(t, []*apitypes.Confirmation{
+		apitypes.ConfirmationFromBlock(block1002),
+		apitypes.ConfirmationFromBlock(block1003b),
+	}, dispatched.Confirmations)
+	assert.True(t, dispatched.NewFork)
+	assert.False(t, dispatched.Confirmed)
+
+	// Notified of 1004 and confirmation
+	dispatched = <-confirmed
+	assert.Equal(t, []*apitypes.Confirmation{
+		apitypes.ConfirmationFromBlock(block1004),
+	}, dispatched.Confirmations)
+	assert.False(t, dispatched.NewFork)
+	assert.True(t, dispatched.Confirmed)
 
 	bcm.Stop()
 
@@ -296,14 +452,12 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
 
-	confirmed := make(chan []*apitypes.Confirmation, 1)
+	confirmed := make(chan *apitypes.ConfirmationsNotification, 1)
 	receiptReceived := make(chan *ffcapi.TransactionReceiptResponse, 1)
 	txToConfirmForkA := &TransactionInfo{
 		TransactionHash: "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
 		Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
-			if notification.Confirmed {
-				confirmed <- notification.Confirmations
-			}
+			confirmed <- notification
 		},
 		Receipt: func(ctx context.Context, receipt *ffcapi.TransactionReceiptResponse) {
 			receiptReceived <- receipt
@@ -457,9 +611,23 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	dispatched := <-confirmed
 	assert.Equal(t, []*apitypes.Confirmation{
 		apitypes.ConfirmationFromBlock(block1002b),
+	}, dispatched.Confirmations)
+	assert.True(t, dispatched.NewFork)
+	assert.False(t, dispatched.Confirmed)
+
+	dispatched = <-confirmed
+	assert.Equal(t, []*apitypes.Confirmation{
 		apitypes.ConfirmationFromBlock(block1003),
+	}, dispatched.Confirmations)
+	assert.False(t, dispatched.NewFork)
+	assert.False(t, dispatched.Confirmed)
+
+	dispatched = <-confirmed
+	assert.Equal(t, []*apitypes.Confirmation{
 		apitypes.ConfirmationFromBlock(block1004),
-	}, dispatched)
+	}, dispatched.Confirmations)
+	assert.False(t, dispatched.NewFork)
+	assert.True(t, dispatched.Confirmed)
 
 	bcm.Stop()
 

@@ -495,6 +495,7 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 	pending.confirmed = notification.Confirmed
 	pending.confirmNotify = fftypes.Now()
 	pending.confirmations = notification
+	log.L(ctx).Infof("Received %d confirmations (resync=%t)", len(notification.Confirmations), notification.NewFork)
 	sth.mux.Unlock()
 
 	sth.markInflightUpdate()
