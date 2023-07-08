@@ -31,13 +31,16 @@ func MigrateLevelDBToPostgres(ctx context.Context) (err error) {
 	m := &dbMigration{}
 
 	tmconfig.PostgresSection.Set(postgres.ConfigTXWriterBatchTimeout, 0) // single go-routine, no point in batching
+	tmconfig.PostgresSection.Set(postgres.ConfigTXWriterCount, 1)
 	nonceStateTimeout := 0 * time.Second
 	if m.source, err = leveldb.NewLevelDBPersistence(ctx, nonceStateTimeout); err != nil {
 		return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, "leveldb", err)
 	}
+	defer m.source.Close(ctx)
 	if m.target, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection, nonceStateTimeout); err != nil {
 		return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, "postgres", err)
 	}
+	defer m.target.Close(ctx)
 
 	return m.run(ctx)
 }
