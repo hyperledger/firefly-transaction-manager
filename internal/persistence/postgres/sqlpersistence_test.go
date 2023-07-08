@@ -46,8 +46,8 @@ func newMockSQLPersistence(t *testing.T, init ...func(dbconf config.Section)) (c
 	assert.NotNil(t, p.RichQuery())
 
 	return ctx, p, dbm, func() {
-		cancelCtx()
 		p.Close(ctx)
+		cancelCtx()
 	}
 
 }

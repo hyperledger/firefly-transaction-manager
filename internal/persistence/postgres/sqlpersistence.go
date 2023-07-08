@@ -113,6 +113,8 @@ func (p *sqlPersistence) seqAfterFilter(ctx context.Context, qf *ffapi.QueryFiel
 }
 
 func (p *sqlPersistence) Close(_ context.Context) {
-	p.db.Close()
+	// Quiesce the writers first - will flush out in-flight
 	p.writer.stop()
+	// Then close the DB
+	p.db.Close()
 }
