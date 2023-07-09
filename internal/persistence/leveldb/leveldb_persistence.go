@@ -396,8 +396,6 @@ func (p *leveldbPersistence) ListTransactionsPending(ctx context.Context, afterS
 }
 
 func (p *leveldbPersistence) GetTransactionByID(ctx context.Context, txID string) (tx *apitypes.ManagedTX, err error) {
-	p.txMux.RLock()
-	defer p.txMux.RUnlock()
 	txh, err := p.GetTransactionByIDWithStatus(ctx, txID, false)
 	if err != nil || txh == nil {
 		return nil, err
@@ -406,8 +404,6 @@ func (p *leveldbPersistence) GetTransactionByID(ctx context.Context, txID string
 }
 
 func (p *leveldbPersistence) GetTransactionReceipt(ctx context.Context, txID string) (receipt *ffcapi.TransactionReceiptResponse, err error) {
-	p.txMux.RLock()
-	defer p.txMux.RUnlock()
 	txh, err := p.GetTransactionByIDWithStatus(ctx, txID, false)
 	if err != nil || txh == nil {
 		return nil, err
@@ -416,8 +412,6 @@ func (p *leveldbPersistence) GetTransactionReceipt(ctx context.Context, txID str
 }
 
 func (p *leveldbPersistence) GetTransactionConfirmations(ctx context.Context, txID string) (confirmations []*apitypes.Confirmation, err error) {
-	p.txMux.RLock()
-	defer p.txMux.RUnlock()
 	txh, err := p.GetTransactionByIDWithStatus(ctx, txID, false)
 	if err != nil || txh == nil {
 		return nil, err
