@@ -112,6 +112,7 @@ func TestHandleTransactionHashUpdateEventAddHash(t *testing.T) {
 		return n.NotificationType == confirmations.NewTransaction
 	})).Return(nil).Once()
 	eh.ConfirmationManager = mcm
+	eh.TxHandler = &txhandlermocks.TransactionHandler{}
 	testTx := &apitypes.ManagedTX{
 		ID:         fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
 		Created:    fftypes.Now(),
