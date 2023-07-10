@@ -571,20 +571,39 @@ func (bcm *blockConfirmationManager) dispatchConfirmations(item *pendingItem) {
 	for i, c := range item.confirmations {
 		if !newFork && i < len(item.notifiedConfirmations) {
 			newFork = c.BlockHash != item.notifiedConfirmations[i].BlockHash
+			if newFork {
+				// Notify of the full set
+				notificationConfirmations = append([]*apitypes.Confirmation{}, item.confirmations...)
+				break
+			}
+		} else {
+			// Only notify of the additional ones
+			notificationConfirmations = append(notificationConfirmations, c)
 		}
-		notificationConfirmations = append(notificationConfirmations, c)
 	}
 
-	notification := &apitypes.ConfirmationsNotification{
-		Confirmed:     item.confirmed,
-		NewFork:       newFork,
-		Confirmations: notificationConfirmations,
+	// Possible for us to re-dispatch the same confirmations, if we are notified about a block later after
+	// after we previously did a crawl for blocks.
+	// So we protect here against dispatching an empty array
+	if len(notificationConfirmations) > 0 || item.confirmed {
+		notification := &apitypes.ConfirmationsNotification{
+			Confirmed:     item.confirmed,
+			NewFork:       newFork,
+			Confirmations: notificationConfirmations,
+		}
+		// Take a copy of the notification confirmations so we know what we have previously notified next time round
+		// (not safe to keep a reference, in case it's modified by the callback).
+		previouslyNotified := len(item.notifiedConfirmations)
+		if newFork {
+			item.notifiedConfirmations = append([]*apitypes.Confirmation{}, notificationConfirmations...)
+		} else {
+			item.notifiedConfirmations = append(item.notifiedConfirmations, notificationConfirmations...)
+		}
+		log.L(bcm.ctx).Infof("Confirmation notification item=%s confirmed=%t confirmations=%d newFork=%t previouslyNotified=%d",
+			item.getKey(), notification.Confirmed, len(item.confirmations),
+			notification.NewFork, previouslyNotified)
+		item.confirmationsCallback(bcm.ctx, notification)
 	}
-	item.notifiedConfirmations = notificationConfirmations
-	log.L(bcm.ctx).Infof("Confirmation notification item=%s confirmed=%t confirmations=%d newFork=%t notifiedConfirmations=%d",
-		item.getKey(), notification.Confirmed, len(item.confirmations),
-		notification.NewFork, len(notificationConfirmations))
-	item.confirmationsCallback(bcm.ctx, notification)
 
 }
 
