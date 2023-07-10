@@ -39,7 +39,9 @@ type transactionOperation struct {
 	sentConflict bool
 	done         chan error
 
+	isShutdown         bool
 	txInsert           *apitypes.ManagedTX
+	noncePreAssigned   bool
 	nextNonceCB        persistence.NextNonceCallback
 	txUpdate           *apitypes.TXUpdates
 	txDelete           *string
@@ -180,7 +182,8 @@ func (tw *transactionWriter) worker(i int) {
 	var batch *transactionWriterBatch
 	batchCount := 0
 	workQueue := tw.workQueues[i]
-	for {
+	var shutdownRequest *transactionOperation
+	for shutdownRequest == nil {
 		var timeoutContext context.Context
 		var timedOut bool
 		if batch != nil {
@@ -190,6 +193,12 @@ func (tw *transactionWriter) worker(i int) {
 		}
 		select {
 		case op := <-workQueue:
+			if op.isShutdown {
+				// flush out the queue
+				shutdownRequest = op
+				timedOut = true
+				break
+			}
 			if batch == nil {
 				batch = &transactionWriterBatch{
 					id: fmt.Sprintf("%.4d_%.9d", i, batchCount),
@@ -212,6 +221,10 @@ func (tw *transactionWriter) worker(i int) {
 			batch.timeoutCancel()
 			tw.runBatch(ctx, batch)
 			batch = nil
+		}
+
+		if shutdownRequest != nil {
+			close(shutdownRequest.done)
 		}
 	}
 }
@@ -285,6 +298,9 @@ func (tw *transactionWriter) assignNonces(ctx context.Context, txInsertsByFrom m
 			}
 		}
 		for _, op := range txs {
+			if op.noncePreAssigned {
+				continue
+			}
 			if op.sentConflict {
 				// This has been excluded in preInsertIdempotencyCheck, we must not allocate a nonce
 				log.L(ctx).Debugf("Skipped nonce assignment to duplicate TX %s", op.txInsert.ID)
@@ -487,8 +503,20 @@ func (tw *transactionWriter) compressionCheck(ctx context.Context, txID string) 
 }
 
 func (tw *transactionWriter) stop() {
-	tw.cancelCtx()
-	for _, workerDone := range tw.workersDone {
+	for i, workerDone := range tw.workersDone {
+		select {
+		case <-workerDone:
+		case <-tw.bgCtx.Done():
+		default:
+			// Quiesce the worker
+			shutdownOp := &transactionOperation{
+				isShutdown: true,
+				done:       make(chan error),
+			}
+			tw.workQueues[i] <- shutdownOp
+			<-shutdownOp.done
+		}
 		<-workerDone
 	}
+	tw.cancelCtx()
 }

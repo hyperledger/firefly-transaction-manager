@@ -225,6 +225,15 @@ func (p *sqlPersistence) GetTransactionByNonce(ctx context.Context, signer strin
 	return transactions[0], err
 }
 
+func (p *sqlPersistence) InsertTransactionPreAssignedNonce(ctx context.Context, tx *apitypes.ManagedTX) error {
+	// Dispatch to TX writer
+	op := newTransactionOperation(tx.ID)
+	op.txInsert = tx
+	op.noncePreAssigned = true
+	p.writer.queue(ctx, op)
+	return op.flush(ctx) // wait for completion
+}
+
 func (p *sqlPersistence) InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, nextNonceCB persistence.NextNonceCallback) error {
 	// Dispatch to TX writer
 	op := newTransactionOperation(tx.ID)
