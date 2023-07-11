@@ -96,6 +96,13 @@ func (m *dbMigration) migrateEventStream(ctx context.Context, es *apitypes.Event
 		return err
 	}
 	if cp != nil && existingCP == nil {
+		// LevelDB didn't have timestamps in checkpoints
+		if cp.FirstCheckpoint == nil {
+			cp.FirstCheckpoint = fftypes.Now()
+		}
+		if cp.Time == nil {
+			cp.Time = cp.FirstCheckpoint
+		}
 		log.L(ctx).Infof("Writing checkpoint %s to target", cp.StreamID)
 		if err := m.target.WriteCheckpoint(ctx, cp); err != nil {
 			return err
