@@ -81,6 +81,12 @@ func (m *dbMigration) migrateEventStream(ctx context.Context, es *apitypes.Event
 		return err
 	}
 	if existingES == nil {
+		if es.Created == nil {
+			es.Created = fftypes.Now()
+		}
+		if es.Updated == nil {
+			es.Updated = es.Created
+		}
 		log.L(ctx).Infof("Writing event stream %s to target", es.ID)
 		if err := m.target.WriteStream(ctx, es); err != nil {
 			return err
@@ -145,6 +151,12 @@ func (m *dbMigration) migrateListener(ctx context.Context, l *apitypes.Listener)
 	}
 	if existingL == nil {
 		log.L(ctx).Infof("Writing listener %s to target", l.ID)
+		if l.Created == nil {
+			l.Created = fftypes.Now()
+		}
+		if l.Updated == nil {
+			l.Updated = l.Created
+		}
 		if err := m.target.WriteListener(ctx, l); err != nil {
 			return err
 		}
@@ -192,6 +204,12 @@ func (m *dbMigration) migrateTransaction(ctx context.Context, mtx *apitypes.Mana
 	}
 	if existingTX == nil {
 		log.L(ctx).Infof("Writing transaction %s to target", tx.ID)
+		if tx.Created == nil {
+			tx.Created = fftypes.Now()
+		}
+		if tx.Updated == nil {
+			tx.Updated = tx.Created
+		}
 		if err := m.target.InsertTransactionPreAssignedNonce(ctx, tx.ManagedTX); err != nil {
 			return err
 		}

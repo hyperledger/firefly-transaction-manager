@@ -80,13 +80,13 @@ func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Se
 		}
 	}
 
-	p.transactions = p.newTransactionCollection(forMigration)
-	p.checkpoints = p.newCheckpointCollection(forMigration)
-	p.confirmations = p.newConfirmationsCollection(forMigration)
-	p.receipts = p.newReceiptsCollection(forMigration)
-	p.txHistory = p.newTXHistoryCollection()
 	p.eventStreams = p.newEventStreamsCollection(forMigration)
+	p.checkpoints = p.newCheckpointCollection(forMigration)
 	p.listeners = p.newListenersCollection(forMigration)
+	p.transactions = p.newTransactionCollection(forMigration)
+	p.confirmations = p.newConfirmationsCollection()
+	p.receipts = p.newReceiptsCollection()
+	p.txHistory = p.newTXHistoryCollection()
 
 	p.historySummaryLimit = conf.GetInt(ConfigTXWriterHistorySummaryLimit)
 	p.nonceStateTimeout = nonceStateTimeout

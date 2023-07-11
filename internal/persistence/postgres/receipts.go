@@ -24,7 +24,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
-func (p *sqlPersistence) newReceiptsCollection(forMigration bool) *dbsql.CrudBase[*apitypes.ReceiptRecord] {
+func (p *sqlPersistence) newReceiptsCollection() *dbsql.CrudBase[*apitypes.ReceiptRecord] {
 	collection := &dbsql.CrudBase[*apitypes.ReceiptRecord]{
 		DB:    p.db,
 		Table: "receipts",
@@ -51,7 +51,6 @@ func (p *sqlPersistence) newReceiptsCollection(forMigration bool) *dbsql.CrudBas
 			"contractlocation": "contract_loc",
 		},
 		PatchDisabled: true,
-		TimesDisabled: forMigration,
 		NilValue:      func() *apitypes.ReceiptRecord { return nil },
 		NewInstance: func() *apitypes.ReceiptRecord {
 			return &apitypes.ReceiptRecord{

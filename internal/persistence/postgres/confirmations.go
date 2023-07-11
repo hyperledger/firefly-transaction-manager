@@ -26,7 +26,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-func (p *sqlPersistence) newConfirmationsCollection(forMigration bool) *dbsql.CrudBase[*apitypes.ConfirmationRecord] {
+func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.ConfirmationRecord] {
 	collection := &dbsql.CrudBase[*apitypes.ConfirmationRecord]{
 		DB:    p.db,
 		Table: "confirmations",
@@ -47,7 +47,6 @@ func (p *sqlPersistence) newConfirmationsCollection(forMigration bool) *dbsql.Cr
 			"parenthash":  "parent_hash",
 		},
 		PatchDisabled: true,
-		TimesDisabled: forMigration,
 		NilValue:      func() *apitypes.ConfirmationRecord { return nil },
 		NewInstance: func() *apitypes.ConfirmationRecord {
 			return &apitypes.ConfirmationRecord{
