@@ -26,7 +26,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-func (p *sqlPersistence) newEventStreamsCollection() *dbsql.CrudBase[*apitypes.EventStream] {
+func (p *sqlPersistence) newEventStreamsCollection(forMigration bool) *dbsql.CrudBase[*apitypes.EventStream] {
 	collection := &dbsql.CrudBase[*apitypes.EventStream]{
 		DB:    p.db,
 		Table: "eventstreams",
@@ -56,8 +56,9 @@ func (p *sqlPersistence) newEventStreamsCollection() *dbsql.CrudBase[*apitypes.E
 			"webhook":             "webhook_config",
 			"websocket":           "webhsocket_config",
 		},
-		NilValue:    func() *apitypes.EventStream { return nil },
-		NewInstance: func() *apitypes.EventStream { return &apitypes.EventStream{} },
+		TimesDisabled: forMigration,
+		NilValue:      func() *apitypes.EventStream { return nil },
+		NewInstance:   func() *apitypes.EventStream { return &apitypes.EventStream{} },
 		GetFieldPtr: func(inst *apitypes.EventStream, col string) interface{} {
 			switch col {
 			case dbsql.ColumnID:
