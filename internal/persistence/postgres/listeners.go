@@ -26,7 +26,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-func (p *sqlPersistence) newListenersCollection() *dbsql.CrudBase[*apitypes.Listener] {
+func (p *sqlPersistence) newListenersCollection(forMigration bool) *dbsql.CrudBase[*apitypes.Listener] {
 	collection := &dbsql.CrudBase[*apitypes.Listener]{
 		DB:    p.db,
 		Table: "listeners",
@@ -46,8 +46,9 @@ func (p *sqlPersistence) newListenersCollection() *dbsql.CrudBase[*apitypes.List
 			"streamid":   "stream_id",
 			"from_block": "fromblock",
 		},
-		NilValue:    func() *apitypes.Listener { return nil },
-		NewInstance: func() *apitypes.Listener { return &apitypes.Listener{} },
+		TimesDisabled: forMigration,
+		NilValue:      func() *apitypes.Listener { return nil },
+		NewInstance:   func() *apitypes.Listener { return &apitypes.Listener{} },
 		GetFieldPtr: func(inst *apitypes.Listener, col string) interface{} {
 			switch col {
 			case dbsql.ColumnID:

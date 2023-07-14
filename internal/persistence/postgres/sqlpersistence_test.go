@@ -52,6 +52,24 @@ func newMockSQLPersistence(t *testing.T, init ...func(dbconf config.Section)) (c
 
 }
 
+func TestNewSQLPersistenceForMigration(t *testing.T) {
+
+	db, _ := dbsql.NewMockProvider().UTInit()
+
+	config.RootConfigReset()
+	dbconf := config.RootSection("utdb")
+	InitConfig(dbconf)
+
+	p, err := newSQLPersistence(context.Background(), &db.Database, dbconf, 1*time.Hour, ForMigration)
+	assert.NoError(t, err)
+	defer p.Close(context.Background())
+
+	assert.True(t, p.transactions.TimesDisabled)
+	assert.True(t, p.eventStreams.TimesDisabled)
+	assert.True(t, p.listeners.TimesDisabled)
+
+}
+
 func TestNewSQLPersistenceTXWriterFail(t *testing.T) {
 
 	db, _ := dbsql.NewMockProvider().UTInit()

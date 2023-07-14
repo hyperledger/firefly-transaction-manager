@@ -68,18 +68,25 @@ func InitConfig(conf config.Section) {
 	conf.AddKnownKey(ConfigTXWriterBatchSize, 100)
 }
 
-func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Section, nonceStateTimeout time.Duration) (p *sqlPersistence, err error) {
+func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Section, nonceStateTimeout time.Duration, codeOptions ...CodeUsageOptions) (p *sqlPersistence, err error) {
 	p = &sqlPersistence{
 		db: db,
 	}
 
-	p.transactions = p.newTransactionCollection()
-	p.checkpoints = p.newCheckpointCollection()
+	forMigration := false
+	for _, co := range codeOptions {
+		if co == ForMigration {
+			forMigration = true
+		}
+	}
+
+	p.eventStreams = p.newEventStreamsCollection(forMigration)
+	p.checkpoints = p.newCheckpointCollection(forMigration)
+	p.listeners = p.newListenersCollection(forMigration)
+	p.transactions = p.newTransactionCollection(forMigration)
 	p.confirmations = p.newConfirmationsCollection()
 	p.receipts = p.newReceiptsCollection()
 	p.txHistory = p.newTXHistoryCollection()
-	p.eventStreams = p.newEventStreamsCollection()
-	p.listeners = p.newListenersCollection()
 
 	p.historySummaryLimit = conf.GetInt(ConfigTXWriterHistorySummaryLimit)
 	p.nonceStateTimeout = nonceStateTimeout

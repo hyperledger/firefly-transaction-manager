@@ -40,13 +40,17 @@ type Postgres struct {
 	dbsql.Database
 }
 
+type CodeUsageOptions int
+
+const ForMigration CodeUsageOptions = iota
+
 var psql *Postgres
 
-func NewPostgresPersistence(bgCtx context.Context, conf config.Section, nonceStateTimeout time.Duration) (persistence.Persistence, error) {
+func NewPostgresPersistence(bgCtx context.Context, conf config.Section, nonceStateTimeout time.Duration, codeOptions ...CodeUsageOptions) (persistence.Persistence, error) {
 	if err := psql.Database.Init(bgCtx, psql, conf); err != nil {
 		return nil, err
 	}
-	return newSQLPersistence(bgCtx, &psql.Database, conf, nonceStateTimeout)
+	return newSQLPersistence(bgCtx, &psql.Database, conf, nonceStateTimeout, codeOptions...)
 }
 
 func (psql *Postgres) Name() string {

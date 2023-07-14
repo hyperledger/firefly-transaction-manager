@@ -28,7 +28,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
-func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.ManagedTX] {
+func (p *sqlPersistence) newTransactionCollection(forMigration bool) *dbsql.CrudBase[*apitypes.ManagedTX] {
 	collection := &dbsql.CrudBase[*apitypes.ManagedTX]{
 		DB:    p.db,
 		Table: "transactions",
@@ -68,6 +68,7 @@ func (p *sqlPersistence) newTransactionCollection() *dbsql.CrudBase[*apitypes.Ma
 			"errormessage":    "error_message",
 		},
 		PatchDisabled: true,
+		TimesDisabled: forMigration,
 		NilValue:      func() *apitypes.ManagedTX { return nil },
 		NewInstance:   func() *apitypes.ManagedTX { return &apitypes.ManagedTX{} },
 		GetFieldPtr: func(inst *apitypes.ManagedTX, col string) interface{} {

@@ -24,7 +24,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-func (p *sqlPersistence) newCheckpointCollection() *dbsql.CrudBase[*apitypes.EventStreamCheckpoint] {
+func (p *sqlPersistence) newCheckpointCollection(forMigration bool) *dbsql.CrudBase[*apitypes.EventStreamCheckpoint] {
 	collection := &dbsql.CrudBase[*apitypes.EventStreamCheckpoint]{
 		DB:    p.db,
 		Table: "checkpoints",
@@ -39,6 +39,7 @@ func (p *sqlPersistence) newCheckpointCollection() *dbsql.CrudBase[*apitypes.Eve
 			"streamid": "id",
 		},
 		PatchDisabled: true,
+		TimesDisabled: forMigration,
 		NilValue:      func() *apitypes.EventStreamCheckpoint { return nil },
 		NewInstance:   func() *apitypes.EventStreamCheckpoint { return &apitypes.EventStreamCheckpoint{} },
 		GetFieldPtr: func(inst *apitypes.EventStreamCheckpoint, col string) interface{} {
