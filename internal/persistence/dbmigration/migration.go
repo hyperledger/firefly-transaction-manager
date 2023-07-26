@@ -23,6 +23,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
 const (
@@ -54,7 +55,7 @@ func (m *dbMigration) migrateEventStreams(ctx context.Context) error {
 	var after *fftypes.UUID
 	count := 0
 	for {
-		page, err := m.source.ListStreamsByCreateTime(ctx, after, paginationLimit, persistence.SortDirectionAscending)
+		page, err := m.source.ListStreamsByCreateTime(ctx, after, paginationLimit, txhandler.SortDirectionAscending)
 		if err != nil {
 			return err
 		}
@@ -123,7 +124,7 @@ func (m *dbMigration) migrateListeners(ctx context.Context) error {
 	var after *fftypes.UUID
 	count := 0
 	for {
-		page, err := m.source.ListListenersByCreateTime(ctx, after, paginationLimit, persistence.SortDirectionAscending)
+		page, err := m.source.ListListenersByCreateTime(ctx, after, paginationLimit, txhandler.SortDirectionAscending)
 		if err != nil {
 			return err
 		}
@@ -171,7 +172,7 @@ func (m *dbMigration) migrateTransactions(ctx context.Context) error {
 	var after *apitypes.ManagedTX
 	count := 0
 	for {
-		page, err := m.source.ListTransactionsByCreateTime(ctx, after, paginationLimit, persistence.SortDirectionAscending)
+		page, err := m.source.ListTransactionsByCreateTime(ctx, after, paginationLimit, txhandler.SortDirectionAscending)
 		if err != nil {
 			return err
 		}

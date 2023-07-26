@@ -27,7 +27,6 @@ import (
 	// Internal packages are used in the tests for e2e tests with more coverage
 	// If you are developing a customized transaction handler, you'll need to mock the toolkit APIs instead
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/metricsmocks"
@@ -36,6 +35,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/fftm"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -538,7 +538,7 @@ func TestInflightSetListFailCancel(t *testing.T) {
 	sth.Init(sth.ctx, tk)
 	cancel()
 	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
-	mp.On("ListTransactionsPending", sth.ctx, "", sth.maxInFlight, persistence.SortDirectionAscending).
+	mp.On("ListTransactionsPending", sth.ctx, "", sth.maxInFlight, txhandler.SortDirectionAscending).
 		Return(nil, fmt.Errorf("pop"))
 
 	sth.policyLoopCycle(sth.ctx, true)

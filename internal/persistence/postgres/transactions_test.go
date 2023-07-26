@@ -28,6 +28,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -268,7 +269,7 @@ func TestTransactionListByCreateTimePSQL(t *testing.T) {
 	}
 
 	// Use the function to limit this list to three ascending, after the 2nd
-	list2, err := p.ListTransactionsByCreateTime(ctx, txs[1], 3, persistence.SortDirectionAscending)
+	list2, err := p.ListTransactionsByCreateTime(ctx, txs[1], 3, txhandler.SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, list2, 3)
 	for i := 0; i < 3; i++ {
@@ -277,7 +278,7 @@ func TestTransactionListByCreateTimePSQL(t *testing.T) {
 	}
 
 	// bad sequence string
-	_, err = p.ListTransactionsByCreateTime(ctx, &apitypes.ManagedTX{SequenceID: "!wrong"}, 0, persistence.SortDirectionAscending)
+	_, err = p.ListTransactionsByCreateTime(ctx, &apitypes.ManagedTX{SequenceID: "!wrong"}, 0, txhandler.SortDirectionAscending)
 	assert.Error(t, err)
 
 }
@@ -311,7 +312,7 @@ func TestTransactionListByNoncePSQL(t *testing.T) {
 	}
 
 	// List all the transactions by nonce for the first signer ascending, these we promise order on
-	list2, err := p.ListTransactionsByNonce(ctx, "signer_0", nil, 0, persistence.SortDirectionAscending)
+	list2, err := p.ListTransactionsByNonce(ctx, "signer_0", nil, 0, txhandler.SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, list2, 25)
 	for i := 0; i < 25; i++ {
@@ -320,7 +321,7 @@ func TestTransactionListByNoncePSQL(t *testing.T) {
 	}
 
 	// List all the transactions by nonce for the second signer descending, before 5
-	list3, err := p.ListTransactionsByNonce(ctx, "signer_1", fftypes.NewFFBigInt(5), 0, persistence.SortDirectionDescending)
+	list3, err := p.ListTransactionsByNonce(ctx, "signer_1", fftypes.NewFFBigInt(5), 0, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, list3, 5)
 	for i := 0; i < 4; i++ {
@@ -329,7 +330,7 @@ func TestTransactionListByNoncePSQL(t *testing.T) {
 	}
 
 	// List just two nonces after 3 for signer_0
-	list4, err := p.ListTransactionsByNonce(ctx, "signer_0", fftypes.NewFFBigInt(3), 2, persistence.SortDirectionAscending)
+	list4, err := p.ListTransactionsByNonce(ctx, "signer_0", fftypes.NewFFBigInt(3), 2, txhandler.SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, list4, 2)
 	assert.Equal(t, "signer_0", list4[0].From)
@@ -383,7 +384,7 @@ func TestTransactionPendingPSQL(t *testing.T) {
 	}
 
 	// List all the pending TX
-	list1, err := p.ListTransactionsPending(ctx, "", 0, persistence.SortDirectionAscending)
+	list1, err := p.ListTransactionsPending(ctx, "", 0, txhandler.SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, list1, 5)
 	for i := 0; i < 5; i++ {
@@ -392,7 +393,7 @@ func TestTransactionPendingPSQL(t *testing.T) {
 	}
 
 	// List before given sequence with a limit
-	list2, err := p.ListTransactionsPending(ctx, txs[7].SequenceID, 2, persistence.SortDirectionDescending)
+	list2, err := p.ListTransactionsPending(ctx, txs[7].SequenceID, 2, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, list2, 2)
 	assert.Equal(t, apitypes.TxStatusPending, list2[0].Status)
@@ -401,7 +402,7 @@ func TestTransactionPendingPSQL(t *testing.T) {
 	assert.Equal(t, int64(1), list2[1].Nonce.Int64())
 
 	// bad sequence string
-	_, err = p.ListTransactionsPending(ctx, "!wrong", 0, persistence.SortDirectionAscending)
+	_, err = p.ListTransactionsPending(ctx, "!wrong", 0, txhandler.SortDirectionAscending)
 	assert.Error(t, err)
 
 }

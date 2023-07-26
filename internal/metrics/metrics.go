@@ -24,6 +24,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/metric"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -91,25 +92,7 @@ type Metrics interface {
 
 // Transaction handler metrics are defined and emitted by transaction handlers
 type TransactionHandlerMetrics interface {
-	// functions for declaring new metrics
-	InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool)
-	InitTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool)
-	InitTxHandlerGaugeMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool)
-	InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool)
-	InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64, withDefaultLabels bool)
-	InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string, withDefaultLabels bool)
-	InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool)
-	InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool)
-
-	// functions for use existing metrics
-	SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels)
-	SetTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
-	IncTxHandlerCounterMetric(ctx context.Context, metricName string, defaultLabels *metric.FireflyDefaultLabels)
-	IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
-	ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels)
-	ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
-	ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels)
-	ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
+	txhandler.TransactionMetrics
 }
 
 func (mm *metricsManager) InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool) {

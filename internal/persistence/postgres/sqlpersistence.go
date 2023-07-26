@@ -25,6 +25,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
 const (
@@ -101,17 +102,17 @@ func (p *sqlPersistence) RichQuery() persistence.RichQuery {
 	return p
 }
 
-func (p *sqlPersistence) seqAfterFilter(ctx context.Context, qf *ffapi.QueryFields, after *int64, limit int, dir persistence.SortDirection, conditions ...ffapi.Filter) (filter ffapi.Filter) {
+func (p *sqlPersistence) seqAfterFilter(ctx context.Context, qf *ffapi.QueryFields, after *int64, limit int, dir txhandler.SortDirection, conditions ...ffapi.Filter) (filter ffapi.Filter) {
 	fb := qf.NewFilterLimit(ctx, uint64(limit))
 	if after != nil {
-		if dir == persistence.SortDirectionDescending {
+		if dir == txhandler.SortDirectionDescending {
 			conditions = append(conditions, fb.Lt("sequence", *after))
 		} else {
 			conditions = append(conditions, fb.Gt("sequence", *after))
 		}
 	}
 	filter = fb.And(conditions...)
-	if dir == persistence.SortDirectionDescending {
+	if dir == txhandler.SortDirectionDescending {
 		filter = filter.Sort("-sequence")
 	} else {
 		filter = filter.Sort("sequence")

@@ -24,6 +24,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
 func (p *sqlPersistence) newEventStreamsCollection(forMigration bool) *dbsql.CrudBase[*apitypes.EventStream] {
@@ -103,7 +104,7 @@ func (p *sqlPersistence) ListStreams(ctx context.Context, filter ffapi.AndFilter
 	return p.eventStreams.GetMany(ctx, filter)
 }
 
-func (p *sqlPersistence) ListStreamsByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir persistence.SortDirection) ([]*apitypes.EventStream, error) {
+func (p *sqlPersistence) ListStreamsByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir txhandler.SortDirection) ([]*apitypes.EventStream, error) {
 	var afterSeq *int64
 	if after != nil {
 		seq, err := p.eventStreams.GetSequenceForID(ctx, after.String())

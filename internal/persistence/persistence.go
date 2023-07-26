@@ -23,14 +23,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
-	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
-)
-
-type SortDirection int
-
-const (
-	SortDirectionAscending SortDirection = iota
-	SortDirectionDescending
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
 // Persistence interface contains all the functions a persistence instance needs to implement.
@@ -136,21 +129,8 @@ var TXHistoryFilters = &ffapi.QueryFields{
 	"lastinfo":       &ffapi.JSONField{},
 }
 
-type NextNonceCallback func(ctx context.Context, signer string) (uint64, error)
-
 type RichQuery interface {
-	ListStreams(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.EventStream, *ffapi.FilterResult, error)
-	ListListeners(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
-	ListTransactions(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error)
-	ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error)
-	ListTransactionHistory(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.TXHistoryRecord, *ffapi.FilterResult, error)
-	ListStreamListeners(ctx context.Context, streamID *fftypes.UUID, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
-
-	NewStreamFilter(ctx context.Context) ffapi.FilterBuilder
-	NewListenerFilter(ctx context.Context) ffapi.FilterBuilder
-	NewTransactionFilter(ctx context.Context) ffapi.FilterBuilder
-	NewConfirmationFilter(ctx context.Context) ffapi.FilterBuilder
-	NewTxHistoryFilter(ctx context.Context) ffapi.FilterBuilder
+	txhandler.RichQuery
 }
 
 type CheckpointPersistence interface {
@@ -160,41 +140,26 @@ type CheckpointPersistence interface {
 }
 
 type EventStreamPersistence interface {
-	ListStreamsByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.EventStream, error) // reverse insertion order
+	ListStreamsByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir txhandler.SortDirection) ([]*apitypes.EventStream, error) // reverse insertion order
 	GetStream(ctx context.Context, streamID *fftypes.UUID) (*apitypes.EventStream, error)
 	WriteStream(ctx context.Context, spec *apitypes.EventStream) error
 	DeleteStream(ctx context.Context, streamID *fftypes.UUID) error
 }
 
 type ListenerPersistence interface {
-	ListListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection) ([]*apitypes.Listener, error) // reverse insertion
-	ListStreamListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error)
+	ListListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir txhandler.SortDirection) ([]*apitypes.Listener, error) // reverse insertion
+	ListStreamListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir txhandler.SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error)
 	GetListener(ctx context.Context, listenerID *fftypes.UUID) (*apitypes.Listener, error)
 	WriteListener(ctx context.Context, spec *apitypes.Listener) error
 	DeleteListener(ctx context.Context, listenerID *fftypes.UUID) error
 }
 
 type TransactionPersistence interface {
-	ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)         // reverse create time order
-	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
-	ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                 // reverse insertion order, only those in pending state
-	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
-	GetTransactionByIDWithStatus(ctx context.Context, txID string, history bool) (*apitypes.TXWithStatus, error)
-	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
-	InsertTransactionPreAssignedNonce(ctx context.Context, tx *apitypes.ManagedTX) error
-	InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, lookupNextNonce NextNonceCallback) error
-	UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error
-	DeleteTransaction(ctx context.Context, txID string) error
-
-	GetTransactionReceipt(ctx context.Context, txID string) (receipt *ffcapi.TransactionReceiptResponse, err error)
-	SetTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error
-
-	GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error)
-	AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error
+	txhandler.TransactionPersistence
 }
 
 type TransactionHistoryPersistence interface {
-	AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error
+	txhandler.TransactionHistoryPersistence
 }
 
 // Takes a string that might be valid JSON, and returns valid JSON that is either:

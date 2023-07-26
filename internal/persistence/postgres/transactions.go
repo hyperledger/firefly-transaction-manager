@@ -26,6 +26,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
 func (p *sqlPersistence) newTransactionCollection(forMigration bool) *dbsql.CrudBase[*apitypes.ManagedTX] {
@@ -123,7 +124,7 @@ func (p *sqlPersistence) ListTransactions(ctx context.Context, filter ffapi.AndF
 	return p.transactions.GetMany(ctx, filter)
 }
 
-func (p *sqlPersistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
+func (p *sqlPersistence) ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir txhandler.SortDirection) ([]*apitypes.ManagedTX, error) {
 	var afterSeq *int64
 	if after != nil {
 		seq, err := strconv.ParseInt(after.SequenceID, 10, 64)
@@ -139,20 +140,20 @@ func (p *sqlPersistence) ListTransactionsByCreateTime(ctx context.Context, after
 
 }
 
-func (p *sqlPersistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
+func (p *sqlPersistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir txhandler.SortDirection) ([]*apitypes.ManagedTX, error) {
 	fb := persistence.TransactionFilters.NewFilterLimit(ctx, uint64(limit))
 	conditions := []ffapi.Filter{
 		fb.Eq("from", signer),
 	}
 	if after != nil {
-		if dir == persistence.SortDirectionDescending {
+		if dir == txhandler.SortDirectionDescending {
 			conditions = append(conditions, fb.Lt("nonce", after))
 		} else {
 			conditions = append(conditions, fb.Gt("nonce", after))
 		}
 	}
 	var filter ffapi.Filter = fb.And(conditions...)
-	if dir == persistence.SortDirectionDescending {
+	if dir == txhandler.SortDirectionDescending {
 		filter = filter.Sort("-nonce")
 	} else {
 		filter = filter.Sort("nonce")
@@ -161,7 +162,7 @@ func (p *sqlPersistence) ListTransactionsByNonce(ctx context.Context, signer str
 	return transactions, err
 }
 
-func (p *sqlPersistence) ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir persistence.SortDirection) ([]*apitypes.ManagedTX, error) {
+func (p *sqlPersistence) ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir txhandler.SortDirection) ([]*apitypes.ManagedTX, error) {
 	var afterSeq *int64
 	if afterSequenceID != "" {
 		seq, err := strconv.ParseInt(afterSequenceID, 10, 64)
@@ -235,7 +236,7 @@ func (p *sqlPersistence) InsertTransactionPreAssignedNonce(ctx context.Context, 
 	return op.flush(ctx) // wait for completion
 }
 
-func (p *sqlPersistence) InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, nextNonceCB persistence.NextNonceCallback) error {
+func (p *sqlPersistence) InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, nextNonceCB txhandler.NextNonceCallback) error {
 	// Dispatch to TX writer
 	op := newTransactionOperation(tx.ID)
 	op.txInsert = tx

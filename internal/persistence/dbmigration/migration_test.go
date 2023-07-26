@@ -22,10 +22,10 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -36,8 +36,8 @@ func TestDBMigrationOK(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	es := &apitypes.EventStream{ID: fftypes.NewUUID()}
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, es.ID, paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{}, nil)
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, es.ID, paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{}, nil)
 	mdb2.On("GetStream", mock.Anything, es.ID).Return(nil, nil)
 	mdb2.On("WriteStream", mock.Anything, es).Return(nil)
 
@@ -47,8 +47,8 @@ func TestDBMigrationOK(t *testing.T) {
 	mdb2.On("WriteCheckpoint", mock.Anything, cp).Return(nil)
 
 	l := &apitypes.Listener{ID: fftypes.NewUUID()}
-	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.Listener{l}, nil)
-	mdb1.On("ListListenersByCreateTime", mock.Anything, l.ID, paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.Listener{}, nil)
+	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.Listener{l}, nil)
+	mdb1.On("ListListenersByCreateTime", mock.Anything, l.ID, paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.Listener{}, nil)
 	mdb2.On("GetListener", mock.Anything, l.ID).Return(nil, nil)
 	mdb2.On("WriteListener", mock.Anything, l).Return(nil)
 
@@ -57,8 +57,8 @@ func TestDBMigrationOK(t *testing.T) {
 		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
-	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
-	mdb1.On("ListTransactionsByCreateTime", mock.Anything, tx.ManagedTX, paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.ManagedTX{}, nil)
+	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
+	mdb1.On("ListTransactionsByCreateTime", mock.Anything, tx.ManagedTX, paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, nil)
 	mdb2.On("GetTransactionByID", mock.Anything, tx.ID).Return(nil, nil)
 	mdb2.On("InsertTransactionPreAssignedNonce", mock.Anything, tx.ManagedTX).Return(nil)
@@ -80,11 +80,11 @@ func TestDBMigrationRunFailTransactions(t *testing.T) {
 	mdb1 := persistencemocks.NewPersistence(t)
 	mdb2 := persistencemocks.NewPersistence(t)
 
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{}, nil)
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{}, nil)
 
-	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.Listener{}, nil)
+	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.Listener{}, nil)
 
-	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.ManagedTX{}, fmt.Errorf("pop"))
+	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{}, fmt.Errorf("pop"))
 
 	m := dbMigration{
 		source: mdb1,
@@ -101,9 +101,9 @@ func TestDBMigrationRunFailListeners(t *testing.T) {
 	mdb1 := persistencemocks.NewPersistence(t)
 	mdb2 := persistencemocks.NewPersistence(t)
 
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{}, nil)
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{}, nil)
 
-	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.Listener{}, fmt.Errorf("pop"))
+	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.Listener{}, fmt.Errorf("pop"))
 
 	m := dbMigration{
 		source: mdb1,
@@ -120,7 +120,7 @@ func TestDBMigrationRunFailStreams(t *testing.T) {
 	mdb1 := persistencemocks.NewPersistence(t)
 	mdb2 := persistencemocks.NewPersistence(t)
 
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{}, fmt.Errorf("pop"))
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{}, fmt.Errorf("pop"))
 
 	m := dbMigration{
 		source: mdb1,
@@ -138,7 +138,7 @@ func TestMigrateEventsStreamsFailWrite(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	es := &apitypes.EventStream{ID: fftypes.NewUUID()}
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
 	mdb2.On("GetStream", mock.Anything, es.ID).Return(nil, nil)
 	mdb2.On("WriteStream", mock.Anything, es).Return(fmt.Errorf("pop"))
 
@@ -158,7 +158,7 @@ func TestMigrateEventsStreamsFailCheckExist(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	es := &apitypes.EventStream{ID: fftypes.NewUUID()}
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
 	mdb2.On("GetStream", mock.Anything, es.ID).Return(nil, fmt.Errorf("pop"))
 
 	m := dbMigration{
@@ -177,7 +177,7 @@ func TestMigrateEventsStreamsFailWriteCheckpoint(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	es := &apitypes.EventStream{ID: fftypes.NewUUID()}
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
 	mdb2.On("GetStream", mock.Anything, es.ID).Return(nil, nil)
 	mdb2.On("WriteStream", mock.Anything, es).Return(nil)
 
@@ -202,7 +202,7 @@ func TestMigrateEventsStreamsFailCheckCheckpointExists(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	es := &apitypes.EventStream{ID: fftypes.NewUUID()}
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
 	mdb2.On("GetStream", mock.Anything, es.ID).Return(nil, nil)
 	mdb2.On("WriteStream", mock.Anything, es).Return(nil)
 
@@ -226,7 +226,7 @@ func TestMigrateEventsStreamsFailGetCheckpoint(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	es := &apitypes.EventStream{ID: fftypes.NewUUID()}
-	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
+	mdb1.On("ListStreamsByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{es}, nil)
 	mdb2.On("GetStream", mock.Anything, es.ID).Return(nil, nil)
 	mdb2.On("WriteStream", mock.Anything, es).Return(nil)
 
@@ -248,7 +248,7 @@ func TestMigrateListenersFailWrite(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	l := &apitypes.Listener{ID: fftypes.NewUUID()}
-	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.Listener{l}, nil)
+	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.Listener{l}, nil)
 	mdb2.On("GetListener", mock.Anything, l.ID).Return(nil, nil)
 	mdb2.On("WriteListener", mock.Anything, l).Return(fmt.Errorf("pop"))
 
@@ -268,7 +268,7 @@ func TestMigrateListenersFailCheckExists(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	l := &apitypes.Listener{ID: fftypes.NewUUID()}
-	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.Listener{l}, nil)
+	mdb1.On("ListListenersByCreateTime", mock.Anything, (*fftypes.UUID)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.Listener{l}, nil)
 	mdb2.On("GetListener", mock.Anything, l.ID).Return(nil, fmt.Errorf("pop"))
 
 	m := dbMigration{
@@ -291,7 +291,7 @@ func TestMigrateTransactionsFailWriteConfirmations(t *testing.T) {
 		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
-	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
+	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, nil)
 	mdb2.On("GetTransactionByID", mock.Anything, tx.ID).Return(nil, nil)
 	mdb2.On("InsertTransactionPreAssignedNonce", mock.Anything, tx.ManagedTX).Return(nil)
@@ -318,7 +318,7 @@ func TestMigrateTransactionsFailWriteReceipt(t *testing.T) {
 		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
-	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
+	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, nil)
 	mdb2.On("GetTransactionByID", mock.Anything, tx.ID).Return(nil, nil)
 	mdb2.On("InsertTransactionPreAssignedNonce", mock.Anything, tx.ManagedTX).Return(nil)
@@ -344,7 +344,7 @@ func TestMigrateTransactionsFailWriteTx(t *testing.T) {
 		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
-	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
+	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, nil)
 	mdb2.On("GetTransactionByID", mock.Anything, tx.ID).Return(nil, nil)
 	mdb2.On("InsertTransactionPreAssignedNonce", mock.Anything, tx.ManagedTX).Return(fmt.Errorf("pop"))
@@ -369,7 +369,7 @@ func TestMigrateTransactionsFailCheckExists(t *testing.T) {
 		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
-	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
+	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, nil)
 	mdb2.On("GetTransactionByID", mock.Anything, tx.ID).Return(nil, fmt.Errorf("pop"))
 
@@ -393,7 +393,7 @@ func TestMigrateTransactionsFailGetDetail(t *testing.T) {
 		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
-	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
+	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, fmt.Errorf("pop"))
 
 	m := dbMigration{

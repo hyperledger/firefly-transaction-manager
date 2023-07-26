@@ -24,6 +24,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
 func (p *sqlPersistence) newListenersCollection(forMigration bool) *dbsql.CrudBase[*apitypes.Listener] {
@@ -89,7 +90,7 @@ func (p *sqlPersistence) ListStreamListeners(ctx context.Context, streamID *ffty
 	return p.listeners.GetMany(ctx, filter.Condition(filter.Builder().Eq("streamid", streamID)))
 }
 
-func (p *sqlPersistence) ListListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir persistence.SortDirection) ([]*apitypes.Listener, error) {
+func (p *sqlPersistence) ListListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir txhandler.SortDirection) ([]*apitypes.Listener, error) {
 	var afterSeq *int64
 	if after != nil {
 		seq, err := p.listeners.GetSequenceForID(ctx, after.String())
@@ -103,7 +104,7 @@ func (p *sqlPersistence) ListListenersByCreateTime(ctx context.Context, after *f
 	return listeners, err
 }
 
-func (p *sqlPersistence) ListStreamListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir persistence.SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error) {
+func (p *sqlPersistence) ListStreamListenersByCreateTime(ctx context.Context, after *fftypes.UUID, limit int, dir txhandler.SortDirection, streamID *fftypes.UUID) ([]*apitypes.Listener, error) {
 	var afterSeq *int64
 	if after != nil {
 		seq, err := p.listeners.GetSequenceForID(ctx, after.String())

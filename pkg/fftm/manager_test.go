@@ -28,13 +28,13 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/simple"
 	"github.com/spf13/viper"
@@ -351,7 +351,7 @@ func TestStartListListenersFail(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamsByCreateTime", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamsByCreateTime", mock.Anything, mock.Anything, startupPaginationLimit, txhandler.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
 
 	err := m.Start()
 	assert.Regexp(t, "pop", err)
@@ -374,7 +374,7 @@ func TestStartBlockListenerFail(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamsByCreateTime", mock.Anything, mock.Anything, startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, nil)
+	mp.On("ListStreamsByCreateTime", mock.Anything, mock.Anything, startupPaginationLimit, txhandler.SortDirectionAscending).Return(nil, nil)
 
 	mca := m.connector.(*ffcapimocks.API)
 	mca.On("NewBlockListener", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
