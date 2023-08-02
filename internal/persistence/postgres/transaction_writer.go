@@ -330,11 +330,11 @@ func (tw *transactionWriter) assignNonces(ctx context.Context, txInsertsByFrom m
 					}
 					if len(existingTXs) > 0 {
 						internalNextNonce = existingTXs[0].Nonce.Uint64() + 1
-						log.L(ctx).Tracef("Using the existing nonce from DB %s / %d to compare with the queried next %d for transaction %s", signer, internalNextNonce, nextNonce, op.txInsert.ID)
+						log.L(ctx).Tracef("Using the next nonce calculated from DB %s / %d to compare with the queried next %d for transaction %s", signer, internalNextNonce, nextNonce, op.txInsert.ID)
 					}
 				}
 				if internalNextNonce > nextNonce {
-					log.L(ctx).Infof("Using next nonce %s / %d instead of queried next %d for transaction %s", signer, internalNextNonce+1, nextNonce, op.txInsert.ID)
+					log.L(ctx).Infof("Using next nonce %s / %d instead of queried next %d for transaction %s", signer, internalNextNonce, nextNonce, op.txInsert.ID)
 					nextNonce = internalNextNonce
 				}
 				// Now we can cache the newly calculated value, and just increment as we go through all the TX in this batch
