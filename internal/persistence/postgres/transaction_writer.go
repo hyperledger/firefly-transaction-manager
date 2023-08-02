@@ -290,11 +290,12 @@ func (tw *transactionWriter) runBatch(ctx context.Context, b *transactionWriterB
 func (tw *transactionWriter) assignNonces(ctx context.Context, txInsertsByFrom map[string][]*transactionOperation) error {
 	for signer, txs := range txInsertsByFrom {
 		cacheEntry, isCached := tw.nextNonceCache.Get(signer)
+		cacheExpired := false
 		if isCached {
 			timeSinceCached := time.Since(*cacheEntry.cachedTime.Time())
 			if timeSinceCached > tw.p.nonceStateTimeout {
 				log.L(ctx).Infof("Nonce cache expired for signer '%s' after %s", signer, timeSinceCached.String())
-				cacheEntry = nil
+				cacheExpired = true
 			}
 		}
 		for _, op := range txs {
@@ -306,24 +307,35 @@ func (tw *transactionWriter) assignNonces(ctx context.Context, txInsertsByFrom m
 				log.L(ctx).Debugf("Skipped nonce assignment to duplicate TX %s", op.txInsert.ID)
 				continue
 			}
-			if cacheEntry == nil {
+			if cacheEntry == nil || cacheExpired {
 				nextNonce, err := op.nextNonceCB(ctx, signer)
 				if err != nil {
 					return err
 				}
-				// At this point we need to check the highest nonce in our DB, and take the higher of the two values
-				filter := persistence.TransactionFilters.NewFilterLimit(ctx, 1).Eq("from", signer).Sort("-nonce")
-				existingTXs, _, err := tw.p.transactions.GetMany(ctx, filter)
-				if err != nil {
-					log.L(ctx).Errorf("Failed to query highest persisted nonce for '%s': %s", signer, err)
-					return err
-				}
-				if len(existingTXs) > 0 {
-					existingNonce := existingTXs[0].Nonce.Uint64()
-					if existingNonce > nextNonce {
-						log.L(ctx).Infof("Using next nonce %s / %d instead of queried next %d due to transaction %s", signer, existingNonce+1, nextNonce, existingTXs[0].ID)
-						nextNonce = existingNonce + 1
+				var internalNextNonce uint64
+				// keep a record of the internal record of existing nonce
+				if cacheEntry != nil {
+					// always use the expired cache record first
+					// there could be multiple transactions pending to be inserted into the DB as a batch
+					// so the nonce value in DB record might be lower than the cached value
+					internalNextNonce = cacheEntry.nextNonce
+					log.L(ctx).Tracef("Using the cached existing nonce %s / %d to compare with the queried next %d for transaction %s", signer, internalNextNonce, nextNonce, op.txInsert.ID)
+				} else {
+					// when there is no cached nonce we need to fetch the highest nonce in our DB
+					filter := persistence.TransactionFilters.NewFilterLimit(ctx, 1).Eq("from", signer).Sort("-nonce")
+					existingTXs, _, err := tw.p.transactions.GetMany(ctx, filter)
+					if err != nil {
+						log.L(ctx).Errorf("Failed to query highest persisted nonce for '%s': %s", signer, err)
+						return err
 					}
+					if len(existingTXs) > 0 {
+						internalNextNonce = existingTXs[0].Nonce.Uint64() + 1
+						log.L(ctx).Tracef("Using the existing nonce from DB %s / %d to compare with the queried next %d for transaction %s", signer, internalNextNonce, nextNonce, op.txInsert.ID)
+					}
+				}
+				if internalNextNonce > nextNonce {
+					log.L(ctx).Infof("Using next nonce %s / %d instead of queried next %d for transaction %s", signer, internalNextNonce+1, nextNonce, op.txInsert.ID)
+					nextNonce = internalNextNonce
 				}
 				// Now we can cache the newly calculated value, and just increment as we go through all the TX in this batch
 				cacheEntry = &nonceCacheEntry{

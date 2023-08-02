@@ -174,7 +174,6 @@ func TestExecuteBatchOpsInsertTXFailOverrideNonceBelowTx(t *testing.T) {
 	})
 
 	mdb.ExpectBegin()
-	mdb.ExpectQuery("SELECT.*").WillReturnRows(newTXRow(p))
 	mdb.ExpectExec("INSERT.*").WillReturnResult(driver.ResultNoRows)
 	mdb.ExpectExec("INSERT.*").WillReturnResult(driver.ResultNoRows)
 	mdb.ExpectCommit()
