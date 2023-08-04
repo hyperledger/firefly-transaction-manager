@@ -135,23 +135,73 @@ func TestExecuteBatchOpsInsertTXFailOverrideNonceBelowTx(t *testing.T) {
 	mdb.ExpectBegin()
 	mdb.ExpectQuery("SELECT.*").WillReturnRows(newTXRow(p))
 	mdb.ExpectExec("INSERT.*").WillReturnResult(driver.ResultNoRows)
+	mdb.ExpectExec("INSERT.*").WillReturnResult(driver.ResultNoRows)
 	mdb.ExpectCommit()
 
-	tx := &apitypes.ManagedTX{
+	// batch 1
+	tx1 := &apitypes.ManagedTX{
 		TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"},
 	}
+	tx2 := &apitypes.ManagedTX{
+		TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"},
+	}
+
+	// a different batch so that they will retrieve the cached nonce
+	txa := &apitypes.ManagedTX{
+		TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"},
+	}
+	txb := &apitypes.ManagedTX{
+		TransactionHeaders: ffcapi.TransactionHeaders{From: "0x12345"},
+	}
+
 	p.writer.runBatch(ctx, &transactionWriterBatch{
 		ops: []*transactionOperation{
 			{
 				txID:     "1",
-				txInsert: tx,
+				txInsert: tx1,
+				nextNonceCB: func(ctx context.Context, signer string) (uint64, error) {
+					return 1 /* below nonce 11111 in the row queried back */, nil
+				},
+				done: make(chan error, 1)},
+			{
+				txID:     "2",
+				txInsert: tx2,
 				nextNonceCB: func(ctx context.Context, signer string) (uint64, error) {
 					return 1 /* below nonce 11111 in the row queried back */, nil
 				},
 				done: make(chan error, 1)},
 		},
 	})
-	assert.Equal(t, uint64(0x11112), tx.Nonce.Uint64())
+
+	mdb.ExpectBegin()
+	mdb.ExpectExec("INSERT.*").WillReturnResult(driver.ResultNoRows)
+	mdb.ExpectExec("INSERT.*").WillReturnResult(driver.ResultNoRows)
+	mdb.ExpectCommit()
+	p.nonceStateTimeout = 0 // set expiry to 0 so nonceCallback will be queried
+	p.writer.runBatch(ctx, &transactionWriterBatch{
+		ops: []*transactionOperation{
+			{
+				txID:     "3",
+				txInsert: txa,
+				nextNonceCB: func(ctx context.Context, signer string) (uint64, error) {
+					return 1 /* below nonce 11111 in the row queried back */, nil
+				},
+				done: make(chan error, 1)},
+			{
+				txID:     "4",
+				txInsert: txb,
+				nextNonceCB: func(ctx context.Context, signer string) (uint64, error) {
+					return 1 /* below nonce 11111 in the row queried back */, nil
+				},
+				done: make(chan error, 1)},
+		},
+	})
+
+	assert.Equal(t, uint64(0x11112), tx1.Nonce.Uint64())
+	assert.Equal(t, uint64(0x11113), tx2.Nonce.Uint64())
+
+	assert.Equal(t, uint64(0x11114), txa.Nonce.Uint64())
+	assert.Equal(t, uint64(0x11115), txb.Nonce.Uint64())
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
 }
