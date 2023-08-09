@@ -27,10 +27,10 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
@@ -131,7 +131,7 @@ func TestReadWriteStreams(t *testing.T) {
 	}
 	p.WriteStream(ctx, s3)
 
-	streams, err := p.ListStreamsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
+	streams, err := p.ListStreamsByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, streams, 3)
 
@@ -141,13 +141,13 @@ func TestReadWriteStreams(t *testing.T) {
 
 	// Test pagination
 
-	streams, err = p.ListStreamsByCreateTime(ctx, nil, 2, persistence.SortDirectionDescending)
+	streams, err = p.ListStreamsByCreateTime(ctx, nil, 2, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, streams, 2)
 	assert.Equal(t, s3.ID, streams[0].ID)
 	assert.Equal(t, s2.ID, streams[1].ID)
 
-	streams, err = p.ListStreamsByCreateTime(ctx, streams[1].ID, 2, persistence.SortDirectionDescending)
+	streams, err = p.ListStreamsByCreateTime(ctx, streams[1].ID, 2, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, streams, 1)
 	assert.Equal(t, s1.ID, streams[0].ID)
@@ -156,7 +156,7 @@ func TestReadWriteStreams(t *testing.T) {
 
 	err = p.DeleteStream(ctx, s2.ID)
 	assert.NoError(t, err)
-	streams, err = p.ListStreamsByCreateTime(ctx, nil, 2, persistence.SortDirectionDescending)
+	streams, err = p.ListStreamsByCreateTime(ctx, nil, 2, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, streams, 2)
 	assert.Equal(t, s3.ID, streams[0].ID)
@@ -203,7 +203,7 @@ func TestReadWriteListeners(t *testing.T) {
 	err = p.WriteListener(ctx, s1l2)
 	assert.NoError(t, err)
 
-	listeners, err := p.ListListenersByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
+	listeners, err := p.ListListenersByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, listeners, 3)
 
@@ -213,7 +213,7 @@ func TestReadWriteListeners(t *testing.T) {
 
 	// Test stream filter
 
-	listeners, err = p.ListStreamListenersByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending, sID1)
+	listeners, err = p.ListStreamListenersByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending, sID1)
 	assert.NoError(t, err)
 	assert.Len(t, listeners, 2)
 	assert.Equal(t, s1l2.ID, listeners[0].ID)
@@ -223,7 +223,7 @@ func TestReadWriteListeners(t *testing.T) {
 
 	err = p.DeleteListener(ctx, s2l1.ID)
 	assert.NoError(t, err)
-	listeners, err = p.ListStreamListenersByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending, sID2)
+	listeners, err = p.ListStreamListenersByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending, sID2)
 	assert.NoError(t, err)
 	assert.Len(t, listeners, 0)
 
@@ -309,7 +309,7 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 	err = p.writeTransaction(ctx, &apitypes.TXWithStatus{ManagedTX: s1t1}, true)
 	assert.Regexp(t, "FF21065", err)
 
-	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
+	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 4)
 
@@ -320,7 +320,7 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 
 	// Only list pending
 
-	txns, err = p.ListTransactionsPending(ctx, "", 0, persistence.SortDirectionDescending)
+	txns, err = p.ListTransactionsPending(ctx, "", 0, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
 
@@ -329,7 +329,7 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 
 	// List with time range
 
-	txns, err = p.ListTransactionsByCreateTime(ctx, s1t2, 0, persistence.SortDirectionDescending)
+	txns, err = p.ListTransactionsByCreateTime(ctx, s1t2, 0, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 2)
 	assert.Equal(t, s2t1.ID, txns[0].ID)
@@ -339,13 +339,13 @@ func TestReadWriteManagedTransactions(t *testing.T) {
 
 	err = p.DeleteTransaction(ctx, s1t2.ID)
 	assert.NoError(t, err)
-	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t1.Nonce, 0, persistence.SortDirectionAscending)
+	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t1.Nonce, 0, txhandler.SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 1)
 	assert.Equal(t, s1t3.ID, txns[0].ID)
 
 	// Check we can use after with the deleted nonce, and not skip the one after
-	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t2.Nonce, 0, persistence.SortDirectionAscending)
+	txns, err = p.ListTransactionsByNonce(ctx, "0xaaaaa", s1t2.Nonce, 0, txhandler.SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, txns, 1)
 	assert.Equal(t, s1t3.ID, txns[0].ID)
@@ -387,7 +387,7 @@ func TestListStreamsBadJSON(t *testing.T) {
 	err := p.db.Put(prefixedKey(eventstreamsPrefix, sID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListStreamsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
+	_, err = p.ListStreamsByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending)
 	assert.Error(t, err)
 
 }
@@ -400,10 +400,10 @@ func TestListListenersBadJSON(t *testing.T) {
 	err := p.db.Put(prefixedKey(listenersPrefix, lID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListListenersByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
+	_, err = p.ListListenersByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending)
 	assert.Error(t, err)
 
-	_, err = p.ListStreamListenersByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending, apitypes.NewULID())
+	_, err = p.ListStreamListenersByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending, apitypes.NewULID())
 	assert.Error(t, err)
 
 }
@@ -537,7 +537,7 @@ func TestListManagedTransactionFail(t *testing.T) {
 	err = p.db.Put(txDataKey(tx.ID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
+	_, err = p.ListTransactionsByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending)
 	assert.Error(t, err)
 
 }
@@ -554,7 +554,7 @@ func TestListManagedTransactionCleanupOrphans(t *testing.T) {
 	err := p.writeKeyValue(ctx, txCreatedIndexKey(tx), txDataKey(tx.ID))
 	assert.NoError(t, err)
 
-	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
+	txns, err := p.ListTransactionsByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Empty(t, txns)
 
@@ -574,7 +574,7 @@ func TestListNonceAllocationsFail(t *testing.T) {
 	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsByNonce(ctx, "0xaaa", nil, 0, persistence.SortDirectionDescending)
+	_, err = p.ListTransactionsByNonce(ctx, "0xaaa", nil, 0, txhandler.SortDirectionDescending)
 	assert.Error(t, err)
 
 }
@@ -589,7 +589,7 @@ func TestListInflightTransactionFail(t *testing.T) {
 	err = p.db.Put(txDataKey(txID), []byte("{! not json"), &opt.WriteOptions{})
 	assert.NoError(t, err)
 
-	_, err = p.ListTransactionsPending(ctx, "", 0, persistence.SortDirectionDescending)
+	_, err = p.ListTransactionsPending(ctx, "", 0, txhandler.SortDirectionDescending)
 	assert.Error(t, err)
 
 }
@@ -635,7 +635,7 @@ func TestIterateReverseJSONFailIdxResolve(t *testing.T) {
 		"test_1",
 		"",
 		0,
-		persistence.SortDirectionAscending,
+		txhandler.SortDirectionAscending,
 		func() interface{} { return make(map[string]interface{}) },
 		func(i interface{}) {},
 		func(ctx context.Context, k []byte) ([]byte, error) {
@@ -657,7 +657,7 @@ func TestIterateReverseJSONSkipIdxResolve(t *testing.T) {
 		"test_1",
 		"",
 		0,
-		persistence.SortDirectionAscending,
+		txhandler.SortDirectionAscending,
 		func() interface{} { return make(map[string]interface{}) },
 		func(_ interface{}) {
 			assert.Fail(t, "Should not be called")

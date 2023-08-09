@@ -32,6 +32,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
 type transactionOperation struct {
@@ -42,7 +43,7 @@ type transactionOperation struct {
 	isShutdown         bool
 	txInsert           *apitypes.ManagedTX
 	noncePreAssigned   bool
-	nextNonceCB        persistence.NextNonceCallback
+	nextNonceCB        txhandler.NextNonceCallback
 	txUpdate           *apitypes.TXUpdates
 	txDelete           *string
 	clearConfirmations bool

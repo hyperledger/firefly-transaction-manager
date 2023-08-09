@@ -22,8 +22,8 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -122,7 +122,7 @@ func TestListenerAfterPaginatePSQL(t *testing.T) {
 	}
 
 	// List them backwards, with no limit
-	list1, err := p.ListListenersByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
+	list1, err := p.ListListenersByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, list1, len(listeners))
 	for i := 0; i < len(listeners); i++ {
@@ -130,7 +130,7 @@ func TestListenerAfterPaginatePSQL(t *testing.T) {
 	}
 
 	// List them forwards, with no limit, within just one listener
-	list1, err = p.ListStreamListenersByCreateTime(ctx, nil, 0, persistence.SortDirectionAscending, stream1)
+	list1, err = p.ListStreamListenersByCreateTime(ctx, nil, 0, txhandler.SortDirectionAscending, stream1)
 	assert.NoError(t, err)
 	assert.Len(t, list1, 10)
 	for i := 0; i < 10; i++ {
@@ -138,14 +138,14 @@ func TestListenerAfterPaginatePSQL(t *testing.T) {
 	}
 
 	// List them backwards with pagination - limited by stream
-	list2, err := p.ListStreamListenersByCreateTime(ctx, listeners[12].ID, 5, persistence.SortDirectionDescending, stream2)
+	list2, err := p.ListStreamListenersByCreateTime(ctx, listeners[12].ID, 5, txhandler.SortDirectionDescending, stream2)
 	assert.NoError(t, err)
 	assert.Len(t, list2, 2)
 	assert.Equal(t, *listeners[11].Name, *list2[0].Name)
 	assert.Equal(t, *listeners[10].Name, *list2[1].Name) // first one in stream2
 
 	// List them forwards with pagination
-	list3, err := p.ListListenersByCreateTime(ctx, listeners[10].ID, 5, persistence.SortDirectionAscending)
+	list3, err := p.ListListenersByCreateTime(ctx, listeners[10].ID, 5, txhandler.SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, list3, 5)
 	assert.Equal(t, *listeners[11].Name, *list3[0].Name)
@@ -155,7 +155,7 @@ func TestListenerAfterPaginatePSQL(t *testing.T) {
 	assert.Equal(t, *listeners[15].Name, *list3[4].Name)
 
 	// Fails with after check if not found
-	_, err = p.ListStreamsByCreateTime(ctx, fftypes.NewUUID(), 5, persistence.SortDirectionAscending)
+	_, err = p.ListStreamsByCreateTime(ctx, fftypes.NewUUID(), 5, txhandler.SortDirectionAscending)
 	assert.Regexp(t, "FF00164", err)
 
 	// Find just one
@@ -179,7 +179,7 @@ func TestListListenersAfterNotFound(t *testing.T) {
 
 	mdb.ExpectQuery("SELECT.*listeners").WillReturnRows(sqlmock.NewRows([]string{"seq"}))
 
-	_, err := p.ListListenersByCreateTime(ctx, fftypes.NewUUID(), 0, persistence.SortDirectionAscending)
+	_, err := p.ListListenersByCreateTime(ctx, fftypes.NewUUID(), 0, txhandler.SortDirectionAscending)
 	assert.Regexp(t, "FF00164", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
@@ -191,7 +191,7 @@ func TestListStreamListenersAfterNotFound(t *testing.T) {
 
 	mdb.ExpectQuery("SELECT.*listeners").WillReturnRows(sqlmock.NewRows([]string{"seq"}))
 
-	_, err := p.ListStreamListenersByCreateTime(ctx, fftypes.NewUUID(), 0, persistence.SortDirectionAscending, fftypes.NewUUID())
+	_, err := p.ListStreamListenersByCreateTime(ctx, fftypes.NewUUID(), 0, txhandler.SortDirectionAscending, fftypes.NewUUID())
 	assert.Regexp(t, "FF00164", err)
 
 	assert.NoError(t, mdb.ExpectationsWereMet())

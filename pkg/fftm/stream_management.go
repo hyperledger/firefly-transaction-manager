@@ -26,10 +26,10 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
 const (
@@ -39,7 +39,7 @@ const (
 func (m *manager) restoreStreams() error {
 	var lastInPage *fftypes.UUID
 	for {
-		streamDefs, err := m.persistence.ListStreamsByCreateTime(m.ctx, lastInPage, startupPaginationLimit, persistence.SortDirectionAscending)
+		streamDefs, err := m.persistence.ListStreamsByCreateTime(m.ctx, lastInPage, startupPaginationLimit, txhandler.SortDirectionAscending)
 		if err != nil {
 			return err
 		}
@@ -48,7 +48,7 @@ func (m *manager) restoreStreams() error {
 		}
 		for _, def := range streamDefs {
 			lastInPage = def.ID
-			streamListeners, err := m.persistence.ListStreamListenersByCreateTime(m.ctx, nil, 0, persistence.SortDirectionAscending, def.ID)
+			streamListeners, err := m.persistence.ListStreamListenersByCreateTime(m.ctx, nil, 0, txhandler.SortDirectionAscending, def.ID)
 			if err != nil {
 				return err
 			}
@@ -75,7 +75,7 @@ func (m *manager) restoreStreams() error {
 func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftypes.UUID) error {
 	var lastInPage *fftypes.UUID
 	for {
-		listenerDefs, err := m.persistence.ListStreamListenersByCreateTime(ctx, lastInPage, startupPaginationLimit, persistence.SortDirectionAscending, streamID)
+		listenerDefs, err := m.persistence.ListStreamListenersByCreateTime(ctx, lastInPage, startupPaginationLimit, txhandler.SortDirectionAscending, streamID)
 		if err != nil {
 			return err
 		}
@@ -341,7 +341,7 @@ func (m *manager) getStreams(ctx context.Context, afterStr, limitStr string) (st
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListStreamsByCreateTime(ctx, after, limit, persistence.SortDirectionDescending)
+	return m.persistence.ListStreamsByCreateTime(ctx, after, limit, txhandler.SortDirectionDescending)
 }
 
 func (m *manager) getListenerSpec(ctx context.Context, streamIDStr, listenerIDStr string) (spec *apitypes.Listener, err error) {
@@ -391,7 +391,7 @@ func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListListenersByCreateTime(ctx, after, limit, persistence.SortDirectionDescending)
+	return m.persistence.ListListenersByCreateTime(ctx, after, limit, txhandler.SortDirectionDescending)
 }
 
 func (m *manager) getStreamListenersByCreateTime(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
@@ -403,7 +403,7 @@ func (m *manager) getStreamListenersByCreateTime(ctx context.Context, afterStr, 
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListStreamListenersByCreateTime(ctx, after, limit, persistence.SortDirectionDescending, id)
+	return m.persistence.ListStreamListenersByCreateTime(ctx, after, limit, txhandler.SortDirectionDescending, id)
 }
 
 func (m *manager) getStreamListenersRich(ctx context.Context, streamID string, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {

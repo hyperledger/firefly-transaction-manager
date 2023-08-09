@@ -23,11 +23,11 @@ import (
 	"testing"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -81,7 +81,7 @@ func TestRestoreStreamsReadFailed(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamsByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamsByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, txhandler.SortDirectionAscending).Return(nil, fmt.Errorf("pop"))
 
 	err := m.restoreStreams()
 	assert.Regexp(t, "pop", err)
@@ -95,10 +95,10 @@ func TestRestoreListenersReadFailed(t *testing.T) {
 	defer close()
 
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamsByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending).Return([]*apitypes.EventStream{
+	mp.On("ListStreamsByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.EventStream{
 		{ID: fftypes.NewUUID()},
 	}, nil)
-	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), 0, persistence.SortDirectionAscending, mock.Anything).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), 0, txhandler.SortDirectionAscending, mock.Anything).Return(nil, fmt.Errorf("pop"))
 
 	err := m.restoreStreams()
 	assert.Regexp(t, "pop", err)
@@ -183,7 +183,7 @@ func TestDeleteStartedListenerFail(t *testing.T) {
 	esID := apitypes.NewULID()
 	lID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, txhandler.SortDirectionAscending, esID).Return([]*apitypes.Listener{
 		{ID: lID, StreamID: esID},
 	}, nil)
 	mp.On("DeleteListener", m.ctx, lID).Return(fmt.Errorf("pop"))
@@ -211,7 +211,7 @@ func TestDeleteStreamListenerPersistenceFail(t *testing.T) {
 
 	esID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return(nil, fmt.Errorf("pop"))
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, txhandler.SortDirectionAscending, esID).Return(nil, fmt.Errorf("pop"))
 
 	err := m.deleteStream(m.ctx, esID.String())
 	assert.Regexp(t, "pop", err)
@@ -226,7 +226,7 @@ func TestDeleteStreamPersistenceFail(t *testing.T) {
 
 	esID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, txhandler.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(fmt.Errorf("pop"))
 
 	err := m.deleteStream(m.ctx, esID.String())
@@ -242,7 +242,7 @@ func TestDeleteStreamNotInitialized(t *testing.T) {
 
 	esID := apitypes.NewULID()
 	mp := m.persistence.(*persistencemocks.Persistence)
-	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, persistence.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, txhandler.SortDirectionAscending, esID).Return([]*apitypes.Listener{}, nil)
 	mp.On("DeleteStream", m.ctx, esID).Return(nil)
 
 	err := m.deleteStream(m.ctx, esID.String())

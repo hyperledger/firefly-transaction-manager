@@ -19,26 +19,80 @@ package txhandler
 import (
 	"context"
 
-	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/metric"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
+type NextNonceCallback func(ctx context.Context, signer string) (uint64, error)
+
+type SortDirection int
+
+const (
+	SortDirectionAscending SortDirection = iota
+	SortDirectionDescending
+)
+
 type TransactionPersistence interface {
-	persistence.TransactionPersistence
+	ListTransactionsByCreateTime(ctx context.Context, after *apitypes.ManagedTX, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)         // reverse create time order
+	ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error) // reverse nonce order within signer
+	ListTransactionsPending(ctx context.Context, afterSequenceID string, limit int, dir SortDirection) ([]*apitypes.ManagedTX, error)                 // reverse insertion order, only those in pending state
+	GetTransactionByID(ctx context.Context, txID string) (*apitypes.ManagedTX, error)
+	GetTransactionByIDWithStatus(ctx context.Context, txID string, history bool) (*apitypes.TXWithStatus, error)
+	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
+	InsertTransactionPreAssignedNonce(ctx context.Context, tx *apitypes.ManagedTX) error
+	InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, lookupNextNonce NextNonceCallback) error
+	UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error
+	DeleteTransaction(ctx context.Context, txID string) error
+
+	GetTransactionReceipt(ctx context.Context, txID string) (receipt *ffcapi.TransactionReceiptResponse, err error)
+	SetTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error
+
+	GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error)
+	AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error
 }
 
 type RichQuery interface {
-	persistence.RichQuery
+	ListStreams(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.EventStream, *ffapi.FilterResult, error)
+	ListListeners(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
+	ListTransactions(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.ManagedTX, *ffapi.FilterResult, error)
+	ListTransactionConfirmations(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.ConfirmationRecord, *ffapi.FilterResult, error)
+	ListTransactionHistory(ctx context.Context, txID string, filter ffapi.AndFilter) ([]*apitypes.TXHistoryRecord, *ffapi.FilterResult, error)
+	ListStreamListeners(ctx context.Context, streamID *fftypes.UUID, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
+
+	NewStreamFilter(ctx context.Context) ffapi.FilterBuilder
+	NewListenerFilter(ctx context.Context) ffapi.FilterBuilder
+	NewTransactionFilter(ctx context.Context) ffapi.FilterBuilder
+	NewConfirmationFilter(ctx context.Context) ffapi.FilterBuilder
+	NewTxHistoryFilter(ctx context.Context) ffapi.FilterBuilder
 }
 
 type TransactionHistoryPersistence interface {
-	persistence.TransactionHistoryPersistence
+	AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) error
 }
 
 type TransactionMetrics interface {
-	metrics.TransactionHandlerMetrics
+	// functions for declaring new metrics
+	InitTxHandlerCounterMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool)
+	InitTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool)
+	InitTxHandlerGaugeMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool)
+	InitTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool)
+	InitTxHandlerHistogramMetric(ctx context.Context, metricName string, helpText string, buckets []float64, withDefaultLabels bool)
+	InitTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, helpText string, buckets []float64, labelNames []string, withDefaultLabels bool)
+	InitTxHandlerSummaryMetric(ctx context.Context, metricName string, helpText string, withDefaultLabels bool)
+	InitTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, helpText string, labelNames []string, withDefaultLabels bool)
+
+	// functions for use existing metrics
+	SetTxHandlerGaugeMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels)
+	SetTxHandlerGaugeMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
+	IncTxHandlerCounterMetric(ctx context.Context, metricName string, defaultLabels *metric.FireflyDefaultLabels)
+	IncTxHandlerCounterMetricWithLabels(ctx context.Context, metricName string, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
+	ObserveTxHandlerHistogramMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels)
+	ObserveTxHandlerHistogramMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
+	ObserveTxHandlerSummaryMetric(ctx context.Context, metricName string, number float64, defaultLabels *metric.FireflyDefaultLabels)
+	ObserveTxHandlerSummaryMetricWithLabels(ctx context.Context, metricName string, number float64, labels map[string]string, defaultLabels *metric.FireflyDefaultLabels)
 }
 
 type Toolkit struct {

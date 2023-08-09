@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/log"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
 type lockedNonce struct {
@@ -47,7 +47,7 @@ func (ln *lockedNonce) complete(ctx context.Context) {
 	ln.th.nonceMux.Unlock()
 }
 
-func (p *leveldbPersistence) assignAndLockNonce(ctx context.Context, nsOpID, signer string, nextNonceCB persistence.NextNonceCallback) (*lockedNonce, error) {
+func (p *leveldbPersistence) assignAndLockNonce(ctx context.Context, nsOpID, signer string, nextNonceCB txhandler.NextNonceCallback) (*lockedNonce, error) {
 
 	for {
 		// Take the lock to query our nonce cache, and check if we are already locked
@@ -85,7 +85,7 @@ func (p *leveldbPersistence) assignAndLockNonce(ctx context.Context, nsOpID, sig
 
 }
 
-func (p *leveldbPersistence) calcNextNonce(ctx context.Context, signer string, nextNonceCB persistence.NextNonceCallback) (uint64, error) {
+func (p *leveldbPersistence) calcNextNonce(ctx context.Context, signer string, nextNonceCB txhandler.NextNonceCallback) (uint64, error) {
 
 	// First we check our DB to find the last nonce we used for this address.
 	// Note we are within the nonce-lock in assignAndLockNonce for this signer, so we can be sure we're the

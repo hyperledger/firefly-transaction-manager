@@ -22,8 +22,8 @@ import (
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
@@ -117,7 +117,7 @@ func TestEventStreamAfterPaginatePSQL(t *testing.T) {
 	}
 
 	// List them backwards, with no limit
-	list1, err := p.ListStreamsByCreateTime(ctx, nil, 0, persistence.SortDirectionDescending)
+	list1, err := p.ListStreamsByCreateTime(ctx, nil, 0, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, list1, len(eventStreams))
 	for i := 0; i < len(eventStreams); i++ {
@@ -125,7 +125,7 @@ func TestEventStreamAfterPaginatePSQL(t *testing.T) {
 	}
 
 	// List them forwards, with no limit
-	list1, err = p.ListStreamsByCreateTime(ctx, nil, 0, persistence.SortDirectionAscending)
+	list1, err = p.ListStreamsByCreateTime(ctx, nil, 0, txhandler.SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, list1, len(eventStreams))
 	for i := 0; i < len(eventStreams); i++ {
@@ -133,7 +133,7 @@ func TestEventStreamAfterPaginatePSQL(t *testing.T) {
 	}
 
 	// List them backwards with pagination
-	list2, err := p.ListStreamsByCreateTime(ctx, eventStreams[10].ID, 5, persistence.SortDirectionDescending)
+	list2, err := p.ListStreamsByCreateTime(ctx, eventStreams[10].ID, 5, txhandler.SortDirectionDescending)
 	assert.NoError(t, err)
 	assert.Len(t, list2, 5)
 	assert.Equal(t, *eventStreams[9].Name, *list2[0].Name)
@@ -143,7 +143,7 @@ func TestEventStreamAfterPaginatePSQL(t *testing.T) {
 	assert.Equal(t, *eventStreams[5].Name, *list2[4].Name)
 
 	// List them forwards with pagination
-	list3, err := p.ListStreamsByCreateTime(ctx, eventStreams[10].ID, 5, persistence.SortDirectionAscending)
+	list3, err := p.ListStreamsByCreateTime(ctx, eventStreams[10].ID, 5, txhandler.SortDirectionAscending)
 	assert.NoError(t, err)
 	assert.Len(t, list3, 5)
 	assert.Equal(t, *eventStreams[11].Name, *list3[0].Name)
@@ -153,7 +153,7 @@ func TestEventStreamAfterPaginatePSQL(t *testing.T) {
 	assert.Equal(t, *eventStreams[15].Name, *list3[4].Name)
 
 	// Fails with after check if not found
-	_, err = p.ListStreamsByCreateTime(ctx, fftypes.NewUUID(), 5, persistence.SortDirectionAscending)
+	_, err = p.ListStreamsByCreateTime(ctx, fftypes.NewUUID(), 5, txhandler.SortDirectionAscending)
 	assert.Regexp(t, "FF00164", err)
 
 	// Find just one
