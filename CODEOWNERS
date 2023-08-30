@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
-# FireFly Core Maintainers
-* @peterbroadhurst @nguyer @awrichar
+# FireFly transaction manager maintainers
+* @hyperledger/firefly-transaction-manager-maintainers
 
 # FireFly Documentation Maintainers
 /docs @peterbroadhurst @nguyer @awrichar @nickgaski
