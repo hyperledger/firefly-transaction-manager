@@ -224,7 +224,8 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 
 		switch request.requestType {
 		case ActionDelete, ActionSuspend, ActionResume:
-			if err := sth.execPolicy(ctx, pending, &request.requestType); err != nil {
+			reqType := request.requestType
+			if err := sth.execPolicy(ctx, pending, &reqType); err != nil {
 				request.response <- policyEngineAPIResponse{err: err}
 			} else {
 				res := policyEngineAPIResponse{tx: pending.mtx, status: http.StatusAccepted}

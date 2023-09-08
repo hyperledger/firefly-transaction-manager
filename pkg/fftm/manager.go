@@ -18,7 +18,6 @@ package fftm
 
 import (
 	"context"
-	"net/http"
 	"sync"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
@@ -70,8 +69,6 @@ type manager struct {
 	metricsServerDone chan error
 	metricsEnabled    bool
 	metricsManager    metrics.Metrics
-	debugServer       *http.Server
-	debugServerDone   chan struct{}
 }
 
 func InitConfig() {
@@ -169,6 +166,8 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 }
 
 func (m *manager) Start() error {
+	go httpserver.RunDebugServer(m.ctx, tmconfig.DebugConfig)
+
 	if err := m.restoreStreams(); err != nil {
 		return err
 	}
@@ -180,8 +179,6 @@ func (m *manager) Start() error {
 		return err
 	}
 
-	m.debugServerDone = make(chan struct{})
-	go m.runDebugServer()
 	go m.runAPIServer()
 	if m.metricsEnabled {
 		go m.runMetricsServer()
@@ -200,16 +197,12 @@ func (m *manager) Close() {
 	m.cancelCtx()
 	if m.started {
 		m.started = false
-		if m.debugServer != nil {
-			m.debugServer.Close()
-		}
 		<-m.apiServerDone
 		if m.metricsEnabled {
 			<-m.metricsServerDone
 		}
 		<-m.txHandlerDone
 		<-m.blockListenerDone
-		<-m.debugServerDone
 
 		streams := []events.Stream{}
 		m.mux.Lock()

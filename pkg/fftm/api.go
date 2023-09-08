@@ -18,17 +18,13 @@ package fftm
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"net/http/pprof"
-	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/gorilla/mux"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
-	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 )
 
@@ -100,23 +96,4 @@ func (m *manager) runAPIServer() {
 
 func (m *manager) runMetricsServer() {
 	m.metricsServer.ServeHTTP(m.ctx)
-}
-
-func (m *manager) runDebugServer() {
-	debugPort := config.GetInt(tmconfig.DebugPort)
-	defer func() {
-		close(m.debugServerDone)
-	}()
-
-	if debugPort >= 0 {
-		r := mux.NewRouter()
-		r.PathPrefix("/debug/pprof/cmdline").HandlerFunc(pprof.Cmdline)
-		r.PathPrefix("/debug/pprof/profile").HandlerFunc(pprof.Profile)
-		r.PathPrefix("/debug/pprof/symbol").HandlerFunc(pprof.Symbol)
-		r.PathPrefix("/debug/pprof/trace").HandlerFunc(pprof.Trace)
-		r.PathPrefix("/debug/pprof/").HandlerFunc(pprof.Index)
-		m.debugServer = &http.Server{Addr: fmt.Sprintf("localhost:%d", debugPort), Handler: r, ReadHeaderTimeout: 30 * time.Second}
-		log.L(m.ctx).Debugf("Debug HTTP endpoint listening on localhost:%d", debugPort)
-		_ = m.debugServer.ListenAndServe()
-	}
 }
