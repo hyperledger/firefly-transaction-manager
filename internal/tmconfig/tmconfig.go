@@ -55,7 +55,6 @@ var (
 	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
 	APIPassthroughHeaders                         = ffc("api.passthroughHeaders")
 	APISimpleQuery                                = ffc("api.simpleQuery")
-	DebugPort                                     = ffc("debug.port")
 	MetricsEnabled                                = ffc("metrics.enabled")
 	MetricsPath                                   = ffc("metrics.path")
 	TransactionsHandlerName                       = ffc("transactions.handler.name")
@@ -74,6 +73,8 @@ var (
 var PersistenceSection config.Section
 
 var PostgresSection config.Section
+
+var DebugConfig config.Section
 
 var APIConfig config.Section
 
@@ -118,7 +119,6 @@ func setDefaults() {
 	viper.SetDefault(string(EventStreamsRetryInitDelay), "250ms")
 	viper.SetDefault(string(EventStreamsRetryMaxDelay), "30s")
 	viper.SetDefault(string(EventStreamsRetryFactor), 2.0)
-	viper.SetDefault(string(DebugPort), -1)
 	viper.SetDefault(string(MetricsEnabled), false)
 	viper.SetDefault(string(MetricsPath), "/metrics")
 
@@ -136,6 +136,9 @@ func setDefaults() {
 
 func Reset() {
 	config.RootConfigReset(setDefaults)
+
+	DebugConfig = config.RootSection("debug")
+	httpserver.InitDebugConfig(DebugConfig)
 
 	APIConfig = config.RootSection("api")
 	httpserver.InitHTTPConfig(APIConfig, 5008)

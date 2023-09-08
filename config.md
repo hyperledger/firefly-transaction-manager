@@ -72,7 +72,36 @@
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|port|An HTTP port on which to enable the go debugger|`int`|`-1`
+|address|Listener address|`int`|`127.0.0.1`
+|enabled|Whether the debug HTTP endpoint is enabled|`boolean`|`true`
+|port|An HTTP port on which to enable the go debugger|`int`|`0`
+|publicURL|Externally available URL for the HTTP endpoint|`string`|`<nil>`
+|readTimeout|HTTP server read timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
+|shutdownTimeout|HTTP server shutdown timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
+|writeTimeout|HTTP server write timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
+
+## debug.auth
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|type|The auth plugin to use for server side authentication of requests|`string`|`<nil>`
+
+## debug.auth.basic
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|passwordfile|The path to a .htpasswd file to use for authenticating requests. Passwords should be hashed with bcrypt.|`string`|`<nil>`
+
+## debug.tls
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|caFile|The path to the CA file for TLS on this API|`string`|`<nil>`
+|certFile|The path to the certificate file for TLS on this API|`string`|`<nil>`
+|clientAuth|Enables or disables client auth for TLS on this API|`string`|`<nil>`
+|enabled|Enables or disables TLS on this API|`boolean`|`false`
+|keyFile|The path to the private key file for TLS on this API|`string`|`<nil>`
+|requiredDNAttributes|A set of required subject DN attributes. Each entry is a regular expression, and the subject certificate must have a matching attribute of the specified type (CN, C, O, OU, ST, L, STREET, POSTALCODE, SERIALNUMBER are valid attributes)|`map[string]string`|`<nil>`
 
 ## eventstreams
 
