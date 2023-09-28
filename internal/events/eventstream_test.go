@@ -1635,7 +1635,7 @@ func TestEventLoopIgnoreBadEvent(t *testing.T) {
 	es.processNewEvent(context.Background(), &ffcapi.ListenerEvent{})
 }
 
-func TestSkipEventsBehindCheckpoint(t *testing.T) {
+func TestSkipEventsBehindCheckpointAndUnknownListener(t *testing.T) {
 
 	es := newTestEventStream(t, `{
 		"name": "ut_stream"
@@ -1679,6 +1679,10 @@ func TestSkipEventsBehindCheckpoint(t *testing.T) {
 	es.batchChannel <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2000}, // on checkpoint - redelivery
 		Event:      &ffcapi.Event{ID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 2000}},
+	}
+	es.batchChannel <- &ffcapi.ListenerEvent{
+		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2001}, // this is for a listener that no longer exists on the ES
+		Event:      &ffcapi.Event{ID: ffcapi.EventID{ListenerID: fftypes.NewUUID(), BlockNumber: 2001}},
 	}
 	es.batchChannel <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2001}, // this is a new event
