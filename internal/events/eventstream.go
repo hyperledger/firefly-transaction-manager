@@ -636,6 +636,7 @@ func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.Listener
 						if notification.Confirmed {
 							// Push it to the batch when confirmed
 							// - Note this will block the confirmation manager when the event stream is blocked
+							log.L(ctx).Debugf("Queuing confirmed event for batch assembly: '%s'", event)
 							es.batchChannel <- fev
 						}
 					},
@@ -741,6 +742,8 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 						},
 						Event: *fev.Event,
 					})
+				} else {
+					log.L(es.bgCtx).Warnf("Confirmed event not associated with any active listener: %s", fev.Event)
 				}
 			}
 		case <-timeoutChannel:
@@ -757,7 +760,7 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 			return
 		}
 
-		if timedOut || len(batch.events) >= maxSize {
+		if timedOut || (batch != nil && len(batch.events) >= maxSize) {
 			var err error
 			if batch != nil {
 				batch.timeout.Stop()
