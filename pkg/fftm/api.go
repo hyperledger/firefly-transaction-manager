@@ -56,6 +56,7 @@ func (m *manager) router(metricsEnabled bool) *mux.Router {
 		swaggerGen := ffapi.NewSwaggerGen(&ffapi.Options{
 			BaseURL:                   u.String(),
 			PanicOnMissingDescription: testDescriptions,
+			DefaultRequestTimeout:     config.GetDuration(tmconfig.APIDefaultRequestTimeout),
 		})
 		doc := swaggerGen.Generate(req.Context(), routes)
 		res.Header().Add("Content-Type", "application/x-yaml")
@@ -66,7 +67,9 @@ func (m *manager) router(metricsEnabled bool) *mux.Router {
 		u := req.URL
 		u.Path = ""
 		swaggerGen := ffapi.NewSwaggerGen(&ffapi.Options{
-			BaseURL: u.String(),
+			BaseURL:                   u.String(),
+			PanicOnMissingDescription: testDescriptions,
+			DefaultRequestTimeout:     config.GetDuration(tmconfig.APIDefaultRequestTimeout),
 		})
 		doc := swaggerGen.Generate(req.Context(), routes)
 		res.Header().Add("Content-Type", "application/json")
