@@ -35,6 +35,7 @@
 |certFile|The path to the certificate file for TLS on this API|`string`|`<nil>`
 |clientAuth|Enables or disables client auth for TLS on this API|`string`|`<nil>`
 |enabled|Enables or disables TLS on this API|`boolean`|`false`
+|insecureSkipHostVerify|When to true in unit test development environments to disable TLS verification. Use with extreme caution|`boolean`|`<nil>`
 |keyFile|The path to the private key file for TLS on this API|`string`|`<nil>`
 |requiredDNAttributes|A set of required subject DN attributes. Each entry is a regular expression, and the subject certificate must have a matching attribute of the specified type (CN, C, O, OU, ST, L, STREET, POSTALCODE, SERIALNUMBER are valid attributes)|`map[string]string`|`<nil>`
 
@@ -100,6 +101,7 @@
 |certFile|The path to the certificate file for TLS on this API|`string`|`<nil>`
 |clientAuth|Enables or disables client auth for TLS on this API|`string`|`<nil>`
 |enabled|Enables or disables TLS on this API|`boolean`|`false`
+|insecureSkipHostVerify|When to true in unit test development environments to disable TLS verification. Use with extreme caution|`boolean`|`<nil>`
 |keyFile|The path to the private key file for TLS on this API|`string`|`<nil>`
 |requiredDNAttributes|A set of required subject DN attributes. Each entry is a regular expression, and the subject certificate must have a matching attribute of the specified type (CN, C, O, OU, ST, L, STREET, POSTALCODE, SERIALNUMBER are valid attributes)|`map[string]string`|`<nil>`
 
@@ -194,6 +196,7 @@
 |certFile|The path to the certificate file for TLS on this API|`string`|`<nil>`
 |clientAuth|Enables or disables client auth for TLS on this API|`string`|`<nil>`
 |enabled|Enables or disables TLS on this API|`boolean`|`false`
+|insecureSkipHostVerify|When to true in unit test development environments to disable TLS verification. Use with extreme caution|`boolean`|`<nil>`
 |keyFile|The path to the private key file for TLS on this API|`string`|`<nil>`
 |requiredDNAttributes|A set of required subject DN attributes. Each entry is a regular expression, and the subject certificate must have a matching attribute of the specified type (CN, C, O, OU, ST, L, STREET, POSTALCODE, SERIALNUMBER are valid attributes)|`map[string]string`|`<nil>`
 
@@ -260,6 +263,7 @@
 |expectContinueTimeout|See [ExpectContinueTimeout in the Go docs](https://pkg.go.dev/net/http#Transport)|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |headers|Adds custom headers to HTTP requests|`map[string]string`|`<nil>`
 |idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxConnsPerHost|The max number of connections, per unique hostname. Zero means no limit|`int`|`<nil>`
 |maxIdleConns|The max number of idle connections to hold pooled|`int`|`<nil>`
 |method|Deprecated: Please use 'transactions.handler.simple.gasOracle.method' instead|`string`|`<nil>`
 |mode|Deprecated: Please use 'transactions.handler.simple.gasOracle.mode' instead|'connector', 'restapi', 'fixed', or 'disabled'|`<nil>`
@@ -289,6 +293,7 @@
 |---|-----------|----|-------------|
 |count|The maximum number of times to retry|`int`|`<nil>`
 |enabled|Enables retries|`boolean`|`<nil>`
+|errorStatusCodeRegex|The regex that the error response status code must match to trigger retry|`string`|`<nil>`
 |initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
@@ -300,6 +305,7 @@
 |certFile|The path to the certificate file for TLS on this API|`string`|`<nil>`
 |clientAuth|Enables or disables client auth for TLS on this API|`string`|`<nil>`
 |enabled|Enables or disables TLS on this API|`boolean`|`<nil>`
+|insecureSkipHostVerify|When to true in unit test development environments to disable TLS verification. Use with extreme caution|`boolean`|`<nil>`
 |keyFile|The path to the private key file for TLS on this API|`string`|`<nil>`
 |requiredDNAttributes|A set of required subject DN attributes. Each entry is a regular expression, and the subject certificate must have a matching attribute of the specified type (CN, C, O, OU, ST, L, STREET, POSTALCODE, SERIALNUMBER are valid attributes)|`map[string]string`|`<nil>`
 
@@ -348,6 +354,7 @@
 |expectContinueTimeout|See [ExpectContinueTimeout in the Go docs](https://pkg.go.dev/net/http#Transport)|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |headers|Adds custom headers to HTTP requests|`map[string]string`|`<nil>`
 |idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
+|maxConnsPerHost|The max number of connections, per unique hostname. Zero means no limit|`int`|`<nil>`
 |maxIdleConns|The max number of idle connections to hold pooled|`int`|`<nil>`
 |method|The HTTP Method to use when invoking the Gas Oracle REST API|`string`|`<nil>`
 |mode|The gas oracle mode|'connector', 'restapi', 'fixed', or 'disabled'|`<nil>`
@@ -377,6 +384,7 @@
 |---|-----------|----|-------------|
 |count|The maximum number of times to retry|`int`|`<nil>`
 |enabled|Enables retries|`boolean`|`<nil>`
+|errorStatusCodeRegex|The regex that the error response status code must match to trigger retry|`string`|`<nil>`
 |initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 |maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`<nil>`
 
@@ -388,6 +396,7 @@
 |certFile|The path to the certificate file for TLS on this API|`string`|`<nil>`
 |clientAuth|Enables or disables client auth for TLS on this API|`string`|`<nil>`
 |enabled|Enables or disables TLS on this API|`boolean`|`<nil>`
+|insecureSkipHostVerify|When to true in unit test development environments to disable TLS verification. Use with extreme caution|`boolean`|`<nil>`
 |keyFile|The path to the private key file for TLS on this API|`string`|`<nil>`
 |requiredDNAttributes|A set of required subject DN attributes. Each entry is a regular expression, and the subject certificate must have a matching attribute of the specified type (CN, C, O, OU, ST, L, STREET, POSTALCODE, SERIALNUMBER are valid attributes)|`map[string]string`|`<nil>`
 
@@ -408,6 +417,7 @@
 |expectContinueTimeout|See [ExpectContinueTimeout in the Go docs](https://pkg.go.dev/net/http#Transport)|[`time.Duration`](https://pkg.go.dev/time#Duration)|`1s`
 |headers|Adds custom headers to HTTP requests|`map[string]string`|`<nil>`
 |idleTimeout|The max duration to hold a HTTP keepalive connection between calls|[`time.Duration`](https://pkg.go.dev/time#Duration)|`475ms`
+|maxConnsPerHost|The max number of connections, per unique hostname. Zero means no limit|`int`|`0`
 |maxIdleConns|The max number of idle connections to hold pooled|`int`|`100`
 |passthroughHeadersEnabled|Enable passing through the set of allowed HTTP request headers|`boolean`|`false`
 |requestTimeout|The maximum amount of time that a request is allowed to remain open|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
@@ -432,6 +442,7 @@
 |---|-----------|----|-------------|
 |count|The maximum number of times to retry|`int`|`5`
 |enabled|Enables retries|`boolean`|`false`
+|errorStatusCodeRegex|The regex that the error response status code must match to trigger retry|`string`|`<nil>`
 |initWaitTime|The initial retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`250ms`
 |maxWaitTime|The maximum retry delay|[`time.Duration`](https://pkg.go.dev/time#Duration)|`30s`
 
@@ -443,5 +454,6 @@
 |certFile|The path to the certificate file for TLS on this API|`string`|`<nil>`
 |clientAuth|Enables or disables client auth for TLS on this API|`string`|`<nil>`
 |enabled|Enables or disables TLS on this API|`boolean`|`false`
+|insecureSkipHostVerify|When to true in unit test development environments to disable TLS verification. Use with extreme caution|`boolean`|`<nil>`
 |keyFile|The path to the private key file for TLS on this API|`string`|`<nil>`
 |requiredDNAttributes|A set of required subject DN attributes. Each entry is a regular expression, and the subject certificate must have a matching attribute of the specified type (CN, C, O, OU, ST, L, STREET, POSTALCODE, SERIALNUMBER are valid attributes)|`map[string]string`|`<nil>`

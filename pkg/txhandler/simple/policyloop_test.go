@@ -61,7 +61,7 @@ func sendSampleTX(t *testing.T, sth *simpleTransactionHandler, signer string, no
 		TransactionData: "0xabce1234",
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	mtx, err := sth.HandleNewTransaction(ctx, &apitypes.TransactionRequest{
+	mtx, _, err := sth.HandleNewTransaction(ctx, &apitypes.TransactionRequest{
 		Headers: apitypes.RequestHeaders{
 			ID: txID,
 		},
@@ -91,10 +91,11 @@ func sendSampleDeployment(t *testing.T, sth *simpleTransactionHandler, signer st
 		TransactionData: "0xabce1234",
 	}, ffcapi.ErrorReason(""), nil).Once()
 
-	mtx, err := sth.HandleNewContractDeployment(ctx, &apitypes.ContractDeployRequest{
+	mtx, submissionRejected, err := sth.HandleNewContractDeployment(ctx, &apitypes.ContractDeployRequest{
 		ContractDeployPrepareRequest: contractDeployPrepareRequest,
 	})
 	assert.NoError(t, err)
+	assert.False(t, submissionRejected)
 	return mtx
 }
 
@@ -247,13 +248,14 @@ func TestTransactionPreparationErrors(t *testing.T) {
 	ctx := context.Background()
 	mfc.On("TransactionPrepare", ctx, &ffcapi.TransactionPrepareRequest{
 		TransactionInput: txInput,
-	}).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("txPop")).Once()
+	}).Return(nil, ffcapi.ErrorReasonTransactionReverted, fmt.Errorf("reverted")).Once()
 	mfc.On("DeployContractPrepare", ctx, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("contractPop")).Once()
 
-	_, err = sth.HandleNewTransaction(ctx, &apitypes.TransactionRequest{
+	_, submissionRejected, err := sth.HandleNewTransaction(ctx, &apitypes.TransactionRequest{
 		TransactionInput: txInput,
 	})
-	assert.Equal(t, "txPop", err.Error())
+	assert.True(t, submissionRejected)
+	assert.Equal(t, "reverted", err.Error())
 
 	contractDeployPrepareRequest := ffcapi.ContractDeployPrepareRequest{
 		TransactionHeaders: ffcapi.TransactionHeaders{
@@ -261,7 +263,7 @@ func TestTransactionPreparationErrors(t *testing.T) {
 		},
 		Contract: fftypes.JSONAnyPtrBytes([]byte("0xfeedbeef")),
 	}
-	_, err = sth.HandleNewContractDeployment(ctx, &apitypes.ContractDeployRequest{
+	_, _, err = sth.HandleNewContractDeployment(ctx, &apitypes.ContractDeployRequest{
 		ContractDeployPrepareRequest: contractDeployPrepareRequest,
 	})
 	assert.Equal(t, "contractPop", err.Error())

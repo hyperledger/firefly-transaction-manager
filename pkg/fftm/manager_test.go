@@ -37,6 +37,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/simple"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -76,6 +77,7 @@ func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 }
 
 func newTestManager(t *testing.T) (string, *manager, func()) {
+	logrus.SetLevel(logrus.TraceLevel)
 
 	url := testManagerCommonInit(t, false)
 

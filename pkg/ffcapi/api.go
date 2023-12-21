@@ -173,6 +173,7 @@ type ListenerEvent struct {
 // It is important that error mapping is performed for each of these classification
 type ErrorReason string
 
+// *** MUST UPDATE MapSubmissionRejected IF ADDING NEW REASONS THAT ARE POSSIBLE DURING TRANSACTION PREPARE PHASE OF SUBMISSION ***
 const (
 	// ErrorReasonInvalidInputs transaction inputs could not be parsed by the connector according to the interface (nothing was sent to the blockchain)
 	ErrorReasonInvalidInputs ErrorReason = "invalid_inputs"

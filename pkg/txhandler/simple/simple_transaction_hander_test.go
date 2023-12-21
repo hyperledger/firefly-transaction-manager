@@ -901,7 +901,7 @@ func TestIdempotencyIDPreCheckError(t *testing.T) {
 	mp := tk.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("GetTransactionByID", mock.Anything, "reused").Return(nil, fmt.Errorf("pop"))
 
-	_, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
+	_, _, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
 		Headers: apitypes.RequestHeaders{
 			ID: "reused",
 		},
@@ -931,7 +931,7 @@ func TestIdempotencyIDPreCheckDuplicate(t *testing.T) {
 	mp := tk.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("GetTransactionByID", mock.Anything, "reused").Return(existingTX, nil)
 
-	_, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
+	_, _, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
 		Headers: apitypes.RequestHeaders{
 			ID: "reused",
 		},
@@ -961,7 +961,7 @@ func TestIdempotencyIDPreCheckDuplicateDeploy(t *testing.T) {
 	mp := tk.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("GetTransactionByID", mock.Anything, "reused").Return(existingTX, nil)
 
-	_, err = sth.HandleNewContractDeployment(sth.ctx, &apitypes.ContractDeployRequest{
+	_, _, err = sth.HandleNewContractDeployment(sth.ctx, &apitypes.ContractDeployRequest{
 		Headers: apitypes.RequestHeaders{
 			ID: "reused",
 		},

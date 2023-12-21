@@ -241,40 +241,42 @@ func (sth *simpleTransactionHandler) requestIDPreCheck(ctx context.Context, reqH
 	return txID, nil
 }
 
-func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error) {
+func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
 	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Prepare the transaction, which will mean we have a transaction that should be submittable.
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
 	// anything to the blockchain itself.
-	prepared, _, err := sth.toolkit.Connector.TransactionPrepare(ctx, &ffcapi.TransactionPrepareRequest{
+	prepared, reason, err := sth.toolkit.Connector.TransactionPrepare(ctx, &ffcapi.TransactionPrepareRequest{
 		TransactionInput: txReq.TransactionInput,
 	})
 	if err != nil {
-		return nil, err
+		return nil, ffcapi.MapSubmissionRejected(reason), err
 	}
 
-	return sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	mtx, err = sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	return mtx, false, err
 }
 
-func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error) {
+func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
 	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	// Prepare the transaction, which will mean we have a transaction that should be submittable.
 	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
 	// anything to the blockchain itself.
-	prepared, _, err := sth.toolkit.Connector.DeployContractPrepare(ctx, &txReq.ContractDeployPrepareRequest)
+	prepared, reason, err := sth.toolkit.Connector.DeployContractPrepare(ctx, &txReq.ContractDeployPrepareRequest)
 	if err != nil {
-		return nil, err
+		return nil, ffcapi.MapSubmissionRejected(reason), err
 	}
 
-	return sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	mtx, err = sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	return mtx, false, err
 }
 
 func (sth *simpleTransactionHandler) HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {

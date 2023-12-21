@@ -23,7 +23,9 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -162,13 +164,14 @@ func TestSendInvalidRequestBadTXType(t *testing.T) {
 			"Not": "a string"
 		}
 	}`)
-	var errRes fftypes.RESTError
+	var errRes ffcapi.SubmissionError
 	res, err := resty.New().R().
 		SetBody(req).
 		SetError(&errRes).
 		Post(url)
 	assert.NoError(t, err)
 	assert.Equal(t, 400, res.StatusCode())
+	assert.True(t, errRes.SubmissionRejected)
 	assert.Regexp(t, "FF21022", errRes.Error)
 }
 
@@ -186,13 +189,14 @@ func TestSendInvalidDeployBadTXType(t *testing.T) {
 			"Not": "a string"
 		}
 	}`)
-	var errRes fftypes.RESTError
+	var errRes ffcapi.SubmissionError
 	res, err := resty.New().R().
 		SetBody(req).
 		SetError(&errRes).
 		Post(url)
 	assert.NoError(t, err)
 	assert.Equal(t, 400, res.StatusCode())
+	assert.True(t, errRes.SubmissionRejected)
 	assert.Regexp(t, "FF21022", errRes.Error)
 }
 
@@ -256,16 +260,21 @@ func TestSendTransactionPrepareFail(t *testing.T) {
 		Nonce: fftypes.NewFFBigInt(12345),
 	}, ffcapi.ErrorReason(""), nil)
 
-	mFFC.On("TransactionPrepare", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+	mFFC.On("TransactionPrepare", mock.Anything, mock.Anything).
+		// Reverted reason will give us a submission error
+		Return(nil, ffcapi.ErrorReasonTransactionReverted, i18n.NewError(m.ctx, tmmsgs.MsgTransactionFailed))
 
 	m.Start()
 
 	req := strings.NewReader(sampleSendTX)
+	var errRes ffcapi.SubmissionError
 	res, err := resty.New().R().
 		SetBody(req).
+		SetError(&errRes).
 		Post(url)
 	assert.NoError(t, err)
 	assert.Equal(t, 500, res.StatusCode())
+	assert.True(t, errRes.SubmissionRejected)
 
 }
 
