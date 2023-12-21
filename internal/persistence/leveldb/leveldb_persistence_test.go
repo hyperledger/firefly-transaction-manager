@@ -39,7 +39,7 @@ func newTestLevelDBPersistence(t *testing.T) (context.Context, *leveldbPersisten
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
 
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	assert.NoError(t, err)
 
 	tmconfig.Reset()

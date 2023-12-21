@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -91,7 +90,7 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	assert.Equal(t, "simple", f.Name())
 
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 	filePersistence, err := leveldb.NewLevelDBPersistence(context.Background(), 1*time.Hour)
@@ -901,7 +900,7 @@ func TestIdempotencyIDPreCheckError(t *testing.T) {
 	mp := tk.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("GetTransactionByID", mock.Anything, "reused").Return(nil, fmt.Errorf("pop"))
 
-	_, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
+	_, _, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
 		Headers: apitypes.RequestHeaders{
 			ID: "reused",
 		},
@@ -931,7 +930,7 @@ func TestIdempotencyIDPreCheckDuplicate(t *testing.T) {
 	mp := tk.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("GetTransactionByID", mock.Anything, "reused").Return(existingTX, nil)
 
-	_, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
+	_, _, err = sth.HandleNewTransaction(sth.ctx, &apitypes.TransactionRequest{
 		Headers: apitypes.RequestHeaders{
 			ID: "reused",
 		},
@@ -961,7 +960,7 @@ func TestIdempotencyIDPreCheckDuplicateDeploy(t *testing.T) {
 	mp := tk.TXPersistence.(*persistencemocks.Persistence)
 	mp.On("GetTransactionByID", mock.Anything, "reused").Return(existingTX, nil)
 
-	_, err = sth.HandleNewContractDeployment(sth.ctx, &apitypes.ContractDeployRequest{
+	_, _, err = sth.HandleNewContractDeployment(sth.ctx, &apitypes.ContractDeployRequest{
 		Headers: apitypes.RequestHeaders{
 			ID: "reused",
 		},

@@ -23,9 +23,11 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
+	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/sirupsen/logrus"
 )
 
 var postRootCommand = func(m *manager) *ffapi.Route {
@@ -75,17 +77,23 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 			baseReq := r.Input.(*apitypes.BaseRequest)
 			switch baseReq.Headers.Type {
 			case apitypes.RequestTypeSendTransaction:
-				var tReq apitypes.TransactionRequest
-				if err = baseReq.UnmarshalTo(&tReq); err != nil {
-					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
-				}
-				return m.txHandler.HandleNewTransaction(r.Req.Context(), &tReq)
+				// We have to supply an extra submissionRejected boolean on submission errors
+				return mapSubmissionErrors(r, func() (output interface{}, submissionRejected bool, err error) {
+					var tReq apitypes.TransactionRequest
+					if err = baseReq.UnmarshalTo(&tReq); err != nil {
+						return nil, true /* reject */, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
+					}
+					return m.txHandler.HandleNewTransaction(r.Req.Context(), &tReq)
+				}), nil
 			case apitypes.RequestTypeDeploy:
-				var tReq apitypes.ContractDeployRequest
-				if err = baseReq.UnmarshalTo(&tReq); err != nil {
-					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
-				}
-				return m.txHandler.HandleNewContractDeployment(r.Req.Context(), &tReq)
+				// We have to supply an extra submissionRejected boolean on submission errors
+				return mapSubmissionErrors(r, func() (output interface{}, submissionRejected bool, err error) {
+					var tReq apitypes.ContractDeployRequest
+					if err = baseReq.UnmarshalTo(&tReq); err != nil {
+						return nil, true /* reject */, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
+					}
+					return m.txHandler.HandleNewContractDeployment(r.Req.Context(), &tReq)
+				}), nil
 			case apitypes.RequestTypeQuery:
 				var tReq apitypes.QueryRequest
 				if err = baseReq.UnmarshalTo(&tReq); err != nil {
@@ -102,5 +110,27 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 				return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgUnsupportedRequestType, baseReq.Headers.Type)
 			}
 		},
+	}
+}
+
+// Common function to help us supply an extra submissionRejected boolean on submission errors.
+func mapSubmissionErrors(r *ffapi.APIRequest, handler func() (output interface{}, submissionRejected bool, err error)) interface{} {
+	output, submissionRejected, err := handler()
+	if err == nil {
+		return output
+	}
+	l := log.L(r.Req.Context())
+	status := 500
+	if ffe, ok := (interface{}(err)).(i18n.FFError); ok {
+		if logrus.IsLevelEnabled(logrus.DebugLevel) {
+			l.Debugf("%s:\n%s", ffe.Error(), ffe.StackTrace())
+		}
+		status = ffe.HTTPStatus()
+	}
+	r.SuccessStatus = status
+	l.Errorf("Submission failed (submissionRejected=%t) [%d]: %s", submissionRejected, status, err)
+	return &ffcapi.SubmissionError{
+		Error:              err.Error(),
+		SubmissionRejected: submissionRejected,
 	}
 }

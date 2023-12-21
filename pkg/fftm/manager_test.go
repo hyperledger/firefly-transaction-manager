@@ -37,6 +37,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/simple"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -76,10 +77,11 @@ func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 }
 
 func newTestManager(t *testing.T) (string, *manager, func()) {
+	logrus.SetLevel(logrus.TraceLevel)
 
 	url := testManagerCommonInit(t, false)
 
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
@@ -165,7 +167,7 @@ func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
 
 	url := testManagerCommonInit(t, true)
 
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
@@ -249,7 +251,7 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 
 	tmconfig.Reset()
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "::::")
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	defer os.RemoveAll(dir)
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
@@ -298,7 +300,7 @@ func TestNewManagerBadPersistenceConfig(t *testing.T) {
 func TestNewManagerInvalidTransactionHandlerName(t *testing.T) {
 
 	tmconfig.Reset()
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	defer os.RemoveAll(dir)
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
@@ -333,7 +335,7 @@ func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 
 	tmconfig.MetricsConfig.Set("enabled", true)
 	tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "::::")
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	defer os.RemoveAll(dir)
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)

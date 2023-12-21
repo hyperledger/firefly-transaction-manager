@@ -156,9 +156,9 @@ type TransactionHandler interface {
 	// Event handling functions
 	// Instructional events:
 	// HandleNewTransaction - handles event of adding new transactions onto blockchain
-	HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, err error)
+	HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error)
 	// HandleNewContractDeployment - handles event of adding new smart contract deployment onto blockchain
-	HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, err error)
+	HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error)
 	// HandleCancelTransaction - handles event of cancelling a managed transaction
 	HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
 	// HandleSuspendTransaction - handles event of suspending a managed transaction

@@ -17,10 +17,8 @@
 package fftm
 
 import (
-	"encoding/json"
 	"net/http"
 
-	"github.com/ghodss/yaml"
 	"github.com/gorilla/mux"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
@@ -41,41 +39,23 @@ func (m *manager) router(metricsEnabled bool) *mux.Router {
 		MaxTimeout:            config.GetDuration(tmconfig.APIMaxRequestTimeout),
 		PassthroughHeaders:    config.GetStringSlice(tmconfig.APIPassthroughHeaders),
 	}
+	oah := &ffapi.OpenAPIHandlerFactory{
+		BaseSwaggerGenOptions: ffapi.SwaggerGenOptions{
+			Title:                     "FireFly Transaction Manager API",
+			Version:                   "1.0",
+			PanicOnMissingDescription: testDescriptions,
+			DefaultRequestTimeout:     config.GetDuration(tmconfig.APIDefaultRequestTimeout),
+			SupportFieldRedaction:     true,
+		},
+	}
+
 	routes := m.routes()
 	for _, r := range routes {
 		mux.Path(r.Path).Methods(r.Method).Handler(hf.RouteHandler(r))
 	}
-	mux.Path("/api").Methods(http.MethodGet).Handler(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		url := req.URL.String() + "/spec.yaml"
-		handler := hf.APIWrapper(hf.SwaggerUIHandler(url))
-		handler(res, req)
-	}))
-	mux.Path("/api/spec.yaml").Methods(http.MethodGet).Handler(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		u := req.URL
-		u.Path = ""
-		swaggerGen := ffapi.NewSwaggerGen(&ffapi.Options{
-			BaseURL:                   u.String(),
-			PanicOnMissingDescription: testDescriptions,
-			DefaultRequestTimeout:     config.GetDuration(tmconfig.APIDefaultRequestTimeout),
-		})
-		doc := swaggerGen.Generate(req.Context(), routes)
-		res.Header().Add("Content-Type", "application/x-yaml")
-		b, _ := yaml.Marshal(&doc)
-		_, _ = res.Write(b)
-	}))
-	mux.Path("/api/spec.json").Methods(http.MethodGet).Handler(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
-		u := req.URL
-		u.Path = ""
-		swaggerGen := ffapi.NewSwaggerGen(&ffapi.Options{
-			BaseURL:                   u.String(),
-			PanicOnMissingDescription: testDescriptions,
-			DefaultRequestTimeout:     config.GetDuration(tmconfig.APIDefaultRequestTimeout),
-		})
-		doc := swaggerGen.Generate(req.Context(), routes)
-		res.Header().Add("Content-Type", "application/json")
-		b, _ := json.Marshal(&doc)
-		_, _ = res.Write(b)
-	}))
+	mux.Path("/api").Methods(http.MethodGet).Handler(hf.APIWrapper(oah.SwaggerUIHandler("")))
+	mux.Path("/api/spec.yaml").Methods(http.MethodGet).Handler(hf.APIWrapper(oah.OpenAPIHandler("", ffapi.OpenAPIFormatYAML, routes)))
+	mux.Path("/api/spec.json").Methods(http.MethodGet).Handler(hf.APIWrapper(oah.OpenAPIHandler("", ffapi.OpenAPIFormatJSON, routes)))
 
 	mux.HandleFunc("/ws", m.wsServer.Handler)
 
