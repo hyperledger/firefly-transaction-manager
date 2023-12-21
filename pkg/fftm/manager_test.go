@@ -81,7 +81,7 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 
 	url := testManagerCommonInit(t, false)
 
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
@@ -167,7 +167,7 @@ func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
 
 	url := testManagerCommonInit(t, true)
 
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
@@ -251,7 +251,7 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 
 	tmconfig.Reset()
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "::::")
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	defer os.RemoveAll(dir)
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
@@ -300,7 +300,7 @@ func TestNewManagerBadPersistenceConfig(t *testing.T) {
 func TestNewManagerInvalidTransactionHandlerName(t *testing.T) {
 
 	tmconfig.Reset()
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	defer os.RemoveAll(dir)
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
@@ -335,7 +335,7 @@ func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 
 	tmconfig.MetricsConfig.Set("enabled", true)
 	tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "::::")
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	defer os.RemoveAll(dir)
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)

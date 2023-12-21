@@ -20,7 +20,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"testing"
@@ -95,7 +94,7 @@ func TestMigrateLevelDBToPostgres(t *testing.T) {
 	defer done()
 
 	// Configure a test LevelDB
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
@@ -109,7 +108,7 @@ func TestMigrateLevelDBToPostgresFailPSQL(t *testing.T) {
 	tmconfig.Reset()
 
 	// Configure a test LevelDB
-	dir, err := ioutil.TempDir("", "ldb_*")
+	dir, err := os.MkdirTemp("", "ldb_*")
 	assert.NoError(t, err)
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
