@@ -23,7 +23,6 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -80,7 +79,7 @@ func newTestRunContext(mtx *apitypes.ManagedTX, receipt *ffcapi.TransactionRecei
 	}
 }
 
-func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, config.Section, func()) {
+func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*TransactionHandlerFactory, *txhandler.Toolkit, *ffcapimocks.API, config.Section) {
 	tmconfig.Reset()
 	conf := config.RootSection("unittest.simple")
 	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "simple")
@@ -90,8 +89,7 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeDisabled)
 	assert.Equal(t, "simple", f.Name())
 
-	dir, err := os.MkdirTemp("", "ldb_*")
-	assert.NoError(t, err)
+	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 	filePersistence, err := leveldb.NewLevelDBPersistence(context.Background(), 1*time.Hour)
 	assert.NoError(t, err)
@@ -106,10 +104,7 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 			TXPersistence:  filePersistence,
 			MetricsManager: metrics.NewMetricsManager(context.Background()),
 			EventHandler:   mockEventHandler,
-		}, mockFFCAPI, conf,
-		func() {
-			os.RemoveAll(dir)
-		}
+		}, mockFFCAPI, conf
 }
 
 func newTestTransactionHandler(t *testing.T) txhandler.TransactionHandler {

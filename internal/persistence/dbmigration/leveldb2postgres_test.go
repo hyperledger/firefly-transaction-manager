@@ -94,25 +94,22 @@ func TestMigrateLevelDBToPostgres(t *testing.T) {
 	defer done()
 
 	// Configure a test LevelDB
-	dir, err := os.MkdirTemp("", "ldb_*")
-	assert.NoError(t, err)
+	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
 	// Run empty migration and check no errors
-	err = MigrateLevelDBToPostgres(ctx)
+	err := MigrateLevelDBToPostgres(ctx)
 	assert.NoError(t, err)
-
 }
 
 func TestMigrateLevelDBToPostgresFailPSQL(t *testing.T) {
 	tmconfig.Reset()
 
 	// Configure a test LevelDB
-	dir, err := os.MkdirTemp("", "ldb_*")
-	assert.NoError(t, err)
+	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 
-	err = MigrateLevelDBToPostgres(context.Background())
+	err := MigrateLevelDBToPostgres(context.Background())
 	assert.Regexp(t, "FF21049", err)
 }
 

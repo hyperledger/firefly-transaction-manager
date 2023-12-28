@@ -100,8 +100,7 @@ func sendSampleDeployment(t *testing.T, sth *simpleTransactionHandler, signer st
 }
 
 func TestPolicyLoopE2EOk(t *testing.T) {
-	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
-	defer cleanup()
+	f, tk, _, conf := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -170,8 +169,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 }
 
 func TestPolicyLoopIgnoreTransactionInformationalEventHandlingErrors(t *testing.T) {
-	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
-	defer cleanup()
+	f, tk, _, conf := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -228,8 +226,7 @@ func TestPolicyLoopIgnoreTransactionInformationalEventHandlingErrors(t *testing.
 }
 
 func TestTransactionPreparationErrors(t *testing.T) {
-	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
-	defer cleanup()
+	f, tk, _, conf := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -272,8 +269,7 @@ func TestTransactionPreparationErrors(t *testing.T) {
 
 func TestPolicyLoopE2EReverted(t *testing.T) {
 
-	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
-	defer cleanup()
+	f, tk, _, conf := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -355,8 +351,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 }
 
 func TestPolicyLoopResubmitNewTXID(t *testing.T) {
-	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
-	defer cleanup()
+	f, tk, _, conf := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	conf.Set(Interval, "0")
@@ -444,8 +439,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 
 func TestNotifyConfirmationMgrFail(t *testing.T) {
 
-	f, tk, _, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
-	defer cleanup()
+	f, tk, _, conf := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	conf.Set(FixedGasPrice, `12345`)
 	conf.Set(ResubmitInterval, "100s")
 	th, err := f.NewTransactionHandler(context.Background(), conf)
@@ -700,8 +694,7 @@ func TestPolicyLoopUpdateEventHandlerError(t *testing.T) {
 }
 
 func TestPolicyEngineFailStaleThenUpdated(t *testing.T) {
-	f, tk, mockFFCAPI, conf, cleanup := newTestTransactionHandlerFactoryWithFilePersistence(t)
-	defer cleanup()
+	f, tk, mockFFCAPI, conf := newTestTransactionHandlerFactoryWithFilePersistence(t)
 	conf.SubSection(GasOracleConfig).Set(GasOracleMode, GasOracleModeConnector)
 	th, err := f.NewTransactionHandler(context.Background(), conf)
 	assert.NoError(t, err)
