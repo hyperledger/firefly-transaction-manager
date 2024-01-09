@@ -204,7 +204,7 @@
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|type|The type of persistence to use|Only 'leveldb' currently supported|`leveldb`
+|type|The type of persistence to use|`leveldb`, `postgres`(supports rich query)|`leveldb`
 
 ## persistence.leveldb
 
