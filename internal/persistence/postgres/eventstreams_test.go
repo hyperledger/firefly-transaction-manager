@@ -108,8 +108,11 @@ func TestEventStreamAfterPaginatePSQL(t *testing.T) {
 	var eventStreams []*apitypes.EventStream
 	for i := 0; i < 20; i++ {
 		es := &apitypes.EventStream{
-			ID:   fftypes.NewUUID(),
-			Name: strPtr(fmt.Sprintf("es_%.3d", i)),
+			ID:                fftypes.NewUUID(),
+			Name:              strPtr(fmt.Sprintf("es_%.3d", i)),
+			BatchTimeout:      ffDurationPtr(22222 * time.Second),
+			RetryTimeout:      ffDurationPtr(33333 * time.Second),
+			BlockedRetryDelay: ffDurationPtr(44444 * time.Second),
 		}
 		err := p.WriteStream(ctx, es)
 		assert.NoError(t, err)

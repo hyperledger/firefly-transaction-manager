@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -206,6 +206,51 @@ type TXUpdates struct {
 	FirstSubmit     *fftypes.FFTime   `json:"firstSubmit,omitempty"`
 	LastSubmit      *fftypes.FFTime   `json:"lastSubmit,omitempty"`
 	ErrorMessage    *string           `json:"errorMessage,omitempty"`
+}
+
+func (txu *TXUpdates) Merge(txu2 *TXUpdates) {
+	if txu2.Status != nil {
+		txu.Status = txu2.Status
+	}
+	if txu2.DeleteRequested != nil {
+		txu.DeleteRequested = txu2.DeleteRequested
+	}
+	if txu2.From != nil {
+		txu.From = txu2.From
+	}
+	if txu2.To != nil {
+		txu.To = txu2.To
+	}
+	if txu2.Nonce != nil {
+		txu.Nonce = txu2.Nonce
+	}
+	if txu2.Gas != nil {
+		txu.Gas = txu2.Gas
+	}
+	if txu2.Value != nil {
+		txu.Value = txu2.Value
+	}
+	if txu2.GasPrice != nil {
+		txu.GasPrice = txu2.GasPrice
+	}
+	if txu2.TransactionData != nil {
+		txu.TransactionData = txu2.TransactionData
+	}
+	if txu2.TransactionHash != nil {
+		txu.TransactionHash = txu2.TransactionHash
+	}
+	if txu2.PolicyInfo != nil {
+		txu.PolicyInfo = txu2.PolicyInfo
+	}
+	if txu2.FirstSubmit != nil {
+		txu.FirstSubmit = txu2.FirstSubmit
+	}
+	if txu2.LastSubmit != nil {
+		txu.LastSubmit = txu2.LastSubmit
+	}
+	if txu2.ErrorMessage != nil {
+		txu.ErrorMessage = txu2.ErrorMessage
+	}
 }
 
 // TXWithStatus is a convenience object that fetches all data about a transaction into one
