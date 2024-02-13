@@ -85,3 +85,31 @@ func TestReceiptRecord(t *testing.T) {
 	r.SetUpdated(t2)
 	assert.Equal(t, t2, r.Updated)
 }
+
+func TestTXUpdatesMerge(t *testing.T) {
+	txu := &TXUpdates{}
+	txu2 := &TXUpdates{
+		Status:          ptrTo(TxStatusPending),
+		DeleteRequested: fftypes.Now(),
+		From:            ptrTo("1111"),
+		To:              ptrTo("2222"),
+		Nonce:           fftypes.NewFFBigInt(3333),
+		Gas:             fftypes.NewFFBigInt(4444),
+		Value:           fftypes.NewFFBigInt(5555),
+		GasPrice:        fftypes.JSONAnyPtr(`{"some": "stuff"}`),
+		TransactionData: ptrTo("xxxx"),
+		TransactionHash: ptrTo("yyyy"),
+		PolicyInfo:      fftypes.JSONAnyPtr(`{"more": "stuff"}`),
+		FirstSubmit:     fftypes.Now(),
+		LastSubmit:      fftypes.Now(),
+		ErrorMessage:    ptrTo("pop"),
+	}
+	txu.Merge(txu2)
+	assert.Equal(t, *txu2, *txu)
+	txu.Merge(&TXUpdates{})
+	assert.Equal(t, *txu2, *txu)
+}
+
+func ptrTo[T any](v T) *T {
+	return &v
+}

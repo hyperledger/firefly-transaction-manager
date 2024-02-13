@@ -421,9 +421,19 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 		}
 	}
 	// Do all the transaction updates
+	mergedUpdates := make(map[string]*apitypes.TXUpdates)
 	for _, op := range b.txUpdates {
-		if err := tw.p.updateTransaction(ctx, op.txID, op.txUpdate); err != nil {
-			log.L(ctx).Errorf("Update transaction %s failed: %s", op.txID, err)
+		update, merge := mergedUpdates[op.txID]
+		if merge {
+			update.Merge(op.txUpdate)
+		} else {
+			mergedUpdates[op.txID] = op.txUpdate
+		}
+		log.L(ctx).Debugf("Updating transaction %s in write operation %s (merged=%t)", op.txID, op.opID, merge)
+	}
+	for txID, update := range mergedUpdates {
+		if err := tw.p.updateTransaction(ctx, txID, update); err != nil {
+			log.L(ctx).Errorf("Update transaction %s failed: %s", txID, err)
 			return err
 		}
 	}
