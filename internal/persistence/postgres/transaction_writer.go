@@ -78,6 +78,7 @@ type transactionWriter struct {
 
 type transactionWriterBatch struct {
 	id             string
+	opened         time.Time
 	ops            []*transactionOperation
 	timeoutContext context.Context
 	timeoutCancel  func()
@@ -207,7 +208,8 @@ func (tw *transactionWriter) worker(i int) {
 			}
 			if batch == nil {
 				batch = &transactionWriterBatch{
-					id: fmt.Sprintf("%.4d_%.9d", i, batchCount),
+					id:     fmt.Sprintf("%.4d_%.9d", i, batchCount),
+					opened: time.Now(),
 				}
 				batch.timeoutContext, batch.timeoutCancel = context.WithTimeout(ctx, tw.batchTimeout)
 				batchCount++
@@ -226,7 +228,7 @@ func (tw *transactionWriter) worker(i int) {
 
 		if batch != nil && (timedOut || (len(batch.ops) >= tw.batchMaxSize)) {
 			batch.timeoutCancel()
-			l.Debugf("Running batch %s (len=%d)", batch.id, len(batch.ops))
+			l.Debugf("Running batch %s (len=%d,timeout=%t,age=%dms)", batch.id, len(batch.ops), timedOut, time.Since(batch.opened).Milliseconds())
 			tw.runBatch(ctx, batch)
 			batch = nil
 		}
