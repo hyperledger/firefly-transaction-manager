@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -40,6 +40,7 @@ type transactionOperation struct {
 	sentConflict bool
 	done         chan error
 
+	opID               string
 	isShutdown         bool
 	txInsert           *apitypes.ManagedTX
 	noncePreAssigned   bool
@@ -122,6 +123,7 @@ func newTransactionWriter(bgCtx context.Context, p *sqlPersistence, conf config.
 
 func newTransactionOperation(txID string) *transactionOperation {
 	return &transactionOperation{
+		opID: fftypes.ShortID(),
 		txID: txID,
 		done: make(chan error, 1), // 1 slot to ensure we don't block the writer
 	}
@@ -130,6 +132,7 @@ func newTransactionOperation(txID string) *transactionOperation {
 func (op *transactionOperation) flush(ctx context.Context) error {
 	select {
 	case err := <-op.done:
+		log.L(ctx).Debugf("Flushed write operation %s (err=%v)", op.opID, err)
 		return err
 	case <-ctx.Done():
 		return i18n.NewError(ctx, i18n.MsgContextCanceled)
@@ -165,6 +168,7 @@ func (tw *transactionWriter) queue(ctx context.Context, op *transactionOperation
 	h := fnv.New32a() // simple non-cryptographic hash algo
 	_, _ = h.Write([]byte(hashKey))
 	routine := h.Sum32() % tw.workerCount
+	log.L(ctx).Debugf("Queuing write operation %s to worker tx_writer_%.4d", op.opID, routine)
 	select {
 	case tw.workQueues[routine] <- op: // it's queued
 	case <-ctx.Done(): // timeout of caller context
@@ -180,6 +184,7 @@ func (tw *transactionWriter) worker(i int) {
 	defer close(tw.workersDone[i])
 	workerID := fmt.Sprintf("tx_writer_%.4d", i)
 	ctx := log.WithLogField(tw.bgCtx, "job", workerID)
+	l := log.L(ctx)
 	var batch *transactionWriterBatch
 	batchCount := 0
 	workQueue := tw.workQueues[i]
@@ -208,11 +213,12 @@ func (tw *transactionWriter) worker(i int) {
 				batchCount++
 			}
 			batch.ops = append(batch.ops, op)
+			l.Debugf("Added write operation %s to batch %s (len=%d)", op.opID, batch.id, len(batch.ops))
 		case <-timeoutContext.Done():
 			timedOut = true
 			select {
 			case <-ctx.Done():
-				log.L(ctx).Debugf("Transaction writer ending")
+				l.Debugf("Transaction writer ending")
 				return
 			default:
 			}
@@ -220,6 +226,7 @@ func (tw *transactionWriter) worker(i int) {
 
 		if batch != nil && (timedOut || (len(batch.ops) >= tw.batchMaxSize)) {
 			batch.timeoutCancel()
+			l.Debugf("Running batch %s (len=%d)", batch.id, len(batch.ops))
 			tw.runBatch(ctx, batch)
 			batch = nil
 		}
@@ -383,6 +390,7 @@ func (tw *transactionWriter) preInsertIdempotencyCheck(ctx context.Context, b *t
 				txOp.sentConflict = true
 				txOp.done <- i18n.NewError(ctx, tmmsgs.MsgDuplicateID, txOp.txID)
 			} else {
+				log.L(ctx).Debugf("Adding TX %s from write operation %s to insert idx=%d", txOp.txID, txOp.opID, len(validInserts))
 				validInserts = append(validInserts, txOp.txInsert)
 			}
 		}
