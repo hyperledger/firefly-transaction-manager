@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -24,6 +24,7 @@ import (
 type QueryRequest struct {
 	Headers RequestHeaders `json:"headers"`
 	ffcapi.TransactionInput
+	BlockNumber *string `json:"blockNumber,omitempty"`
 }
 
 // QueryResponse is the response payload for a query
