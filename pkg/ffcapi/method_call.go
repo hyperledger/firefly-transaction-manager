@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -28,7 +28,7 @@ import (
 // detected by the back-end connector.
 type QueryInvokeRequest struct {
 	TransactionInput
-	BlockNumber *fftypes.FFBigInt `json:"blockNumber,omitempty"`
+	BlockNumber *string `json:"blockNumber,omitempty"`
 }
 
 type QueryInvokeResponse struct {

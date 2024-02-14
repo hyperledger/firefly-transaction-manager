@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -101,6 +101,7 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 				}
 				res, _, err := m.connector.QueryInvoke(r.Req.Context(), &ffcapi.QueryInvokeRequest{
 					TransactionInput: tReq.TransactionInput,
+					BlockNumber:      tReq.BlockNumber,
 				})
 				if err != nil {
 					return nil, err
