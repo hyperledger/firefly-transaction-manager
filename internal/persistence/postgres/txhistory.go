@@ -95,9 +95,8 @@ func (p *sqlPersistence) ListTransactionHistory(ctx context.Context, txID string
 	return p.txHistory.GetMany(ctx, filter.Condition(filter.Builder().Eq("transaction", txID)))
 }
 
-func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
+func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny, t *fftypes.FFTime) error {
 	// Dispatch to TX writer
-	now := fftypes.Now()
 	op := newTransactionOperation(txID)
 	op.historyRecord = &apitypes.TXHistoryRecord{
 		ID:            fftypes.NewUUID(),
@@ -105,8 +104,8 @@ func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, su
 		SubStatus:     subStatus,
 		TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
 			OccurrenceCount: 1,
-			Time:            now,
-			LastOccurrence:  now,
+			Time:            t,
+			LastOccurrence:  t,
 			Action:          action,
 			LastInfo:        persistence.JSONOrString(info),    // guard against bad JSON
 			LastError:       persistence.JSONOrString(errInfo), // guard against bad JSON
