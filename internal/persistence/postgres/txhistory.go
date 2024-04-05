@@ -112,7 +112,7 @@ func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, su
 		},
 	}
 	if errInfo != nil {
-		op.historyRecord.LastErrorTime = fftypes.Now()
+		op.historyRecord.LastErrorTime = t
 	}
 	p.writer.queue(ctx, op)
 	return nil // completely async

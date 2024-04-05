@@ -55,6 +55,12 @@ type sqlPersistence struct {
 	nonceStateTimeout   time.Duration
 }
 
+type SQLPersistence interface {
+	RichQuery() persistence.RichQuery
+	seqAfterFilter(ctx context.Context, qf *ffapi.QueryFields, after *int64, limit int, dir txhandler.SortDirection, conditions ...ffapi.Filter) (filter ffapi.Filter)
+	Close(_ context.Context)
+}
+
 // InitConfig gets called after config reset to initialize the config structure
 func InitConfig(conf config.Section) {
 	psql = &Postgres{}

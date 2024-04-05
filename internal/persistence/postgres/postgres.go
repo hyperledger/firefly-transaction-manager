@@ -29,7 +29,6 @@ import (
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
-	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 
 	// Import pq driver
 	_ "github.com/lib/pq"
@@ -46,11 +45,15 @@ const ForMigration CodeUsageOptions = iota
 
 var psql *Postgres
 
-func NewPostgresPersistence(bgCtx context.Context, conf config.Section, nonceStateTimeout time.Duration, codeOptions ...CodeUsageOptions) (persistence.Persistence, error) {
+func NewPostgresPersistence(bgCtx context.Context, conf config.Section, nonceStateTimeout time.Duration, codeOptions ...CodeUsageOptions) (SQLPersistence, error) {
 	if err := psql.Database.Init(bgCtx, psql, conf); err != nil {
 		return nil, err
 	}
-	return newSQLPersistence(bgCtx, &psql.Database, conf, nonceStateTimeout, codeOptions...)
+	p, err := newSQLPersistence(bgCtx, &psql.Database, conf, nonceStateTimeout, codeOptions...)
+	if err != nil {
+		return nil, err
+	}
+	return p, nil
 }
 
 func (psql *Postgres) Name() string {

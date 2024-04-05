@@ -22,6 +22,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
+	"github.com/hyperledger/firefly-transaction-manager/internal/persistence/postgres"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
@@ -33,6 +34,7 @@ const (
 type dbMigration struct {
 	source persistence.Persistence
 	target persistence.Persistence
+	pg postgres.SQLPersistence
 }
 
 func (m *dbMigration) run(ctx context.Context) error {
