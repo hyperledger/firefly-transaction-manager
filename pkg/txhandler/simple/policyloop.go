@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -206,7 +206,7 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 		var pending *pendingState
 		// If this transaction is in-flight, we use that record
 		for _, inflight := range sth.inflight {
-			if inflight.mtx.ID == request.txID {
+			if inflight != nil && inflight.mtx != nil && inflight.mtx.ID == request.txID {
 				pending = inflight
 				break
 			}
@@ -483,7 +483,7 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 	// Will be picked up on the next policy loop cycle
 	var pending *pendingState
 	for _, p := range sth.inflight {
-		if p.mtx.ID == txID {
+		if p != nil && p.mtx != nil && p.mtx.ID == txID {
 			pending = p
 			break
 		}
@@ -505,7 +505,7 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error) {
 	var pending *pendingState
 	for _, p := range sth.inflight {
-		if p.mtx.ID == txID {
+		if p != nil && p.mtx != nil && p.mtx.ID == txID {
 			pending = p
 			break
 		}
