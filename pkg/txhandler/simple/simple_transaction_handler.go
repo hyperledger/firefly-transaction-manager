@@ -344,8 +344,9 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 }
 
 func (sth *simpleTransactionHandler) submitTX(ctx *RunContext) (reason ffcapi.ErrorReason, err error) {
-
 	mtx := ctx.TX
+	log.L(ctx).Debugf("Submitting transaction %s at nonce %s / %d", mtx.ID, mtx.TransactionHeaders.From, mtx.Nonce.Int64())
+
 	mtx.GasPrice, err = sth.getGasPrice(ctx, sth.toolkit.Connector)
 	if err != nil {
 		ctx.AddSubStatusAction(apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
