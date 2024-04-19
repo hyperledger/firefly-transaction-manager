@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -506,6 +506,7 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 	return
 }
 func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error) {
+	log.L(ctx).Debugf("Handle transaction receipt received %s", txID)
 	var pending *pendingState
 	for _, p := range sth.inflight {
 		if p.mtx.ID == txID {
