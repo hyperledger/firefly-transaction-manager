@@ -172,12 +172,12 @@ type simpleTransactionHandler struct {
 	gasOracleQueryValue    *fftypes.JSONAny
 	gasOracleLastQueryTime *fftypes.FFTime
 
-	policyLoopInterval time.Duration
-	policyLoopDone     chan struct{}
-	inflightStale      chan bool
-	inflightUpdate     chan bool
-	mux                sync.Mutex
-	// TODO: We should make this a sync map!
+	policyLoopInterval      time.Duration
+	policyLoopDone          chan struct{}
+	inflightStale           chan bool
+	inflightUpdate          chan bool
+	mux                     sync.RWMutex
+	inflightRWMux           sync.RWMutex
 	inflight                []*pendingState
 	policyEngineAPIRequests []*policyEngineAPIRequest
 	maxInFlight             int
@@ -196,6 +196,7 @@ type pendingState struct {
 	confirmNotify           *fftypes.FFTime
 	remove                  bool
 	subStatus               apitypes.TxSubStatus
+	mux                     sync.Mutex
 }
 
 type simplePolicyInfo struct {

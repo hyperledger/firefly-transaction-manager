@@ -103,8 +103,8 @@ func (sth *simpleTransactionHandler) markInflightUpdate() {
 }
 
 func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool {
-	sth.mux.Lock()
-	defer sth.mux.Unlock()
+	sth.inflightRWMux.Lock()
+	defer sth.inflightRWMux.Unlock()
 
 	oldInflight := sth.inflight
 	// TODOL THIS NEEDS A LOCK!!!
@@ -254,7 +254,7 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context, pending *pendingState, syncRequest *policyEngineAPIRequestType) (ctx *RunContext, err error) {
 
 	// Take a snapshot of the pending state under the lock
-	sth.mux.Lock()
+	pending.mux.Lock()
 	mtx := pending.mtx
 	ctx = &RunContext{
 		Context:       baseCtx,
@@ -275,7 +275,7 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 		ctx.UpdateType = Update // might change to delete later
 		ctx.TXUpdates.DeleteRequested = mtx.DeleteRequested
 	}
-	sth.mux.Unlock()
+	pending.mux.Unlock()
 
 	// Process any state updates that were queued to us from notifications from the confirmation manager
 	if receiptNotify != nil {
@@ -287,11 +287,11 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 		sth.incTransactionOperationCounter(ctx, pending.mtx.Namespace(ctx), "received_receipt")
 
 		// Clear the notification (as long as no other came through)
-		sth.mux.Lock()
+		pending.mux.Lock()
 		if pending.receiptNotify == receiptNotify {
 			pending.receiptNotify = nil
 		}
-		sth.mux.Unlock()
+		pending.mux.Unlock()
 	}
 
 	if confirmNotify != nil && ctx.Confirmations != nil {
@@ -305,11 +305,11 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 		}
 
 		// Clear the notification (as long as no other came through)
-		sth.mux.Lock()
+		pending.mux.Lock()
 		if pending.confirmNotify == confirmNotify {
 			pending.confirmNotify = nil
 		}
-		sth.mux.Unlock()
+		pending.mux.Unlock()
 	}
 
 	return ctx, nil
@@ -490,7 +490,7 @@ func (sth *simpleTransactionHandler) policyEngineAPIRequest(ctx context.Context,
 
 func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error) {
 	// Will be picked up on the next policy loop cycle
-	sth.mux.Lock()
+	sth.inflightRWMux.RLock()
 	var pending *pendingState
 	for _, p := range sth.inflight {
 		if p.mtx.ID == txID {
@@ -498,25 +498,24 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 			break
 		}
 	}
-	sth.mux.Unlock()
+	sth.inflightRWMux.RUnlock()
 	if pending == nil {
 		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 		return
 	}
-	sth.mux.Lock()
+	sth.inflightRWMux.Lock()
 	pending.confirmed = notification.Confirmed
 	pending.confirmNotify = fftypes.Now()
 	pending.confirmations = notification
 	log.L(ctx).Infof("Received %d confirmations (resync=%t)", len(notification.Confirmations), notification.NewFork)
-	sth.mux.Unlock()
+	sth.inflightRWMux.Unlock()
 
 	sth.markInflightUpdate()
 	return
 }
 func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error) {
 	log.L(ctx).Debugf("Handle transaction receipt received %s", txID)
-	sth.mux.Lock()
-	// TODO don't you need a read lock???
+	sth.inflightRWMux.RLock()
 	var pending *pendingState
 	for _, p := range sth.inflight {
 		if p.mtx.ID == txID {
@@ -524,16 +523,16 @@ func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx contex
 			break
 		}
 	}
-	sth.mux.Unlock()
+	sth.inflightRWMux.RUnlock()
 	if pending == nil {
 		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 		return
 	}
-	sth.mux.Lock()
+	sth.inflightRWMux.Lock()
 	// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 	pending.receiptNotify = fftypes.Now()
 	pending.receipt = receipt
-	sth.mux.Unlock()
+	sth.inflightRWMux.Unlock()
 	sth.markInflightUpdate()
 	return
 }
