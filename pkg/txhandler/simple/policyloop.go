@@ -110,6 +110,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 	// Run through removing those that are removed
 	for _, p := range oldInflight {
 		if !p.remove {
+			log.L(sth.ctx).Debugf("Removing TX '%s' from inflight", p.mtx.ID)
 			sth.inflight = append(sth.inflight, p)
 		} else {
 			sth.incTransactionOperationCounter(ctx, p.mtx.Namespace(ctx), "removed")
@@ -118,6 +119,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 
 	// If we are not at maximum, then query if there are more candidates now
 	spaces := sth.maxInFlight - len(sth.inflight)
+	log.L(sth.ctx).Debugf("Number of spaces left '%v'", spaces)
 	if spaces > 0 {
 		var after string
 		if len(sth.inflight) > 0 {
