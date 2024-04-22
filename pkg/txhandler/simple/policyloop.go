@@ -103,8 +103,11 @@ func (sth *simpleTransactionHandler) markInflightUpdate() {
 }
 
 func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool {
+	sth.mux.Lock()
+	defer sth.mux.Unlock()
 
 	oldInflight := sth.inflight
+	// TODOL THIS NEEDS A LOCK!!!
 	sth.inflight = make([]*pendingState, 0, len(oldInflight))
 
 	// Run through removing those that are removed
@@ -486,6 +489,7 @@ func (sth *simpleTransactionHandler) policyEngineAPIRequest(ctx context.Context,
 
 func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error) {
 	// Will be picked up on the next policy loop cycle
+	sth.mux.Lock()
 	var pending *pendingState
 	for _, p := range sth.inflight {
 		if p.mtx.ID == txID {
@@ -493,6 +497,7 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 			break
 		}
 	}
+	sth.mux.Unlock()
 	if pending == nil {
 		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 		return
@@ -509,6 +514,8 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 }
 func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error) {
 	log.L(ctx).Debugf("Handle transaction receipt received %s", txID)
+	sth.mux.Lock()
+	// TODO don't you need a read lock???
 	var pending *pendingState
 	for _, p := range sth.inflight {
 		if p.mtx.ID == txID {
@@ -516,12 +523,13 @@ func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx contex
 			break
 		}
 	}
+	sth.mux.Unlock()
 	if pending == nil {
 		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 		return
 	}
-	// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 	sth.mux.Lock()
+	// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 	pending.receiptNotify = fftypes.Now()
 	pending.receipt = receipt
 	sth.mux.Unlock()
