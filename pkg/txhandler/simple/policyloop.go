@@ -107,13 +107,11 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 	defer sth.inflightRWMux.Unlock()
 
 	oldInflight := sth.inflight
-	// TODOL THIS NEEDS A LOCK!!!
 	sth.inflight = make([]*pendingState, 0, len(oldInflight))
 
 	// Run through removing those that are removed
 	for _, p := range oldInflight {
 		if !p.remove {
-			log.L(sth.ctx).Debugf("Removing TX '%s' from inflight", p.mtx.ID)
 			sth.inflight = append(sth.inflight, p)
 		} else {
 			sth.incTransactionOperationCounter(ctx, p.mtx.Namespace(ctx), "removed")
@@ -157,7 +155,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 		}
 		newLen := len(sth.inflight)
 		if newLen > 0 {
-			log.L(ctx).Debugf("Inflight set updated with len=%d additional transactions", len(additional))
+			log.L(ctx).Debugf("Inflight set updated with %d additional transactions", len(additional))
 			log.L(ctx).Debugf("Inflight set updated len=%d head-id:%s head-seq=%s tail-id:%s tail-seq=%s old-tail=%s", len(sth.inflight), sth.inflight[0].mtx.ID, sth.inflight[0].mtx.SequenceID, sth.inflight[newLen-1].mtx.ID, sth.inflight[newLen-1].mtx.SequenceID, after)
 		}
 	}
@@ -212,6 +210,8 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 
 	for _, request := range requests {
 		var pending *pendingState
+
+		sth.inflightRWMux.RLock()
 		// If this transaction is in-flight, we use that record
 		for _, inflight := range sth.inflight {
 			if inflight.mtx.ID == request.txID {
@@ -219,6 +219,8 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 				break
 			}
 		}
+		sth.inflightRWMux.RUnlock()
+		// If this transaction is in-flight, we use that record
 		if pending == nil {
 			mtx, err := sth.getTransactionByID(ctx, request.txID)
 			if err != nil {
