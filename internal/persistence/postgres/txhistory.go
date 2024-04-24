@@ -95,8 +95,9 @@ func (p *sqlPersistence) ListTransactionHistory(ctx context.Context, txID string
 	return p.txHistory.GetMany(ctx, filter.Condition(filter.Builder().Eq("transaction", txID)))
 }
 
-func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny, t *fftypes.FFTime) error {
+func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
 	// Dispatch to TX writer
+	var  t *fftypes.FFTime
 	op := newTransactionOperation(txID)
 	op.historyRecord = &apitypes.TXHistoryRecord{
 		ID:            fftypes.NewUUID(),

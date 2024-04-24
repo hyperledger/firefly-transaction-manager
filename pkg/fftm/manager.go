@@ -69,7 +69,6 @@ type manager struct {
 	metricsServerDone chan error
 	metricsEnabled    bool
 	metricsManager    metrics.Metrics
-	sqlPersistence    postgres.SQLPersistence
 }
 
 func InitConfig() {
@@ -151,7 +150,7 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
 	case "postgres":
-		if m.sqlPersistence, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection, nonceStateTimeout); err != nil {
+		if m.persistence, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection, nonceStateTimeout); err != nil {
 			return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, pType, err)
 		}
 		if !config.GetBool(tmconfig.APISimpleQuery) {

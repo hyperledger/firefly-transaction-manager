@@ -37,10 +37,10 @@ func MigrateLevelDBToPostgres(ctx context.Context) (err error) {
 		return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, "leveldb", err)
 	}
 	defer m.source.Close(ctx)
-	if m.pg, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection, nonceStateTimeout, postgres.ForMigration); err != nil {
+	if m.target, err = postgres.NewPostgresPersistence(ctx, tmconfig.PostgresSection, nonceStateTimeout, postgres.ForMigration); err != nil {
 		return i18n.NewError(ctx, tmmsgs.MsgPersistenceInitFail, "postgres", err)
 	}
-	defer m.pg.Close(ctx)
+	defer m.target.Close(ctx)
 
 	return m.run(ctx)
 }
