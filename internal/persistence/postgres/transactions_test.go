@@ -101,15 +101,14 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 	}
 	err = p.AddTransactionConfirmations(ctx, txID, true, confirmations...)
 	assert.NoError(t, err)
-	SubActiontime := fftypes.Now()
 	// A couple of transaction history entries
-	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"11111"}`), nil, SubActiontime)
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"11111"}`), nil)
 	assert.NoError(t, err)
-	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 1"`), SubActiontime)
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 1"`))
 	assert.NoError(t, err)
-	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 2"`), SubActiontime)
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 2"`))
 	assert.NoError(t, err)
-	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"txhash":"0x12345"}`), nil, SubActiontime)
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"txhash":"0x12345"}`), nil)
 	assert.NoError(t, err)
 
 	// Finally the update - do a comprehensive one

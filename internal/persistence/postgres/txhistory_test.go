@@ -57,39 +57,38 @@ func TestTXHistoryCompressionPSQL(t *testing.T) {
 	assert.NotEmpty(t, tx.SequenceID)
 
 	// Add a bunch of simulated status entries, which are good for compression
-	SubActiontime := fftypes.Now()
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce,
-		fftypes.JSONAnyPtr(`{"nonce":"11111"}`), nil, SubActiontime)
+		fftypes.JSONAnyPtr(`{"nonce":"11111"}`), nil)
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction,
-		nil, fftypes.JSONAnyPtr(`"failed to submit 111"`), SubActiontime)
+		nil, fftypes.JSONAnyPtr(`"failed to submit 111"`))
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction,
-		nil, fftypes.JSONAnyPtr(`"failed to submit 222"`), SubActiontime)
+		nil, fftypes.JSONAnyPtr(`"failed to submit 222"`))
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction,
-		nil, fftypes.JSONAnyPtr(`"failed to submit 333"`), SubActiontime)
+		nil, fftypes.JSONAnyPtr(`"failed to submit 333"`))
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionSubmitTransaction,
-		fftypes.JSONAnyPtr(`{"transactionHash":"0x12345"}`), nil, SubActiontime)
+		fftypes.JSONAnyPtr(`{"transactionHash":"0x12345"}`), nil)
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionReceiveReceipt,
-		fftypes.JSONAnyPtr(`{"transactionHash":"0x111111","blockNumber":"11111"}`), nil, SubActiontime)
+		fftypes.JSONAnyPtr(`{"transactionHash":"0x111111","blockNumber":"11111"}`), nil)
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionReceiveReceipt,
-		fftypes.JSONAnyPtr(`{"transactionHash":"0x222222","blockNumber":"22222"}`), nil, SubActiontime)
+		fftypes.JSONAnyPtr(`{"transactionHash":"0x222222","blockNumber":"22222"}`), nil)
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionReceiveReceipt,
-		fftypes.JSONAnyPtr(`{"transactionHash":"0x333333","blockNumber":"33333"}`), nil, SubActiontime)
+		fftypes.JSONAnyPtr(`{"transactionHash":"0x333333","blockNumber":"33333"}`), nil)
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionTimeout,
-		nil, fftypes.JSONAnyPtr(`"some error 444"`), SubActiontime)
+		nil, fftypes.JSONAnyPtr(`"some error 444"`))
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionTimeout,
-		nil, fftypes.JSONAnyPtr(`"some error 555"`), SubActiontime)
+		nil, fftypes.JSONAnyPtr(`"some error 555"`))
 	assert.NoError(t, err)
 	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusConfirmed, apitypes.TxActionConfirmTransaction,
-		fftypes.JSONAnyPtr(`{"confirmed":true}`), nil, SubActiontime)
+		fftypes.JSONAnyPtr(`{"confirmed":true}`), nil)
 	assert.NoError(t, err)
 
 	// Flush with a TX update
