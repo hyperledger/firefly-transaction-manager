@@ -120,7 +120,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 
 	// If we are not at maximum, then query if there are more candidates now
 	spaces := sth.maxInFlight - len(sth.inflight)
-	log.L(sth.ctx).Debugf("Number of spaces left '%v'", spaces)
+	log.L(sth.ctx).Tracef("Number of spaces left '%v'", spaces)
 	if spaces > 0 {
 		var after string
 		if len(sth.inflight) > 0 {
@@ -179,7 +179,7 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 	defer sth.inflightRWMux.RUnlock()
 	// Go through executing the policy engine against them
 	for _, pending := range sth.inflight {
-		log.L(ctx).Debugf("Executing policy against tx-id=%v", pending.mtx.ID)
+		log.L(ctx).Tracef("Executing policy against tx-id=%v", pending.mtx.ID)
 		err := sth.execPolicy(ctx, pending, nil)
 		if err != nil {
 			log.L(ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
@@ -514,7 +514,7 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 	return
 }
 func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error) {
-	log.L(ctx).Debugf("Handle transaction receipt received %s", txID)
+	log.L(ctx).Tracef("Handle transaction receipt received %s", txID)
 	sth.inflightRWMux.RLock()
 	var pending *pendingState
 	for _, p := range sth.inflight {
