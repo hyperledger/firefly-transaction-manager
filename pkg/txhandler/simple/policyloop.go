@@ -327,7 +327,7 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 	completed := false
 	switch {
 	case ctx.Confirmed && ctx.SyncAction != ActionDelete:
-		log.L(sth.ctx).Debugf("Transaction '%s' confirmed", ctx.TX.ID)
+		log.L(sth.ctx).Tracef("Transaction '%s' confirmed", ctx.TX.ID)
 		completed = true
 		ctx.UpdateType = Update
 		if ctx.Receipt != nil && ctx.Receipt.Success {
