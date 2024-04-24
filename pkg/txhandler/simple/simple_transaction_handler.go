@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -176,7 +176,8 @@ type simpleTransactionHandler struct {
 	policyLoopDone          chan struct{}
 	inflightStale           chan bool
 	inflightUpdate          chan bool
-	mux                     sync.Mutex
+	mux                     sync.RWMutex
+	inflightRWMux           sync.RWMutex
 	inflight                []*pendingState
 	policyEngineAPIRequests []*policyEngineAPIRequest
 	maxInFlight             int
@@ -195,6 +196,9 @@ type pendingState struct {
 	confirmNotify           *fftypes.FFTime
 	remove                  bool
 	subStatus               apitypes.TxSubStatus
+	// This mutex only works in a slice when the slice contains a pointer to this struct
+	// appends to a slice copy memory but when storing pointers it does not
+	mux sync.Mutex
 }
 
 type simplePolicyInfo struct {
@@ -344,8 +348,8 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 }
 
 func (sth *simpleTransactionHandler) submitTX(ctx *RunContext) (reason ffcapi.ErrorReason, err error) {
-
 	mtx := ctx.TX
+
 	mtx.GasPrice, err = sth.getGasPrice(ctx, sth.toolkit.Connector)
 	if err != nil {
 		ctx.AddSubStatusAction(apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
