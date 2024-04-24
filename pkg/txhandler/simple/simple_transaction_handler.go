@@ -196,7 +196,9 @@ type pendingState struct {
 	confirmNotify           *fftypes.FFTime
 	remove                  bool
 	subStatus               apitypes.TxSubStatus
-	mux                     sync.Mutex
+	// This mutex only works in a slice when the slice contains a pointer to this struct
+	// appends to a slice copy memory but when storing pointers it does not
+	mux sync.Mutex
 }
 
 type simplePolicyInfo struct {

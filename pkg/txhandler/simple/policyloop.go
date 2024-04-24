@@ -176,6 +176,7 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 		}
 	}
 
+	sth.inflightRWMux.RLock()
 	// Go through executing the policy engine against them
 	for _, pending := range sth.inflight {
 		log.L(ctx).Debugf("Executing policy against tx-id=%v", pending.mtx.ID)
@@ -184,6 +185,7 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 			log.L(ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
 		}
 	}
+	sth.inflightRWMux.RUnlock()
 
 }
 
@@ -257,6 +259,8 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 
 	// Take a snapshot of the pending state under the lock
 	pending.mux.Lock()
+	defer pending.mux.Unlock()
+
 	mtx := pending.mtx
 	ctx = &RunContext{
 		Context:       baseCtx,
@@ -277,7 +281,6 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 		ctx.UpdateType = Update // might change to delete later
 		ctx.TXUpdates.DeleteRequested = mtx.DeleteRequested
 	}
-	pending.mux.Unlock()
 
 	// Process any state updates that were queued to us from notifications from the confirmation manager
 	if receiptNotify != nil {
@@ -289,11 +292,9 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 		sth.incTransactionOperationCounter(ctx, pending.mtx.Namespace(ctx), "received_receipt")
 
 		// Clear the notification (as long as no other came through)
-		pending.mux.Lock()
 		if pending.receiptNotify == receiptNotify {
 			pending.receiptNotify = nil
 		}
-		pending.mux.Unlock()
 	}
 
 	if confirmNotify != nil && ctx.Confirmations != nil {
@@ -307,11 +308,9 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 		}
 
 		// Clear the notification (as long as no other came through)
-		pending.mux.Lock()
 		if pending.confirmNotify == confirmNotify {
 			pending.confirmNotify = nil
 		}
-		pending.mux.Unlock()
 	}
 
 	return ctx, nil
@@ -505,12 +504,12 @@ func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.
 		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 		return
 	}
-	sth.inflightRWMux.Lock()
+	pending.mux.Lock()
 	pending.confirmed = notification.Confirmed
 	pending.confirmNotify = fftypes.Now()
 	pending.confirmations = notification
+	pending.mux.Unlock()
 	log.L(ctx).Infof("Received %d confirmations (resync=%t)", len(notification.Confirmations), notification.NewFork)
-	sth.inflightRWMux.Unlock()
 
 	sth.markInflightUpdate()
 	return
@@ -530,11 +529,12 @@ func (sth *simpleTransactionHandler) HandleTransactionReceiptReceived(ctx contex
 		err = i18n.NewError(ctx, tmmsgs.MsgTransactionNotFound, txID)
 		return
 	}
-	sth.inflightRWMux.Lock()
+	pending.mux.Lock()
 	// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 	pending.receiptNotify = fftypes.Now()
 	pending.receipt = receipt
-	sth.inflightRWMux.Unlock()
+	pending.mux.Unlock()
+	// Will be picked up on the next policy loop cycle - guaranteed to occur before Confirmed
 	sth.markInflightUpdate()
 	return
 }
