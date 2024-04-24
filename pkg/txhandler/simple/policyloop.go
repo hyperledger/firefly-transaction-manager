@@ -155,8 +155,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 		}
 		newLen := len(sth.inflight)
 		if newLen > 0 {
-			log.L(ctx).Debugf("Inflight set updated with %d additional transactions", len(additional))
-			log.L(ctx).Debugf("Inflight set updated len=%d head-id:%s head-seq=%s tail-id:%s tail-seq=%s old-tail=%s", len(sth.inflight), sth.inflight[0].mtx.ID, sth.inflight[0].mtx.SequenceID, sth.inflight[newLen-1].mtx.ID, sth.inflight[newLen-1].mtx.SequenceID, after)
+			log.L(ctx).Debugf("Inflight set updated with %d additional transactions, length is now %d head-id:%s head-seq=%s tail-id:%s tail-seq=%s old-tail=%s", len(additional), len(sth.inflight), sth.inflight[0].mtx.ID, sth.inflight[0].mtx.SequenceID, sth.inflight[newLen-1].mtx.ID, sth.inflight[newLen-1].mtx.SequenceID, after)
 		}
 	}
 	sth.setTransactionInflightQueueMetrics(ctx)
@@ -177,6 +176,7 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 	}
 
 	sth.inflightRWMux.RLock()
+	defer sth.inflightRWMux.RUnlock()
 	// Go through executing the policy engine against them
 	for _, pending := range sth.inflight {
 		log.L(ctx).Debugf("Executing policy against tx-id=%v", pending.mtx.ID)
@@ -185,7 +185,6 @@ func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflig
 			log.L(ctx).Errorf("Failed policy cycle transaction=%s operation=%s: %s", pending.mtx.TransactionHash, pending.mtx.ID, err)
 		}
 	}
-	sth.inflightRWMux.RUnlock()
 
 }
 
