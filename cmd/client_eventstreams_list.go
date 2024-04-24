@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -30,7 +30,7 @@ func clientEventStreamsListCommand(clientFactory func() (apiclient.FFTMClient, e
 		Use:   "list",
 		Short: "List event streams",
 		Long:  "",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := clientFactory()
 			if err != nil {
 				return err

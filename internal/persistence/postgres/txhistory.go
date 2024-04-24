@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -97,7 +97,7 @@ func (p *sqlPersistence) ListTransactionHistory(ctx context.Context, txID string
 
 func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
 	// Dispatch to TX writer
-	var  t *fftypes.FFTime
+	t := &fftypes.FFTime{}
 	op := newTransactionOperation(txID)
 	op.historyRecord = &apitypes.TXHistoryRecord{
 		ID:            fftypes.NewUUID(),

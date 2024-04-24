@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -54,7 +54,6 @@ type sqlPersistence struct {
 	historySummaryLimit int
 	nonceStateTimeout   time.Duration
 }
-
 
 // InitConfig gets called after config reset to initialize the config structure
 func InitConfig(conf config.Section) {
