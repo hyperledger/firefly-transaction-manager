@@ -165,7 +165,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 }
 
 func (sth *simpleTransactionHandler) policyLoopCycle(ctx context.Context, inflightStale bool) {
-	log.L(ctx).Debugf("policyLoopCycle triggered inflightStatle=%v", inflightStale)
+	log.L(ctx).Tracef("policyLoopCycle triggered inflightStatle=%v", inflightStale)
 
 	// Process any synchronous commands first - these might not be in our inflight set
 	sth.processPolicyAPIRequests(ctx)
