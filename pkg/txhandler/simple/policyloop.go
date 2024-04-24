@@ -125,7 +125,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 		}
 		var additional []*apitypes.ManagedTX
 		// We retry the get from persistence indefinitely (until the context cancels)
-		err := sth.retry.Do(ctx, "get pending transactions", func(attempt int) (retry bool, err error) {
+		err := sth.retry.Do(ctx, "get pending transactions", func(_ int) (retry bool, err error) {
 			additional, err = sth.toolkit.TXPersistence.ListTransactionsPending(ctx, after, spaces, 0)
 			return true, err
 		})

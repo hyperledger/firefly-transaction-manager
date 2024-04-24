@@ -888,7 +888,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	}
 
 	// We only return if the context is cancelled, or the checkpoint succeeds
-	return es.retry.Do(startedState.ctx, "checkpoint", func(attempt int) (retry bool, err error) {
+	return es.retry.Do(startedState.ctx, "checkpoint", func(_ int) (retry bool, err error) {
 		return true, es.persistence.WriteCheckpoint(startedState.ctx, cp)
 	})
 }

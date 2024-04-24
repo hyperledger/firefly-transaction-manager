@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -99,12 +99,12 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 	mockFFCAPI := &ffcapimocks.API{}
 
 	return f, &txhandler.Toolkit{
-			Connector:      mockFFCAPI,
-			TXHistory:      filePersistence,
-			TXPersistence:  filePersistence,
-			MetricsManager: metrics.NewMetricsManager(context.Background()),
-			EventHandler:   mockEventHandler,
-		}, mockFFCAPI, conf
+		Connector:      mockFFCAPI,
+		TXHistory:      filePersistence,
+		TXPersistence:  filePersistence,
+		MetricsManager: metrics.NewMetricsManager(context.Background()),
+		EventHandler:   mockEventHandler,
+	}, mockFFCAPI, conf
 }
 
 func newTestTransactionHandler(t *testing.T) txhandler.TransactionHandler {

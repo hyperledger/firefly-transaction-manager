@@ -1,4 +1,4 @@
-// Copyright 2019 Kaleido
+// Copyright 2024 Kaleido
 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,14 +32,14 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func newTestBlockConfirmationManager(t *testing.T, enabled bool) (*blockConfirmationManager, *ffcapimocks.API) {
+func newTestBlockConfirmationManager(t *testing.T, _ bool) (*blockConfirmationManager, *ffcapimocks.API) {
 	tmconfig.Reset()
 	config.Set(tmconfig.ConfirmationsRequired, 3)
 	config.Set(tmconfig.ConfirmationsNotificationQueueLength, 1)
 	return newTestBlockConfirmationManagerCustomConfig(t)
 }
 
-func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmationManager, *ffcapimocks.API) {
+func newTestBlockConfirmationManagerCustomConfig(_ *testing.T) (*blockConfirmationManager, *ffcapimocks.API) {
 	logrus.SetLevel(logrus.DebugLevel)
 	mca := &ffcapimocks.API{}
 	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut").(*blockConfirmationManager)
