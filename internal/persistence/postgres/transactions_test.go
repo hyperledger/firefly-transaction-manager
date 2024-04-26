@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -103,13 +103,13 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 	assert.NoError(t, err)
 
 	// A couple of transaction history entries
-	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"11111"}`), nil)
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"11111"}`), nil, fftypes.Now())
 	assert.NoError(t, err)
-	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 1"`))
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 1"`), fftypes.Now())
 	assert.NoError(t, err)
-	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 2"`))
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, fftypes.JSONAnyPtr(`"failed to submit 2"`), fftypes.Now())
 	assert.NoError(t, err)
-	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"txhash":"0x12345"}`), nil)
+	err = p.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusTracking, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"txhash":"0x12345"}`), nil, fftypes.Now())
 	assert.NoError(t, err)
 
 	// Finally the update - do a comprehensive one

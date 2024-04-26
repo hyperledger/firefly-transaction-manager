@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -81,10 +81,10 @@ func (ctx *RunContext) SetSubStatus(subStatus apitypes.TxSubStatus) {
 	ctx.SubStatus = subStatus
 }
 
-func (ctx *RunContext) AddSubStatusAction(action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny) {
+func (ctx *RunContext) AddSubStatusAction(action apitypes.TxAction, info *fftypes.JSONAny, err *fftypes.JSONAny, actionOccurred *fftypes.FFTime) {
 	subStatus := ctx.SubStatus // capture at time of action
 	ctx.HistoryUpdates = append(ctx.HistoryUpdates, func(p txhandler.TransactionHistoryPersistence) error {
-		return p.AddSubStatusAction(ctx, ctx.TX.ID, subStatus, action, info, err)
+		return p.AddSubStatusAction(ctx, ctx.TX.ID, subStatus, action, info, err, actionOccurred)
 	})
 }
 
@@ -332,7 +332,7 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 		return nextNonceRes.Nonce.Uint64(), nil
 	})
 	if err == nil {
-		err = sth.toolkit.TXHistory.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil)
+		err = sth.toolkit.TXHistory.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil, fftypes.Now())
 	}
 	if err != nil {
 		return nil, err
@@ -348,10 +348,10 @@ func (sth *simpleTransactionHandler) submitTX(ctx *RunContext) (reason ffcapi.Er
 	mtx := ctx.TX
 	mtx.GasPrice, err = sth.getGasPrice(ctx, sth.toolkit.Connector)
 	if err != nil {
-		ctx.AddSubStatusAction(apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
+		ctx.AddSubStatusAction(apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`), fftypes.Now())
 		return "", err
 	}
-	ctx.AddSubStatusAction(apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil)
+	ctx.AddSubStatusAction(apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"gasPrice":`+string(*mtx.GasPrice)+`}`), nil, fftypes.Now())
 
 	sendTX := &ffcapi.TransactionSendRequest{
 		TransactionHeaders: mtx.TransactionHeaders,
@@ -366,7 +366,7 @@ func (sth *simpleTransactionHandler) submitTX(ctx *RunContext) (reason ffcapi.Er
 	sth.incTransactionOperationCounter(ctx, mtx.Namespace(ctx), "transaction_submission")
 	sth.recordTransactionOperationDuration(ctx, mtx.Namespace(ctx), "transaction_submission", time.Since(transactionSendStartTime).Seconds())
 	if err == nil {
-		ctx.AddSubStatusAction(apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), nil)
+		ctx.AddSubStatusAction(apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), nil, fftypes.Now())
 		mtx.TransactionHash = res.TransactionHash
 		mtx.LastSubmit = fftypes.Now()
 		// Need to persist back as we've successfully submitted
@@ -375,7 +375,7 @@ func (sth *simpleTransactionHandler) submitTX(ctx *RunContext) (reason ffcapi.Er
 		ctx.TXUpdates.LastSubmit = mtx.LastSubmit
 		ctx.TXUpdates.GasPrice = mtx.GasPrice
 	} else {
-		ctx.AddSubStatusAction(apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`))
+		ctx.AddSubStatusAction(apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+string(reason)+`"}`), fftypes.JSONAnyPtr(`{"error":"`+err.Error()+`"}`), fftypes.Now())
 		// We have some simple rules for handling reasons from the connector, which could be enhanced by extending the connector.
 		switch reason {
 		case ffcapi.ErrorKnownTransaction, ffcapi.ErrorReasonNonceTooLow:
@@ -433,7 +433,7 @@ func (sth *simpleTransactionHandler) processTransaction(ctx *RunContext) (err er
 			ctx.UpdatedInfo = true
 			ctx.Info.LastWarnTime = now
 			// We do a resubmit at this point - as it might no longer be in the TX pool
-			ctx.AddSubStatusAction(apitypes.TxActionTimeout, nil, nil)
+			ctx.AddSubStatusAction(apitypes.TxActionTimeout, nil, nil, fftypes.Now())
 			ctx.SetSubStatus(apitypes.TxSubStatusStale)
 			if reason, err := sth.submitTX(ctx); err != nil {
 				if reason != ffcapi.ErrorKnownTransaction {

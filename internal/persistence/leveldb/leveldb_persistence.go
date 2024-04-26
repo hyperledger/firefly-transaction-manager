@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -661,7 +661,7 @@ func (p *leveldbPersistence) DeleteTransaction(ctx context.Context, txID string)
 	)
 }
 
-func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apitypes.TXWithStatus, subStatus apitypes.TxSubStatus) {
+func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apitypes.TXWithStatus, subStatus apitypes.TxSubStatus, actionOccurred *fftypes.FFTime) {
 
 	// See if the status being transitioned to is the same as the current status.
 	// If so, there's nothing to do.
@@ -674,7 +674,7 @@ func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apity
 
 	// If this is a change in status add a new record
 	newStatus := &apitypes.TxHistoryStateTransitionEntry{
-		Time:    fftypes.Now(),
+		Time:    actionOccurred,
 		Status:  subStatus,
 		Actions: make([]*apitypes.TxHistoryActionEntry, 0),
 	}
@@ -692,16 +692,16 @@ func (p *leveldbPersistence) setSubStatusInStruct(ctx context.Context, tx *apity
 	for _, statusType := range tx.DeprecatedHistorySummary {
 		if statusType.Status == subStatus {
 			// Just increment the counter and last timestamp
-			statusType.LastOccurrence = fftypes.Now()
+			statusType.LastOccurrence = actionOccurred
 			statusType.Count++
 			return
 		}
 	}
 
-	tx.DeprecatedHistorySummary = append(tx.DeprecatedHistorySummary, &apitypes.TxHistorySummaryEntry{Status: subStatus, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
+	tx.DeprecatedHistorySummary = append(tx.DeprecatedHistorySummary, &apitypes.TxHistorySummaryEntry{Status: subStatus, Count: 1, FirstOccurrence: actionOccurred, LastOccurrence: actionOccurred})
 }
 
-func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
+func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny, actionOccurred *fftypes.FFTime) error {
 
 	tx, err := p.getPersistedTX(ctx, txID)
 	if err != nil {
@@ -713,7 +713,7 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 	}
 
 	// Ensure structure is updated to latest sub status
-	p.setSubStatusInStruct(ctx, tx, subStatus)
+	p.setSubStatusInStruct(ctx, tx, subStatus, actionOccurred)
 
 	// See if this action exists in the list already since we only want to update the single entry, not
 	// add a new one
@@ -723,11 +723,11 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 		if entry.Action == action {
 			alreadyRecordedAction = true
 			entry.OccurrenceCount++
-			entry.LastOccurrence = fftypes.Now()
+			entry.LastOccurrence = actionOccurred
 
 			if errInfo != nil {
 				entry.LastError = persistence.JSONOrString(errInfo)
-				entry.LastErrorTime = fftypes.Now()
+				entry.LastErrorTime = actionOccurred
 			}
 
 			if info != nil {
@@ -740,15 +740,15 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 	if !alreadyRecordedAction {
 		// If this is an entirely new action for this status entry, add it to the list
 		newAction := &apitypes.TxHistoryActionEntry{
-			Time:            fftypes.Now(),
+			Time:            actionOccurred,
 			Action:          action,
-			LastOccurrence:  fftypes.Now(),
+			LastOccurrence:  actionOccurred,
 			OccurrenceCount: 1,
 		}
 
 		if errInfo != nil {
 			newAction.LastError = persistence.JSONOrString(errInfo)
-			newAction.LastErrorTime = fftypes.Now()
+			newAction.LastErrorTime = actionOccurred
 		}
 
 		if info != nil {
@@ -763,14 +763,14 @@ func (p *leveldbPersistence) AddSubStatusAction(ctx context.Context, txID string
 	for _, actionType := range tx.DeprecatedHistorySummary {
 		if actionType.Action == action {
 			// Just increment the counter and last timestamp
-			actionType.LastOccurrence = fftypes.Now()
+			actionType.LastOccurrence = actionOccurred
 			actionType.Count++
 			found = true
 			break
 		}
 	}
 	if !found {
-		tx.DeprecatedHistorySummary = append(tx.DeprecatedHistorySummary, &apitypes.TxHistorySummaryEntry{Action: action, Count: 1, FirstOccurrence: fftypes.Now(), LastOccurrence: fftypes.Now()})
+		tx.DeprecatedHistorySummary = append(tx.DeprecatedHistorySummary, &apitypes.TxHistorySummaryEntry{Action: action, Count: 1, FirstOccurrence: actionOccurred, LastOccurrence: actionOccurred})
 	}
 	return p.writeTransaction(ctx, tx, false)
 }

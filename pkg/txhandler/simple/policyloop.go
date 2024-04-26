@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -125,7 +125,7 @@ func (sth *simpleTransactionHandler) updateInflightSet(ctx context.Context) bool
 		}
 		var additional []*apitypes.ManagedTX
 		// We retry the get from persistence indefinitely (until the context cancels)
-		err := sth.retry.Do(ctx, "get pending transactions", func(attempt int) (retry bool, err error) {
+		err := sth.retry.Do(ctx, "get pending transactions", func(_ int) (retry bool, err error) {
 			additional, err = sth.toolkit.TXPersistence.ListTransactionsPending(ctx, after, spaces, 0)
 			return true, err
 		})
@@ -275,7 +275,7 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 		if err := sth.toolkit.TXPersistence.SetTransactionReceipt(ctx, mtx.ID, ctx.Receipt); err != nil {
 			return nil, err
 		}
-		ctx.AddSubStatusAction(apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+ctx.Receipt.ProtocolID+`"}`), nil)
+		ctx.AddSubStatusAction(apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"protocolId":"`+ctx.Receipt.ProtocolID+`"}`), nil, fftypes.Now())
 		sth.incTransactionOperationCounter(ctx, pending.mtx.Namespace(ctx), "received_receipt")
 
 		// Clear the notification (as long as no other came through)
@@ -292,7 +292,7 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 			return nil, err
 		}
 		if ctx.Confirmed {
-			ctx.AddSubStatusAction(apitypes.TxActionConfirmTransaction, nil, nil)
+			ctx.AddSubStatusAction(apitypes.TxActionConfirmTransaction, nil, nil, fftypes.Now())
 			ctx.SetSubStatus(apitypes.TxSubStatusConfirmed)
 		}
 

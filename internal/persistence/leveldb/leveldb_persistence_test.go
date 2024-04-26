@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -460,7 +460,7 @@ func TestAddSubStatusActionFail(t *testing.T) {
 
 	tx := newTestTX("0x1234", apitypes.TxStatusPending)
 
-	err := p.AddSubStatusAction(ctx, tx.ID, apitypes.TxSubStatusTracking, apitypes.TxActionAssignNonce, nil, nil)
+	err := p.AddSubStatusAction(ctx, tx.ID, apitypes.TxSubStatusTracking, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 	assert.Error(t, err)
 
 }
@@ -834,7 +834,7 @@ func TestManagedTXSubStatus(t *testing.T) {
 	// Adding the same sub-status lots of times in succession should only result
 	// in a single entry for that instance
 	for i := 0; i < 100; i++ {
-		err := p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil)
+		err := p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 		assert.NoError(t, err)
 	}
 
@@ -845,7 +845,7 @@ func TestManagedTXSubStatus(t *testing.T) {
 
 	// Adding a different type of sub-status should result in
 	// a new entry in the list
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusTracking, apitypes.TxActionAssignNonce, nil, nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusTracking, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 	assert.NoError(t, err)
 
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
@@ -855,9 +855,9 @@ func TestManagedTXSubStatus(t *testing.T) {
 	// Even if many new types are added we shouldn't go over the
 	// configured upper limit
 	for i := 0; i < 100; i++ {
-		err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusStale, apitypes.TxActionAssignNonce, nil, nil)
+		err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusStale, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 		assert.NoError(t, err)
-		err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusTracking, apitypes.TxActionAssignNonce, nil, nil)
+		err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusTracking, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 		assert.NoError(t, err)
 	}
 
@@ -875,7 +875,7 @@ func TestManagedTXSubStatusRepeat(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Add a sub-status
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 	assert.NoError(t, err)
 	txh, err := p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.NoError(t, err)
@@ -883,14 +883,14 @@ func TestManagedTXSubStatusRepeat(t *testing.T) {
 	assert.Equal(t, 2, len(txh.DeprecatedHistorySummary))
 
 	// Add another sub-status
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusTracking, apitypes.TxActionSubmitTransaction, nil, nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusTracking, apitypes.TxActionSubmitTransaction, nil, nil, fftypes.Now())
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.Equal(t, 2, len(txh.History))
 	assert.Equal(t, 4, len(txh.DeprecatedHistorySummary))
 
 	// Add another that we've seen before
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, nil, fftypes.Now())
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.Equal(t, 3, len(txh.History))                  // This goes up
@@ -902,14 +902,14 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	defer done()
 	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
 
-	err := p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil)
+	err := p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 	assert.Regexp(t, "FF21067", err)
 
 	err = p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
 	// Add an action
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 	assert.NoError(t, err)
 	txh, err := p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.NoError(t, err)
@@ -917,7 +917,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	assert.Nil(t, txh.History[0].Actions[0].LastErrorTime)
 
 	// Add another action
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=12345"}`))
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=12345"}`), fftypes.Now())
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.NoError(t, err)
@@ -925,7 +925,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	assert.Equal(t, (*txh.History[0].Actions[1].LastError).String(), `{"gasError":"Acme Gas Oracle RC=12345"}`)
 
 	// Add the same action which should cause the previous one to inc its counter
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"info":"helloworld"}`), fftypes.JSONAnyPtr(`{"error":"nogood"}`))
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionRetrieveGasPrice, fftypes.JSONAnyPtr(`{"info":"helloworld"}`), fftypes.JSONAnyPtr(`{"error":"nogood"}`), fftypes.Now())
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.NoError(t, err)
@@ -934,7 +934,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	assert.Equal(t, 2, txh.History[0].Actions[1].OccurrenceCount)
 
 	// Add the same action but with new error information should update the last error field
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=67890"}`))
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionRetrieveGasPrice, nil, fftypes.JSONAnyPtr(`{"gasError":"Acme Gas Oracle RC=67890"}`), fftypes.Now())
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.NoError(t, err)
@@ -944,7 +944,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 
 	// Add a new type of action
 	reason := "known_transaction"
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil, fftypes.Now())
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.NoError(t, err)
@@ -956,7 +956,7 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 	// Add one more type of action
 
 	receiptId := "123456"
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil, fftypes.Now())
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.NoError(t, err)
@@ -972,13 +972,13 @@ func TestManagedTXSubStatusAction(t *testing.T) {
 
 	// Add some new sub-status and actions to check max lengths are correct
 	// Seen one of these before - should increase summary length by 1
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusConfirmed, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusConfirmed, apitypes.TxActionReceiveReceipt, fftypes.JSONAnyPtr(`{"receiptId":"`+receiptId+`"}`), nil, fftypes.Now())
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.Equal(t, 6, len(txh.DeprecatedHistorySummary))
 
 	// Seen both of these before - no change expected
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 	assert.NoError(t, err)
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.NoError(t, err)
@@ -1070,7 +1070,7 @@ func TestManagedTXSubStatusInvalidJSON(t *testing.T) {
 	reason := "\"cannot-marshall\""
 
 	// Add a new type of action
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, fftypes.JSONAnyPtr(`{"reason":"`+reason+`"}`), nil, fftypes.Now())
 	assert.NoError(t, err)
 	txh, err := p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
 	assert.NoError(t, err)
@@ -1095,7 +1095,7 @@ func TestManagedTXSubStatusMaxEntries(t *testing.T) {
 	// first 50
 	for i := 0; i < 100; i++ {
 		nextSubStatus = apitypes.TxSubStatus(fmt.Sprint(i))
-		p.AddSubStatusAction(ctx, mtx.ID, nextSubStatus, apitypes.TxActionAssignNonce, nil, nil)
+		p.AddSubStatusAction(ctx, mtx.ID, nextSubStatus, apitypes.TxActionAssignNonce, nil, nil, fftypes.Now())
 		assert.NoError(t, err)
 	}
 
@@ -1114,7 +1114,7 @@ func TestMaxHistoryCountSetToZero(t *testing.T) {
 	err := p.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) { return 12345, nil })
 	assert.NoError(t, err)
 
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, nil, fftypes.Now())
 	assert.NoError(t, err)
 
 	txh, err := p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
@@ -1141,7 +1141,7 @@ func TestAddReceivedStatusWhenNothingSet(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Nil(t, txh.History)
 
-	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, nil)
+	err = p.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionSubmitTransaction, nil, nil, fftypes.Now())
 	assert.NoError(t, err)
 
 	txh, err = p.GetTransactionByIDWithStatus(ctx, mtx.ID, true)
