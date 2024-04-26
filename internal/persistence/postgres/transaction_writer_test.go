@@ -27,6 +27,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -275,6 +276,48 @@ func TestExecuteBatchOpsUpdateTXFail(t *testing.T) {
 	assert.NoError(t, mdb.ExpectationsWereMet())
 }
 
+func TestExecuteBatchOpsUpdateTXMerge(t *testing.T) {
+	logrus.SetLevel(logrus.TraceLevel)
+
+	ctx, p, mdb, done := newMockSQLPersistence(t)
+	defer done()
+
+	mdb.ExpectBegin()
+	mdb.ExpectExec("UPDATE.*").WillReturnResult(sqlmock.NewResult(-1, 1))
+	mdb.ExpectExec("UPDATE.*").WillReturnResult(sqlmock.NewResult(-1, 1))
+	mdb.ExpectCommit()
+
+	err := p.db.RunAsGroup(ctx, func(ctx context.Context) error {
+		return p.writer.executeBatchOps(ctx, &transactionWriterBatch{
+			txUpdates: []*transactionOperation{
+				{
+					txID: "11111",
+					txUpdate: &apitypes.TXUpdates{
+						Status: ptrTo(apitypes.TxStatusPending),
+						From:   strPtr("0xaaaaa"),
+					},
+				},
+				{
+					txID: "22222",
+					txUpdate: &apitypes.TXUpdates{
+						Status: ptrTo(apitypes.TxStatusPending),
+					},
+				},
+				{
+					txID: "11111",
+					txUpdate: &apitypes.TXUpdates{
+						Status:          ptrTo(apitypes.TxStatusSucceeded),
+						TransactionHash: strPtr("0xaabbcc"),
+					},
+				},
+			},
+		})
+	})
+	assert.NoError(t, err)
+
+	assert.NoError(t, mdb.ExpectationsWereMet())
+}
+
 func TestExecuteBatchOpsUpsertReceiptFail(t *testing.T) {
 	ctx, p, mdb, done := newMockSQLPersistence(t)
 	defer done()
@@ -454,4 +497,34 @@ func TestQueueClosedContext(t *testing.T) {
 	cancelCtx()
 	p.writer.queue(closedCtx, newTransactionOperation("tx1"))
 
+}
+
+func TestStopDoneWorker(t *testing.T) {
+	tw := &transactionWriter{
+		workersDone: []chan struct{}{
+			make(chan struct{}),
+		},
+	}
+	tw.bgCtx, tw.cancelCtx = context.WithCancel(context.Background())
+	close(tw.workersDone[0])
+	tw.stop()
+}
+
+func TestStopDoneCtx(t *testing.T) {
+	tw := &transactionWriter{
+		workersDone: []chan struct{}{
+			make(chan struct{}, 1),
+		},
+	}
+	tw.bgCtx, tw.cancelCtx = context.WithCancel(context.Background())
+	tw.cancelCtx()
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		tw.workersDone[0] <- struct{}{}
+	}()
+	tw.stop()
+}
+
+func ptrTo[T any](v T) *T {
+	return &v
 }

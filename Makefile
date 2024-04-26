@@ -17,7 +17,7 @@ coverage.html:
 		$(VGO) tool cover -html=coverage.txt
 coverage: test coverage.html
 lint: 
-		$(VGO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.53.2
+		$(VGO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
 		GOGC=20 $(LINT) run -v --timeout 5m
 
 ${MOCKERY}:

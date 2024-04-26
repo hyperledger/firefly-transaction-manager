@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -40,6 +40,7 @@ type transactionOperation struct {
 	sentConflict bool
 	done         chan error
 
+	opID               string
 	isShutdown         bool
 	txInsert           *apitypes.ManagedTX
 	noncePreAssigned   bool
@@ -77,6 +78,7 @@ type transactionWriter struct {
 
 type transactionWriterBatch struct {
 	id             string
+	opened         time.Time
 	ops            []*transactionOperation
 	timeoutContext context.Context
 	timeoutCancel  func()
@@ -122,6 +124,7 @@ func newTransactionWriter(bgCtx context.Context, p *sqlPersistence, conf config.
 
 func newTransactionOperation(txID string) *transactionOperation {
 	return &transactionOperation{
+		opID: fftypes.ShortID(),
 		txID: txID,
 		done: make(chan error, 1), // 1 slot to ensure we don't block the writer
 	}
@@ -130,6 +133,7 @@ func newTransactionOperation(txID string) *transactionOperation {
 func (op *transactionOperation) flush(ctx context.Context) error {
 	select {
 	case err := <-op.done:
+		log.L(ctx).Debugf("Flushed write operation %s (err=%v)", op.opID, err)
 		return err
 	case <-ctx.Done():
 		return i18n.NewError(ctx, i18n.MsgContextCanceled)
@@ -165,6 +169,7 @@ func (tw *transactionWriter) queue(ctx context.Context, op *transactionOperation
 	h := fnv.New32a() // simple non-cryptographic hash algo
 	_, _ = h.Write([]byte(hashKey))
 	routine := h.Sum32() % tw.workerCount
+	log.L(ctx).Debugf("Queuing write operation %s to worker tx_writer_%.4d", op.opID, routine)
 	select {
 	case tw.workQueues[routine] <- op: // it's queued
 	case <-ctx.Done(): // timeout of caller context
@@ -180,6 +185,7 @@ func (tw *transactionWriter) worker(i int) {
 	defer close(tw.workersDone[i])
 	workerID := fmt.Sprintf("tx_writer_%.4d", i)
 	ctx := log.WithLogField(tw.bgCtx, "job", workerID)
+	l := log.L(ctx)
 	var batch *transactionWriterBatch
 	batchCount := 0
 	workQueue := tw.workQueues[i]
@@ -202,17 +208,19 @@ func (tw *transactionWriter) worker(i int) {
 			}
 			if batch == nil {
 				batch = &transactionWriterBatch{
-					id: fmt.Sprintf("%.4d_%.9d", i, batchCount),
+					id:     fmt.Sprintf("%.4d_%.9d", i, batchCount),
+					opened: time.Now(),
 				}
 				batch.timeoutContext, batch.timeoutCancel = context.WithTimeout(ctx, tw.batchTimeout)
 				batchCount++
 			}
 			batch.ops = append(batch.ops, op)
+			l.Debugf("Added write operation %s to batch %s (len=%d)", op.opID, batch.id, len(batch.ops))
 		case <-timeoutContext.Done():
 			timedOut = true
 			select {
 			case <-ctx.Done():
-				log.L(ctx).Debugf("Transaction writer ending")
+				l.Debugf("Transaction writer ending")
 				return
 			default:
 			}
@@ -220,6 +228,7 @@ func (tw *transactionWriter) worker(i int) {
 
 		if batch != nil && (timedOut || (len(batch.ops) >= tw.batchMaxSize)) {
 			batch.timeoutCancel()
+			l.Debugf("Running batch %s (len=%d,timeout=%t,age=%dms)", batch.id, len(batch.ops), timedOut, time.Since(batch.opened).Milliseconds())
 			tw.runBatch(ctx, batch)
 			batch = nil
 		}
@@ -383,6 +392,7 @@ func (tw *transactionWriter) preInsertIdempotencyCheck(ctx context.Context, b *t
 				txOp.sentConflict = true
 				txOp.done <- i18n.NewError(ctx, tmmsgs.MsgDuplicateID, txOp.txID)
 			} else {
+				log.L(ctx).Debugf("Adding TX %s from write operation %s to insert idx=%d", txOp.txID, txOp.opID, len(validInserts))
 				validInserts = append(validInserts, txOp.txInsert)
 			}
 		}
@@ -413,9 +423,19 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 		}
 	}
 	// Do all the transaction updates
+	mergedUpdates := make(map[string]*apitypes.TXUpdates)
 	for _, op := range b.txUpdates {
-		if err := tw.p.updateTransaction(ctx, op.txID, op.txUpdate); err != nil {
-			log.L(ctx).Errorf("Update transaction %s failed: %s", op.txID, err)
+		update, merge := mergedUpdates[op.txID]
+		if merge {
+			update.Merge(op.txUpdate)
+		} else {
+			mergedUpdates[op.txID] = op.txUpdate
+		}
+		log.L(ctx).Debugf("Updating transaction %s in write operation %s (merged=%t)", op.txID, op.opID, merge)
+	}
+	for txID, update := range mergedUpdates {
+		if err := tw.p.updateTransaction(ctx, txID, update); err != nil {
+			log.L(ctx).Errorf("Update transaction %s failed: %s", txID, err)
 			return err
 		}
 	}
