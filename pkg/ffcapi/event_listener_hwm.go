@@ -27,6 +27,10 @@ type EventListenerHWMRequest struct {
 
 type EventListenerHWMResponse struct {
 	Checkpoint EventListenerCheckpoint `json:"checkpoint"`
-	Catchup    bool                    `json:"catchup,omitempty"` // informational only - informs an operator that the stream is catching up
-	Synced     bool                    `json:"synced,omitempty"`  // derived from the distance of the checkpoint block from chain head
+	// Catchup and Synced capture how up-to-date the listener is vs the chain head
+	// If it is a long way back, it will enter a catchup mode
+	// If it is a short way back, it will be considered out-of-sync
+	// If Catchup is true, Synced must be false
+	Catchup bool `json:"catchup,omitempty"` // informational only - informs an operator that the stream is catching up
+	Synced  bool `json:"synced,omitempty"`  // derived from the distance of the checkpoint block from chain head
 }
