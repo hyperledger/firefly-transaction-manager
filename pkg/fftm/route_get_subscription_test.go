@@ -41,7 +41,7 @@ func TestGetSubscription(t *testing.T) {
 	mfc.On("EventListenerAdd", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerAddResponse{}, ffcapi.ErrorReason(""), nil)
 	mfc.On("EventListenerRemove", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerRemoveResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
 	mfc.On("EventStreamStopped", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil).Maybe()
-	mfc.On("EventListenerHWM", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerHWMResponse{Catchup: true}, ffcapi.ErrorReason(""), nil).Maybe()
+	mfc.On("EventListenerHWM", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerHWMResponse{Catchup: true, Synced: false}, ffcapi.ErrorReason(""), nil).Maybe()
 
 	// Create a stream
 	var es1 apitypes.EventStream
@@ -63,6 +63,7 @@ func TestGetSubscription(t *testing.T) {
 
 	assert.Equal(t, l1.ID, listener.ID)
 	assert.True(t, listener.Catchup)
+	assert.False(t, listener.Synced)
 
 	mfc.AssertExpectations(t)
 
