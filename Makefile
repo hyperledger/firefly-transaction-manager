@@ -16,12 +16,12 @@ test: deps lint
 coverage.html:
 		$(VGO) tool cover -html=coverage.txt
 coverage: test coverage.html
-lint: 
+lint:
 		$(VGO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
 		GOGC=20 $(LINT) run -v --timeout 5m
 
 ${MOCKERY}:
-		$(VGO) install github.com/vektra/mockery/v2@latest
+		$(VGO) install github.com/vektra/mockery/v2@v2.43.1
 
 define makemock
 mocks: mocks-$(strip $(1))-$(strip $(2))
