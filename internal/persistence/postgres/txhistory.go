@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -95,9 +95,9 @@ func (p *sqlPersistence) ListTransactionHistory(ctx context.Context, txID string
 	return p.txHistory.GetMany(ctx, filter.Condition(filter.Builder().Eq("transaction", txID)))
 }
 
-func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny) error {
+func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, subStatus apitypes.TxSubStatus, action apitypes.TxAction, info *fftypes.JSONAny, errInfo *fftypes.JSONAny, actionOccurred *fftypes.FFTime) error {
 	// Dispatch to TX writer
-	now := fftypes.Now()
+
 	op := newTransactionOperation(txID)
 	op.historyRecord = &apitypes.TXHistoryRecord{
 		ID:            fftypes.NewUUID(),
@@ -105,15 +105,15 @@ func (p *sqlPersistence) AddSubStatusAction(ctx context.Context, txID string, su
 		SubStatus:     subStatus,
 		TxHistoryActionEntry: apitypes.TxHistoryActionEntry{
 			OccurrenceCount: 1,
-			Time:            now,
-			LastOccurrence:  now,
+			Time:            actionOccurred,
+			LastOccurrence:  actionOccurred,
 			Action:          action,
 			LastInfo:        persistence.JSONOrString(info),    // guard against bad JSON
 			LastError:       persistence.JSONOrString(errInfo), // guard against bad JSON
 		},
 	}
 	if errInfo != nil {
-		op.historyRecord.LastErrorTime = fftypes.Now()
+		op.historyRecord.LastErrorTime = actionOccurred
 	}
 	p.writer.queue(ctx, op)
 	return nil // completely async
