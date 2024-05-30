@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -24,6 +24,7 @@ import (
 
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
+	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
@@ -35,20 +36,22 @@ import (
 // When receipt checkers hit errors (excluding a null result of course), they simply
 // block in indefinite retry until they succeed or are shut down.
 type receiptChecker struct {
-	bcm         *blockConfirmationManager
-	workerCount int
-	workersDone []chan struct{}
-	closed      bool
-	cond        *sync.Cond
-	entries     *list.List
-	notify      func(*pendingItem, *ffcapi.TransactionReceiptResponse)
+	bcm            *blockConfirmationManager
+	workerCount    int
+	workersDone    []chan struct{}
+	closed         bool
+	cond           *sync.Cond
+	entries        *list.List
+	metricsEmitter metrics.ReceiptCheckerMetricsEmitter
+	notify         func(*pendingItem, *ffcapi.TransactionReceiptResponse)
 }
 
-func newReceiptChecker(bcm *blockConfirmationManager, workerCount int) *receiptChecker {
+func newReceiptChecker(bcm *blockConfirmationManager, workerCount int, rcme metrics.ReceiptCheckerMetricsEmitter) *receiptChecker {
 	rc := &receiptChecker{
-		bcm:         bcm,
-		workerCount: workerCount,
-		workersDone: make([]chan struct{}, workerCount),
+		bcm:            bcm,
+		workerCount:    workerCount,
+		workersDone:    make([]chan struct{}, workerCount),
+		metricsEmitter: rcme,
 		notify: func(pending *pendingItem, receipt *ffcapi.TransactionReceiptResponse) {
 			_ = bcm.Notify(&Notification{
 				NotificationType: receiptArrived,
@@ -92,6 +95,7 @@ func (rc *receiptChecker) run(i int) {
 		// but in the case of errors we re-queue the individual item to the back of the
 		// queue so individual queued items do not get stuck for unrecoverable errors.
 		err := rc.bcm.retry.Do(ctx, "receipt check", func(attempt int) (bool, error) {
+			startTime := time.Now()
 			pending := rc.waitNext()
 			if pending == nil {
 				return false /* exit the retry loop with err */, i18n.NewError(ctx, tmmsgs.MsgShuttingDown)
@@ -109,6 +113,7 @@ func (rc *receiptChecker) run(i int) {
 					rc.cond.L.Lock()
 					pending.queuedStale = rc.entries.PushBack(pending)
 					rc.cond.L.Unlock()
+					rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "retry", time.Since(startTime).Seconds())
 					return true /* drive the retry delay mechanism before next de-queue */, receiptErr
 				}
 				log.L(ctx).Debugf("Receipt for transaction %s not yet available: %v", pending.transactionHash, receiptErr)
@@ -121,7 +126,10 @@ func (rc *receiptChecker) run(i int) {
 
 			// Dispatch the receipt back to the main routine.
 			if res != nil {
+				rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "notified", time.Since(startTime).Seconds())
 				rc.notify(pending, res)
+			} else {
+				rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "empty", time.Since(startTime).Seconds())
 			}
 			return false, nil
 		})

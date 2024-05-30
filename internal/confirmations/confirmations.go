@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -29,6 +29,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-common/pkg/retry"
+	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -46,15 +47,15 @@ type Manager interface {
 	CheckInFlight(listenerID *fftypes.UUID) bool
 }
 
-type NotificationType int
+type NotificationType string
 
 const (
-	NewEventLog NotificationType = iota
-	RemovedEventLog
-	NewTransaction
-	RemovedTransaction
-	ListenerRemoved
-	receiptArrived
+	NewEventLog        NotificationType = "newEventLog"
+	RemovedEventLog    NotificationType = "removedEventLog"
+	NewTransaction     NotificationType = "newTransaction"
+	RemovedTransaction NotificationType = "removedTransaction"
+	ListenerRemoved    NotificationType = "listenerRemoved"
+	receiptArrived     NotificationType = "receiptArrived"
 )
 
 type Notification struct {
@@ -89,6 +90,7 @@ type blockConfirmationManager struct {
 	newBlockHashes        chan *ffcapi.BlockHashEvent
 	connector             ffcapi.API
 	blockListenerStale    bool
+	metricsEmitter        metrics.ConfirmationMetricsEmitter
 	requiredConfirmations int
 	staleReceiptTimeout   time.Duration
 	bcmNotifications      chan *Notification
@@ -100,7 +102,8 @@ type blockConfirmationManager struct {
 	done                  chan struct{}
 }
 
-func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API, desc string) Manager {
+func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API, desc string,
+	cme metrics.ConfirmationMetricsEmitter) Manager {
 	bcm := &blockConfirmationManager{
 		baseContext:           baseContext,
 		connector:             connector,
@@ -110,6 +113,7 @@ func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.A
 		bcmNotifications:      make(chan *Notification, config.GetInt(tmconfig.ConfirmationsNotificationQueueLength)),
 		pending:               make(map[string]*pendingItem),
 		newBlockHashes:        make(chan *ffcapi.BlockHashEvent, config.GetInt(tmconfig.ConfirmationsBlockQueueLength)),
+		metricsEmitter:        cme,
 		retry: &retry.Retry{
 			InitialDelay: config.GetDuration(tmconfig.ConfirmationsRetryInitDelay),
 			MaximumDelay: config.GetDuration(tmconfig.ConfirmationsRetryMaxDelay),
@@ -212,7 +216,7 @@ type blockState struct {
 
 func (bcm *blockConfirmationManager) Start() {
 	bcm.done = make(chan struct{})
-	bcm.receiptChecker = newReceiptChecker(bcm, config.GetInt(tmconfig.ConfirmationsReceiptWorkers))
+	bcm.receiptChecker = newReceiptChecker(bcm, config.GetInt(tmconfig.ConfirmationsReceiptWorkers), bcm.metricsEmitter)
 	go bcm.confirmationsListener()
 }
 
@@ -234,6 +238,7 @@ func (bcm *blockConfirmationManager) NewBlockHashes() chan<- *ffcapi.BlockHashEv
 
 // Notify is used to notify the confirmation manager of detection of a new logEntry addition or removal
 func (bcm *blockConfirmationManager) Notify(n *Notification) error {
+	startTime := time.Now()
 	switch n.NotificationType {
 	case NewEventLog, RemovedEventLog:
 		if n.Event == nil || n.Event.ID.ListenerID == nil || n.Event.ID.TransactionHash == "" || n.Event.ID.BlockHash == "" {
@@ -258,6 +263,7 @@ func (bcm *blockConfirmationManager) Notify(n *Notification) error {
 	}
 	select {
 	case bcm.bcmNotifications <- n:
+		bcm.metricsEmitter.RecordNotificationQueueingMetrics(bcm.ctx, string(n.NotificationType), time.Since(startTime).Seconds())
 	case <-bcm.ctx.Done():
 		log.L(bcm.ctx).Debugf("Shut down while queuing notification")
 		return nil
@@ -321,6 +327,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 	defer close(bcm.done)
 	notifications := make([]*Notification, 0)
 	blockHashes := make([]string, 0)
+	triggerType := ""
 	for {
 		select {
 		case bhe := <-bcm.newBlockHashes:
@@ -328,6 +335,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 				bcm.blockListenerStale = true
 			}
 			blockHashes = append(blockHashes, bhe.BlockHashes...)
+			triggerType = "newBlockHashes"
 		case <-bcm.ctx.Done():
 			log.L(bcm.ctx).Debugf("Block confirmation listener stopping")
 			return
@@ -335,11 +343,14 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 			if notification.NotificationType == ListenerRemoved {
 				// Handle listener notifications immediately
 				bcm.listenerRemoved(notification)
+				triggerType = "removeNotification"
 			} else {
 				// Defer until after we've got new logs
 				notifications = append(notifications, notification)
+				triggerType = "otherNotification"
 			}
 		}
+		startTime := time.Now()
 
 		// Each time round the loop we need to have a consistent view of the chain.
 		// This view must not add later blocks (by number) in, or change the hash of blocks,
@@ -355,10 +366,13 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 			bcm.blockListenerStale = false
 		}
 
+		blockHashCount := len(blockHashes)
 		// Process each new block
 		bcm.processBlockHashes(blockHashes)
 		// Truncate the block hashes now we've processed them
 		blockHashes = blockHashes[:0]
+
+		notificationCount := len(notifications)
 
 		// Process any new notifications - we do this at the end, so it can benefit
 		// from knowing the latest highestBlockSeen
@@ -371,6 +385,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 
 		// Mark receipts stale after duration
 		bcm.staleReceiptCheck()
+		log.L(bcm.ctx).Errorf("Confirmation listener processed %d block hashes and %d notifications in %s, trigger type: %s", blockHashCount, notificationCount, time.Since(startTime), triggerType)
 
 	}
 
@@ -390,6 +405,7 @@ func (bcm *blockConfirmationManager) staleReceiptCheck() {
 func (bcm *blockConfirmationManager) processNotifications(notifications []*Notification, blocks *blockState) error {
 
 	for _, n := range notifications {
+		startTime := time.Now()
 		switch n.NotificationType {
 		case NewEventLog:
 			newItem := n.eventPendingItem()
@@ -409,8 +425,9 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 			bcm.dispatchReceipt(n.pending, n.receipt, blocks)
 		default:
 			// Note that streamStopped is handled in the polling loop directly
-			log.L(bcm.ctx).Warnf("Unexpected notification type: %d", n.NotificationType)
+			log.L(bcm.ctx).Warnf("Unexpected notification type: %s", n.NotificationType)
 		}
+		bcm.metricsEmitter.RecordNotificationProcessMetrics(bcm.ctx, string(n.NotificationType), time.Since(startTime).Seconds())
 	}
 
 	return nil
@@ -472,8 +489,9 @@ func (bcm *blockConfirmationManager) processBlockHashes(blockHashes []string) {
 	if len(blockHashes) > 0 {
 		log.L(bcm.ctx).Debugf("New block notifications %v", blockHashes)
 	}
-
+	// TODO: metrics for how many blocks are processes in a batch
 	for _, blockHash := range blockHashes {
+		startTime := time.Now()
 		// Get the block header
 		block, err := bcm.getBlockByHash(blockHash)
 		if err != nil || block == nil {
@@ -488,6 +506,8 @@ func (bcm *blockConfirmationManager) processBlockHashes(blockHashes []string) {
 		if block.BlockNumber.Uint64() > bcm.highestBlockSeen {
 			bcm.highestBlockSeen = block.BlockNumber.Uint64()
 		}
+		bcm.metricsEmitter.RecordBlockHashProcessMetrics(bcm.ctx, time.Since(startTime).Seconds())
+
 	}
 }
 
@@ -558,6 +578,7 @@ func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 // dispatchConfirmed drive the event stream for any events that are confirmed, and prunes the state
 func (bcm *blockConfirmationManager) dispatchConfirmations(item *pendingItem) {
 	if item.confirmed {
+		bcm.metricsEmitter.RecordConfirmationMetrics(bcm.ctx, time.Since(item.added).Seconds())
 		bcm.removeItem(item, false)
 	}
 

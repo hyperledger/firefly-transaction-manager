@@ -35,6 +35,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/metricsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/wsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -77,11 +78,18 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 	tmconfig.Reset()
 	config.Set(tmconfig.EventStreamsDefaultsBatchTimeout, "1us")
 	InitDefaults()
+	emm := &metricsmocks.EventMetricsEmitter{}
+	emm.On("RecordNotificationQueueingMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordBlockHashProcessMetrics", mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordNotificationProcessMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordReceiptCheckMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordConfirmationMetrics", mock.Anything, mock.Anything).Maybe()
 	ees, err := NewEventStream(context.Background(), testESConf(t, conf),
 		mfc,
 		&persistencemocks.Persistence{},
 		&wsmocks.WebSocketChannels{},
 		listeners,
+		emm,
 	)
 	mfc.On("EventStreamNewCheckpointStruct").Return(&utCheckpointType{}).Maybe()
 	if err != nil {
@@ -114,11 +122,13 @@ func mockWSChannels(wsc *wsmocks.WebSocketChannels) (chan interface{}, chan inte
 func TestNewTestEventStreamMissingID(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
+	emm := &metricsmocks.EventMetricsEmitter{}
 	_, err := NewEventStream(context.Background(), &apitypes.EventStream{},
 		&ffcapimocks.API{},
 		&persistencemocks.Persistence{},
 		&wsmocks.WebSocketChannels{},
 		[]*apitypes.Listener{},
+		emm,
 	)
 	assert.Regexp(t, "FF21048", err)
 }
@@ -126,11 +136,13 @@ func TestNewTestEventStreamMissingID(t *testing.T) {
 func TestNewTestEventStreamBadConfig(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
+	emm := &metricsmocks.EventMetricsEmitter{}
 	_, err := NewEventStream(context.Background(), testESConf(t, `{}`),
 		&ffcapimocks.API{},
 		&persistencemocks.Persistence{},
 		&wsmocks.WebSocketChannels{},
 		[]*apitypes.Listener{},
+		emm,
 	)
 	assert.Regexp(t, "FF21028", err)
 }
