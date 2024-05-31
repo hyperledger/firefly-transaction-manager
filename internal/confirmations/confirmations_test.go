@@ -48,6 +48,7 @@ func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmati
 	emm.On("RecordBlockHashProcessMetrics", mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordNotificationProcessMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordReceiptCheckMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordReceiptMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordConfirmationMetrics", mock.Anything, mock.Anything).Maybe()
 	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut", emm).(*blockConfirmationManager)
 	bcm.receiptChecker = newReceiptChecker(bcm, 0, emm) // no workers, but non-nil
@@ -1189,6 +1190,7 @@ func TestStaleReceiptCheck(t *testing.T) {
 	emm.On("RecordBlockHashProcessMetrics", mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordNotificationProcessMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordReceiptCheckMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordReceiptMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordConfirmationMetrics", mock.Anything, mock.Anything).Maybe()
 	bcm.receiptChecker = newReceiptChecker(bcm, 0, emm)
 

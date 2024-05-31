@@ -83,6 +83,7 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 	emm.On("RecordBlockHashProcessMetrics", mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordNotificationProcessMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordReceiptCheckMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordReceiptMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordConfirmationMetrics", mock.Anything, mock.Anything).Maybe()
 	ees, err := NewEventStream(context.Background(), testESConf(t, conf),
 		mfc,

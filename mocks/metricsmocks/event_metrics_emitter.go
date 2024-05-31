@@ -18,6 +18,11 @@ func (_m *EventMetricsEmitter) RecordBlockHashProcessMetrics(ctx context.Context
 	_m.Called(ctx, durationInSeconds)
 }
 
+// RecordBlockHashQueueingMetrics provides a mock function with given fields: ctx, durationInSeconds
+func (_m *EventMetricsEmitter) RecordBlockHashQueueingMetrics(ctx context.Context, durationInSeconds float64) {
+	_m.Called(ctx, durationInSeconds)
+}
+
 // RecordConfirmationMetrics provides a mock function with given fields: ctx, durationInSeconds
 func (_m *EventMetricsEmitter) RecordConfirmationMetrics(ctx context.Context, durationInSeconds float64) {
 	_m.Called(ctx, durationInSeconds)
@@ -36,6 +41,11 @@ func (_m *EventMetricsEmitter) RecordNotificationQueueingMetrics(ctx context.Con
 // RecordReceiptCheckMetrics provides a mock function with given fields: ctx, status, durationInSeconds
 func (_m *EventMetricsEmitter) RecordReceiptCheckMetrics(ctx context.Context, status string, durationInSeconds float64) {
 	_m.Called(ctx, status, durationInSeconds)
+}
+
+// RecordReceiptMetrics provides a mock function with given fields: ctx, durationInSeconds
+func (_m *EventMetricsEmitter) RecordReceiptMetrics(ctx context.Context, durationInSeconds float64) {
+	_m.Called(ctx, durationInSeconds)
 }
 
 // NewEventMetricsEmitter creates a new instance of EventMetricsEmitter. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.

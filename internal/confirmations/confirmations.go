@@ -335,6 +335,13 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 				bcm.blockListenerStale = true
 			}
 			blockHashes = append(blockHashes, bhe.BlockHashes...)
+
+			if bhe.Created != nil {
+				for i := 0; i < len(bhe.BlockHashes); i++ {
+					bcm.metricsEmitter.RecordBlockHashQueueingMetrics(bcm.ctx, time.Since(*bhe.Created.Time()).Seconds())
+				}
+				log.L(bcm.ctx).Errorf("Confirmation listener added %d block hashes after they were queued for %s", len(bhe.BlockHashes), time.Since(*bhe.Created.Time()))
+			}
 			triggerType = "newBlockHashes"
 		case <-bcm.ctx.Done():
 			log.L(bcm.ctx).Debugf("Block confirmation listener stopping")
@@ -440,6 +447,8 @@ func (bcm *blockConfirmationManager) dispatchReceipt(pending *pendingItem, recei
 	// Notify of the receipt
 	if pending.receiptCallback != nil {
 		pending.receiptCallback(bcm.ctx, receipt)
+		bcm.metricsEmitter.RecordReceiptMetrics(bcm.ctx, time.Since(pending.added).Seconds())
+		log.L(bcm.ctx).Errorf("Confirmation manager dispatched receipt for transaction %s after %s", pending.transactionHash, time.Since(pending.added))
 	}
 
 	// Need to walk the chain for this new receipt
@@ -578,7 +587,6 @@ func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 // dispatchConfirmed drive the event stream for any events that are confirmed, and prunes the state
 func (bcm *blockConfirmationManager) dispatchConfirmations(item *pendingItem) {
 	if item.confirmed {
-		bcm.metricsEmitter.RecordConfirmationMetrics(bcm.ctx, time.Since(item.added).Seconds())
 		bcm.removeItem(item, false)
 	}
 
@@ -624,6 +632,8 @@ func (bcm *blockConfirmationManager) dispatchConfirmations(item *pendingItem) {
 			item.getKey(), notification.Confirmed, len(item.confirmations),
 			notification.NewFork, previouslyNotified)
 		item.confirmationsCallback(bcm.ctx, notification)
+		bcm.metricsEmitter.RecordConfirmationMetrics(bcm.ctx, time.Since(item.added).Seconds())
+		log.L(bcm.ctx).Errorf("Confirmation manager dispatched confirm event for transaction %s after %s", item.transactionHash, time.Since(item.added))
 	}
 
 }

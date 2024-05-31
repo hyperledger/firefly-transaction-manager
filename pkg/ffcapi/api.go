@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -93,8 +93,9 @@ type API interface {
 }
 
 type BlockHashEvent struct {
-	BlockHashes  []string `json:"blockHash"`              // zero or more hashes (can be nil)
-	GapPotential bool     `json:"gapPotential,omitempty"` // when true, the caller cannot be sure if blocks have been missed (use on reconnect of a websocket for example)
+	BlockHashes  []string        `json:"blockHash"`              // zero or more hashes (can be nil)
+	GapPotential bool            `json:"gapPotential,omitempty"` // when true, the caller cannot be sure if blocks have been missed (use on reconnect of a websocket for example)
+	Created      *fftypes.FFTime `json:"created,omitempty"`      // timestamp when the blockhash event is created
 }
 
 // EventID are the set of required fields an FFCAPI compatible connector needs to map to the underlying blockchain constructs, to uniquely identify an event
