@@ -1421,7 +1421,7 @@
             "uid": "${DS_PROMETHEUS}"
           },
           "editorMode": "builder",
-          "expr": "ff_events_block_hash_batch_size{job=\"$Job\"}",
+          "expr": "ff_events_block_hash_batch_size{job=~\"$Job\"}",
           "legendFormat": "__auto",
           "range": true,
           "refId": "A"
@@ -1463,13 +1463,13 @@
     ]
   },
   "time": {
-    "from": "now-30m",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "utc",
   "title": "Event process metrics",
   "uid": "e7cCZ7f4c",
-  "version": 7,
+  "version": 8,
   "weekStart": ""
 }
