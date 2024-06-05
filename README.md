@@ -118,6 +118,8 @@ One of the most sophisticated parts of the FireFly Connector Framework is the ha
 
 [![Event Streams](./images/fftm_event_streams_architecture.jpg)](./images/fftm_event_streams_architecture.jpg)
 
+Example Grafana dashboard for event processing metrics: [./grafana_dash/Event process metrics-1717595375618.json](./grafana_dash/Event%20process%20metrics-1717595375618.json)
+
 # Persistence
 
 Simple filesystem (LevelDB) or remote database (PostgreSQL) persistence is supported.

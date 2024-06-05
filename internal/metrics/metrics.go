@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -33,6 +33,7 @@ const metricsTransactionManagerComponentName = "transaction_manager"
 
 // REST api-server and transaction handler are sub-subsystem
 var metricsTransactionHandlerSubsystemName = "th"
+var metricsEventsSubsystemName = "events"
 var metricsRESTAPIServerSubSystemName = "api_server_rest"
 
 type metricsManager struct {
@@ -40,12 +41,14 @@ type metricsManager struct {
 	metricsEnabled          bool
 	metricsRegistry         metric.MetricsRegistry
 	txHandlerMetricsManager metric.MetricsManager
+	eventsMetricsManager    metric.MetricsManager
 	timeMap                 map[string]time.Time
 }
 
 func NewMetricsManager(ctx context.Context) Metrics {
 	metricsRegistry := metric.NewPrometheusMetricsRegistry(metricsTransactionManagerComponentName)
 	txHandlerMetricsManager, _ := metricsRegistry.NewMetricsManagerForSubsystem(ctx, metricsTransactionHandlerSubsystemName)
+	eventsMetricsManager, _ := metricsRegistry.NewMetricsManagerForSubsystem(ctx, metricsEventsSubsystemName)
 	_ = metricsRegistry.NewHTTPMetricsInstrumentationsForSubsystem(
 		ctx,
 		metricsRESTAPIServerSubSystemName,
@@ -58,9 +61,11 @@ func NewMetricsManager(ctx context.Context) Metrics {
 		metricsEnabled:          config.GetBool(tmconfig.MetricsEnabled),
 		timeMap:                 make(map[string]time.Time),
 		metricsRegistry:         metricsRegistry,
+		eventsMetricsManager:    eventsMetricsManager,
 		txHandlerMetricsManager: txHandlerMetricsManager,
 	}
 
+	mm.InitEventMetrics()
 	return mm
 }
 
@@ -87,7 +92,11 @@ type Metrics interface {
 	GetAPIServerRESTHTTPMiddleware() func(next http.Handler) http.Handler
 
 	// functions for transaction handler to define and emit metrics
+	// Transaction handler metrics are defined and emitted by transaction handlers
 	TransactionHandlerMetrics
+
+	// functions for event stream, confirmation manager to emit metrics
+	EventMetricsEmitter
 }
 
 // Transaction handler metrics are defined and emitted by transaction handlers

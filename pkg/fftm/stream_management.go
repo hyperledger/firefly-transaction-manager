@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -93,7 +93,7 @@ func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftype
 }
 
 func (m *manager) addRuntimeStream(def *apitypes.EventStream, listeners []*apitypes.Listener) (events.Stream, error) {
-	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.wsServer, listeners)
+	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.wsServer, listeners, m.metricsManager)
 	if err != nil {
 		return nil, err
 	}

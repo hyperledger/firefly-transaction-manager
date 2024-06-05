@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -29,6 +29,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/retry"
 	"github.com/hyperledger/firefly-transaction-manager/internal/blocklistener"
 	"github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
+	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
@@ -121,6 +122,7 @@ func NewEventStream(
 	persistence persistence.Persistence,
 	wsChannels ws.WebSocketChannels,
 	initialListeners []*apitypes.Listener,
+	eme metrics.EventMetricsEmitter,
 ) (ees Stream, err error) {
 	esCtx := log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String())
 	es := &eventStream{
@@ -135,7 +137,7 @@ func NewEventStream(
 		checkpointInterval: config.GetDuration(tmconfig.EventStreamsCheckpointInterval),
 	}
 	if config.GetInt(tmconfig.ConfirmationsRequired) > 0 {
-		es.confirmations = confirmations.NewBlockConfirmationManager(esCtx, connector, "_es_"+persistedSpec.ID.String())
+		es.confirmations = confirmations.NewBlockConfirmationManager(esCtx, connector, "_es_"+persistedSpec.ID.String(), eme)
 	}
 	// The configuration we have in memory, applies all the defaults to what is passed in
 	// to ensure there are no nil fields on the configuration object.

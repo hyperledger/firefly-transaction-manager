@@ -25,6 +25,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/metricsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/sirupsen/logrus"
@@ -42,8 +43,17 @@ func newTestBlockConfirmationManager(t *testing.T, enabled bool) (*blockConfirma
 func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmationManager, *ffcapimocks.API) {
 	logrus.SetLevel(logrus.DebugLevel)
 	mca := &ffcapimocks.API{}
-	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut").(*blockConfirmationManager)
-	bcm.receiptChecker = newReceiptChecker(bcm, 0) // no workers, but non-nil
+	emm := &metricsmocks.EventMetricsEmitter{}
+	emm.On("RecordNotificationQueueingMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordBlockHashProcessMetrics", mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordNotificationProcessMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordReceiptCheckMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordReceiptMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordConfirmationMetrics", mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordBlockHashQueueingMetrics", mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordBlockHashBatchSizeMetric", mock.Anything, mock.Anything).Maybe()
+	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut", emm).(*blockConfirmationManager)
+	bcm.receiptChecker = newReceiptChecker(bcm, 0, emm) // no workers, but non-nil
 	return bcm, mca
 }
 
@@ -76,6 +86,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 	}
 	blockHashes <- &ffcapi.BlockHashEvent{
 		BlockHashes: []string{block1003.BlockHash},
+		Created:     fftypes.Now(),
 	}
 
 	// The next filter gives us 1003 - which is two blocks ahead of our notified log
@@ -1054,7 +1065,7 @@ func TestProcessNotificationsSwallowsUnknownType(t *testing.T) {
 	bcm, _ := newTestBlockConfirmationManager(t, false)
 	blocks := bcm.newBlockState()
 	bcm.processNotifications([]*Notification{
-		{NotificationType: NotificationType(999)},
+		{NotificationType: NotificationType("unknown")},
 	}, blocks)
 }
 
@@ -1177,7 +1188,14 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 func TestStaleReceiptCheck(t *testing.T) {
 
 	bcm, _ := newTestBlockConfirmationManager(t, false)
-	bcm.receiptChecker = newReceiptChecker(bcm, 0)
+	emm := &metricsmocks.EventMetricsEmitter{}
+	emm.On("RecordNotificationQueueingMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordBlockHashProcessMetrics", mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordNotificationProcessMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordReceiptCheckMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordReceiptMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordConfirmationMetrics", mock.Anything, mock.Anything).Maybe()
+	bcm.receiptChecker = newReceiptChecker(bcm, 0, emm)
 
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 	pending := &pendingItem{

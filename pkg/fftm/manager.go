@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -107,7 +107,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 }
 
 func (m *manager) initServices(ctx context.Context) (err error) {
-	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts")
+	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts", m.metricsManager)
 	m.wsServer = ws.NewWebSocketServer(ctx)
 	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(m.metricsEnabled), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
 	if err != nil {
