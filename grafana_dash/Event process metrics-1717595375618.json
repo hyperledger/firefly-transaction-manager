@@ -648,7 +648,7 @@
       },
       "gridPos": {
         "h": 11,
-        "w": 12,
+        "w": 11,
         "x": 0,
         "y": 38
       },
@@ -728,7 +728,7 @@
       "gridPos": {
         "h": 11,
         "w": 12,
-        "x": 12,
+        "x": 11,
         "y": 38
       },
       "id": 35,
@@ -846,7 +846,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 11,
         "x": 0,
         "y": 49
       },
@@ -942,7 +942,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 11,
         "y": 49
       },
       "id": 28,
@@ -1009,7 +1009,7 @@
       },
       "gridPos": {
         "h": 11,
-        "w": 12,
+        "w": 11,
         "x": 0,
         "y": 58
       },
@@ -1089,7 +1089,7 @@
       "gridPos": {
         "h": 11,
         "w": 12,
-        "x": 12,
+        "x": 11,
         "y": 58
       },
       "id": 37,
@@ -1207,7 +1207,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 11,
         "x": 0,
         "y": 69
       },
@@ -1303,7 +1303,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 11,
         "y": 69
       },
       "id": 39,
@@ -1333,6 +1333,101 @@
         }
       ],
       "title": "Process count",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "bars",
+            "fillOpacity": 100,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 0,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "decimals": 0,
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 11,
+        "x": 0,
+        "y": 77
+      },
+      "id": 41,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "none",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_PROMETHEUS}"
+          },
+          "editorMode": "builder",
+          "expr": "ff_events_block_hash_batch_size{job=\"$Job\"}",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Number of block hashes per batch",
       "type": "timeseries"
     }
   ],
@@ -1368,13 +1463,13 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "utc",
   "title": "Event process metrics",
   "uid": "e7cCZ7f4c",
-  "version": 6,
+  "version": 7,
   "weekStart": ""
 }
