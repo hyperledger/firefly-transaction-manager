@@ -50,6 +50,7 @@ func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmati
 	emm.On("RecordReceiptCheckMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordReceiptMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordConfirmationMetrics", mock.Anything, mock.Anything).Maybe()
+	emm.On("RecordBlockHashQueueingMetrics", mock.Anything, mock.Anything).Maybe()
 	bcm := NewBlockConfirmationManager(context.Background(), mca, "ut", emm).(*blockConfirmationManager)
 	bcm.receiptChecker = newReceiptChecker(bcm, 0, emm) // no workers, but non-nil
 	return bcm, mca
@@ -84,6 +85,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 	}
 	blockHashes <- &ffcapi.BlockHashEvent{
 		BlockHashes: []string{block1003.BlockHash},
+		Created:     fftypes.Now(),
 	}
 
 	// The next filter gives us 1003 - which is two blocks ahead of our notified log

@@ -340,7 +340,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 				for i := 0; i < len(bhe.BlockHashes); i++ {
 					bcm.metricsEmitter.RecordBlockHashQueueingMetrics(bcm.ctx, time.Since(*bhe.Created.Time()).Seconds())
 				}
-				log.L(bcm.ctx).Errorf("Confirmation listener added %d block hashes after they were queued for %s", len(bhe.BlockHashes), time.Since(*bhe.Created.Time()))
+				log.L(bcm.ctx).Tracef("[TimeTrace] Confirmation listener added %d block hashes after they were queued for %s", len(bhe.BlockHashes), time.Since(*bhe.Created.Time()))
 			}
 			triggerType = "newBlockHashes"
 		case <-bcm.ctx.Done():
@@ -392,7 +392,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 
 		// Mark receipts stale after duration
 		bcm.staleReceiptCheck()
-		log.L(bcm.ctx).Errorf("Confirmation listener processed %d block hashes and %d notifications in %s, trigger type: %s", blockHashCount, notificationCount, time.Since(startTime), triggerType)
+		log.L(bcm.ctx).Tracef("[TimeTrace] Confirmation listener processed %d block hashes and %d notifications in %s, trigger type: %s", blockHashCount, notificationCount, time.Since(startTime), triggerType)
 
 	}
 
@@ -448,7 +448,7 @@ func (bcm *blockConfirmationManager) dispatchReceipt(pending *pendingItem, recei
 	if pending.receiptCallback != nil {
 		pending.receiptCallback(bcm.ctx, receipt)
 		bcm.metricsEmitter.RecordReceiptMetrics(bcm.ctx, time.Since(pending.added).Seconds())
-		log.L(bcm.ctx).Errorf("Confirmation manager dispatched receipt for transaction %s after %s", pending.transactionHash, time.Since(pending.added))
+		log.L(bcm.ctx).Tracef("[TimeTrace] Confirmation manager dispatched receipt for transaction %s after %s", pending.transactionHash, time.Since(pending.added))
 	}
 
 	// Need to walk the chain for this new receipt
@@ -633,7 +633,7 @@ func (bcm *blockConfirmationManager) dispatchConfirmations(item *pendingItem) {
 			notification.NewFork, previouslyNotified)
 		item.confirmationsCallback(bcm.ctx, notification)
 		bcm.metricsEmitter.RecordConfirmationMetrics(bcm.ctx, time.Since(item.added).Seconds())
-		log.L(bcm.ctx).Errorf("Confirmation manager dispatched confirm event for transaction %s after %s", item.transactionHash, time.Since(item.added))
+		log.L(bcm.ctx).Tracef("[TimeTrace] Confirmation manager dispatched confirm event for transaction %s after %s", item.transactionHash, time.Since(item.added))
 	}
 
 }
