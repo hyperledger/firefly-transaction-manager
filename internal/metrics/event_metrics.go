@@ -28,7 +28,7 @@ const mtrHistogramReceiptCheckDurationDescription = "Duration of individual rece
 
 const mtrCounterNotificationQueuedTotal = "notification_queued_total"
 const mtrCounterNotificationQueuedTotalDescription = "Number of notification queued grouped by notification type"
-const mtrHistogramNotificationQueueingDuration = "notification_queueing_delay_seconds"
+const mtrHistogramNotificationQueueingDuration = "notification_queueing_duration_seconds"
 const mtrHistogramNotificationQueueingDurationDescription = "Duration of adding a notification into the queue grouped by notification type"
 
 const mtrCounterNotificationProcessedTotal = "notification_processed_total"
@@ -48,12 +48,12 @@ const mtrHistogramBlockHashQueueingDurationDescription = "Duration of confirmati
 
 const mtrCounterConfirmedTotal = "confirmation_processed_total"
 const mtrCounterConfirmedTotalDescription = "Number of transactions confirmed"
-const mtrHistogramConfirmDuration = "confirmation_block_hash_process_duration_seconds"
+const mtrHistogramConfirmDuration = "confirmation_process_duration_seconds"
 const mtrHistogramConfirmDurationDescription = "Duration of confirm a transaction"
 
 const mtrCounterReceiptTotal = "receipt_processed_total"
 const mtrCounterReceiptTotalDescription = "Number of transaction receipts notified"
-const mtrHistogramReceiptDuration = "confirmation_block_hash_process_duration_seconds"
+const mtrHistogramReceiptDuration = "receipt_process_duration_seconds"
 const mtrHistogramReceiptDurationDescription = "Duration of notify a transaction receipt"
 
 type EventMetricsEmitter interface {
