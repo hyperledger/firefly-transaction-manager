@@ -328,7 +328,7 @@
           "refId": "A"
         }
       ],
-      "title": "Avg receipt processed (1m rate)",
+      "title": "Avg receipt processed",
       "type": "timeseries"
     },
     {
@@ -423,7 +423,7 @@
           "refId": "A"
         }
       ],
-      "title": "Avg confirmations (1m rate)",
+      "title": "Avg confirmations",
       "type": "timeseries"
     },
     {
@@ -1470,6 +1470,6 @@
   "timezone": "utc",
   "title": "Event process metrics",
   "uid": "e7cCZ7f4c",
-  "version": 8,
+  "version": 9,
   "weekStart": ""
 }
