@@ -21,6 +21,9 @@ import "context"
 const metricsLabelStatus = "status"
 const metricsLabelType = "type"
 
+const metricsGaugeBlockHashBatchSize = "block_hash_batch_size"
+const metricsGaugeBlockHashBatchSizeDescription = "Number of block hashes batched in a single batch process event"
+
 const mtrCounterReceiptCheckTotal = "receipt_check_total"
 const mtrCounterReceiptCheckTotalDescription = "Number of receipt check happened grouped by receipt check status"
 const mtrHistogramReceiptCheckDuration = "receipt_check_duration_seconds"
@@ -65,6 +68,7 @@ type EventStreamMetricsEmitter interface {
 }
 
 type ConfirmationMetricsEmitter interface {
+	RecordBlockHashBatchSizeMetric(ctx context.Context, size float64)
 	RecordConfirmationMetrics(ctx context.Context, durationInSeconds float64)
 	RecordReceiptMetrics(ctx context.Context, durationInSeconds float64)
 	RecordBlockHashProcessMetrics(ctx context.Context, durationInSeconds float64)
@@ -72,6 +76,10 @@ type ConfirmationMetricsEmitter interface {
 	RecordNotificationProcessMetrics(ctx context.Context, notificationType string, durationInSeconds float64)
 	RecordNotificationQueueingMetrics(ctx context.Context, notificationType string, durationInSeconds float64)
 	ReceiptCheckerMetricsEmitter
+}
+
+func (mm *metricsManager) RecordBlockHashBatchSizeMetric(ctx context.Context, size float64) {
+	mm.eventsMetricsManager.SetGaugeMetric(ctx, metricsGaugeBlockHashBatchSize, size, nil)
 }
 
 type ReceiptCheckerMetricsEmitter interface {
@@ -114,6 +122,9 @@ func (mm *metricsManager) RecordReceiptMetrics(ctx context.Context, durationInSe
 }
 
 func (mm *metricsManager) InitEventMetrics() {
+
+	mm.eventsMetricsManager.NewGaugeMetric(mm.ctx, metricsGaugeBlockHashBatchSize, metricsGaugeBlockHashBatchSizeDescription, false)
+
 	mm.eventsMetricsManager.NewCounterMetricWithLabels(mm.ctx, mtrCounterReceiptCheckTotal, mtrCounterReceiptCheckTotalDescription, []string{metricsLabelStatus}, false)
 	mm.eventsMetricsManager.NewHistogramMetricWithLabels(mm.ctx, mtrHistogramReceiptCheckDuration, mtrHistogramReceiptCheckDurationDescription, []float64{} /*fallback to default buckets*/, []string{metricsLabelStatus}, false)
 

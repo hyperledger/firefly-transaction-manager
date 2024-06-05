@@ -495,10 +495,12 @@ func (bcm *blockConfirmationManager) removeItem(pending *pendingItem, stale bool
 }
 
 func (bcm *blockConfirmationManager) processBlockHashes(blockHashes []string) {
-	if len(blockHashes) > 0 {
+	batchSize := len(blockHashes)
+	if batchSize > 0 {
 		log.L(bcm.ctx).Debugf("New block notifications %v", blockHashes)
+		bcm.metricsEmitter.RecordBlockHashBatchSizeMetric(bcm.ctx, float64(batchSize))
 	}
-	// TODO: metrics for how many blocks are processes in a batch
+
 	for _, blockHash := range blockHashes {
 		startTime := time.Now()
 		// Get the block header

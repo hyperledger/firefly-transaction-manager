@@ -28,6 +28,7 @@ func TestTransactionHandlerEventMetricsEmitters(t *testing.T) {
 	mm.metricsEnabled = true
 
 	mm.RecordBlockHashProcessMetrics(ctx, 1)
+	mm.RecordBlockHashBatchSizeMetric(ctx, 1)
 	mm.RecordBlockHashQueueingMetrics(ctx, 1)
 	mm.RecordConfirmationMetrics(ctx, 1)
 	mm.RecordNotificationProcessMetrics(ctx, "test", 1)
