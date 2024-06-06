@@ -32,7 +32,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
-var (
+const (
 	startupPaginationLimit = 25
 )
 
