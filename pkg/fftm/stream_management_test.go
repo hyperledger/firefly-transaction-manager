@@ -194,6 +194,37 @@ func TestDeleteStartedListenerFail(t *testing.T) {
 	mp.AssertExpectations(t)
 }
 
+func TestDeleteStartedListenerWithPagination(t *testing.T) {
+
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	esID := apitypes.NewULID()
+	lID := apitypes.NewULID()
+	secondID := apitypes.NewULID()
+	mp := m.persistence.(*persistencemocks.Persistence)
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, txhandler.SortDirectionAscending, esID).Return(
+		[]*apitypes.Listener{
+			{ID: lID, StreamID: esID},
+			{ID: secondID, StreamID: esID},
+		}, nil).Once()
+	thirdID := apitypes.NewULID()
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, txhandler.SortDirectionAscending, esID).Return(
+		[]*apitypes.Listener{
+			{ID: thirdID, StreamID: esID},
+		}, nil).Once()
+	mp.On("ListStreamListenersByCreateTime", m.ctx, (*fftypes.UUID)(nil), startupPaginationLimit, txhandler.SortDirectionAscending, esID).Return(
+		[]*apitypes.Listener{}, nil)
+	mp.On("DeleteListener", m.ctx, lID).Return(nil)
+	mp.On("DeleteListener", m.ctx, secondID).Return(nil)
+	mp.On("DeleteListener", m.ctx, thirdID).Return(nil)
+
+	err := m.deleteAllStreamListeners(m.ctx, esID)
+	assert.NoError(t, err)
+
+	mp.AssertExpectations(t)
+}
+
 func TestDeleteStreamBadID(t *testing.T) {
 
 	_, m, close := newTestManagerMockPersistence(t)
