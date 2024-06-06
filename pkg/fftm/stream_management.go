@@ -73,31 +73,20 @@ func (m *manager) restoreStreams() error {
 }
 
 func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftypes.UUID) error {
-	var lastInPage *fftypes.UUID
-	var nextListenerDefs []*apitypes.Listener
-	listenerDefs, err := m.persistence.ListStreamListenersByCreateTime(ctx, lastInPage, startupPaginationLimit, txhandler.SortDirectionAscending, streamID)
-	if err != nil {
-		return err
-	}
 	for {
+		// Do not specify after as we just delete everything
+		listenerDefs, err := m.persistence.ListStreamListenersByCreateTime(ctx, nil, startupPaginationLimit, txhandler.SortDirectionAscending, streamID)
+		if err != nil {
+			return err
+		}
 		if len(listenerDefs) == 0 {
 			break
 		}
-		for i, def := range listenerDefs {
-			lastInPage = def.ID
-			if i == len(listenerDefs)-1 {
-				// Before we delete let's get the next page of listeners from the offset we are about to delete
-				nextListenerDefs, err = m.persistence.ListStreamListenersByCreateTime(ctx, lastInPage, startupPaginationLimit, txhandler.SortDirectionAscending, streamID)
-				if err != nil {
-					return err
-				}
-			}
+		for _, def := range listenerDefs {
 			if err := m.persistence.DeleteListener(ctx, def.ID); err != nil {
 				return err
 			}
 		}
-
-		listenerDefs = nextListenerDefs
 	}
 	return nil
 }
