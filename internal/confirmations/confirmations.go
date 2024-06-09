@@ -537,13 +537,24 @@ func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 	l := log.L(bcm.ctx)
 	l.Debugf("Transactions mined in block %d / %s: %v", block.BlockNumber, block.BlockHash, block.TransactionHashes)
 	bcm.pendingMux.Lock()
-	for _, txHash := range block.TransactionHashes {
+	for index, txHash := range block.TransactionHashes {
 		txKey := pendingKeyForTX(txHash)
 		if pending, ok := bcm.pending[txKey]; ok {
 			if pending.blockHash != block.BlockHash {
 				l.Infof("Detected transaction %s added to block %d / %s - receipt check scheduled", txHash, block.BlockNumber, block.BlockHash)
 				bcm.receiptChecker.schedule(pending, false)
 			}
+			// let's fake receipt up to make it super quick
+			_ = bcm.Notify(&Notification{
+				NotificationType: receiptArrived,
+				pending:          pending,
+				receipt: &ffcapi.TransactionReceiptResponse{
+					BlockNumber:      fftypes.NewFFBigInt(int64(block.BlockNumber)),
+					TransactionIndex: fftypes.NewFFBigInt(int64(index)),
+					BlockHash:        block.BlockHash,
+					Success:          true,
+				},
+			})
 		}
 	}
 	bcm.pendingMux.Unlock()

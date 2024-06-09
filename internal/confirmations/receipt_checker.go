@@ -53,11 +53,7 @@ func newReceiptChecker(bcm *blockConfirmationManager, workerCount int, rcme metr
 		workersDone:    make([]chan struct{}, workerCount),
 		metricsEmitter: rcme,
 		notify: func(pending *pendingItem, receipt *ffcapi.TransactionReceiptResponse) {
-			_ = bcm.Notify(&Notification{
-				NotificationType: receiptArrived,
-				pending:          pending,
-				receipt:          receipt,
-			})
+			//nah, abandoned, too slow
 		},
 	}
 	rc.entries = list.New()
@@ -101,6 +97,8 @@ func (rc *receiptChecker) run(i int) {
 			if pending == nil {
 				return false /* exit the retry loop with err */, i18n.NewError(ctx, tmmsgs.MsgShuttingDown)
 			}
+
+			// think this is the bottleneck, let's fake it.
 
 			res, reason, receiptErr := rc.bcm.connector.TransactionReceipt(ctx, &ffcapi.TransactionReceiptRequest{
 				TransactionHash: pending.transactionHash,
