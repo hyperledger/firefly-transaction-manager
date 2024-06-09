@@ -97,9 +97,11 @@ func (rc *receiptChecker) run(i int) {
 		err := rc.bcm.retry.Do(ctx, "receipt check", func(attempt int) (bool, error) {
 			startTime := time.Now()
 			pending := rc.waitNext()
+
 			if pending == nil {
 				return false /* exit the retry loop with err */, i18n.NewError(ctx, tmmsgs.MsgShuttingDown)
 			}
+			log.L(ctx).Errorf("Waited %s to get the next pending item: %s", time.Since(startTime), pending.transactionHash)
 
 			res, reason, receiptErr := rc.bcm.connector.TransactionReceipt(ctx, &ffcapi.TransactionReceiptRequest{
 				TransactionHash: pending.transactionHash,
@@ -135,7 +137,14 @@ func (rc *receiptChecker) run(i int) {
 		})
 		// Error means the context has closed
 		if err != nil {
-			log.L(ctx).Debugf("Receipt checker closing")
+			log.L(ctx).Errorf("¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢###############Receipt checker closing")
+			log.L(ctx).Errorf("¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢###############Receipt checker closing")
+			log.L(ctx).Errorf("¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢###############Receipt checker closing")
+			log.L(ctx).Errorf("¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢###############Receipt checker closing")
+			log.L(ctx).Errorf("¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢###############Receipt checker closing")
+			log.L(ctx).Errorf("¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢###############Receipt checker closing")
+			log.L(ctx).Errorf("¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢###############Receipt checker closing")
+			log.L(ctx).Errorf("¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢¢###############Receipt checker closing")
 			return
 		}
 	}
