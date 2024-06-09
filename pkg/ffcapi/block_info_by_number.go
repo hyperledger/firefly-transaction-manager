@@ -22,6 +22,7 @@ import (
 
 type BlockInfoByNumberRequest struct {
 	BlockNumber        *fftypes.FFBigInt `json:"blockNumber"`
+	AllowCache         bool              `json:"allowCache"`
 	ExpectedParentHash string            `json:"expectedParentHash"` // If set then a mismatched parent hash should be considered a cache miss (if the connector does caching)
 }
 

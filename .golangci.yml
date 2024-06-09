@@ -15,8 +15,9 @@ linters-settings:
     values:
       regexp:
         COMPANY: .*
+        YEAR_FUZZY: '\d\d\d\d(,\d\d\d\d)?'
     template: |-
-      Copyright © {{ YEAR }} {{ COMPANY }}
+      Copyright © {{ YEAR_FUZZY }} {{ COMPANY }}
 
       SPDX-License-Identifier: Apache-2.0
 

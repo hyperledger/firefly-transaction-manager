@@ -33,14 +33,14 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-func newTestBlockConfirmationManager(t *testing.T, enabled bool) (*blockConfirmationManager, *ffcapimocks.API) {
+func newTestBlockConfirmationManager() (*blockConfirmationManager, *ffcapimocks.API) {
 	tmconfig.Reset()
 	config.Set(tmconfig.ConfirmationsRequired, 3)
 	config.Set(tmconfig.ConfirmationsNotificationQueueLength, 1)
-	return newTestBlockConfirmationManagerCustomConfig(t)
+	return newTestBlockConfirmationManagerCustomConfig()
 }
 
-func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmationManager, *ffcapimocks.API) {
+func newTestBlockConfirmationManagerCustomConfig() (*blockConfirmationManager, *ffcapimocks.API) {
 	logrus.SetLevel(logrus.DebugLevel)
 	mca := &ffcapimocks.API{}
 	emm := &metricsmocks.EventMetricsEmitter{}
@@ -58,7 +58,7 @@ func newTestBlockConfirmationManagerCustomConfig(t *testing.T) (*blockConfirmati
 }
 
 func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
-	bcm, mca := newTestBlockConfirmationManager(t, true)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	confirmed := make(chan *apitypes.ConfirmationsNotification, 1)
 	eventToConfirm := &EventInfo{
@@ -180,7 +180,7 @@ func TestBlockConfirmationManagerE2ENewEvent(t *testing.T) {
 }
 
 func TestBlockConfirmationManagerE2EFork(t *testing.T) {
-	bcm, mca := newTestBlockConfirmationManager(t, true)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	confirmed := make(chan *apitypes.ConfirmationsNotification, 1)
 	eventToConfirm := &EventInfo{
@@ -328,7 +328,7 @@ func TestBlockConfirmationManagerE2EFork(t *testing.T) {
 }
 
 func TestBlockConfirmationManagerE2EForkReNotifyConfirmations(t *testing.T) {
-	bcm, mca := newTestBlockConfirmationManager(t, true)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	confirmed := make(chan *apitypes.ConfirmationsNotification, 3)
 	eventToConfirm := &EventInfo{
@@ -461,7 +461,7 @@ func TestBlockConfirmationManagerE2EForkReNotifyConfirmations(t *testing.T) {
 }
 
 func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
-	bcm, mca := newTestBlockConfirmationManager(t, true)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	confirmed := make(chan *apitypes.ConfirmationsNotification, 1)
 	receiptReceived := make(chan *ffcapi.TransactionReceiptResponse, 1)
@@ -647,7 +647,7 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 }
 
 func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
-	bcm, mca := newTestBlockConfirmationManager(t, true)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	confirmed := make(chan []*apitypes.Confirmation, 1)
 	eventToConfirm := &EventInfo{
@@ -750,7 +750,7 @@ func TestSortPendingEvents(t *testing.T) {
 
 func TestConfirmationsListenerFailWalkingChain(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 	bcm.done = make(chan struct{})
 
 	err := bcm.Notify(&Notification{
@@ -779,7 +779,7 @@ func TestConfirmationsListenerFailWalkingChain(t *testing.T) {
 
 func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 	bcm.done = make(chan struct{})
 
 	confirmed := make(chan []*apitypes.Confirmation, 1)
@@ -817,7 +817,7 @@ func TestConfirmationsListenerFailWalkingChainForNewEvent(t *testing.T) {
 
 func TestConfirmationsListenerRemoved(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 	bcm.done = make(chan struct{})
 
 	lid := fftypes.NewUUID()
@@ -858,7 +858,7 @@ func TestConfirmationsListenerRemoved(t *testing.T) {
 
 func TestConfirmationsRemoveEvent(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 	bcm.done = make(chan struct{})
 
 	eventInfo := &EventInfo{
@@ -896,7 +896,7 @@ func TestConfirmationsRemoveEvent(t *testing.T) {
 
 func TestConfirmationsFailWalkChainAfterBlockGap(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 	bcm.done = make(chan struct{})
 
 	eventNotification := &Notification{
@@ -936,7 +936,7 @@ func TestConfirmationsFailWalkChainAfterBlockGap(t *testing.T) {
 
 func TestConfirmationsRemoveTransaction(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 	bcm.done = make(chan struct{})
 
 	txInfo := &TransactionInfo{
@@ -984,7 +984,7 @@ func TestConfirmationsRemoveTransaction(t *testing.T) {
 
 func TestWalkChainForEventBlockNotInConfirmationChain(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	pending := (&Notification{
 		Event: &EventInfo{
@@ -1018,7 +1018,7 @@ func TestWalkChainForEventBlockNotInConfirmationChain(t *testing.T) {
 
 func TestWalkChainForEventBlockLookupFail(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	pending := (&Notification{
 		Event: &EventInfo{
@@ -1046,7 +1046,7 @@ func TestWalkChainForEventBlockLookupFail(t *testing.T) {
 
 func TestProcessBlockHashesLookupFail(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	blockHash := "0xed21f4f73d150f16f922ae82b7485cd936ae1eca4c027516311b928360a347e8"
 	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
@@ -1062,7 +1062,7 @@ func TestProcessBlockHashesLookupFail(t *testing.T) {
 
 func TestProcessNotificationsSwallowsUnknownType(t *testing.T) {
 
-	bcm, _ := newTestBlockConfirmationManager(t, false)
+	bcm, _ := newTestBlockConfirmationManager()
 	blocks := bcm.newBlockState()
 	bcm.processNotifications([]*Notification{
 		{NotificationType: NotificationType("unknown")},
@@ -1071,7 +1071,7 @@ func TestProcessNotificationsSwallowsUnknownType(t *testing.T) {
 
 func TestGetBlockNotFound(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
 		return r.BlockHash == "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df"
@@ -1096,7 +1096,7 @@ func TestPanicBadKey(t *testing.T) {
 
 func TestNotificationValidation(t *testing.T) {
 
-	bcm, _ := newTestBlockConfirmationManager(t, false)
+	bcm, _ := newTestBlockConfirmationManager()
 	bcm.bcmNotifications = make(chan *Notification)
 
 	err := bcm.Notify(&Notification{
@@ -1133,7 +1133,7 @@ func TestNotificationValidation(t *testing.T) {
 
 func TestCheckReceiptImmediateConfirm(t *testing.T) {
 
-	bcm, _ := newTestBlockConfirmationManager(t, false)
+	bcm, _ := newTestBlockConfirmationManager()
 	bcm.requiredConfirmations = 0
 
 	receipt := &ffcapi.TransactionReceiptResponse{
@@ -1161,7 +1161,7 @@ func TestCheckReceiptImmediateConfirm(t *testing.T) {
 
 func TestCheckReceiptWalkFail(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	receipt := &ffcapi.TransactionReceiptResponse{
 		BlockNumber:      fftypes.NewFFBigInt(12345),
@@ -1187,7 +1187,7 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 
 func TestStaleReceiptCheck(t *testing.T) {
 
-	bcm, _ := newTestBlockConfirmationManager(t, false)
+	bcm, _ := newTestBlockConfirmationManager()
 	emm := &metricsmocks.EventMetricsEmitter{}
 	emm.On("RecordNotificationQueueingMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordBlockHashProcessMetrics", mock.Anything, mock.Anything).Maybe()
@@ -1212,7 +1212,7 @@ func TestStaleReceiptCheck(t *testing.T) {
 
 func TestBlockState(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	block1002 := &ffcapi.BlockInfoByNumberResponse{
 		BlockInfo: ffcapi.BlockInfo{

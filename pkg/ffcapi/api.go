@@ -130,6 +130,17 @@ type EventListenerCheckpoint interface {
 	LessThan(b EventListenerCheckpoint) bool
 }
 
+// BlockListenerCheckpoint is an implementation of EventListenerCheckpoint for block listener, which are a special
+// type of listener handled by the FFTM framework in the confirmation manager.
+type BlockListenerCheckpoint struct {
+	Block uint64 `json:"block"`
+}
+
+func (cp *BlockListenerCheckpoint) LessThan(b EventListenerCheckpoint) bool {
+	bcp := b.(*BlockListenerCheckpoint)
+	return cp.Block < bcp.Block
+}
+
 // String is unique in all cases for an event, by combining the protocol ID with the listener ID and block hash
 func (eid *EventID) String() string {
 	return fmt.Sprintf("%s/B=%s/L=%s", eid.ProtocolID(), eid.BlockHash, eid.ListenerID)
@@ -191,7 +202,7 @@ const (
 	// ErrorKnownTransaction if the exact transaction is already known
 	ErrorKnownTransaction ErrorReason = "known_transaction"
 	// ErrorReasonDownstreamDown if the downstream JSONRPC endpoint is down
-	ErrorReasonDownstreamDown = "downstream_down"
+	ErrorReasonDownstreamDown ErrorReason = "downstream_down"
 )
 
 // TransactionInput is a standardized set of parameters that describe a transaction submission to a blockchain.

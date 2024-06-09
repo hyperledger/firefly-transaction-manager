@@ -27,7 +27,7 @@ import (
 
 func TestCheckReceiptNotFoundErr(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	mca.On("TransactionReceipt", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
@@ -53,7 +53,7 @@ func TestCheckReceiptNotFoundErr(t *testing.T) {
 
 func TestCheckReceiptNotFoundNil(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	mca.On("TransactionReceipt", mock.Anything, mock.Anything).
 		Run(func(args mock.Arguments) {
@@ -79,7 +79,7 @@ func TestCheckReceiptNotFoundNil(t *testing.T) {
 
 func TestCheckReceiptFail(t *testing.T) {
 
-	bcm, mca := newTestBlockConfirmationManager(t, false)
+	bcm, mca := newTestBlockConfirmationManager()
 
 	count := 0
 	mca.On("TransactionReceipt", mock.Anything, mock.Anything).
@@ -110,7 +110,7 @@ func TestCheckReceiptFail(t *testing.T) {
 
 func TestCheckReceiptDoubleQueueProtection(t *testing.T) {
 
-	bcm, _ := newTestBlockConfirmationManager(t, false)
+	bcm, _ := newTestBlockConfirmationManager()
 
 	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
 	pending := &pendingItem{

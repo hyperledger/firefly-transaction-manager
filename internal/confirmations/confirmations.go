@@ -298,9 +298,10 @@ func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*apitypes
 	return blockInfo, nil
 }
 
-func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expectedParentHash string) (*apitypes.BlockInfo, error) {
+func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, allowCache bool, expectedParentHash string) (*apitypes.BlockInfo, error) {
 	res, reason, err := bcm.connector.BlockInfoByNumber(bcm.ctx, &ffcapi.BlockInfoByNumberRequest{
 		BlockNumber:        fftypes.NewFFBigInt(int64(blockNumber)),
+		AllowCache:         allowCache,
 		ExpectedParentHash: expectedParentHash,
 	})
 	if err != nil {
@@ -367,7 +368,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 
 		if bcm.blockListenerStale {
 			if err := bcm.walkChain(blocks); err != nil {
-				log.L(bcm.ctx).Errorf("Failed to create walk chain after restoring blockListener: %s", err)
+				log.L(bcm.ctx).Errorf("Failed to walk chain after restoring blockListener: %s", err)
 				continue
 			}
 			bcm.blockListenerStale = false
@@ -692,7 +693,7 @@ func (bs *blockState) getByNumber(blockNumber uint64, expectedParentHash string)
 	if block != nil {
 		return block, nil
 	}
-	block, err := bs.bcm.getBlockByNumber(blockNumber, expectedParentHash)
+	block, err := bs.bcm.getBlockByNumber(blockNumber, true, expectedParentHash)
 	if err != nil {
 		return nil, err
 	}
