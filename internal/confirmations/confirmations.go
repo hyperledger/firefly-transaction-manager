@@ -84,22 +84,23 @@ type RemovedListenerInfo struct {
 }
 
 type blockConfirmationManager struct {
-	baseContext           context.Context
-	ctx                   context.Context
-	cancelFunc            func()
-	newBlockHashes        chan *ffcapi.BlockHashEvent
-	connector             ffcapi.API
-	blockListenerStale    bool
-	metricsEmitter        metrics.ConfirmationMetricsEmitter
-	requiredConfirmations int
-	staleReceiptTimeout   time.Duration
-	bcmNotifications      chan *Notification
-	highestBlockSeen      uint64
-	pending               map[string]*pendingItem
-	pendingMux            sync.Mutex
-	receiptChecker        *receiptChecker
-	retry                 *retry.Retry
-	done                  chan struct{}
+	baseContext                        context.Context
+	ctx                                context.Context
+	cancelFunc                         func()
+	newBlockHashes                     chan *ffcapi.BlockHashEvent
+	connector                          ffcapi.API
+	blockListenerStale                 bool
+	metricsEmitter                     metrics.ConfirmationMetricsEmitter
+	requiredConfirmations              int
+	staleReceiptTimeout                time.Duration
+	bcmNotifications                   chan *Notification
+	highestBlockSeen                   uint64
+	pending                            map[string]*pendingItem
+	pendingMux                         sync.Mutex
+	receiptChecker                     *receiptChecker
+	retry                              *retry.Retry
+	done                               chan struct{}
+	TxHashAlreadyDispatchedReceiptsFor map[string]bool
 }
 
 func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API, desc string,
@@ -119,7 +120,9 @@ func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.A
 			MaximumDelay: config.GetDuration(tmconfig.ConfirmationsRetryMaxDelay),
 			Factor:       config.GetFloat64(tmconfig.ConfirmationsRetryFactor),
 		},
+		TxHashAlreadyDispatchedReceiptsFor: make(map[string]bool),
 	}
+	log.L(baseContext).Errorf("Notification queue length %d", config.GetInt(tmconfig.ConfirmationsNotificationQueueLength))
 	bcm.ctx, bcm.cancelFunc = context.WithCancel(baseContext)
 	// add a log context for this specific confirmation manager (as there are many within the )
 	bcm.ctx = log.WithLogField(bcm.ctx, "role", fmt.Sprintf("confirmations_%s", desc))
@@ -335,7 +338,6 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 				bcm.blockListenerStale = true
 			}
 			blockHashes = append(blockHashes, bhe.BlockHashes...)
-
 			if bhe.Created != nil {
 				for i := 0; i < len(bhe.BlockHashes); i++ {
 					bcm.metricsEmitter.RecordBlockHashQueueingMetrics(bcm.ctx, time.Since(*bhe.Created.Time()).Seconds())
@@ -441,6 +443,11 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 }
 
 func (bcm *blockConfirmationManager) dispatchReceipt(pending *pendingItem, receipt *ffcapi.TransactionReceiptResponse, blocks *blockState) {
+	if bcm.TxHashAlreadyDispatchedReceiptsFor[pending.transactionHash] {
+		log.L(bcm.ctx).Errorf("Receipt for transaction %s distributed again", pending.transactionHash)
+	} else {
+		bcm.TxHashAlreadyDispatchedReceiptsFor[pending.transactionHash] = true
+	}
 	pending.blockNumber = receipt.BlockNumber.Uint64()
 	pending.blockHash = receipt.BlockHash
 	log.L(bcm.ctx).Infof("Receipt for transaction %s downloaded. BlockNumber=%d BlockHash=%s", pending.transactionHash, pending.blockNumber, pending.blockHash)
@@ -504,6 +511,7 @@ func (bcm *blockConfirmationManager) processBlockHashes(blockHashes []string) {
 	for _, blockHash := range blockHashes {
 		startTime := time.Now()
 		// Get the block header
+		log.L(bcm.ctx).Errorf("Processing block with hash: %s at %s", blockHash, startTime.String())
 		block, err := bcm.getBlockByHash(blockHash)
 		if err != nil || block == nil {
 			log.L(bcm.ctx).Errorf("Failed to retrieve block %s: %v", blockHash, err)

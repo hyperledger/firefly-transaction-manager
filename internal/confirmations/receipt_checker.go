@@ -101,7 +101,6 @@ func (rc *receiptChecker) run(i int) {
 			if pending == nil {
 				return false /* exit the retry loop with err */, i18n.NewError(ctx, tmmsgs.MsgShuttingDown)
 			}
-			log.L(ctx).Errorf("Waited %s to get the next pending item: %s", time.Since(startTime), pending.transactionHash)
 
 			res, reason, receiptErr := rc.bcm.connector.TransactionReceipt(ctx, &ffcapi.TransactionReceiptRequest{
 				TransactionHash: pending.transactionHash,
@@ -171,6 +170,7 @@ func (rc *receiptChecker) remove(pending *pendingItem) {
 		// Note this might already have been removed, in the window between waitNext and TransactionReceipt returning.
 		// That's fine as the interface of list.Remove says so.
 		_ = rc.entries.Remove(pending.queuedStale)
+		log.L(rc.bcm.ctx).Errorf("Removed receipt check for %s", pending.transactionHash)
 	}
 	rc.cond.L.Unlock()
 }
