@@ -149,7 +149,7 @@ func (rc *receiptChecker) schedule(pending *pendingItem, suspectedTimeout bool) 
 		return
 	}
 	pending.queuedStale = rc.entries.PushBack(pending)
-	rc.cond.Signal()
+	rc.cond.Broadcast()
 	rc.cond.L.Unlock()
 	// Log (outside the lock as it's a contended one)
 	pendingKey := pending.getKey()
