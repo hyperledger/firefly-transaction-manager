@@ -45,7 +45,7 @@ type Manager interface {
 	Stop()
 	NewBlockHashes() chan<- *ffcapi.BlockHashEvent
 	CheckInFlight(listenerID *fftypes.UUID) bool
-	StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, checkpoint *uint64, eventStream chan<- *apitypes.BlockInfo) error
+	StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *ffcapi.ListenerEvent) error
 	StopConfirmedBlockListener(ctx context.Context, id *fftypes.UUID) error
 }
 
@@ -330,10 +330,6 @@ func transformBlockInfo(res *ffcapi.BlockInfo) *apitypes.BlockInfo {
 		ParentHash:        res.ParentHash,
 		TransactionHashes: res.TransactionHashes,
 	}
-}
-
-func ptrTo[T any](v T) *T {
-	return &v
 }
 
 func (bcm *blockConfirmationManager) copyCBLsList() []*confirmedBlockListener {

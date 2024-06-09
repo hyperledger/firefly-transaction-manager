@@ -47,11 +47,11 @@ type confirmedBlockListener struct {
 	cancelFunc            func()
 	id                    *fftypes.UUID
 	stateLock             sync.Mutex
-	rollingCheckpoint     *uint64
+	rollingCheckpoint     *ffcapi.BlockListenerCheckpoint
 	blocksSinceCheckpoint []*apitypes.BlockInfo
 	newBlockHashes        chan *ffcapi.BlockHashEvent
 	dispatcherTap         chan struct{}
-	eventStream           chan<- *apitypes.BlockInfo
+	eventStream           chan<- *ffcapi.ListenerEvent
 	connector             ffcapi.API
 	requiredConfirmations int
 	retry                 *retry.Retry
@@ -59,12 +59,12 @@ type confirmedBlockListener struct {
 	dispatcherDone        chan struct{}
 }
 
-func (bcm *blockConfirmationManager) StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, checkpoint *uint64, eventStream chan<- *apitypes.BlockInfo) error {
+func (bcm *blockConfirmationManager) StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *ffcapi.ListenerEvent) error {
 	_, err := bcm.startConfirmedBlockListener(ctx, id, checkpoint, eventStream)
 	return err
 }
 
-func (bcm *blockConfirmationManager) startConfirmedBlockListener(fgCtx context.Context, id *fftypes.UUID, checkpoint *uint64, eventStream chan<- *apitypes.BlockInfo) (*confirmedBlockListener, error) {
+func (bcm *blockConfirmationManager) startConfirmedBlockListener(fgCtx context.Context, id *fftypes.UUID, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *ffcapi.ListenerEvent) (*confirmedBlockListener, error) {
 	cbl := &confirmedBlockListener{
 		bcm: bcm,
 		// We need our own listener for each confirmed block stream, and the bcm has to fan out
@@ -154,7 +154,7 @@ func (cbs *confirmedBlockListener) processBlockNotification(block *apitypes.Bloc
 	defer cbs.stateLock.Unlock()
 
 	// If the block is before our checkpoint, we ignore it completely
-	if cbs.rollingCheckpoint != nil && block.BlockNumber.Uint64() <= *cbs.rollingCheckpoint {
+	if cbs.rollingCheckpoint != nil && block.BlockNumber.Uint64() <= cbs.rollingCheckpoint.Block {
 		log.L(cbs.ctx).Debugf("Notification of block %d/%s <= checkpoint %d", block.BlockNumber, block.BlockHash, *cbs.rollingCheckpoint)
 		return
 	}
@@ -216,7 +216,7 @@ func (cbs *confirmedBlockListener) getNextBlock() (more bool) {
 		cbs.stateLock.Lock()
 		blockNumberToFetch := uint64(0)
 		if cbs.rollingCheckpoint != nil {
-			blockNumberToFetch = *cbs.rollingCheckpoint + 1
+			blockNumberToFetch = cbs.rollingCheckpoint.Block + 1
 		}
 		if len(cbs.blocksSinceCheckpoint) > 0 {
 			blockNumberToFetch = cbs.blocksSinceCheckpoint[len(cbs.blocksSinceCheckpoint)-1].BlockNumber.Uint64() + 1
@@ -252,13 +252,27 @@ func (cbs *confirmedBlockListener) getNextBlock() (more bool) {
 
 func (cbs *confirmedBlockListener) dispatchAllConfirmed() {
 	for {
-		var toDispatch *apitypes.BlockInfo
+		var toDispatch *ffcapi.ListenerEvent
 		cbs.stateLock.Lock()
 		if len(cbs.blocksSinceCheckpoint) > cbs.requiredConfirmations {
-			toDispatch = cbs.blocksSinceCheckpoint[0]
+			block := cbs.blocksSinceCheckpoint[0]
 			// don't want memory to grow indefinitely by shifting right, so we create a new slice here
 			cbs.blocksSinceCheckpoint = append([]*apitypes.BlockInfo{}, cbs.blocksSinceCheckpoint[1:]...)
-			cbs.rollingCheckpoint = ptrTo(toDispatch.BlockNumber.Uint64())
+			cbs.rollingCheckpoint = &ffcapi.BlockListenerCheckpoint{
+				Block: block.BlockNumber.Uint64(),
+			}
+			toDispatch = &ffcapi.ListenerEvent{
+				BlockEvent: &ffcapi.BlockEvent{
+					ListenerID: cbs.id,
+					BlockInfo: ffcapi.BlockInfo{
+						BlockNumber:       fftypes.NewFFBigInt(int64(block.BlockNumber)),
+						BlockHash:         block.BlockHash,
+						ParentHash:        block.ParentHash,
+						TransactionHashes: block.TransactionHashes,
+					},
+				},
+				Checkpoint: cbs.rollingCheckpoint,
+			}
 		}
 		cbs.stateLock.Unlock()
 		if toDispatch == nil {

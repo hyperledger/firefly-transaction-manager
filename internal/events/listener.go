@@ -48,12 +48,17 @@ func listenerSpecToOptions(spec *apitypes.Listener) ffcapi.EventListenerOptions 
 	}
 }
 
-func (l *listener) stop(startedState *startedStreamState) error {
-	_, _, err := l.es.connector.EventListenerRemove(startedState.ctx, &ffcapi.EventListenerRemoveRequest{
-		StreamID:   l.spec.StreamID,
-		ListenerID: l.spec.ID,
-	})
-	return err
+func (l *listener) stop(startedState *startedStreamState) (err error) {
+	if l.spec.Type != nil && *l.spec.Type == apitypes.ListenerTypeBlocks {
+		err = l.es.confirmations.StopConfirmedBlockListener(startedState.ctx, l.spec.ID)
+	} else {
+		_, _, err = l.es.connector.EventListenerRemove(startedState.ctx, &ffcapi.EventListenerRemoveRequest{
+			StreamID:   l.spec.StreamID,
+			ListenerID: l.spec.ID,
+		})
+
+	}
+	return
 }
 
 func (l *listener) buildAddRequest(ctx context.Context, cp *apitypes.EventStreamCheckpoint) *ffcapi.EventListenerAddRequest {

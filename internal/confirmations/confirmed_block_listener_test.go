@@ -31,7 +31,7 @@ import (
 func TestCBLCatchUpToHeadFromZeroNoConfirmations(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager()
 
-	esDispatch := make(chan *apitypes.BlockInfo)
+	esDispatch := make(chan *ffcapi.ListenerEvent)
 
 	id := fftypes.NewUUID()
 
@@ -46,7 +46,7 @@ func TestCBLCatchUpToHeadFromZeroNoConfirmations(t *testing.T) {
 
 	for i := 0; i < len(blocks)-bcm.requiredConfirmations; i++ {
 		b := <-esDispatch
-		assert.Equal(t, b, transformBlockInfo(&blocks[i].BlockInfo))
+		assert.Equal(t, b.BlockEvent.BlockInfo, blocks[i].BlockInfo)
 	}
 
 	time.Sleep(1 * time.Millisecond)
@@ -59,7 +59,7 @@ func TestCBLCatchUpToHeadFromZeroNoConfirmations(t *testing.T) {
 func TestCBLCatchUpToHeadFromZeroWithConfirmations(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager()
 
-	esDispatch := make(chan *apitypes.BlockInfo)
+	esDispatch := make(chan *ffcapi.ListenerEvent)
 
 	id := fftypes.NewUUID()
 
@@ -74,7 +74,7 @@ func TestCBLCatchUpToHeadFromZeroWithConfirmations(t *testing.T) {
 
 	for i := 0; i < len(blocks)-bcm.requiredConfirmations; i++ {
 		b := <-esDispatch
-		assert.Equal(t, b, transformBlockInfo(&blocks[i].BlockInfo))
+		assert.Equal(t, b.BlockEvent.BlockInfo, blocks[i].BlockInfo)
 	}
 
 	time.Sleep(1 * time.Millisecond)
@@ -130,7 +130,7 @@ func TestCBLHandleReorgInConfirmationWindow4(t *testing.T) {
 func testCBLHandleReorgInConfirmationWindow(t *testing.T, blockLenBeforeReorg, overlap, reqConf int) {
 	bcm, mca := newTestBlockConfirmationManager()
 
-	esDispatch := make(chan *apitypes.BlockInfo)
+	esDispatch := make(chan *ffcapi.ListenerEvent)
 
 	id := fftypes.NewUUID()
 	blocksBeforeReorg := testBlockArray(blockLenBeforeReorg)
@@ -184,9 +184,9 @@ func testCBLHandleReorgInConfirmationWindow(t *testing.T, blockLenBeforeReorg, o
 		if i >= overlap && i < (dangerArea-reqConf) {
 			// This would be a bad situation in reality, where a reorg crossed the confirmations
 			// boundary. An indication someone incorrectly configured their confirmations
-			assert.Equal(t, b, transformBlockInfo(&blocksBeforeReorg[i].BlockInfo))
+			assert.Equal(t, b.BlockEvent.BlockInfo, blocksBeforeReorg[i].BlockInfo)
 		} else {
-			assert.Equal(t, b, transformBlockInfo(&blocksAfterReorg[i].BlockInfo))
+			assert.Equal(t, b.BlockEvent.BlockInfo, blocksAfterReorg[i].BlockInfo)
 		}
 	}
 
@@ -208,7 +208,7 @@ func testCBLHandleReorgInConfirmationWindow(t *testing.T, blockLenBeforeReorg, o
 func TestCBLHandleRandomConflictingBlockNotification(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager()
 
-	esDispatch := make(chan *apitypes.BlockInfo)
+	esDispatch := make(chan *ffcapi.ListenerEvent)
 
 	id := fftypes.NewUUID()
 	blocks := testBlockArray(50)
@@ -246,7 +246,7 @@ func TestCBLHandleRandomConflictingBlockNotification(t *testing.T) {
 
 	for i := 0; i < len(blocks)-cbl.requiredConfirmations; i++ {
 		b := <-esDispatch
-		assert.Equal(t, b, transformBlockInfo(&blocks[i].BlockInfo))
+		assert.Equal(t, b.BlockEvent.BlockInfo, blocks[i].BlockInfo)
 	}
 
 	bcm.Stop()
@@ -274,7 +274,7 @@ func TestDispatchAllConfirmedNonBlocking(t *testing.T) {
 		ctx:           bcm.ctx,
 		bcm:           bcm,
 		processorDone: make(chan struct{}),
-		eventStream:   make(chan<- *apitypes.BlockInfo), // blocks indefinitely
+		eventStream:   make(chan<- *ffcapi.ListenerEvent), // blocks indefinitely
 	}
 
 	cbl.requiredConfirmations = 0
@@ -303,10 +303,10 @@ func TestCBLDoubleStart(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager()
 	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
 
-	err := bcm.StartConfirmedBlockListener(bcm.ctx, id, nil, make(chan<- *apitypes.BlockInfo))
+	err := bcm.StartConfirmedBlockListener(bcm.ctx, id, nil, make(chan<- *ffcapi.ListenerEvent))
 	assert.NoError(t, err)
 
-	err = bcm.StartConfirmedBlockListener(bcm.ctx, id, nil, make(chan<- *apitypes.BlockInfo))
+	err = bcm.StartConfirmedBlockListener(bcm.ctx, id, nil, make(chan<- *ffcapi.ListenerEvent))
 	assert.Regexp(t, "FF21087", err)
 
 	bcm.Stop()

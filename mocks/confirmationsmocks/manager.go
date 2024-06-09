@@ -3,10 +3,9 @@
 package confirmationsmocks
 
 import (
-	confirmations "github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
-	apitypes "github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
-
 	context "context"
+
+	confirmations "github.com/hyperledger/firefly-transaction-manager/internal/confirmations"
 
 	ffcapi "github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 
@@ -82,7 +81,7 @@ func (_m *Manager) Start() {
 }
 
 // StartConfirmedBlockListener provides a mock function with given fields: ctx, id, checkpoint, eventStream
-func (_m *Manager) StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, checkpoint *uint64, eventStream chan<- *apitypes.BlockInfo) error {
+func (_m *Manager) StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *ffcapi.ListenerEvent) error {
 	ret := _m.Called(ctx, id, checkpoint, eventStream)
 
 	if len(ret) == 0 {
@@ -90,7 +89,7 @@ func (_m *Manager) StartConfirmedBlockListener(ctx context.Context, id *fftypes.
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, *uint64, chan<- *apitypes.BlockInfo) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, *ffcapi.BlockListenerCheckpoint, chan<- *ffcapi.ListenerEvent) error); ok {
 		r0 = rf(ctx, id, checkpoint, eventStream)
 	} else {
 		r0 = ret.Error(0)

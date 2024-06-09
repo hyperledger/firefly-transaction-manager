@@ -98,7 +98,6 @@ type startedStreamState struct {
 	blockListenerDone chan struct{}
 	updates           chan *ffcapi.ListenerEvent
 	blocks            chan *ffcapi.BlockHashEvent
-	confirmedBlocks   chan *apitypes.BlockInfo
 }
 
 type eventStream struct {
@@ -500,11 +499,10 @@ func (es *eventStream) Start(ctx context.Context) error {
 	log.L(ctx).Infof("Starting event stream %s", es)
 
 	startedState := &startedStreamState{
-		startTime:       fftypes.Now(),
-		eventLoopDone:   make(chan struct{}),
-		batchLoopDone:   make(chan struct{}),
-		updates:         make(chan *ffcapi.ListenerEvent, int(*es.spec.BatchSize)),
-		confirmedBlocks: make(chan *apitypes.BlockInfo),
+		startTime:     fftypes.Now(),
+		eventLoopDone: make(chan struct{}),
+		batchLoopDone: make(chan struct{}),
+		updates:       make(chan *ffcapi.ListenerEvent, int(*es.spec.BatchSize)),
 	}
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.currentState = startedState
@@ -549,11 +547,8 @@ func (es *eventStream) Start(ctx context.Context) error {
 
 	// Add all the block listeners
 	for _, bl := range initialBlockListeners {
-		var blockNumber *uint64
-		if bl.Checkpoint != nil {
-			blockNumber = &bl.Checkpoint.Block
-		}
-		if err := es.confirmations.StartConfirmedBlockListener(startedState.ctx, bl.ListenerID, blockNumber, startedState.confirmedBlocks); err != nil {
+		// blocks go straight to the batch assembler, as they're already handled by the confirmation manager
+		if err := es.confirmations.StartConfirmedBlockListener(startedState.ctx, bl.ListenerID, bl.Checkpoint, es.batchChannel); err != nil {
 			// There are no known reasons for this to fail, as we're starting a fresh set of listeners
 			log.L(startedState.ctx).Errorf("Failed to start block listener: %s", err)
 			return err
