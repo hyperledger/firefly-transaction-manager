@@ -33,6 +33,13 @@ type listener struct {
 	checkpoint     ffcapi.EventListenerCheckpoint
 }
 
+type blockListenerAddRequest struct {
+	ListenerID *fftypes.UUID
+	StreamID   *fftypes.UUID
+	Name       string
+	Checkpoint *ffcapi.BlockListenerCheckpoint
+}
+
 func listenerSpecToOptions(spec *apitypes.Listener) ffcapi.EventListenerOptions {
 	return ffcapi.EventListenerOptions{
 		FromBlock: *spec.FromBlock,
@@ -65,6 +72,27 @@ func (l *listener) buildAddRequest(ctx context.Context, cp *apitypes.EventStream
 				log.L(ctx).Errorf("Failed to restore checkpoint for listener '%s': %s", l.spec.ID, err)
 			} else {
 				req.Checkpoint = listenerCheckpoint
+			}
+		}
+	}
+	return req
+}
+
+func (l *listener) buildBlockAddRequest(ctx context.Context, cp *apitypes.EventStreamCheckpoint) *blockListenerAddRequest {
+	req := &blockListenerAddRequest{
+		Name:       *l.spec.Name,
+		ListenerID: l.spec.ID,
+		StreamID:   l.spec.StreamID,
+	}
+	if cp != nil {
+		jsonCP := cp.Listeners[*l.spec.ID]
+		if jsonCP != nil {
+			var listenerCheckpoint ffcapi.BlockListenerCheckpoint
+			err := json.Unmarshal(jsonCP, &listenerCheckpoint)
+			if err != nil {
+				log.L(ctx).Errorf("Failed to restore checkpoint for block listener '%s': %s", l.spec.ID, err)
+			} else {
+				req.Checkpoint = &listenerCheckpoint
 			}
 		}
 	}

@@ -1,0 +1,5 @@
+BEGIN;
+
+ALTER TABLE listeners DROP COLUMN "type";
+
+COMMIT;

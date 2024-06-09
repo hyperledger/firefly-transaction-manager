@@ -19,6 +19,7 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -97,22 +98,24 @@ type startedStreamState struct {
 	blockListenerDone chan struct{}
 	updates           chan *ffcapi.ListenerEvent
 	blocks            chan *ffcapi.BlockHashEvent
+	confirmedBlocks   chan *apitypes.BlockInfo
 }
 
 type eventStream struct {
-	bgCtx              context.Context
-	spec               *apitypes.EventStream
-	mux                sync.Mutex
-	status             apitypes.EventStreamStatus
-	connector          ffcapi.API
-	persistence        persistence.Persistence
-	confirmations      confirmations.Manager
-	listeners          map[fftypes.UUID]*listener
-	wsChannels         ws.WebSocketChannels
-	retry              *retry.Retry
-	currentState       *startedStreamState
-	checkpointInterval time.Duration
-	batchChannel       chan *ffcapi.ListenerEvent
+	bgCtx                 context.Context
+	spec                  *apitypes.EventStream
+	mux                   sync.Mutex
+	status                apitypes.EventStreamStatus
+	connector             ffcapi.API
+	persistence           persistence.Persistence
+	confirmations         confirmations.Manager
+	confirmationsRequired int
+	listeners             map[fftypes.UUID]*listener
+	wsChannels            ws.WebSocketChannels
+	retry                 *retry.Retry
+	currentState          *startedStreamState
+	checkpointInterval    time.Duration
+	batchChannel          chan *ffcapi.ListenerEvent
 }
 
 func NewEventStream(
@@ -126,18 +129,17 @@ func NewEventStream(
 ) (ees Stream, err error) {
 	esCtx := log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String())
 	es := &eventStream{
-		bgCtx:              esCtx,
-		status:             apitypes.EventStreamStatusStopped,
-		spec:               persistedSpec,
-		connector:          connector,
-		persistence:        persistence,
-		listeners:          make(map[fftypes.UUID]*listener),
-		wsChannels:         wsChannels,
-		retry:              esDefaults.retry,
-		checkpointInterval: config.GetDuration(tmconfig.EventStreamsCheckpointInterval),
-	}
-	if config.GetInt(tmconfig.ConfirmationsRequired) > 0 {
-		es.confirmations = confirmations.NewBlockConfirmationManager(esCtx, connector, "_es_"+persistedSpec.ID.String(), eme)
+		bgCtx:                 esCtx,
+		status:                apitypes.EventStreamStatusStopped,
+		spec:                  persistedSpec,
+		connector:             connector,
+		persistence:           persistence,
+		listeners:             make(map[fftypes.UUID]*listener),
+		wsChannels:            wsChannels,
+		retry:                 esDefaults.retry,
+		checkpointInterval:    config.GetDuration(tmconfig.EventStreamsCheckpointInterval),
+		confirmations:         confirmations.NewBlockConfirmationManager(esCtx, connector, "_es_"+persistedSpec.ID.String(), eme),
+		confirmationsRequired: config.GetInt(tmconfig.ConfirmationsRequired),
 	}
 	// The configuration we have in memory, applies all the defaults to what is passed in
 	// to ensure there are no nil fields on the configuration object.
@@ -346,22 +348,37 @@ func (es *eventStream) verifyListenerOptions(ctx context.Context, id *fftypes.UU
 	// Merge the supplied options with defaults and any existing config.
 	spec := es.mergeListenerOptions(id, updatesOrNew)
 
-	// The connector needs to validate the options, building a set of options that are assured to be non-nil
-	res, _, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.EventListenerVerifyOptionsRequest{
-		EventListenerOptions: listenerSpecToOptions(spec),
-	})
-	if err != nil {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgBadListenerOptions, err)
+	if spec.Type == nil {
+		spec.Type = &apitypes.ListenerTypeEvents
+	}
+	switch *spec.Type {
+	case apitypes.ListenerTypeEvents:
+		// The connector needs to validate the options, building a set of options that are assured to be non-nil
+		res, _, err := es.connector.EventListenerVerifyOptions(ctx, &ffcapi.EventListenerVerifyOptionsRequest{
+			EventListenerOptions: listenerSpecToOptions(spec),
+		})
+		if err != nil {
+			return nil, i18n.NewError(ctx, tmmsgs.MsgBadListenerOptions, err)
+		}
+
+		// We update the spec object in-place for the signature and resolved options
+		spec.Signature = &res.ResolvedSignature
+		spec.Options = &res.ResolvedOptions
+		if spec.Name == nil || *spec.Name == "" {
+			sig := spec.Signature
+			spec.Name = sig
+		}
+		log.L(ctx).Infof("Listener %s signature: %s", spec.ID, *spec.Signature)
+	case apitypes.ListenerTypeBlocks:
+		// other fields not applicable currently for block listeners
+		spec.Signature = ptrTo("")
+		spec.Filters = apitypes.ListenerFilters{}
+		spec.Options = fftypes.JSONAnyPtr(`{}`)
+		log.L(ctx).Infof("BLock listener %s", spec.ID)
+	default:
+		return nil, i18n.NewError(ctx, tmmsgs.MsgBadListenerType, *spec.Type)
 	}
 
-	// We update the spec object in-place for the signature and resolved options
-	spec.Signature = &res.ResolvedSignature
-	spec.Options = &res.ResolvedOptions
-	if spec.Name == nil || *spec.Name == "" {
-		sig := spec.Signature
-		spec.Name = sig
-	}
-	log.L(ctx).Infof("Listener %s signature: %s", spec.ID, *spec.Signature)
 	return spec, nil
 }
 
@@ -483,10 +500,11 @@ func (es *eventStream) Start(ctx context.Context) error {
 	log.L(ctx).Infof("Starting event stream %s", es)
 
 	startedState := &startedStreamState{
-		startTime:     fftypes.Now(),
-		eventLoopDone: make(chan struct{}),
-		batchLoopDone: make(chan struct{}),
-		updates:       make(chan *ffcapi.ListenerEvent, int(*es.spec.BatchSize)),
+		startTime:       fftypes.Now(),
+		eventLoopDone:   make(chan struct{}),
+		batchLoopDone:   make(chan struct{}),
+		updates:         make(chan *ffcapi.ListenerEvent, int(*es.spec.BatchSize)),
+		confirmedBlocks: make(chan *apitypes.BlockInfo),
 	}
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.currentState = startedState
@@ -500,9 +518,14 @@ func (es *eventStream) Start(ctx context.Context) error {
 		return err
 	}
 
-	initialListeners := make([]*ffcapi.EventListenerAddRequest, 0)
+	initialEventListeners := make([]*ffcapi.EventListenerAddRequest, 0)
+	initialBlockListeners := make([]*blockListenerAddRequest, 0)
 	for _, l := range es.listeners {
-		initialListeners = append(initialListeners, l.buildAddRequest(ctx, cp))
+		if l.spec.Type != nil && *l.spec.Type == apitypes.ListenerTypeBlocks {
+			initialBlockListeners = append(initialBlockListeners, l.buildBlockAddRequest(ctx, cp))
+		} else {
+			initialEventListeners = append(initialEventListeners, l.buildAddRequest(ctx, cp))
+		}
 	}
 	startedState.blocks, startedState.blockListenerDone = blocklistener.BufferChannel(startedState.ctx, es.confirmations)
 	_, _, err = es.connector.EventStreamStart(startedState.ctx, &ffcapi.EventStreamStartRequest{
@@ -510,7 +533,7 @@ func (es *eventStream) Start(ctx context.Context) error {
 		EventStream:      startedState.updates,
 		StreamContext:    startedState.ctx,
 		BlockListener:    startedState.blocks,
-		InitialListeners: initialListeners,
+		InitialListeners: initialEventListeners,
 	})
 	if err != nil {
 		_ = es.checkSetStatus(ctx, apitypes.EventStreamStatusStarted, apitypes.EventStreamStatusStopped)
@@ -522,8 +545,19 @@ func (es *eventStream) Start(ctx context.Context) error {
 	go es.batchLoop(startedState)
 
 	// Start the confirmations manager
-	if es.confirmations != nil {
-		es.confirmations.Start()
+	es.confirmations.Start()
+
+	// Add all the block listeners
+	for _, bl := range initialBlockListeners {
+		var blockNumber *uint64
+		if bl.Checkpoint != nil {
+			blockNumber = &bl.Checkpoint.Block
+		}
+		if err := es.confirmations.StartConfirmedBlockListener(startedState.ctx, bl.ListenerID, blockNumber, startedState.confirmedBlocks); err != nil {
+			// There are no known reasons for this to fail, as we're starting a fresh set of listeners
+			log.L(startedState.ctx).Errorf("Failed to start block listener: %s", err)
+			return err
+		}
 	}
 
 	return err
@@ -572,9 +606,7 @@ func (es *eventStream) Stop(ctx context.Context) error {
 	}
 
 	// Stop the confirmations manager
-	if es.confirmations != nil {
-		es.confirmations.Stop()
-	}
+	es.confirmations.Stop()
 
 	// Wait for our event loop to stop
 	<-startedState.eventLoopDone
@@ -622,7 +654,7 @@ func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.Listener
 	es.mux.Unlock()
 	if l != nil {
 		log.L(ctx).Debugf("%s event detected: %s", l.spec.ID, event)
-		if es.confirmations == nil {
+		if es.confirmationsRequired == 0 {
 			// Updates that are just a checkpoint update, go straight to the batch loop.
 			// Or if the confirmation manager is disabled.
 			// - Note this will block the eventLoop when the event stream is blocked
@@ -652,7 +684,7 @@ func (es *eventStream) processNewEvent(ctx context.Context, fev *ffcapi.Listener
 }
 
 func (es *eventStream) processRemovedEvent(ctx context.Context, fev *ffcapi.ListenerEvent) {
-	if fev.Event != nil && fev.Event.ID.ListenerID != nil && es.confirmations != nil {
+	if fev.Event != nil && fev.Event.ID.ListenerID != nil && es.confirmationsRequired > 0 {
 		err := es.confirmations.Notify(&confirmations.Notification{
 			NotificationType: confirmations.RemovedEventLog,
 			Event: &confirmations.EventInfo{
@@ -684,6 +716,63 @@ func (es *eventStream) eventLoop(startedState *startedStreamState) {
 	}
 }
 
+func (es *eventStream) checkConfirmedEventForBatch(e *ffcapi.ListenerEvent) (l *listener, ewc *apitypes.EventWithContext) {
+	var eToLog fmt.Stringer
+	var listenerID *fftypes.UUID
+	switch {
+	case e.Event != nil:
+		listenerID = e.Event.ID.ListenerID
+		eToLog = e.Event
+	case e.BlockEvent != nil:
+		listenerID = e.BlockEvent.ListenerID
+		eToLog = e.BlockEvent
+	default:
+		return nil, nil
+	}
+	es.mux.Lock()
+	l = es.listeners[*listenerID]
+	es.mux.Unlock()
+	if l == nil {
+		log.L(es.bgCtx).Warnf("Confirmed event not associated with any active listener: %s", eToLog)
+		return nil, nil
+	}
+	currentCheckpoint := l.checkpoint
+	if currentCheckpoint != nil && !currentCheckpoint.LessThan(e.Checkpoint) {
+		// This event is behind the current checkpoint - this is a re-detection.
+		// We're perfectly happy to accept re-detections from the connector, as it can be
+		// very efficient to batch operations between listeners that cause re-detections.
+		// However, we need to protect the application from receiving the re-detections.
+		// This loop is the right place for this check, as we are responsible for writing the checkpoints and
+		// delivering to the application. So we are the one source of truth.
+		log.L(es.bgCtx).Debugf("%s '%s' event re-detected behind checkpoint: %s", l.spec.ID, l.spec.SignatureString(), eToLog)
+		return nil, nil
+	}
+	if e.Event != nil {
+		ewc = &apitypes.EventWithContext{
+			StandardContext: apitypes.EventContext{
+				StreamID:       es.spec.ID,
+				EthCompatSubID: l.spec.ID,
+				ListenerName:   *l.spec.Name,
+				ListenerType:   apitypes.ListenerTypeEvents,
+			},
+			Event: e.Event,
+		}
+		log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.SignatureString(), e.Event)
+	} else {
+		ewc = &apitypes.EventWithContext{
+			StandardContext: apitypes.EventContext{
+				StreamID:       es.spec.ID,
+				EthCompatSubID: l.spec.ID,
+				ListenerName:   *l.spec.Name,
+				ListenerType:   apitypes.ListenerTypeBlocks,
+			},
+			BlockEvent: e.BlockEvent,
+		}
+		log.L(es.bgCtx).Debugf("%s '%s' block event confirmed: %s", l.spec.ID, l.spec.SignatureString(), e.Event)
+	}
+	return l, ewc
+}
+
 // batchLoop receives confirmed events from the confirmation manager,
 // batches them together, and drives the actions.
 func (es *eventStream) batchLoop(startedState *startedStreamState) {
@@ -706,47 +795,20 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 		timedOut := false
 		select {
 		case fev := <-es.batchChannel:
-			if fev.Event != nil {
-				es.mux.Lock()
-				l := es.listeners[*fev.Event.ID.ListenerID]
-				es.mux.Unlock()
-				if l != nil {
-					currentCheckpoint := l.checkpoint
-					if currentCheckpoint != nil && !currentCheckpoint.LessThan(fev.Checkpoint) {
-						// This event is behind the current checkpoint - this is a re-detection.
-						// We're perfectly happy to accept re-detections from the connector, as it can be
-						// very efficient to batch operations between listeners that cause re-detections.
-						// However, we need to protect the application from receiving the re-detections.
-						// This loop is the right place for this check, as we are responsible for writing the checkpoints and
-						// delivering to the application. So we are the one source of truth.
-						log.L(es.bgCtx).Debugf("%s '%s' event re-detected behind checkpoint: %s", l.spec.ID, l.spec.SignatureString(), fev.Event)
-						continue
+			l, ewc := es.checkConfirmedEventForBatch(fev)
+			if l != nil && ewc != nil {
+				if batch == nil {
+					batchNumber++
+					batch = &eventStreamBatch{
+						number:      batchNumber,
+						timeout:     time.NewTimer(time.Duration(*es.spec.BatchTimeout)),
+						checkpoints: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
 					}
-
-					if batch == nil {
-						batchNumber++
-						batch = &eventStreamBatch{
-							number:      batchNumber,
-							timeout:     time.NewTimer(time.Duration(*es.spec.BatchTimeout)),
-							checkpoints: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
-						}
-					}
-					if fev.Checkpoint != nil {
-						batch.checkpoints[*fev.Event.ID.ListenerID] = fev.Checkpoint
-					}
-
-					log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.SignatureString(), fev.Event)
-					batch.events = append(batch.events, &apitypes.EventWithContext{
-						StandardContext: apitypes.EventContext{
-							StreamID:       es.spec.ID,
-							EthCompatSubID: l.spec.ID,
-							ListenerName:   *l.spec.Name,
-						},
-						Event: *fev.Event,
-					})
-				} else {
-					log.L(es.bgCtx).Warnf("Confirmed event not associated with any active listener: %s", fev.Event)
 				}
+				if fev.Checkpoint != nil {
+					batch.checkpoints[*fev.Event.ID.ListenerID] = fev.Checkpoint
+				}
+				batch.events = append(batch.events, ewc)
 			}
 		case <-timeoutChannel:
 			timedOut = true
@@ -826,7 +888,7 @@ func (es *eventStream) checkUpdateHWMCheckpoint(ctx context.Context, l *listener
 	checkpoint := l.checkpoint
 
 	inFlight := false
-	if es.confirmations != nil {
+	if es.confirmationsRequired > 0 {
 		inFlight = es.confirmations.CheckInFlight(l.spec.ID)
 	}
 
@@ -893,4 +955,8 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	return es.retry.Do(startedState.ctx, "checkpoint", func(attempt int) (retry bool, err error) {
 		return true, es.persistence.WriteCheckpoint(startedState.ctx, cp)
 	})
+}
+
+func ptrTo[T any](v T) *T {
+	return &v
 }

@@ -99,6 +99,7 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 	es = ees.(*eventStream)
 	mcm := &confirmationsmocks.Manager{}
 	es.confirmations = mcm
+	es.confirmationsRequired = 1
 	mcm.On("Start").Return(nil).Maybe()
 	mcm.On("Stop").Return(nil).Maybe()
 	mcm.On("Notify", mock.Anything).Run(func(args mock.Arguments) {
@@ -409,7 +410,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	batch1 := (<-senderChannel).(*apitypes.EventBatch)
 	assert.Len(t, batch1.Events, 1)
 	assert.Greater(t, batch1.BatchNumber, int64(0))
-	assert.Equal(t, "v1", batch1.Events[0].Data.JSONObject().GetString("k1"))
+	assert.Equal(t, "v1", batch1.Events[0].Event.Data.JSONObject().GetString("k1"))
 
 	receiverChannel <- &ws.WebSocketCommandMessageOrError{
 		Msg: &ws.WebSocketCommandMessage{
@@ -584,7 +585,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 
 	batch1 := <-receivedWebhook
 	assert.Len(t, batch1, 1)
-	assert.Equal(t, "v1", batch1[0].Data.JSONObject().GetString("k1"))
+	assert.Equal(t, "v1", batch1[0].Event.Data.JSONObject().GetString("k1"))
 
 	err = es.Stop(es.bgCtx)
 	assert.NoError(t, err)
@@ -1296,7 +1297,7 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 	}
 	batch1 := (<-broadcastChannel).(*apitypes.EventBatch)
 	assert.Len(t, batch1.Events, 1)
-	assert.Equal(t, "v1", batch1.Events[0].Data.JSONObject().GetString("k1"))
+	assert.Equal(t, "v1", batch1.Events[0].Event.Data.JSONObject().GetString("k1"))
 
 	<-r.StreamContext.Done()
 	<-done
@@ -1521,6 +1522,7 @@ func TestEventLoopProcessRemovedEvent(t *testing.T) {
 		ss.cancelCtx()
 	})
 	es.confirmations = mcm
+	es.confirmationsRequired = 1
 	es.listeners[*u1.Event.ID.ListenerID] = &listener{
 		spec: &apitypes.Listener{ID: u1.Event.ID.ListenerID},
 	}
@@ -1557,6 +1559,7 @@ func TestEventLoopProcessRemovedEventFail(t *testing.T) {
 		ss.cancelCtx()
 	})
 	es.confirmations = mcm
+	es.confirmationsRequired = 1
 	es.listeners[*u1.Event.ID.ListenerID] = &listener{
 		spec: &apitypes.Listener{ID: u1.Event.ID.ListenerID},
 	}
@@ -1589,6 +1592,7 @@ func TestEventLoopConfirmationsManagerBypass(t *testing.T) {
 		},
 	}
 	es.confirmations = nil
+	es.confirmationsRequired = 0
 	es.listeners[*u1.Event.ID.ListenerID] = &listener{
 		spec: &apitypes.Listener{ID: u1.Event.ID.ListenerID},
 	}
@@ -1628,6 +1632,7 @@ func TestEventLoopConfirmationsManagerFail(t *testing.T) {
 		ss.cancelCtx()
 	})
 	es.confirmations = mcm
+	es.confirmationsRequired = 1
 	es.listeners[*u1.Event.ID.ListenerID] = &listener{
 		spec: &apitypes.Listener{ID: u1.Event.ID.ListenerID},
 	}
@@ -1659,7 +1664,7 @@ func TestSkipEventsBehindCheckpointAndUnknownListener(t *testing.T) {
 		batchLoopDone: make(chan struct{}),
 		action: func(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error {
 			assert.Len(t, events, 1)
-			assert.Equal(t, events[0].ID.BlockNumber.Uint64(), uint64(2001))
+			assert.Equal(t, events[0].Event.ID.BlockNumber.Uint64(), uint64(2001))
 			return nil
 		},
 	}
@@ -1725,6 +1730,7 @@ func TestHWMCheckpointAfterInactivity(t *testing.T) {
 	mcm := &confirmationsmocks.Manager{}
 	mcm.On("CheckInFlight", li.spec.ID).Return(false)
 	es.confirmations = mcm
+	es.confirmationsRequired = 1
 	es.listeners[*li.spec.ID] = li
 
 	mfc := es.connector.(*ffcapimocks.API)
@@ -1771,6 +1777,7 @@ func TestHWMCheckpointInFlightSkip(t *testing.T) {
 		ss.cancelCtx()
 	}).Return(true)
 	es.confirmations = mcm
+	es.confirmationsRequired = 1
 	es.listeners[*li.spec.ID] = li
 
 	msp := es.persistence.(*persistencemocks.Persistence)
@@ -1805,6 +1812,7 @@ func TestHWMCheckpointFail(t *testing.T) {
 	mcm := &confirmationsmocks.Manager{}
 	mcm.On("CheckInFlight", li.spec.ID).Return(false)
 	es.confirmations = mcm
+	es.confirmationsRequired = 1
 	es.listeners[*li.spec.ID] = li
 
 	mfc := es.connector.(*ffcapimocks.API)

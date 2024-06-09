@@ -120,8 +120,17 @@ type Event struct {
 	Data *fftypes.JSONAny // data
 }
 
+type BlockEvent struct {
+	ListenerID *fftypes.UUID `json:"listenerId"` // The listener for the event
+	BlockInfo
+}
+
 func (e *Event) String() string {
 	return e.ID.String()
+}
+
+func (e *BlockEvent) String() string {
+	return fmt.Sprintf("block[%d/%s]", e.BlockNumber.Uint64(), e.BlockHash)
 }
 
 // EventListenerCheckpoint is the interface that a checkpoint must implement, basically to make it sortable.
@@ -177,6 +186,7 @@ func evLess(eI *Event, eJ *Event) bool {
 type ListenerEvent struct {
 	Checkpoint EventListenerCheckpoint `json:"checkpoint"`        // the checkpoint information associated with the event, must be non-nil if the event is not removed
 	Event      *Event                  `json:"event"`             // the event - for removed events, can only have the EventID fields set (to generate the protocol ID)
+	BlockEvent *BlockEvent             `json:"blockEvent"`        // the event for block listeners
 	Removed    bool                    `json:"removed,omitempty"` // when true, this is an explicit cancellation of a previous event
 }
 
