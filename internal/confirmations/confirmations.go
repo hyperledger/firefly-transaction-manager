@@ -122,6 +122,7 @@ func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.A
 			Factor:       config.GetFloat64(tmconfig.ConfirmationsRetryFactor),
 		},
 		TxHashAlreadyDispatchedReceiptsFor: make(map[string]bool),
+		cachedReceipt:                      make(map[string]*ffcapi.TransactionReceiptResponse),
 	}
 	log.L(baseContext).Errorf("Notification queue length %d", config.GetInt(tmconfig.ConfirmationsNotificationQueueLength))
 	bcm.ctx, bcm.cancelFunc = context.WithCancel(baseContext)
