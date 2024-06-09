@@ -55,3 +55,13 @@ func TestSortEvents(t *testing.T) {
 		assert.LessOrEqual(t, strings.Compare(listenerUpdates[i-1].Event.ID.ProtocolID(), listenerUpdates[i].Event.ID.ProtocolID()), 0)
 	}
 }
+
+func TestBlockListenerCheckpoint(t *testing.T) {
+
+	b10 := &BlockListenerCheckpoint{Block: 10}
+	b20 := &BlockListenerCheckpoint{Block: 20}
+	b30 := &BlockListenerCheckpoint{Block: 30}
+	assert.True(t, b10.LessThan(b20))
+	assert.False(t, b30.LessThan(b20))
+	assert.False(t, b20.LessThan(b20))
+}

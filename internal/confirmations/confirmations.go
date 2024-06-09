@@ -45,6 +45,8 @@ type Manager interface {
 	Stop()
 	NewBlockHashes() chan<- *ffcapi.BlockHashEvent
 	CheckInFlight(listenerID *fftypes.UUID) bool
+	StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, checkpoint *uint64, eventStream chan<- *apitypes.BlockInfo) error
+	StopConfirmedBlockListener(ctx context.Context, id *fftypes.UUID) error
 }
 
 type NotificationType string
@@ -99,6 +101,8 @@ type blockConfirmationManager struct {
 	pendingMux            sync.Mutex
 	receiptChecker        *receiptChecker
 	retry                 *retry.Retry
+	cblLock               sync.Mutex
+	cbls                  map[fftypes.UUID]*confirmedBlockListener
 	done                  chan struct{}
 }
 
@@ -107,6 +111,7 @@ func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.A
 	bcm := &blockConfirmationManager{
 		baseContext:           baseContext,
 		connector:             connector,
+		cbls:                  make(map[fftypes.UUID]*confirmedBlockListener),
 		blockListenerStale:    true,
 		requiredConfirmations: config.GetInt(tmconfig.ConfirmationsRequired),
 		staleReceiptTimeout:   config.GetDuration(tmconfig.ConfirmationsStaleReceiptTimeout),
@@ -230,6 +235,9 @@ func (bcm *blockConfirmationManager) Stop() {
 		// Reset context ready for restart
 		bcm.ctx, bcm.cancelFunc = context.WithCancel(bcm.baseContext)
 	}
+	for _, cbl := range bcm.copyCBLsList() {
+		_ = bcm.StopConfirmedBlockListener(bcm.ctx, cbl.id)
+	}
 }
 
 func (bcm *blockConfirmationManager) NewBlockHashes() chan<- *ffcapi.BlockHashEvent {
@@ -324,6 +332,31 @@ func transformBlockInfo(res *ffcapi.BlockInfo) *apitypes.BlockInfo {
 	}
 }
 
+func ptrTo[T any](v T) *T {
+	return &v
+}
+
+func (bcm *blockConfirmationManager) copyCBLsList() []*confirmedBlockListener {
+	bcm.cblLock.Lock()
+	defer bcm.cblLock.Unlock()
+	cbls := make([]*confirmedBlockListener, 0, len(bcm.cbls))
+	for _, cbl := range bcm.cbls {
+		cbls = append(cbls, cbl)
+	}
+	return cbls
+}
+
+func (bcm *blockConfirmationManager) propagateBlockHashToCBLs(bhe *ffcapi.BlockHashEvent) {
+	bcm.cblLock.Lock()
+	defer bcm.cblLock.Unlock()
+	for _, cbl := range bcm.cbls {
+		select {
+		case cbl.newBlockHashes <- bhe:
+		case <-cbl.processorDone:
+		}
+	}
+}
+
 func (bcm *blockConfirmationManager) confirmationsListener() {
 	defer close(bcm.done)
 	notifications := make([]*Notification, 0)
@@ -336,6 +369,11 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 				bcm.blockListenerStale = true
 			}
 			blockHashes = append(blockHashes, bhe.BlockHashes...)
+
+			// Need to also pass this event to any confirmed block listeners
+			// (they promise to always be efficient in handling these, having a go-routine
+			// dedicated to spinning fast just processing those separate to dispatching them)
+			bcm.propagateBlockHashToCBLs(bhe)
 
 			if bhe.Created != nil {
 				for i := 0; i < len(bhe.BlockHashes); i++ {

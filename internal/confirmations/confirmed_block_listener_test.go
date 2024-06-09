@@ -41,7 +41,8 @@ func TestCBLCatchUpToHeadFromZeroNoConfirmations(t *testing.T) {
 	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
 
 	bcm.requiredConfirmations = 0
-	cbl := bcm.StartConfirmedBlockListener(id, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, nil, esDispatch)
+	assert.NoError(t, err)
 
 	for i := 0; i < len(blocks)-bcm.requiredConfirmations; i++ {
 		b := <-esDispatch
@@ -51,7 +52,6 @@ func TestCBLCatchUpToHeadFromZeroNoConfirmations(t *testing.T) {
 	time.Sleep(1 * time.Millisecond)
 	assert.Empty(t, cbl.blocksSinceCheckpoint)
 
-	cbl.Stop()
 	bcm.Stop()
 	mca.AssertExpectations(t)
 }
@@ -69,7 +69,8 @@ func TestCBLCatchUpToHeadFromZeroWithConfirmations(t *testing.T) {
 	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
 
 	bcm.requiredConfirmations = 5
-	cbl := bcm.StartConfirmedBlockListener(id, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, nil, esDispatch)
+	assert.NoError(t, err)
 
 	for i := 0; i < len(blocks)-bcm.requiredConfirmations; i++ {
 		b := <-esDispatch
@@ -84,7 +85,6 @@ func TestCBLCatchUpToHeadFromZeroWithConfirmations(t *testing.T) {
 	default: // good - we should have the confirmations sat there, but no dispatch
 	}
 
-	cbl.Stop()
 	bcm.Stop()
 	mca.AssertExpectations(t)
 }
@@ -162,9 +162,9 @@ func testCBLHandleReorgInConfirmationWindow(t *testing.T, blockLenBeforeReorg, o
 					// Simulate the modified blocks only coming in with delays
 					for i := overlap; i < len(blocksAfterReorg); i++ {
 						time.Sleep(100 * time.Microsecond)
-						cbl.newBlockHashes <- &ffcapi.BlockHashEvent{
+						bcm.propagateBlockHashToCBLs(&ffcapi.BlockHashEvent{
 							BlockHashes: []string{blocksAfterReorg[i].BlockHash},
-						}
+						})
 					}
 				}()
 			}
@@ -175,7 +175,8 @@ func testCBLHandleReorgInConfirmationWindow(t *testing.T, blockLenBeforeReorg, o
 	mbiHash.Run(func(args mock.Arguments) { mockBlockHashReturn(mbiHash, args, blocksAfterReorg) })
 
 	bcm.requiredConfirmations = reqConf
-	cbl = bcm.StartConfirmedBlockListener(id, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, nil, esDispatch)
+	assert.NoError(t, err)
 
 	for i := 0; i < len(blocksAfterReorg)-bcm.requiredConfirmations; i++ {
 		b := <-esDispatch
@@ -200,7 +201,6 @@ func testCBLHandleReorgInConfirmationWindow(t *testing.T, blockLenBeforeReorg, o
 	// Wait for the notifications to go through
 	<-notificationsDone
 
-	cbl.Stop()
 	bcm.Stop()
 	mca.AssertExpectations(t)
 }
@@ -228,9 +228,9 @@ func TestCBLHandleRandomConflictingBlockNotification(t *testing.T) {
 		mockBlockNumberReturn(mbiNum, args, blocks)
 		if !sentRandom && args[1].(*ffcapi.BlockInfoByNumberRequest).BlockNumber.Int64() == 4 {
 			sentRandom = true
-			cbl.newBlockHashes <- &ffcapi.BlockHashEvent{
+			bcm.propagateBlockHashToCBLs(&ffcapi.BlockHashEvent{
 				BlockHashes: []string{randBlock.BlockHash},
-			}
+			})
 			// Give notification handler likelihood to run before we continue the by-number getting
 			time.Sleep(1 * time.Millisecond)
 		}
@@ -240,7 +240,8 @@ func TestCBLHandleRandomConflictingBlockNotification(t *testing.T) {
 		return req.BlockHash == randBlock.BlockHash
 	})).Return(randBlock, ffcapi.ErrorReason(""), nil)
 
-	cbl = bcm.StartConfirmedBlockListener(id, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, nil, esDispatch)
+	assert.NoError(t, err)
 	cbl.requiredConfirmations = 5
 
 	for i := 0; i < len(blocks)-cbl.requiredConfirmations; i++ {
@@ -248,46 +249,78 @@ func TestCBLHandleRandomConflictingBlockNotification(t *testing.T) {
 		assert.Equal(t, b, transformBlockInfo(&blocks[i].BlockInfo))
 	}
 
-	cbl.Stop()
 	bcm.Stop()
 	mca.AssertExpectations(t)
 }
 
 func TestProcessBlockHashesSwallowsFailure(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager()
-	cbs := &confirmedBlockListener{
+	cbl := &confirmedBlockListener{
 		ctx: bcm.ctx,
 		bcm: bcm,
 	}
 	blocks := testBlockArray(1)
 	mbiHash := mca.On("BlockInfoByHash", mock.Anything, mock.Anything)
 	mbiHash.Return(nil, ffcapi.ErrorReasonDownstreamDown, fmt.Errorf("nope"))
-	cbs.processBlockHashes([]string{blocks[0].BlockHash})
+	cbl.processBlockHashes([]string{blocks[0].BlockHash})
 	bcm.Stop()
 	mca.AssertExpectations(t)
 }
 
 func TestDispatchAllConfirmedNonBlocking(t *testing.T) {
 	bcm, _ := newTestBlockConfirmationManager()
-	cbs := &confirmedBlockListener{
-		ctx:         bcm.ctx,
-		bcm:         bcm,
-		eventStream: make(chan<- *apitypes.BlockInfo), // blocks indefinitely
+	cbl := &confirmedBlockListener{
+		id:            fftypes.NewUUID(),
+		ctx:           bcm.ctx,
+		bcm:           bcm,
+		processorDone: make(chan struct{}),
+		eventStream:   make(chan<- *apitypes.BlockInfo), // blocks indefinitely
 	}
 
-	cbs.requiredConfirmations = 0
-	cbs.blocksSinceCheckpoint = []*apitypes.BlockInfo{
+	cbl.requiredConfirmations = 0
+	cbl.blocksSinceCheckpoint = []*apitypes.BlockInfo{
 		{BlockNumber: fftypes.FFuint64(12345), BlockHash: fftypes.NewRandB32().String()},
 	}
 	waitForDispatchReturn := make(chan struct{})
 	go func() {
 		defer close(waitForDispatchReturn)
-		cbs.dispatchAllConfirmed()
+		cbl.dispatchAllConfirmed()
 	}()
 
 	bcm.cancelFunc()
 	bcm.Stop()
 	<-waitForDispatchReturn
+
+	// Ensure if there were a pending dispatch it wouldn't block
+	close(cbl.processorDone)
+	bcm.cbls = map[fftypes.UUID]*confirmedBlockListener{*cbl.id: cbl}
+	bcm.propagateBlockHashToCBLs(&ffcapi.BlockHashEvent{})
+}
+
+func TestCBLDoubleStart(t *testing.T) {
+	id := fftypes.NewUUID()
+
+	bcm, mca := newTestBlockConfirmationManager()
+	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
+
+	err := bcm.StartConfirmedBlockListener(bcm.ctx, id, nil, make(chan<- *apitypes.BlockInfo))
+	assert.NoError(t, err)
+
+	err = bcm.StartConfirmedBlockListener(bcm.ctx, id, nil, make(chan<- *apitypes.BlockInfo))
+	assert.Regexp(t, "FF21087", err)
+
+	bcm.Stop()
+}
+
+func TestCBLStopNotStarted(t *testing.T) {
+	id := fftypes.NewUUID()
+
+	bcm, _ := newTestBlockConfirmationManager()
+
+	err := bcm.StopConfirmedBlockListener(bcm.ctx, id)
+	assert.Regexp(t, "FF21088", err)
+
+	bcm.Stop()
 }
 
 func testBlockArray(l int) []*ffcapi.BlockInfoByNumberResponse {

@@ -101,4 +101,6 @@ var (
 	MsgTransactionPersistenceError             = ffe("FF21084", "Failed to persist transaction data", 500)
 	MsgOpNotSupportedWithoutRichQuery          = ffe("FF21085", "Not supported: The connector must be configured with a rich query database to support this operation", 501)
 	MsgTransactionOpInvalid                    = ffe("FF21086", "Transaction operation is missing required fields", 400)
+	MsgBlockListenerAlreadyStarted             = ffe("FF21087", "Block listener %s is already started", http.StatusConflict)
+	MsgBlockListenerNotStarted                 = ffe("FF21088", "Block listener %s not started", http.StatusConflict)
 )
