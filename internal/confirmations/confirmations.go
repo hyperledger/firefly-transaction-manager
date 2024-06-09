@@ -101,6 +101,7 @@ type blockConfirmationManager struct {
 	retry                              *retry.Retry
 	done                               chan struct{}
 	TxHashAlreadyDispatchedReceiptsFor map[string]bool
+	cachedReceipt                      map[string]*ffcapi.TransactionReceiptResponse
 }
 
 func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API, desc string,
@@ -424,8 +425,12 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 			}
 		case NewTransaction:
 			newItem := n.transactionPendingItem()
-			bcm.addOrReplaceItem(newItem)
-			bcm.receiptChecker.schedule(newItem, false)
+			if rec, ok := bcm.cachedReceipt[newItem.transactionHash]; ok {
+				bcm.dispatchReceipt(newItem, rec, blocks)
+			} else {
+				bcm.addOrReplaceItem(newItem)
+				bcm.receiptChecker.schedule(newItem, false)
+			}
 		case RemovedEventLog:
 			bcm.removeItem(n.eventPendingItem(), true)
 		case RemovedTransaction:
@@ -537,8 +542,10 @@ func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 	l := log.L(bcm.ctx)
 	l.Debugf("Transactions mined in block %d / %s: %v", block.BlockNumber, block.BlockHash, block.TransactionHashes)
 	bcm.pendingMux.Lock()
+	dispatchCount := 0
 	for index, txHash := range block.TransactionHashes {
 		txKey := pendingKeyForTX(txHash)
+
 		if pending, ok := bcm.pending[txKey]; ok {
 			if pending.blockHash != block.BlockHash {
 				l.Infof("Detected transaction %s added to block %d / %s - receipt check scheduled", txHash, block.BlockNumber, block.BlockHash)
@@ -555,8 +562,19 @@ func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 					Success:          true,
 				},
 			})
+			dispatchCount++
+		} else {
+			bcm.cachedReceipt[txHash] =
+				&ffcapi.TransactionReceiptResponse{
+					BlockNumber:      fftypes.NewFFBigInt(int64(block.BlockNumber)),
+					TransactionIndex: fftypes.NewFFBigInt(int64(index)),
+					BlockHash:        block.BlockHash,
+					Success:          true,
+				}
+
 		}
 	}
+	l.Errorf("Block had %d txs, dispatched %d receipts", len(block.TransactionHashes), dispatchCount)
 	bcm.pendingMux.Unlock()
 
 	// Go through all the events, adding in the confirmations, and popping any out
