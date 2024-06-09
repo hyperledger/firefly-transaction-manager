@@ -53,7 +53,11 @@ func newReceiptChecker(bcm *blockConfirmationManager, workerCount int, rcme metr
 		workersDone:    make([]chan struct{}, workerCount),
 		metricsEmitter: rcme,
 		notify: func(pending *pendingItem, receipt *ffcapi.TransactionReceiptResponse) {
-			//nah, abandoned, too slow
+			_ = bcm.Notify(&Notification{
+				NotificationType: receiptArrived,
+				pending:          pending,
+				receipt:          receipt,
+			})
 		},
 	}
 	rc.entries = list.New()
