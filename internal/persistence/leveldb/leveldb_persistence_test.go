@@ -1006,7 +1006,7 @@ func TestSetReceipt(t *testing.T) {
 	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
 
 	receipt := &ffcapi.TransactionReceiptResponse{
-		Success: true,
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{Success: true},
 	}
 
 	err := p.SetTransactionReceipt(ctx, mtx.ID, receipt)

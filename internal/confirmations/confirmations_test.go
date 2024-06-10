@@ -517,11 +517,13 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 			},
 		}
 	}).Return(&ffcapi.TransactionReceiptResponse{
-		BlockHash:        block1002a.ParentHash,
-		BlockNumber:      fftypes.NewFFBigInt(1001),
-		TransactionIndex: fftypes.NewFFBigInt(0),
-		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
-		Success:          true,
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockHash:        block1002a.ParentHash,
+			BlockNumber:      fftypes.NewFFBigInt(1001),
+			TransactionIndex: fftypes.NewFFBigInt(0),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
+			Success:          true,
+		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
 	mca.On("BlockInfoByHash", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByHashRequest) bool {
@@ -556,11 +558,13 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	mca.On("TransactionReceipt", mock.Anything, mock.MatchedBy(func(r *ffcapi.TransactionReceiptRequest) bool {
 		return r.TransactionHash == txToConfirmForkA.TransactionHash
 	})).Return(&ffcapi.TransactionReceiptResponse{
-		BlockHash:        block1001b.BlockHash,
-		BlockNumber:      fftypes.NewFFBigInt(1001),
-		TransactionIndex: fftypes.NewFFBigInt(0),
-		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
-		Success:          true,
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockHash:        block1001b.BlockHash,
+			BlockNumber:      fftypes.NewFFBigInt(1001),
+			TransactionIndex: fftypes.NewFFBigInt(0),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
+			Success:          true,
+		},
 	}, ffcapi.ErrorReason(""), nil).Once()
 
 	// Then we get the final fork up to our confirmation
@@ -1137,11 +1141,13 @@ func TestCheckReceiptImmediateConfirm(t *testing.T) {
 	bcm.requiredConfirmations = 0
 
 	receipt := &ffcapi.TransactionReceiptResponse{
-		BlockHash:        fftypes.NewRandB32().String(),
-		BlockNumber:      fftypes.NewFFBigInt(1001),
-		TransactionIndex: fftypes.NewFFBigInt(0),
-		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
-		Success:          true,
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockHash:        fftypes.NewRandB32().String(),
+			BlockNumber:      fftypes.NewFFBigInt(1001),
+			TransactionIndex: fftypes.NewFFBigInt(0),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(1001).Int64(), fftypes.NewFFBigInt(0).Int64()),
+			Success:          true,
+		},
 	}
 
 	done := make(chan struct{})
@@ -1164,10 +1170,12 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager()
 
 	receipt := &ffcapi.TransactionReceiptResponse{
-		BlockNumber:      fftypes.NewFFBigInt(12345),
-		BlockHash:        "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
-		TransactionIndex: fftypes.NewFFBigInt(10),
-		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockNumber:      fftypes.NewFFBigInt(12345),
+			BlockHash:        "0x64fd8179b80dd255d52ce60d7f265c0506be810e2f3df52463fadeb44bb4d2df",
+			TransactionIndex: fftypes.NewFFBigInt(10),
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+		},
 	}
 	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
 		return r.BlockNumber.Uint64() == 12346

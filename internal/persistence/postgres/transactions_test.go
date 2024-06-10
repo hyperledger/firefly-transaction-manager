@@ -79,13 +79,15 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 
 	// A receipt
 	receipt := &ffcapi.TransactionReceiptResponse{
-		BlockNumber:      fftypes.NewFFBigInt(111111),
-		TransactionIndex: fftypes.NewFFBigInt(222222),
-		BlockHash:        "0x333333",
-		Success:          true,
-		ProtocolID:       "000/111/222",
-		ExtraInfo:        fftypes.JSONAnyPtr(`{"extra":"444444"}`),
-		ContractLocation: fftypes.JSONAnyPtr(`{"address":"0x555555"}`),
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockNumber:      fftypes.NewFFBigInt(111111),
+			TransactionIndex: fftypes.NewFFBigInt(222222),
+			BlockHash:        "0x333333",
+			Success:          true,
+			ProtocolID:       "000/111/222",
+			ExtraInfo:        fftypes.JSONAnyPtr(`{"extra":"444444"}`),
+			ContractLocation: fftypes.JSONAnyPtr(`{"address":"0x555555"}`),
+		},
 	}
 	err = p.SetTransactionReceipt(ctx, txID, receipt)
 	assert.NoError(t, err)
