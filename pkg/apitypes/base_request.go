@@ -45,7 +45,8 @@ type RequestHeaders struct {
 type RequestType string
 
 const (
-	RequestTypeSendTransaction RequestType = "SendTransaction"
-	RequestTypeQuery           RequestType = "Query"
-	RequestTypeDeploy          RequestType = "DeployContract"
+	RequestTypeSendTransaction    RequestType = "SendTransaction"
+	RequestTypeQuery              RequestType = "Query"
+	RequestTypeDeploy             RequestType = "DeployContract"
+	RequestTypeTransactionReceipt RequestType = "TransactionReceipt"
 )

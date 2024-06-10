@@ -17,6 +17,7 @@
 package fftm
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -404,4 +405,102 @@ func TestNotFound(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 404, res.StatusCode())
 	assert.Regexp(t, "FF00167", errRes.Error)
+}
+
+func TestTransactionReceiptOK(t *testing.T) {
+
+	url, m, cancel := newTestManager(t)
+	defer cancel()
+	m.Start()
+
+	mca := m.connector.(*ffcapimocks.API)
+	mca.On("TransactionReceipt", mock.Anything, mock.MatchedBy(func(req *ffcapi.TransactionReceiptRequest) bool {
+		return req.TransactionHash == `0x12345`
+	})).Return(&ffcapi.TransactionReceiptResponse{
+		BlockHash:        "0x111111",
+		BlockNumber:      fftypes.NewFFBigInt(10000),
+		TransactionIndex: fftypes.NewFFBigInt(10),
+		ProtocolID:       "111/222/333",
+		Success:          true,
+	}, ffcapi.ErrorReason(""), nil)
+
+	var queryRes map[string]interface{}
+	res, err := resty.New().R().
+		SetBody(&apitypes.TransactionReceiptRequest{
+			Headers: apitypes.RequestHeaders{
+				ID:   fftypes.NewUUID().String(),
+				Type: apitypes.RequestTypeTransactionReceipt,
+			},
+			TransactionReceiptRequest: ffcapi.TransactionReceiptRequest{
+				TransactionHash: "0x12345",
+			},
+		}).
+		SetResult(&queryRes).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 202, res.StatusCode())
+
+	d, _ := json.Marshal(queryRes)
+	assert.JSONEq(t, `{
+		"blockHash": "0x111111",
+		"blockNumber": "10000",
+		"protocolId": "111/222/333",
+		"success": true,
+		"transactionIndex": "10"
+	}`, string(d))
+
+	mca.AssertExpectations(t)
+
+}
+
+func TestTransactionReceiptFail(t *testing.T) {
+
+	url, m, cancel := newTestManager(t)
+	defer cancel()
+	m.Start()
+
+	mca := m.connector.(*ffcapimocks.API)
+	mca.On("TransactionReceipt", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	res, err := resty.New().R().
+		SetBody(&apitypes.TransactionReceiptRequest{
+			Headers: apitypes.RequestHeaders{
+				ID:   fftypes.NewUUID().String(),
+				Type: apitypes.RequestTypeTransactionReceipt,
+			},
+			TransactionReceiptRequest: ffcapi.TransactionReceiptRequest{
+				TransactionHash: "0x12345",
+			},
+		}).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 500, res.StatusCode())
+
+	mca.AssertExpectations(t)
+
+}
+
+func TestTransactionReceiptBadRequest(t *testing.T) {
+
+	url, m, cancel := newTestManager(t)
+	defer cancel()
+	m.Start()
+
+	var errRes fftypes.RESTError
+	res, err := resty.New().R().
+		SetBody(`{
+				"headers": {
+					"id": "`+fftypes.NewUUID().String()+`",
+					"type": "TransactionReceipt"
+				},
+				"eventFilters": "not an array"
+			}`,
+		).
+		SetHeader("content-type", "application/json").
+		SetError(&errRes).
+		Post(url)
+	assert.NoError(t, err)
+	assert.Equal(t, 400, res.StatusCode())
+	assert.Regexp(t, "FF21022", errRes.Error)
+
 }
