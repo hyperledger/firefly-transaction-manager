@@ -98,6 +98,8 @@ type blockConfirmationManager struct {
 	pending               map[string]*pendingItem
 	pendingMux            sync.Mutex
 	receiptChecker        *receiptChecker
+	addedTxs              map[string]bool
+	dispatchedTxs         map[string]bool
 	retry                 *retry.Retry
 	done                  chan struct{}
 }
@@ -119,6 +121,8 @@ func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.A
 			MaximumDelay: config.GetDuration(tmconfig.ConfirmationsRetryMaxDelay),
 			Factor:       config.GetFloat64(tmconfig.ConfirmationsRetryFactor),
 		},
+		addedTxs:      make(map[string]bool),
+		dispatchedTxs: make(map[string]bool),
 	}
 	bcm.ctx, bcm.cancelFunc = context.WithCancel(baseContext)
 	// add a log context for this specific confirmation manager (as there are many within the )
@@ -422,6 +426,11 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 			}
 		case NewTransaction:
 			newItem := n.transactionPendingItem()
+			if bcm.addedTxs[newItem.transactionHash] {
+				log.L(bcm.ctx).Errorf("[IN]Trying to track transaction hash %s again", newItem.transactionHash)
+			} else {
+				bcm.addedTxs[newItem.transactionHash] = true
+			}
 			bcm.addOrReplaceItem(newItem)
 			bcm.receiptChecker.schedule(newItem, false)
 		case RemovedEventLog:
@@ -441,6 +450,11 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 }
 
 func (bcm *blockConfirmationManager) dispatchReceipt(pending *pendingItem, receipt *ffcapi.TransactionReceiptResponse, blocks *blockState) {
+	if bcm.dispatchedTxs[pending.transactionHash] {
+		log.L(bcm.ctx).Errorf("[OUT]Trying to dispatch transaction hash %s again", pending.transactionHash)
+	} else {
+		bcm.dispatchedTxs[pending.transactionHash] = true
+	}
 	pending.blockNumber = receipt.BlockNumber.Uint64()
 	pending.blockHash = receipt.BlockHash
 	log.L(bcm.ctx).Infof("Receipt for transaction %s downloaded. BlockNumber=%d BlockHash=%s", pending.transactionHash, pending.blockNumber, pending.blockHash)
