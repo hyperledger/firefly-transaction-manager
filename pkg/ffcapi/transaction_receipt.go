@@ -24,6 +24,8 @@ type TransactionReceiptRequest struct {
 	TransactionHash string            `json:"transactionHash"`
 	IncludeLogs     bool              `json:"includeLogs"`
 	EventFilters    []fftypes.JSONAny `json:"eventFilters"`
+	Methods         []fftypes.JSONAny `json:"methods"`
+	ExtractSigner   bool              `json:"extractSigner"`
 }
 
 type TransactionReceiptResponse struct {
