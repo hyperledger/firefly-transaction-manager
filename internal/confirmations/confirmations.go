@@ -572,7 +572,6 @@ func (bcm *blockConfirmationManager) processBlock(block *apitypes.BlockInfo) {
 					BlockHash:        block.BlockHash,
 					Success:          true,
 				}
-
 		}
 	}
 	l.Errorf("Block had %d txs, dispatched %d receipts", len(block.TransactionHashes), dispatchCount)

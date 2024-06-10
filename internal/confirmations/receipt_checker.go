@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-common/pkg/log"
 	"github.com/hyperledger/firefly-transaction-manager/internal/metrics"
@@ -104,36 +105,44 @@ func (rc *receiptChecker) run(i int) {
 
 			// think this is the bottleneck, let's fake it.
 
-			res, reason, receiptErr := rc.bcm.connector.TransactionReceipt(ctx, &ffcapi.TransactionReceiptRequest{
-				TransactionHash: pending.transactionHash,
-			})
-			if receiptErr != nil || res == nil {
-				if receiptErr != nil && reason != ffcapi.ErrorReasonNotFound {
-					log.L(ctx).Debugf("Failed to query receipt for transaction %s: %s", pending.transactionHash, receiptErr)
-					// It's possible though that the node will return a non-recoverable error for this item.
-					// So we push it to the back of the queue (we already removed it in waitNext, but left
-					// queuedStale set on there to prevent it being re-queued externally).
-					rc.cond.L.Lock()
-					pending.queuedStale = rc.entries.PushBack(pending)
-					rc.cond.L.Unlock()
-					rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "retry", time.Since(startTime).Seconds())
-					return true /* drive the retry delay mechanism before next de-queue */, receiptErr
-				}
-				log.L(ctx).Debugf("Receipt for transaction %s not yet available: %v", pending.transactionHash, receiptErr)
-			}
-			// Regardless of whether we got a receipt, update the pending item
-			rc.cond.L.Lock()
-			pending.queuedStale = nil // only unmark the entry now (even though we popped it in waitNext)
-			pending.lastReceiptCheck = time.Now()
-			rc.cond.L.Unlock()
+			// res, reason, receiptErr := rc.bcm.connector.TransactionReceipt(ctx, &ffcapi.TransactionReceiptRequest{
+			// 	TransactionHash: pending.transactionHash,
+			// })
+			// if receiptErr != nil || res == nil {
+			// 	if receiptErr != nil && reason != ffcapi.ErrorReasonNotFound {
+			// 		log.L(ctx).Debugf("Failed to query receipt for transaction %s: %s", pending.transactionHash, receiptErr)
+			// 		// It's possible though that the node will return a non-recoverable error for this item.
+			// 		// So we push it to the back of the queue (we already removed it in waitNext, but left
+			// 		// queuedStale set on there to prevent it being re-queued externally).
+			// 		rc.cond.L.Lock()
+			// 		pending.queuedStale = rc.entries.PushBack(pending)
+			// 		rc.cond.L.Unlock()
+			// 		rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "retry", time.Since(startTime).Seconds())
+			// 		return true /* drive the retry delay mechanism before next de-queue */, receiptErr
+			// 	}
+			// 	log.L(ctx).Debugf("Receipt for transaction %s not yet available: %v", pending.transactionHash, receiptErr)
+			// }
+			// // Regardless of whether we got a receipt, update the pending item
+			// rc.cond.L.Lock()
+			// pending.queuedStale = nil // only unmark the entry now (even though we popped it in waitNext)
+			// pending.lastReceiptCheck = time.Now()
+			// rc.cond.L.Unlock()
 
-			// Dispatch the receipt back to the main routine.
-			if res != nil {
-				rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "notified", time.Since(startTime).Seconds())
-				rc.notify(pending, res)
-			} else {
-				rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "empty", time.Since(startTime).Seconds())
-			}
+			// // Dispatch the receipt back to the main routine.
+			// if res != nil {
+			// 	rc.notify(pending, res)
+			// } else {
+			// 	rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "empty", time.Since(startTime).Seconds())
+			// }
+			// super fake
+			rc.notify(pending, &ffcapi.TransactionReceiptResponse{
+				BlockNumber:      fftypes.NewFFBigInt(100),
+				TransactionIndex: fftypes.NewFFBigInt(1),
+				BlockHash:        pending.blockHash,
+				Success:          true,
+			})
+			rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "notified", time.Since(startTime).Seconds())
+
 			return false, nil
 		})
 		// Error means the context has closed
