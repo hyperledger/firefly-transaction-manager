@@ -171,6 +171,7 @@ func (cbl *confirmedBlockListener) processBlockNotification(block *apitypes.Bloc
 	if cbl.waitingForFromBlock {
 		// by definition we won't find anything in cbl.blocksSinceCheckpoint below
 		cbl.fromBlock = block.BlockNumber.Uint64()
+		cbl.waitingForFromBlock = false
 	} else if block.BlockNumber.Uint64() < cbl.fromBlock {
 		log.L(cbl.ctx).Debugf("Notification of block %d/%s < fromBlock %d", block.BlockNumber, block.BlockHash, cbl.fromBlock)
 		return

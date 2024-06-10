@@ -417,6 +417,9 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 			}
 		}
 	} else if isNew && startedState != nil {
+		if l.spec.Type != nil && *l.spec.Type == apitypes.ListenerTypeBlocks {
+			return spec, l.es.confirmations.StartConfirmedBlockListener(ctx, l.spec.ID, *l.spec.FromBlock, nil /* new so no checkpoint */, es.batchChannel)
+		}
 		// Start the new listener - no checkpoint needed here
 		return spec, l.start(startedState, nil)
 	}
@@ -726,6 +729,7 @@ func (es *eventStream) checkConfirmedEventForBatch(e *ffcapi.ListenerEvent) (l *
 		listenerID = e.BlockEvent.ListenerID
 		eToLog = e.BlockEvent
 	default:
+		log.L(es.bgCtx).Errorf("Invalid event cannot be dispatched: %+v", e)
 		return nil, nil
 	}
 	es.mux.Lock()

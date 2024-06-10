@@ -463,17 +463,24 @@ func TestWebSocketEventStreamsE2EBlocks(t *testing.T) {
 	}), mock.Anything).Run(func(args mock.Arguments) {
 		started <- args[4].(chan<- *ffcapi.ListenerEvent)
 	}).Return(nil)
+	mcm.On("StopConfirmedBlockListener", mock.Anything, l.ID).Return(nil)
 
 	msp := es.persistence.(*persistencemocks.Persistence)
+	// load existing checkpoint on start
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(&apitypes.EventStreamCheckpoint{
 		StreamID: es.spec.ID,
 		Time:     fftypes.Now(),
 		Listeners: map[fftypes.UUID]json.RawMessage{
 			*l.ID: []byte(`{"block":10000}`),
 		},
-	}, nil) // existing checkpoint
+	}, nil)
+	// write a valid checkpoint
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && string(cp.Listeners[*l.ID]) == `{"block":10001}`
+	})).Return(nil)
+	// write a checkpoint when we delete
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
+		return cp.StreamID.Equals(es.spec.ID) && cp.Listeners[*l.ID] == nil
 	})).Return(nil)
 
 	senderChannel, _, receiverChannel := mockWSChannels(es.wsChannels.(*wsmocks.WebSocketChannels))
@@ -514,6 +521,9 @@ func TestWebSocketEventStreamsE2EBlocks(t *testing.T) {
 			BatchNumber: batch1.BatchNumber,
 		},
 	}
+
+	err = es.RemoveListener(es.bgCtx, l.ID)
+	assert.NoError(t, err)
 
 	err = es.Stop(es.bgCtx)
 	assert.NoError(t, err)
@@ -1152,6 +1162,103 @@ func TestStartWithExistingBlockListener(t *testing.T) {
 	_, err := newTestEventStreamWithListener(t, mfc, `{
 		"name": "ut_stream"
 	}`, l)
+	assert.NoError(t, err)
+
+	mfc.AssertExpectations(t)
+}
+
+func TestStartAndAddBadListenerType(t *testing.T) {
+
+	l := &apitypes.Listener{
+		ID:   fftypes.NewUUID(),
+		Name: strPtr("ut_listener"),
+		Type: (*fftypes.FFEnum)(strPtr("wrong")),
+	}
+
+	mfc := &ffcapimocks.API{}
+
+	es, err := newTestEventStreamWithListener(t, mfc, `{
+		"name": "ut_stream"
+	}`)
+	assert.NoError(t, err)
+
+	_, err = es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
+	assert.Regexp(t, "FF21089.*wrong", err)
+
+	mfc.AssertExpectations(t)
+}
+
+func TestStartWithBlockListenerFailBeforeStart(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name":  "ut_stream",
+		"websocket": {
+			"topic": "ut_stream"
+		}
+	}`)
+
+	l := &apitypes.Listener{
+		ID:        apitypes.NewULID(),
+		Name:      strPtr("ut_listener"),
+		Type:      &apitypes.ListenerTypeBlocks,
+		FromBlock: strPtr(ffcapi.FromBlockLatest),
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStopped", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
+
+	mcm := es.confirmations.(*confirmationsmocks.Manager)
+	mcm.On("StartConfirmedBlockListener", mock.Anything, l.ID, "latest", mock.Anything, mock.Anything).Return(fmt.Errorf("pop"))
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil)
+
+	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.Regexp(t, "pop", err)
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	mfc.AssertExpectations(t)
+}
+
+func TestAddBlockListenerFailAfterStart(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name":  "ut_stream",
+		"websocket": {
+			"topic": "ut_stream"
+		}
+	}`)
+
+	l := &apitypes.Listener{
+		ID:        apitypes.NewULID(),
+		Name:      strPtr("ut_listener"),
+		Type:      &apitypes.ListenerTypeBlocks,
+		FromBlock: strPtr(ffcapi.FromBlockLatest),
+	}
+
+	mfc := es.connector.(*ffcapimocks.API)
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
+	mfc.On("EventStreamStopped", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
+
+	mcm := es.confirmations.(*confirmationsmocks.Manager)
+	mcm.On("StartConfirmedBlockListener", mock.Anything, l.ID, "latest", mock.Anything, mock.Anything).Return(fmt.Errorf("pop"))
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil)
+
+	err := es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	_, err = es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
+	assert.Regexp(t, "pop", err)
+
+	err = es.Stop(es.bgCtx)
 	assert.NoError(t, err)
 
 	mfc.AssertExpectations(t)
@@ -1946,4 +2053,31 @@ func TestHWMCheckpointFail(t *testing.T) {
 	mfc.AssertExpectations(t)
 	msp.AssertExpectations(t)
 	mcm.AssertExpectations(t)
+}
+
+func TestCheckConfirmedEventForBatchIgnoreInvalid(t *testing.T) {
+
+	es := newTestEventStream(t, `{"name": "ut_stream"}`)
+
+	l, ewc := es.checkConfirmedEventForBatch(&ffcapi.ListenerEvent{})
+	assert.Nil(t, l)
+	assert.Nil(t, ewc)
+}
+
+func TestBuildBlockAddREquestBadCheckpoint(t *testing.T) {
+
+	spec := &apitypes.Listener{
+		ID:        apitypes.NewULID(),
+		Name:      strPtr("ut_listener"),
+		Type:      &apitypes.ListenerTypeBlocks,
+		FromBlock: strPtr(ffcapi.FromBlockLatest),
+	}
+	l := &listener{spec: spec}
+
+	blar := l.buildBlockAddRequest(context.Background(), &apitypes.EventStreamCheckpoint{
+		Listeners: apitypes.CheckpointListeners{
+			*spec.ID: json.RawMessage([]byte("!!wrong")),
+		},
+	})
+	assert.Nil(t, blar.Checkpoint)
 }

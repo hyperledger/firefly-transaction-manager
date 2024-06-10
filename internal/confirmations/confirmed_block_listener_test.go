@@ -89,6 +89,52 @@ func TestCBLCatchUpToHeadFromZeroWithConfirmations(t *testing.T) {
 	mca.AssertExpectations(t)
 }
 
+func TestCBLListenFromCurrentBlock(t *testing.T) {
+	bcm, mca := newTestBlockConfirmationManager()
+
+	esDispatch := make(chan *ffcapi.ListenerEvent)
+
+	id := fftypes.NewUUID()
+
+	blocks := testBlockArray(15)
+
+	mbiNum := mca.On("BlockInfoByNumber", mock.Anything, mock.Anything)
+	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
+
+	mbiHash := mca.On("BlockInfoByHash", mock.Anything, mock.Anything)
+	mbiHash.Run(func(args mock.Arguments) { mockBlockHashReturn(mbiHash, args, blocks) })
+
+	bcm.requiredConfirmations = 5
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "", nil, esDispatch)
+	assert.NoError(t, err)
+
+	// Notify starting at block 5
+	bcm.propagateBlockHashToCBLs(&ffcapi.BlockHashEvent{
+		BlockHashes: []string{blocks[5].BlockHash},
+	})
+
+	// Randomly notify below that too, which will be ignored
+	bcm.propagateBlockHashToCBLs(&ffcapi.BlockHashEvent{
+		BlockHashes: []string{blocks[1].BlockHash},
+	})
+
+	for i := 5; i < len(blocks)-bcm.requiredConfirmations; i++ {
+		b := <-esDispatch
+		assert.Equal(t, b.BlockEvent.BlockInfo, blocks[i].BlockInfo)
+	}
+
+	time.Sleep(1 * time.Millisecond)
+	assert.Len(t, cbl.blocksSinceCheckpoint, bcm.requiredConfirmations)
+	select {
+	case <-esDispatch:
+		assert.Fail(t, "should not have received block in confirmation window")
+	default: // good - we should have the confirmations sat there, but no dispatch
+	}
+
+	bcm.Stop()
+	mca.AssertExpectations(t)
+}
+
 func TestCBLHandleReorgInConfirmationWindow1(t *testing.T) {
 	// test where the reorg happens at the edge of the confirmation window
 	testCBLHandleReorgInConfirmationWindow(t,
@@ -248,6 +294,20 @@ func TestCBLHandleRandomConflictingBlockNotification(t *testing.T) {
 		b := <-esDispatch
 		assert.Equal(t, b.BlockEvent.BlockInfo, blocks[i].BlockInfo)
 	}
+
+	bcm.Stop()
+	mca.AssertExpectations(t)
+}
+
+func TestCBLStartBadFromBlock(t *testing.T) {
+	bcm, mca := newTestBlockConfirmationManager()
+
+	esDispatch := make(chan *ffcapi.ListenerEvent)
+
+	id := fftypes.NewUUID()
+
+	_, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "wrong", nil, esDispatch)
+	assert.Regexp(t, "FF21090", err)
 
 	bcm.Stop()
 	mca.AssertExpectations(t)

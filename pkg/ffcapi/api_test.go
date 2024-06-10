@@ -56,6 +56,14 @@ func TestSortEvents(t *testing.T) {
 	}
 }
 
+func TestSortBlockEventsString(t *testing.T) {
+
+	assert.Equal(t, "block[12345/0x9614ad189f45ecff5f4949b22891c6bca7d83b40b50d8104bed101bc94395257]", (&BlockEvent{BlockInfo: BlockInfo{
+		BlockNumber: fftypes.NewFFBigInt(12345),
+		BlockHash:   "0x9614ad189f45ecff5f4949b22891c6bca7d83b40b50d8104bed101bc94395257",
+	}}).String())
+}
+
 func TestBlockListenerCheckpoint(t *testing.T) {
 
 	b10 := &BlockListenerCheckpoint{Block: 10}
