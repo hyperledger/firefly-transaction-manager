@@ -28,7 +28,7 @@ type TransactionReceiptRequest struct {
 	ExtractSigner   bool              `json:"extractSigner"`
 }
 
-type TransactionReceiptResponse struct {
+type TransactionReceiptResponseBase struct {
 	BlockNumber      *fftypes.FFBigInt `json:"blockNumber"`
 	TransactionIndex *fftypes.FFBigInt `json:"transactionIndex"`
 	BlockHash        string            `json:"blockHash"`
@@ -36,6 +36,10 @@ type TransactionReceiptResponse struct {
 	ProtocolID       string            `json:"protocolId"`
 	ExtraInfo        *fftypes.JSONAny  `json:"extraInfo,omitempty"`
 	ContractLocation *fftypes.JSONAny  `json:"contractLocation,omitempty"`
-	Events           []*Event          `json:"events,omitempty"` // only for events that matched the filter, and were decoded
-	Logs             []fftypes.JSONAny `json:"logs,omitempty"`   // all raw un-decoded logs should be included if includeLogs=true
+	Logs             []fftypes.JSONAny `json:"logs,omitempty"` // all raw un-decoded logs should be included if includeLogs=true
+}
+
+type TransactionReceiptResponse struct {
+	TransactionReceiptResponseBase
+	Events []*Event `json:"events,omitempty"` // only for events that matched the filter, and were decoded
 }

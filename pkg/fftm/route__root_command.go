@@ -116,7 +116,17 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 				if err != nil {
 					return nil, err
 				}
-				return res, nil
+				apiRes := &apitypes.TransactionReceiptResponse{
+					TransactionReceiptResponseBase: res.TransactionReceiptResponseBase,
+				}
+				// Ugly necessity to work around the complex serialization interface in EventWithContext without
+				// moving or duplicating the code
+				for _, e := range res.Events {
+					apiRes.Events = append(apiRes.Events, &apitypes.EventWithContext{
+						Event: e,
+					})
+				}
+				return apiRes, nil
 			default:
 				return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgUnsupportedRequestType, baseReq.Headers.Type)
 			}

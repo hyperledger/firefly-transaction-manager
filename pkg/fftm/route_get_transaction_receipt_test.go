@@ -37,7 +37,9 @@ func TestGetTransactionReceiptOK(t *testing.T) {
 	mpm := m.persistence.(*persistencemocks.Persistence)
 	mpm.On("GetTransactionReceipt", mock.Anything, "tx1").Return(
 		&ffcapi.TransactionReceiptResponse{
-			BlockHash: "0x123456",
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+				BlockHash: "0x123456",
+			},
 		}, nil,
 	)
 

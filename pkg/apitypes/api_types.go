@@ -356,10 +356,10 @@ func CheckUpdateStringMap(changed bool, merged *map[string]string, old map[strin
 }
 
 type EventContext struct {
-	StreamID       *fftypes.UUID `json:"streamId"`     // the ID of the event stream for this event
-	EthCompatSubID *fftypes.UUID `json:"subId"`        // ID of the listener - EthCompat "subscription" naming
-	ListenerName   string        `json:"listenerName"` // name of the listener
-	ListenerType   ListenerType  `json:"listenerType"`
+	StreamID       *fftypes.UUID `json:"streamId,omitempty"`     // the ID of the event stream for this event
+	EthCompatSubID *fftypes.UUID `json:"subId,omitempty"`        // ID of the listener - EthCompat "subscription" naming
+	ListenerName   string        `json:"listenerName,omitempty"` // name of the listener
+	ListenerType   ListenerType  `json:"listenerType,omitempty"`
 }
 
 type EventBatch struct {

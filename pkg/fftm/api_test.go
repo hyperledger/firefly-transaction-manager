@@ -417,11 +417,18 @@ func TestTransactionReceiptOK(t *testing.T) {
 	mca.On("TransactionReceipt", mock.Anything, mock.MatchedBy(func(req *ffcapi.TransactionReceiptRequest) bool {
 		return req.TransactionHash == `0x12345`
 	})).Return(&ffcapi.TransactionReceiptResponse{
-		BlockHash:        "0x111111",
-		BlockNumber:      fftypes.NewFFBigInt(10000),
-		TransactionIndex: fftypes.NewFFBigInt(10),
-		ProtocolID:       "111/222/333",
-		Success:          true,
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockHash:        "0x111111",
+			BlockNumber:      fftypes.NewFFBigInt(10000),
+			TransactionIndex: fftypes.NewFFBigInt(10),
+			ProtocolID:       "111/222/333",
+			Success:          true,
+		},
+		Events: []*ffcapi.Event{
+			{
+				ID: ffcapi.EventID{Signature: "MyEvent()"},
+			},
+		},
 	}, ffcapi.ErrorReason(""), nil)
 
 	var queryRes map[string]interface{}
@@ -446,7 +453,18 @@ func TestTransactionReceiptOK(t *testing.T) {
 		"blockNumber": "10000",
 		"protocolId": "111/222/333",
 		"success": true,
-		"transactionIndex": "10"
+		"transactionIndex": "10",
+		"events": [
+			{
+				"blockHash": "",
+				"blockNumber": "0",
+				"data": null,
+				"logIndex": "0",
+				"signature": "MyEvent()",
+				"transactionHash": "",
+				"transactionIndex": "0"
+			}
+		]
 	}`, string(d))
 
 	mca.AssertExpectations(t)

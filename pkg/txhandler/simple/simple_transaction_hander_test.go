@@ -99,12 +99,12 @@ func newTestTransactionHandlerFactoryWithFilePersistence(t *testing.T) (*Transac
 	mockFFCAPI := &ffcapimocks.API{}
 
 	return f, &txhandler.Toolkit{
-			Connector:      mockFFCAPI,
-			TXHistory:      filePersistence,
-			TXPersistence:  filePersistence,
-			MetricsManager: metrics.NewMetricsManager(context.Background()),
-			EventHandler:   mockEventHandler,
-		}, mockFFCAPI, conf
+		Connector:      mockFFCAPI,
+		TXHistory:      filePersistence,
+		TXPersistence:  filePersistence,
+		MetricsManager: metrics.NewMetricsManager(context.Background()),
+		EventHandler:   mockEventHandler,
+	}, mockFFCAPI, conf
 }
 
 func newTestTransactionHandler(t *testing.T) txhandler.TransactionHandler {
@@ -752,7 +752,9 @@ func TestNoOpWithReceipt(t *testing.T) {
 		FirstSubmit:     submitTime,
 	}
 	receipt := &ffcapi.TransactionReceiptResponse{
-		BlockHash: "0x39e2664effa5ad0651c35f1fe3b4c4b90492b1955fee731c2e9fb4d6518de114",
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockHash: "0x39e2664effa5ad0651c35f1fe3b4c4b90492b1955fee731c2e9fb4d6518de114",
+		},
 	}
 
 	sth := th.(*simpleTransactionHandler)

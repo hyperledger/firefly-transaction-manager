@@ -27,4 +27,7 @@ type TransactionReceiptRequest struct {
 }
 
 // TransactionReceiptResponse is the response payload for a query
-type TransactionReceiptResponse ffcapi.TransactionPrepareResponse
+type TransactionReceiptResponse struct {
+	ffcapi.TransactionReceiptResponseBase
+	Events []*EventWithContext `json:"events,omitempty"` // this is the serialization format for events (historical complexity)
+}
