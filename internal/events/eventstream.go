@@ -306,6 +306,10 @@ func (es *eventStream) mergeListenerOptions(id *fftypes.UUID, updates *apitypes.
 
 	merged := *base
 
+	if updates.Type != nil && base.Type == nil {
+		merged.Type = updates.Type // cannot change, but must be settable on create
+	}
+
 	if updates.Name != nil {
 		merged.Name = updates.Name
 	}
@@ -547,8 +551,8 @@ func (es *eventStream) Start(ctx context.Context) error {
 
 	// Add all the block listeners
 	for _, bl := range initialBlockListeners {
-		// blocks go straight to the batch assembler, as they're already handled by the confirmation manager
-		if err := es.confirmations.StartConfirmedBlockListener(startedState.ctx, bl.ListenerID, bl.Checkpoint, es.batchChannel); err != nil {
+		// blocks go straight to the batch assembler, as they're already pre-handled by the confirmation manager
+		if err := es.confirmations.StartConfirmedBlockListener(startedState.ctx, bl.ListenerID, bl.FromBlock, bl.Checkpoint, es.batchChannel); err != nil {
 			// There are no known reasons for this to fail, as we're starting a fresh set of listeners
 			log.L(startedState.ctx).Errorf("Failed to start block listener: %s", err)
 			return err
@@ -801,7 +805,7 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 					}
 				}
 				if fev.Checkpoint != nil {
-					batch.checkpoints[*fev.Event.ID.ListenerID] = fev.Checkpoint
+					batch.checkpoints[*l.spec.ID] = fev.Checkpoint
 				}
 				batch.events = append(batch.events, ewc)
 			}

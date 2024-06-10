@@ -37,6 +37,7 @@ type blockListenerAddRequest struct {
 	ListenerID *fftypes.UUID
 	StreamID   *fftypes.UUID
 	Name       string
+	FromBlock  string
 	Checkpoint *ffcapi.BlockListenerCheckpoint
 }
 
@@ -88,6 +89,7 @@ func (l *listener) buildBlockAddRequest(ctx context.Context, cp *apitypes.EventS
 		Name:       *l.spec.Name,
 		ListenerID: l.spec.ID,
 		StreamID:   l.spec.StreamID,
+		FromBlock:  *l.spec.FromBlock,
 	}
 	if cp != nil {
 		jsonCP := cp.Listeners[*l.spec.ID]

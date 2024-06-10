@@ -427,6 +427,100 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 	mfc.AssertExpectations(t)
 }
 
+func TestWebSocketEventStreamsE2EBlocks(t *testing.T) {
+
+	es := newTestEventStream(t, `{
+		"name":  "ut_stream",
+		"websocket": {
+			"topic": "ut_stream"
+		}
+	}`)
+
+	l := &apitypes.Listener{
+		ID:        apitypes.NewULID(),
+		Name:      strPtr("ut_listener"),
+		Type:      &apitypes.ListenerTypeBlocks,
+		FromBlock: strPtr(ffcapi.FromBlockLatest),
+	}
+
+	started := make(chan (chan<- *ffcapi.ListenerEvent), 1)
+	mfc := es.connector.(*ffcapimocks.API)
+
+	mfc.On("EventStreamStart", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStartRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Run(func(args mock.Arguments) {
+		r := args[1].(*ffcapi.EventStreamStartRequest)
+		assert.Empty(t, r.InitialListeners)
+	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
+
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
+
+	mcm := es.confirmations.(*confirmationsmocks.Manager)
+	mcm.On("StartConfirmedBlockListener", mock.Anything, l.ID, "latest", mock.MatchedBy(func(cp *ffcapi.BlockListenerCheckpoint) bool {
+		return cp.Block == 10000
+	}), mock.Anything).Run(func(args mock.Arguments) {
+		started <- args[4].(chan<- *ffcapi.ListenerEvent)
+	}).Return(nil)
+
+	msp := es.persistence.(*persistencemocks.Persistence)
+	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(&apitypes.EventStreamCheckpoint{
+		StreamID: es.spec.ID,
+		Time:     fftypes.Now(),
+		Listeners: map[fftypes.UUID]json.RawMessage{
+			*l.ID: []byte(`{"block":10000}`),
+		},
+	}, nil) // existing checkpoint
+	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
+		return cp.StreamID.Equals(es.spec.ID) && string(cp.Listeners[*l.ID]) == `{"block":10001}`
+	})).Return(nil)
+
+	senderChannel, _, receiverChannel := mockWSChannels(es.wsChannels.(*wsmocks.WebSocketChannels))
+
+	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
+	assert.NoError(t, err)
+
+	err = es.Start(es.bgCtx)
+	assert.NoError(t, err)
+
+	assert.Equal(t, apitypes.EventStreamStatusStarted, es.Status())
+
+	err = es.Start(es.bgCtx) // double start is error
+	assert.Regexp(t, "FF21027", err)
+
+	r := <-started
+
+	r <- &ffcapi.ListenerEvent{
+		Checkpoint: &ffcapi.BlockListenerCheckpoint{Block: 10001},
+		BlockEvent: &ffcapi.BlockEvent{
+			ListenerID: l.ID,
+			BlockInfo: ffcapi.BlockInfo{
+				BlockNumber: fftypes.NewFFBigInt(10001),
+				BlockHash:   fftypes.NewRandB32().String(),
+				ParentHash:  fftypes.NewRandB32().String(),
+			},
+		},
+	}
+
+	batch1 := (<-senderChannel).(*apitypes.EventBatch)
+	assert.Len(t, batch1.Events, 1)
+	assert.Greater(t, batch1.BatchNumber, int64(0))
+	assert.Equal(t, int64(10001), batch1.Events[0].BlockEvent.BlockNumber.Int64())
+
+	receiverChannel <- &ws.WebSocketCommandMessageOrError{
+		Msg: &ws.WebSocketCommandMessage{
+			Type:        "ack",
+			BatchNumber: batch1.BatchNumber,
+		},
+	}
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	mfc.AssertExpectations(t)
+}
+
 func TestStartEventStreamCheckpointReadFail(t *testing.T) {
 
 	es := newTestEventStream(t, `{
@@ -1041,6 +1135,24 @@ func TestUpdateAttemptChangeSignature(t *testing.T) {
 	assert.NoError(t, err)
 
 	<-r.StreamContext.Done()
+
+	mfc.AssertExpectations(t)
+}
+
+func TestStartWithExistingBlockListener(t *testing.T) {
+
+	l := &apitypes.Listener{
+		ID:   fftypes.NewUUID(),
+		Name: strPtr("ut_listener"),
+		Type: &apitypes.ListenerTypeBlocks,
+	}
+
+	mfc := &ffcapimocks.API{}
+
+	_, err := newTestEventStreamWithListener(t, mfc, `{
+		"name": "ut_stream"
+	}`, l)
+	assert.NoError(t, err)
 
 	mfc.AssertExpectations(t)
 }

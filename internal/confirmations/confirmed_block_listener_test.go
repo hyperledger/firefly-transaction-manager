@@ -41,7 +41,7 @@ func TestCBLCatchUpToHeadFromZeroNoConfirmations(t *testing.T) {
 	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
 
 	bcm.requiredConfirmations = 0
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch)
 	assert.NoError(t, err)
 
 	for i := 0; i < len(blocks)-bcm.requiredConfirmations; i++ {
@@ -69,7 +69,7 @@ func TestCBLCatchUpToHeadFromZeroWithConfirmations(t *testing.T) {
 	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
 
 	bcm.requiredConfirmations = 5
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch)
 	assert.NoError(t, err)
 
 	for i := 0; i < len(blocks)-bcm.requiredConfirmations; i++ {
@@ -175,7 +175,7 @@ func testCBLHandleReorgInConfirmationWindow(t *testing.T, blockLenBeforeReorg, o
 	mbiHash.Run(func(args mock.Arguments) { mockBlockHashReturn(mbiHash, args, blocksAfterReorg) })
 
 	bcm.requiredConfirmations = reqConf
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch)
 	assert.NoError(t, err)
 
 	for i := 0; i < len(blocksAfterReorg)-bcm.requiredConfirmations; i++ {
@@ -240,7 +240,7 @@ func TestCBLHandleRandomConflictingBlockNotification(t *testing.T) {
 		return req.BlockHash == randBlock.BlockHash
 	})).Return(randBlock, ffcapi.ErrorReason(""), nil)
 
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch)
 	assert.NoError(t, err)
 	cbl.requiredConfirmations = 5
 
@@ -303,10 +303,10 @@ func TestCBLDoubleStart(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager()
 	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found"))
 
-	err := bcm.StartConfirmedBlockListener(bcm.ctx, id, nil, make(chan<- *ffcapi.ListenerEvent))
+	err := bcm.StartConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, make(chan<- *ffcapi.ListenerEvent))
 	assert.NoError(t, err)
 
-	err = bcm.StartConfirmedBlockListener(bcm.ctx, id, nil, make(chan<- *ffcapi.ListenerEvent))
+	err = bcm.StartConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, make(chan<- *ffcapi.ListenerEvent))
 	assert.Regexp(t, "FF21087", err)
 
 	bcm.Stop()
