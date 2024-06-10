@@ -135,6 +135,31 @@ func TestCBLListenFromCurrentBlock(t *testing.T) {
 	mca.AssertExpectations(t)
 }
 
+func TestCBLListenFromCurrentUsingCheckpointBlock(t *testing.T) {
+	bcm, mca := newTestBlockConfirmationManager()
+
+	esDispatch := make(chan *ffcapi.ListenerEvent)
+
+	id := fftypes.NewUUID()
+
+	blocks := testBlockArray(0)
+
+	mbiNum := mca.On("BlockInfoByNumber", mock.Anything, mock.Anything)
+	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
+
+	bcm.requiredConfirmations = 5
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "", &ffcapi.BlockListenerCheckpoint{
+		Block: 12345,
+	}, esDispatch)
+	assert.NoError(t, err)
+
+	assert.False(t, cbl.waitingForFromBlock)
+	assert.Equal(t, uint64(12345), cbl.fromBlock)
+
+	bcm.Stop()
+	mca.AssertExpectations(t)
+}
+
 func TestCBLHandleReorgInConfirmationWindow1(t *testing.T) {
 	// test where the reorg happens at the edge of the confirmation window
 	testCBLHandleReorgInConfirmationWindow(t,

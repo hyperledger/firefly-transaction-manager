@@ -88,7 +88,11 @@ func (bcm *blockConfirmationManager) startConfirmedBlockListener(fgCtx context.C
 
 	switch fromBlock {
 	case "", ffcapi.FromBlockLatest:
-		cbl.waitingForFromBlock = true
+		if checkpoint != nil {
+			cbl.fromBlock = checkpoint.Block
+		} else {
+			cbl.waitingForFromBlock = true
+		}
 	case ffcapi.FromBlockEarliest:
 		fromBlock = "0"
 		fallthrough
