@@ -19,6 +19,7 @@ package events
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"net"
 	"net/url"
 	"time"
@@ -103,12 +104,10 @@ func (w *webhookAction) attemptBatch(ctx context.Context, batchNumber int64, att
 	if w.isAddressBlocked(addr) {
 		return i18n.NewError(ctx, tmmsgs.MsgBlockWebhookAddress, addr, u.Hostname())
 	}
-	var resBody []byte
 	req := w.client.R().
 		SetContext(ctx).
 		SetBody(events).
-		SetResult(&resBody).
-		SetError(&resBody)
+		SetDoNotParseResponse(true)
 	req.Header.Set("Content-Type", "application/json")
 	for h, v := range w.spec.Headers {
 		req.Header.Set(h, v)
@@ -118,7 +117,9 @@ func (w *webhookAction) attemptBatch(ctx context.Context, batchNumber int64, att
 		log.L(ctx).Errorf("Webhook %s (%s) batch=%d attempt=%d: %s", *w.spec.URL, u, batchNumber, attempt, err)
 		return i18n.NewError(ctx, tmmsgs.MsgWebhookErr, err)
 	}
+	defer res.RawBody().Close()
 	if res.IsError() {
+		resBody, _ := io.ReadAll(res.RawBody())
 		log.L(ctx).Errorf("Webhook %s (%s) [%d] batch=%d attempt=%d: %s", *w.spec.URL, u, res.StatusCode(), batchNumber, attempt, resBody)
 		err = i18n.NewError(ctx, tmmsgs.MsgWebhookFailedStatus, res.StatusCode())
 	}
