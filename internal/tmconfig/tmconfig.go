@@ -99,7 +99,7 @@ func setDefaults() {
 	viper.SetDefault(string(ConfirmationsRetryInitDelay), "100ms")
 	viper.SetDefault(string(ConfirmationsRetryMaxDelay), "15s")
 	viper.SetDefault(string(ConfirmationsRetryFactor), 2.0)
-	viper.SetDefault(string(ConfirmationsFetchReceiptUponEntry), true)
+	viper.SetDefault(string(ConfirmationsFetchReceiptUponEntry), false)
 
 	viper.SetDefault(string(EventStreamsDefaultsBatchSize), 50)
 	viper.SetDefault(string(EventStreamsDefaultsBatchTimeout), "5s")

@@ -462,6 +462,7 @@ func TestBlockConfirmationManagerE2EForkReNotifyConfirmations(t *testing.T) {
 
 func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	bcm, mca := newTestBlockConfirmationManager(t, true)
+	bcm.fetchReceiptUponEntry = true // mark fetch receipt upon entry to do a fetch receipt before any blocks were retrieved
 
 	confirmed := make(chan *apitypes.ConfirmationsNotification, 1)
 	receiptReceived := make(chan *ffcapi.TransactionReceiptResponse, 1)
@@ -643,7 +644,7 @@ func TestBlockConfirmationManagerE2ETransactionMovedFork(t *testing.T) {
 	bcm.Stop()
 
 	mca.AssertExpectations(t)
-
+	// false
 }
 
 func TestBlockConfirmationManagerE2EHistoricalEvent(t *testing.T) {
