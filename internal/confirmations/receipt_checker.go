@@ -131,11 +131,6 @@ func (rc *receiptChecker) run(i int) {
 				}
 				log.L(ctx).Errorf("Receipt for transaction %s not yet available: %v", pending.transactionHash, receiptErr)
 			}
-			// Regardless of whether we got a receipt, update the pending item
-			rc.cond.L.Lock()
-			pending.queuedStale = nil // only unmark the entry now (even though we popped it in waitNext)
-			pending.lastReceiptCheck = time.Now()
-			rc.cond.L.Unlock()
 
 			// Dispatch the receipt back to the main routine.
 			if res != nil {
@@ -145,8 +140,14 @@ func (rc *receiptChecker) run(i int) {
 				} else {
 					rc.dispatchReceipt[pending.transactionHash] = true
 				}
+				// no need to send pending.queuedState anymore as we are done.
 				rc.notify(pending, res)
 			} else {
+				// Regardless of whether we got a receipt, update the pending item
+				rc.cond.L.Lock()
+				pending.queuedStale = nil // only unmark the entry now (even though we popped it in waitNext)
+				pending.lastReceiptCheck = time.Now()
+				rc.cond.L.Unlock()
 				rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "empty", time.Since(startTime).Seconds())
 			}
 			return false, nil
