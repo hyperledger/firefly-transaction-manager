@@ -84,22 +84,23 @@ type RemovedListenerInfo struct {
 }
 
 type blockConfirmationManager struct {
-	baseContext           context.Context
-	ctx                   context.Context
-	cancelFunc            func()
-	newBlockHashes        chan *ffcapi.BlockHashEvent
-	connector             ffcapi.API
-	blockListenerStale    bool
-	metricsEmitter        metrics.ConfirmationMetricsEmitter
-	requiredConfirmations int
-	staleReceiptTimeout   time.Duration
-	bcmNotifications      chan *Notification
-	highestBlockSeen      uint64
-	pending               map[string]*pendingItem
-	pendingMux            sync.Mutex
-	receiptChecker        *receiptChecker
-	retry                 *retry.Retry
-	done                  chan struct{}
+	baseContext                      context.Context
+	ctx                              context.Context
+	cancelFunc                       func()
+	newBlockHashes                   chan *ffcapi.BlockHashEvent
+	connector                        ffcapi.API
+	blockListenerStale               bool
+	metricsEmitter                   metrics.ConfirmationMetricsEmitter
+	requiredConfirmations            int
+	staleReceiptTimeout              time.Duration
+	bcmNotifications                 chan *Notification
+	highestBlockSeen                 uint64
+	pending                          map[string]*pendingItem
+	pendingMux                       sync.Mutex
+	receiptChecker                   *receiptChecker
+	retry                            *retry.Retry
+	scheduleReceiptChecksOnNewBlocks bool
+	done                             chan struct{}
 }
 
 func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API, desc string,
@@ -140,6 +141,7 @@ type pendingItem struct {
 	added                 time.Time
 	notifiedConfirmations []*apitypes.Confirmation
 	confirmations         []*apitypes.Confirmation
+	scheduledAtLeastOnce  bool
 	confirmed             bool
 	queuedStale           *list.Element // protected by receiptChecker mux
 	lastReceiptCheck      time.Time     // protected by receiptChecker mux
@@ -391,20 +393,25 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 		notifications = notifications[:0]
 
 		// Mark receipts stale after duration
-		bcm.staleReceiptCheck()
+		bcm.scheduleReceiptChecks(blockHashCount > 0)
 		log.L(bcm.ctx).Tracef("[TimeTrace] Confirmation listener processed %d block hashes and %d notifications in %s, trigger type: %s", blockHashCount, notificationCount, time.Since(startTime), triggerType)
 
 	}
 
 }
 
-func (bcm *blockConfirmationManager) staleReceiptCheck() {
+func (bcm *blockConfirmationManager) scheduleReceiptChecks(processedNewBlock bool) {
 	now := time.Now()
 	for _, pending := range bcm.pending {
 		// For efficiency we do a dirty read on the receipt check time before going into the locking
 		// check within the receipt checker
-		if pending.pType == pendingTypeTransaction && now.Sub(pending.lastReceiptCheck) > bcm.staleReceiptTimeout {
-			bcm.receiptChecker.schedule(pending, true /* suspected timeout - prompts re-check in the lock */)
+		if pending.pType == pendingTypeTransaction {
+			if !pending.scheduledAtLeastOnce && processedNewBlock {
+				bcm.receiptChecker.schedule(pending, false)
+			} else if now.Sub(pending.lastReceiptCheck) > bcm.staleReceiptTimeout {
+				// schedule stale receipt checks
+				bcm.receiptChecker.schedule(pending, true /* suspected timeout - prompts re-check in the lock */)
+			}
 		}
 	}
 }
@@ -423,7 +430,9 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 		case NewTransaction:
 			newItem := n.transactionPendingItem()
 			bcm.addOrReplaceItem(newItem)
-			bcm.receiptChecker.schedule(newItem, false)
+			if !bcm.scheduleReceiptChecksOnNewBlocks {
+				// bcm.receiptChecker.schedule(newItem, false)
+			}
 		case RemovedEventLog:
 			bcm.removeItem(n.eventPendingItem(), true)
 		case RemovedTransaction:
