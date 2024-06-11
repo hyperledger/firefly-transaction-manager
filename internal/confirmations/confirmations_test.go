@@ -1185,7 +1185,7 @@ func TestCheckReceiptWalkFail(t *testing.T) {
 	bcm.dispatchReceipt(pending, receipt, blocks)
 }
 
-func TestStaleReceiptCheck(t *testing.T) {
+func TestScheduleReceiptCheck(t *testing.T) {
 
 	bcm, _ := newTestBlockConfirmationManager(t, false)
 	emm := &metricsmocks.EventMetricsEmitter{}
@@ -1197,17 +1197,24 @@ func TestStaleReceiptCheck(t *testing.T) {
 	emm.On("RecordConfirmationMetrics", mock.Anything, mock.Anything).Maybe()
 	bcm.receiptChecker = newReceiptChecker(bcm, 0, emm)
 
-	txHash := "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347"
-	pending := &pendingItem{
+	pendingStale := &pendingItem{ // stale
 		pType:                pendingTypeTransaction,
 		lastReceiptCheck:     time.Now().Add(-1 * time.Hour),
-		transactionHash:      txHash,
+		transactionHash:      "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
 		scheduledAtLeastOnce: true,
 	}
-	bcm.pending[pending.getKey()] = pending
-	bcm.scheduleReceiptChecks(false)
 
-	assert.Equal(t, bcm.receiptChecker.entries.Len(), 1)
+	pendingNotScheduled := &pendingItem{ // not scheduled
+		pType:                pendingTypeTransaction,
+		lastReceiptCheck:     time.Now().Add(-1 * time.Hour),
+		transactionHash:      "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+		scheduledAtLeastOnce: false,
+	}
+	bcm.pending[pendingStale.getKey()] = pendingStale
+	bcm.pending[pendingNotScheduled.getKey()] = pendingNotScheduled
+	bcm.scheduleReceiptChecks(true)
+
+	assert.Equal(t, bcm.receiptChecker.entries.Len(), 2)
 
 }
 

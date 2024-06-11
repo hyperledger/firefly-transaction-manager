@@ -84,23 +84,23 @@ type RemovedListenerInfo struct {
 }
 
 type blockConfirmationManager struct {
-	baseContext                      context.Context
-	ctx                              context.Context
-	cancelFunc                       func()
-	newBlockHashes                   chan *ffcapi.BlockHashEvent
-	connector                        ffcapi.API
-	blockListenerStale               bool
-	metricsEmitter                   metrics.ConfirmationMetricsEmitter
-	requiredConfirmations            int
-	staleReceiptTimeout              time.Duration
-	bcmNotifications                 chan *Notification
-	highestBlockSeen                 uint64
-	pending                          map[string]*pendingItem
-	pendingMux                       sync.Mutex
-	receiptChecker                   *receiptChecker
-	retry                            *retry.Retry
-	scheduleReceiptChecksOnNewBlocks bool
-	done                             chan struct{}
+	baseContext           context.Context
+	ctx                   context.Context
+	cancelFunc            func()
+	newBlockHashes        chan *ffcapi.BlockHashEvent
+	connector             ffcapi.API
+	blockListenerStale    bool
+	metricsEmitter        metrics.ConfirmationMetricsEmitter
+	requiredConfirmations int
+	staleReceiptTimeout   time.Duration
+	bcmNotifications      chan *Notification
+	highestBlockSeen      uint64
+	pending               map[string]*pendingItem
+	pendingMux            sync.Mutex
+	receiptChecker        *receiptChecker
+	retry                 *retry.Retry
+	fetchReceiptUponEntry bool
+	done                  chan struct{}
 }
 
 func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.API, desc string,
@@ -120,6 +120,7 @@ func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.A
 			MaximumDelay: config.GetDuration(tmconfig.ConfirmationsRetryMaxDelay),
 			Factor:       config.GetFloat64(tmconfig.ConfirmationsRetryFactor),
 		},
+		fetchReceiptUponEntry: config.GetBool(tmconfig.ConfirmationsFetchReceiptUponEntry),
 	}
 	bcm.ctx, bcm.cancelFunc = context.WithCancel(baseContext)
 	// add a log context for this specific confirmation manager (as there are many within the )
@@ -430,8 +431,8 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 		case NewTransaction:
 			newItem := n.transactionPendingItem()
 			bcm.addOrReplaceItem(newItem)
-			if !bcm.scheduleReceiptChecksOnNewBlocks {
-				// bcm.receiptChecker.schedule(newItem, false)
+			if bcm.fetchReceiptUponEntry {
+				bcm.receiptChecker.schedule(newItem, false)
 			}
 		case RemovedEventLog:
 			bcm.removeItem(n.eventPendingItem(), true)

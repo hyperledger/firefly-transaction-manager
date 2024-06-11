@@ -44,6 +44,7 @@
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |blockQueueLength|Internal queue length for notifying the confirmations manager of new blocks|`int`|`50`
+|fetchReceiptUponEntry|Fetch receipt of new transactions immediately when they are added to the internal queue. When set to false, fetch will only happen when a new block is received or the transaction has been queue for more than the stale receipt timeout|`boolean`|`true`
 |notificationQueueLength|Internal queue length for notifying the confirmations manager of new transactions/events|`int`|`50`
 |receiptWorkers|Number of workers to use to query in parallel for receipts|`int`|`10`
 |required|Number of confirmations required to consider a transaction/event final|`int`|`20`
