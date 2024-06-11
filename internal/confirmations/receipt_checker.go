@@ -36,14 +36,18 @@ import (
 // When receipt checkers hit errors (excluding a null result of course), they simply
 // block in indefinite retry until they succeed or are shut down.
 type receiptChecker struct {
-	bcm            *blockConfirmationManager
-	workerCount    int
-	workersDone    []chan struct{}
-	closed         bool
-	cond           *sync.Cond
-	entries        *list.List
-	metricsEmitter metrics.ReceiptCheckerMetricsEmitter
-	notify         func(*pendingItem, *ffcapi.TransactionReceiptResponse)
+	bcm             *blockConfirmationManager
+	workerCount     int
+	workersDone     []chan struct{}
+	closed          bool
+	cond            *sync.Cond
+	entries         *list.List
+	metricsEmitter  metrics.ReceiptCheckerMetricsEmitter
+	notify          func(*pendingItem, *ffcapi.TransactionReceiptResponse)
+	queuedReceipt   map[string]bool
+	checkReceipt    map[string]bool
+	dispatchReceipt map[string]bool
+	removedReceipt  map[string]bool
 }
 
 func newReceiptChecker(bcm *blockConfirmationManager, workerCount int, rcme metrics.ReceiptCheckerMetricsEmitter) *receiptChecker {
@@ -59,6 +63,10 @@ func newReceiptChecker(bcm *blockConfirmationManager, workerCount int, rcme metr
 				receipt:          receipt,
 			})
 		},
+		queuedReceipt:   make(map[string]bool),
+		removedReceipt:  make(map[string]bool),
+		checkReceipt:    make(map[string]bool),
+		dispatchReceipt: make(map[string]bool),
 	}
 	rc.entries = list.New()
 	rc.cond = sync.NewCond(&sync.Mutex{})
@@ -83,6 +91,11 @@ func (rc *receiptChecker) waitNext() (p *pendingItem) {
 		}
 	}
 	p = entry.Value.(*pendingItem)
+	if rc.checkReceipt[p.transactionHash] {
+		log.L(rc.bcm.ctx).Errorf("[r-CHK]Trying to check transaction hash %s again", p.transactionHash)
+	} else {
+		rc.checkReceipt[p.transactionHash] = true
+	}
 	_ = rc.entries.Remove(entry) // remove from the list, but don't unset entry.queuedStale yet
 	return p
 }
@@ -106,7 +119,7 @@ func (rc *receiptChecker) run(i int) {
 			})
 			if receiptErr != nil || res == nil {
 				if receiptErr != nil && reason != ffcapi.ErrorReasonNotFound {
-					log.L(ctx).Debugf("Failed to query receipt for transaction %s: %s", pending.transactionHash, receiptErr)
+					log.L(ctx).Errorf("Failed to query receipt for transaction %s: %s", pending.transactionHash, receiptErr)
 					// It's possible though that the node will return a non-recoverable error for this item.
 					// So we push it to the back of the queue (we already removed it in waitNext, but left
 					// queuedStale set on there to prevent it being re-queued externally).
@@ -116,7 +129,7 @@ func (rc *receiptChecker) run(i int) {
 					rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "retry", time.Since(startTime).Seconds())
 					return true /* drive the retry delay mechanism before next de-queue */, receiptErr
 				}
-				log.L(ctx).Debugf("Receipt for transaction %s not yet available: %v", pending.transactionHash, receiptErr)
+				log.L(ctx).Errorf("Receipt for transaction %s not yet available: %v", pending.transactionHash, receiptErr)
 			}
 			// Regardless of whether we got a receipt, update the pending item
 			rc.cond.L.Lock()
@@ -127,6 +140,11 @@ func (rc *receiptChecker) run(i int) {
 			// Dispatch the receipt back to the main routine.
 			if res != nil {
 				rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "notified", time.Since(startTime).Seconds())
+				if rc.dispatchReceipt[pending.transactionHash] {
+					log.L(rc.bcm.ctx).Errorf("[r-DSP]Trying to dispatch transaction hash %s again", pending.transactionHash)
+				} else {
+					rc.dispatchReceipt[pending.transactionHash] = true
+				}
 				rc.notify(pending, res)
 			} else {
 				rc.metricsEmitter.RecordReceiptCheckMetrics(ctx, "empty", time.Since(startTime).Seconds())
@@ -149,6 +167,11 @@ func (rc *receiptChecker) schedule(pending *pendingItem, suspectedTimeout bool) 
 		return
 	}
 	pending.queuedStale = rc.entries.PushBack(pending)
+	if rc.queuedReceipt[pending.transactionHash] {
+		log.L(rc.bcm.ctx).Errorf("[r-ADD]Trying to add transaction hash %s again", pending.transactionHash)
+	} else {
+		rc.queuedReceipt[pending.transactionHash] = true
+	}
 	rc.cond.Signal()
 	rc.cond.L.Unlock()
 	// Log (outside the lock as it's a contended one)
@@ -161,6 +184,11 @@ func (rc *receiptChecker) remove(pending *pendingItem) {
 	if pending.queuedStale != nil {
 		// Note this might already have been removed, in the window between waitNext and TransactionReceipt returning.
 		// That's fine as the interface of list.Remove says so.
+		if rc.removedReceipt[pending.transactionHash] {
+			log.L(rc.bcm.ctx).Errorf("[r-OUT]Trying to remove transaction hash %s again", pending.transactionHash)
+		} else {
+			rc.removedReceipt[pending.transactionHash] = true
+		}
 		_ = rc.entries.Remove(pending.queuedStale)
 	}
 	rc.cond.L.Unlock()
