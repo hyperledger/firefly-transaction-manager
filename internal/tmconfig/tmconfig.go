@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -30,6 +30,7 @@ var (
 	ConfirmationsRequired                         = ffc("confirmations.required")
 	ConfirmationsBlockQueueLength                 = ffc("confirmations.blockQueueLength")
 	ConfirmationsStaleReceiptTimeout              = ffc("confirmations.staleReceiptTimeout")
+	ConfirmationsFetchReceiptUponEntry            = ffc("confirmations.fetchReceiptUponEntry")
 	ConfirmationsNotificationQueueLength          = ffc("confirmations.notificationQueueLength")
 	ConfirmationsReceiptWorkers                   = ffc("confirmations.receiptWorkers")
 	ConfirmationsRetryInitDelay                   = ffc("confirmations.retry.initialDelay")
@@ -98,6 +99,7 @@ func setDefaults() {
 	viper.SetDefault(string(ConfirmationsRetryInitDelay), "100ms")
 	viper.SetDefault(string(ConfirmationsRetryMaxDelay), "15s")
 	viper.SetDefault(string(ConfirmationsRetryFactor), 2.0)
+	viper.SetDefault(string(ConfirmationsFetchReceiptUponEntry), false)
 
 	viper.SetDefault(string(EventStreamsDefaultsBatchSize), 50)
 	viper.SetDefault(string(EventStreamsDefaultsBatchTimeout), "5s")

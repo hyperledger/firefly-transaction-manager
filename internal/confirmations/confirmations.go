@@ -103,6 +103,7 @@ type blockConfirmationManager struct {
 	retry                 *retry.Retry
 	cblLock               sync.Mutex
 	cbls                  map[fftypes.UUID]*confirmedBlockListener
+	fetchReceiptUponEntry bool
 	done                  chan struct{}
 }
 
@@ -124,6 +125,7 @@ func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.A
 			MaximumDelay: config.GetDuration(tmconfig.ConfirmationsRetryMaxDelay),
 			Factor:       config.GetFloat64(tmconfig.ConfirmationsRetryFactor),
 		},
+		fetchReceiptUponEntry: config.GetBool(tmconfig.ConfirmationsFetchReceiptUponEntry),
 	}
 	bcm.ctx, bcm.cancelFunc = context.WithCancel(baseContext)
 	// add a log context for this specific confirmation manager (as there are many within the )
@@ -145,6 +147,7 @@ type pendingItem struct {
 	added                 time.Time
 	notifiedConfirmations []*apitypes.Confirmation
 	confirmations         []*apitypes.Confirmation
+	scheduledAtLeastOnce  bool
 	confirmed             bool
 	queuedStale           *list.Element // protected by receiptChecker mux
 	lastReceiptCheck      time.Time     // protected by receiptChecker mux
@@ -358,6 +361,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 	notifications := make([]*Notification, 0)
 	blockHashes := make([]string, 0)
 	triggerType := ""
+	receivedFirstBlock := false
 	for {
 		select {
 		case bhe := <-bcm.newBlockHashes:
@@ -424,22 +428,28 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 		}
 		// Clear the notifications array now we've processed them (we keep the slice memory)
 		notifications = notifications[:0]
-
+		scheduleAllTxReceipts := !receivedFirstBlock && blockHashCount > 0
 		// Mark receipts stale after duration
-		bcm.staleReceiptCheck()
+		bcm.scheduleReceiptChecks(scheduleAllTxReceipts)
+		receivedFirstBlock = receivedFirstBlock || blockHashCount > 0
 		log.L(bcm.ctx).Tracef("[TimeTrace] Confirmation listener processed %d block hashes and %d notifications in %s, trigger type: %s", blockHashCount, notificationCount, time.Since(startTime), triggerType)
 
 	}
 
 }
 
-func (bcm *blockConfirmationManager) staleReceiptCheck() {
+func (bcm *blockConfirmationManager) scheduleReceiptChecks(receivedBlocksFirstTime bool) {
 	now := time.Now()
 	for _, pending := range bcm.pending {
 		// For efficiency we do a dirty read on the receipt check time before going into the locking
 		// check within the receipt checker
-		if pending.pType == pendingTypeTransaction && now.Sub(pending.lastReceiptCheck) > bcm.staleReceiptTimeout {
-			bcm.receiptChecker.schedule(pending, true /* suspected timeout - prompts re-check in the lock */)
+		if pending.pType == pendingTypeTransaction {
+			if receivedBlocksFirstTime && !pending.scheduledAtLeastOnce {
+				bcm.receiptChecker.schedule(pending, false)
+			} else if now.Sub(pending.lastReceiptCheck) > bcm.staleReceiptTimeout {
+				// schedule stale receipt checks
+				bcm.receiptChecker.schedule(pending, true /* suspected timeout - prompts re-check in the lock */)
+			}
 		}
 	}
 }
@@ -458,7 +468,9 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 		case NewTransaction:
 			newItem := n.transactionPendingItem()
 			bcm.addOrReplaceItem(newItem)
-			bcm.receiptChecker.schedule(newItem, false)
+			if bcm.fetchReceiptUponEntry {
+				bcm.receiptChecker.schedule(newItem, false)
+			}
 		case RemovedEventLog:
 			bcm.removeItem(n.eventPendingItem(), true)
 		case RemovedTransaction:

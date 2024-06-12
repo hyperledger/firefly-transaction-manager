@@ -130,5 +130,4 @@ func TestCheckReceiptDoubleQueueProtection(t *testing.T) {
 	// to a worker, and when it's successfully executed (or put back on the end of the list)
 	bcm.receiptChecker.schedule(pending, false)
 	assert.Zero(t, bcm.receiptChecker.entries.Len())
-
 }
