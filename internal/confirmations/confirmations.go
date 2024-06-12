@@ -331,6 +331,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 	notifications := make([]*Notification, 0)
 	blockHashes := make([]string, 0)
 	triggerType := ""
+	receivedFirstBlock := false
 	for {
 		select {
 		case bhe := <-bcm.newBlockHashes:
@@ -392,22 +393,23 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 		}
 		// Clear the notifications array now we've processed them (we keep the slice memory)
 		notifications = notifications[:0]
-
+		scheduleAllTxReceipts := !receivedFirstBlock && blockHashCount > 0
 		// Mark receipts stale after duration
-		bcm.scheduleReceiptChecks(blockHashCount > 0)
+		bcm.scheduleReceiptChecks(scheduleAllTxReceipts)
+		receivedFirstBlock = receivedFirstBlock || blockHashCount > 0
 		log.L(bcm.ctx).Tracef("[TimeTrace] Confirmation listener processed %d block hashes and %d notifications in %s, trigger type: %s", blockHashCount, notificationCount, time.Since(startTime), triggerType)
 
 	}
 
 }
 
-func (bcm *blockConfirmationManager) scheduleReceiptChecks(processedNewBlock bool) {
+func (bcm *blockConfirmationManager) scheduleReceiptChecks(receivedBlocksFirstTime bool) {
 	now := time.Now()
 	for _, pending := range bcm.pending {
 		// For efficiency we do a dirty read on the receipt check time before going into the locking
 		// check within the receipt checker
 		if pending.pType == pendingTypeTransaction {
-			if !pending.scheduledAtLeastOnce && processedNewBlock {
+			if receivedBlocksFirstTime && !pending.scheduledAtLeastOnce {
 				bcm.receiptChecker.schedule(pending, false)
 			} else if now.Sub(pending.lastReceiptCheck) > bcm.staleReceiptTimeout {
 				// schedule stale receipt checks
