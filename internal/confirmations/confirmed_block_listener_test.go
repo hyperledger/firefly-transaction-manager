@@ -98,20 +98,21 @@ func TestCBLListenFromCurrentBlock(t *testing.T) {
 
 	blocks := testBlockArray(15)
 
-	mbiNum := mca.On("BlockInfoByNumber", mock.Anything, mock.Anything)
-	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
-
 	mbiHash := mca.On("BlockInfoByHash", mock.Anything, mock.Anything)
 	mbiHash.Run(func(args mock.Arguments) { mockBlockHashReturn(mbiHash, args, blocks) })
+
+	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Maybe()
 
 	bcm.requiredConfirmations = 5
 	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "", nil, esDispatch)
 	assert.NoError(t, err)
 
 	// Notify starting at block 5
-	bcm.propagateBlockHashToCBLs(&ffcapi.BlockHashEvent{
-		BlockHashes: []string{blocks[5].BlockHash},
-	})
+	for i := 5; i < len(blocks); i++ {
+		bcm.propagateBlockHashToCBLs(&ffcapi.BlockHashEvent{
+			BlockHashes: []string{blocks[i].BlockHash},
+		})
+	}
 
 	// Randomly notify below that too, which will be ignored
 	bcm.propagateBlockHashToCBLs(&ffcapi.BlockHashEvent{
@@ -120,6 +121,7 @@ func TestCBLListenFromCurrentBlock(t *testing.T) {
 
 	for i := 5; i < len(blocks)-bcm.requiredConfirmations; i++ {
 		b := <-esDispatch
+		assert.Equal(t, b.BlockEvent.BlockNumber, blocks[i].BlockNumber)
 		assert.Equal(t, b.BlockEvent.BlockInfo, blocks[i].BlockInfo)
 	}
 
@@ -264,8 +266,8 @@ func testCBLHandleReorgInConfirmationWindow(t *testing.T, blockLenBeforeReorg, o
 	time.Sleep(1 * time.Millisecond)
 	assert.LessOrEqual(t, len(cbl.blocksSinceCheckpoint), bcm.requiredConfirmations)
 	select {
-	case <-esDispatch:
-		assert.Fail(t, "should not have received block in confirmation window")
+	case b := <-esDispatch:
+		assert.Fail(t, fmt.Sprintf("should not have received block in confirmation window: %d/%s", b.BlockEvent.BlockNumber.Int64(), b.BlockEvent.BlockHash))
 	default: // good - we should have the confirmations sat there, but no dispatch
 	}
 
@@ -318,6 +320,56 @@ func TestCBLHandleRandomConflictingBlockNotification(t *testing.T) {
 	for i := 0; i < len(blocks)-cbl.requiredConfirmations; i++ {
 		b := <-esDispatch
 		assert.Equal(t, b.BlockEvent.BlockInfo, blocks[i].BlockInfo)
+	}
+
+	bcm.Stop()
+	mca.AssertExpectations(t)
+}
+
+func TestCBLDispatcherFallsBehindHead(t *testing.T) {
+	bcm, mca := newTestBlockConfirmationManager()
+
+	esDispatch := make(chan *ffcapi.ListenerEvent)
+
+	id := fftypes.NewUUID()
+
+	blocks := testBlockArray(30)
+
+	mbiHash := mca.On("BlockInfoByHash", mock.Anything, mock.Anything)
+	mbiHash.Run(func(args mock.Arguments) { mockBlockHashReturn(mbiHash, args, blocks) })
+
+	// We'll fall back to this because we don't keep up
+	mbiNum := mca.On("BlockInfoByNumber", mock.Anything, mock.Anything)
+	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
+
+	bcm.requiredConfirmations = 5
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "", nil, esDispatch)
+	assert.NoError(t, err)
+
+	// Notify all the blocks before we process any
+	for i := 0; i < len(blocks); i++ {
+		bcm.propagateBlockHashToCBLs(&ffcapi.BlockHashEvent{
+			BlockHashes: []string{blocks[i].BlockHash},
+		})
+	}
+
+	for i := 0; i < len(blocks)-bcm.requiredConfirmations; i++ {
+		// The dispatches should have been added, until it got too far ahead
+		// and then set to nil.
+		for cbl.newHeadToAdd != nil {
+			time.Sleep(1 * time.Millisecond)
+		}
+		b := <-esDispatch
+		assert.Equal(t, b.BlockEvent.BlockNumber, blocks[i].BlockNumber)
+		assert.Equal(t, b.BlockEvent.BlockInfo, blocks[i].BlockInfo)
+	}
+
+	time.Sleep(1 * time.Millisecond)
+	assert.Len(t, cbl.blocksSinceCheckpoint, bcm.requiredConfirmations)
+	select {
+	case <-esDispatch:
+		assert.Fail(t, "should not have received block in confirmation window")
+	default: // good - we should have the confirmations sat there, but no dispatch
 	}
 
 	bcm.Stop()

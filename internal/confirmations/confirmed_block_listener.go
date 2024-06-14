@@ -52,6 +52,7 @@ type confirmedBlockListener struct {
 	waitingForFromBlock   bool
 	rollingCheckpoint     *ffcapi.BlockListenerCheckpoint
 	blocksSinceCheckpoint []*apitypes.BlockInfo
+	newHeadToAdd          []*apitypes.BlockInfo // used by the notification routine when there are new blocks that add directly onto the end of the blocksSinceCheckpoint
 	newBlockHashes        chan *ffcapi.BlockHashEvent
 	dispatcherTap         chan struct{}
 	eventStream           chan<- *ffcapi.ListenerEvent
@@ -187,19 +188,47 @@ func (cbl *confirmedBlockListener) processBlockNotification(block *apitypes.Bloc
 		return
 	}
 
-	// Otherwise see if it's a conflicting fork to any of our existing blocks
-	for idx, existingBlock := range cbl.blocksSinceCheckpoint {
-		if existingBlock.BlockNumber == block.BlockNumber {
-			// Must discard up to this point
-			cbl.blocksSinceCheckpoint = cbl.blocksSinceCheckpoint[0:idx]
-			// This block fits, and add this on the end.
-			if idx == 0 || block.ParentHash == cbl.blocksSinceCheckpoint[idx-1].BlockHash {
-				log.L(cbl.ctx).Debugf("Notification of block %d/%s after block %d/%s", block.BlockNumber, block.BlockHash, existingBlock.BlockNumber, existingBlock.BlockHash)
-				cbl.blocksSinceCheckpoint = append(cbl.blocksSinceCheckpoint[0:idx], block)
-			} else {
-				log.L(cbl.ctx).Debugf("Notification of block %d/%s conflicting with previous block %d/%s", block.BlockNumber, block.BlockHash, existingBlock.BlockNumber, existingBlock.BlockHash)
+	// If the block immediate adds onto the set of blocks being processed, then we just attach it there
+	// and notify the dispatcher to process it directly. No need for the other routine to query again.
+	// When we're in steady state listening to the stable head of the chain, this should be the most common case.
+	var dispatchHead *apitypes.BlockInfo
+	if len(cbl.newHeadToAdd) > 0 {
+		// we've snuck in multiple notifications while the dispatcher is busy... don't add indefinitely to this list
+		if len(cbl.newHeadToAdd) > 10 /* not considered worth adding/explaining a tuning property for this */ {
+			log.L(cbl.ctx).Infof("Block listener fell behind head of chain")
+			cbl.newHeadToAdd = nil
+		} else {
+			dispatchHead = cbl.newHeadToAdd[len(cbl.newHeadToAdd)-1]
+		}
+	}
+	if dispatchHead == nil && len(cbl.blocksSinceCheckpoint) > 0 {
+		dispatchHead = cbl.blocksSinceCheckpoint[len(cbl.blocksSinceCheckpoint)-1]
+	}
+	switch {
+	case dispatchHead != nil && block.BlockNumber == dispatchHead.BlockNumber+1 && block.ParentHash == dispatchHead.BlockHash:
+		// Ok - we just need to pop it onto the list, and wake the thread
+		log.L(cbl.ctx).Debugf("Directly passing block %d/%s to dispatcher after block %d/%s", block.BlockNumber, block.BlockHash, dispatchHead.BlockNumber, dispatchHead.BlockHash)
+		cbl.newHeadToAdd = append(cbl.newHeadToAdd, block)
+	case dispatchHead == nil:
+		// The dispatcher will check these against the checkpoint block before pulling them to the blocksSinceCheckpoint list
+		log.L(cbl.ctx).Debugf("Directly passing block %d/%s to dispatcher as no blocks pending", block.BlockNumber, block.BlockHash)
+		cbl.newHeadToAdd = append(cbl.newHeadToAdd, block)
+	default:
+		// Otherwise see if it's a conflicting fork to any of our existing blocks
+		for idx, existingBlock := range cbl.blocksSinceCheckpoint {
+			if existingBlock.BlockNumber == block.BlockNumber {
+				// Must discard up to this point
+				cbl.blocksSinceCheckpoint = cbl.blocksSinceCheckpoint[0:idx]
+				cbl.newHeadToAdd = nil
+				// This block fits, slot it into this point in the chain
+				if idx == 0 || block.ParentHash == cbl.blocksSinceCheckpoint[idx-1].BlockHash {
+					log.L(cbl.ctx).Debugf("Notification of re-org %d/%s replacing block %d/%s", block.BlockNumber, block.BlockHash, existingBlock.BlockNumber, existingBlock.BlockHash)
+					cbl.blocksSinceCheckpoint = append(cbl.blocksSinceCheckpoint[0:idx], block)
+				} else {
+					log.L(cbl.ctx).Debugf("Notification of block %d/%s conflicting with previous block %d/%s", block.BlockNumber, block.BlockHash, existingBlock.BlockNumber, existingBlock.BlockHash)
+				}
+				break
 			}
-			break
 		}
 	}
 
@@ -221,10 +250,9 @@ func (cbl *confirmedBlockListener) dispatcher() {
 
 	for {
 		if !cbl.waitingForFromBlock {
-			// tight spin getting blocks until we it looks like we need to wait for a notification
-			for cbl.getNextBlock() {
-				// In all cases we ensure that we move our confirmation window forwards.
-				// The checkpoint block is always final, and we never move backwards
+			// spin getting blocks until we it looks like we need to wait for a notification
+			lastFromNotification := false
+			for cbl.readNextBlock(&lastFromNotification) {
 				cbl.dispatchAllConfirmed()
 			}
 		}
@@ -239,44 +267,78 @@ func (cbl *confirmedBlockListener) dispatcher() {
 	}
 }
 
-func (cbl *confirmedBlockListener) getNextBlock() (more bool) {
+// MUST be called under lock
+func (cbl *confirmedBlockListener) popDispatchedIfAvailable(lastFromNotification *bool) (blockNumberToFetch uint64, found bool) {
+
+	if len(cbl.newHeadToAdd) > 0 {
+		// If we find one in the lock, it must be ready for us to append
+		nextBlock := cbl.newHeadToAdd[0]
+		cbl.newHeadToAdd = append([]*apitypes.BlockInfo{}, cbl.newHeadToAdd[1:]...)
+		cbl.blocksSinceCheckpoint = append(cbl.blocksSinceCheckpoint, nextBlock)
+
+		// We track that we've done this, so we know if we run out going round the loop later,
+		// there's no point in doing a get-by-number
+		*lastFromNotification = true
+		return 0, true
+	}
+
+	blockNumberToFetch = cbl.fromBlock
+	if cbl.rollingCheckpoint != nil && cbl.rollingCheckpoint.Block >= cbl.fromBlock {
+		blockNumberToFetch = cbl.rollingCheckpoint.Block + 1
+	}
+	if len(cbl.blocksSinceCheckpoint) > 0 {
+		blockNumberToFetch = cbl.blocksSinceCheckpoint[len(cbl.blocksSinceCheckpoint)-1].BlockNumber.Uint64() + 1
+	}
+	return blockNumberToFetch, false
+}
+
+func (cbl *confirmedBlockListener) readNextBlock(lastFromNotification *bool) (found bool) {
 
 	var nextBlock *apitypes.BlockInfo
+	var blockNumberToFetch uint64
+	var dispatchedPopped bool
 	err := cbl.retry.Do(cbl.ctx, "next block", func(_ int) (retry bool, err error) {
-		// Find the highest block in the lock
+		// If the notifier has lined up a block for us grab it before
 		cbl.stateLock.Lock()
-		blockNumberToFetch := cbl.fromBlock
-		if cbl.rollingCheckpoint != nil && cbl.rollingCheckpoint.Block >= cbl.fromBlock {
-			blockNumberToFetch = cbl.rollingCheckpoint.Block + 1
-		}
-		if len(cbl.blocksSinceCheckpoint) > 0 {
-			blockNumberToFetch = cbl.blocksSinceCheckpoint[len(cbl.blocksSinceCheckpoint)-1].BlockNumber.Uint64() + 1
-		}
+		blockNumberToFetch, dispatchedPopped = cbl.popDispatchedIfAvailable(lastFromNotification)
 		cbl.stateLock.Unlock()
+		if dispatchedPopped || *lastFromNotification {
+			// We processed a dispatch this time, or last time.
+			// Either way we're tracking at the head and there's no point doing a query
+			// we expect to return nothing - as we should get another notification.
+			return false, nil
+		}
 
 		// Get the next block
 		nextBlock, err = cbl.bcm.getBlockByNumber(blockNumberToFetch, false, "")
 		return true, err
 	})
 	if nextBlock == nil || err != nil {
-		// We didn't get the next block, and maybe our context completed
-		return false
+		// We either got a block dispatched, or did not find a block ourselves.
+		return dispatchedPopped
 	}
 
 	// In the lock append it to our list, checking it's valid to append to what we have
 	cbl.stateLock.Lock()
 	defer cbl.stateLock.Unlock()
 
-	if len(cbl.blocksSinceCheckpoint) > 0 {
-		if cbl.blocksSinceCheckpoint[len(cbl.blocksSinceCheckpoint)-1].BlockHash != nextBlock.ParentHash {
-			// This doesn't attach to the end of our list. Trim it off and try again.
-			cbl.blocksSinceCheckpoint = cbl.blocksSinceCheckpoint[0 : len(cbl.blocksSinceCheckpoint)-1]
-			return true
-		}
-	}
+	// We have to check because we unlocked, that we weren't beaten to the punch while we queried
+	// by the dispatcher.
+	if _, dispatchedPopped = cbl.popDispatchedIfAvailable(lastFromNotification); !dispatchedPopped {
 
-	// We successfully attached it
-	cbl.blocksSinceCheckpoint = append(cbl.blocksSinceCheckpoint, nextBlock)
+		// It's possible that while we were off at the node querying this, a notification came in
+		// that affected our state. We need to check this still matches, or go round again
+		if len(cbl.blocksSinceCheckpoint) > 0 {
+			if cbl.blocksSinceCheckpoint[len(cbl.blocksSinceCheckpoint)-1].BlockHash != nextBlock.ParentHash {
+				// This doesn't attach to the end of our list. Trim it off and try again.
+				cbl.blocksSinceCheckpoint = cbl.blocksSinceCheckpoint[0 : len(cbl.blocksSinceCheckpoint)-1]
+				return true
+			}
+		}
+
+		// We successfully attached it
+		cbl.blocksSinceCheckpoint = append(cbl.blocksSinceCheckpoint, nextBlock)
+	}
 	return true
 
 }
@@ -309,6 +371,7 @@ func (cbl *confirmedBlockListener) dispatchAllConfirmed() {
 		if toDispatch == nil {
 			return
 		}
+		log.L(cbl.ctx).Infof("Dispatching block %d/%s", toDispatch.BlockEvent.BlockNumber.Uint64(), toDispatch.BlockEvent.BlockHash)
 		select {
 		case cbl.eventStream <- toDispatch:
 		case <-cbl.ctx.Done():
