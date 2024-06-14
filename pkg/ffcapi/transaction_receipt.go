@@ -21,15 +21,25 @@ import (
 )
 
 type TransactionReceiptRequest struct {
-	TransactionHash string `json:"transactionHash"`
+	TransactionHash string            `json:"transactionHash"`
+	IncludeLogs     bool              `json:"includeLogs"`
+	EventFilters    []fftypes.JSONAny `json:"eventFilters"`
+	Methods         []fftypes.JSONAny `json:"methods"`
+	ExtractSigner   bool              `json:"extractSigner"`
 }
 
-type TransactionReceiptResponse struct {
+type TransactionReceiptResponseBase struct {
 	BlockNumber      *fftypes.FFBigInt `json:"blockNumber"`
 	TransactionIndex *fftypes.FFBigInt `json:"transactionIndex"`
 	BlockHash        string            `json:"blockHash"`
 	Success          bool              `json:"success"`
 	ProtocolID       string            `json:"protocolId"`
-	ExtraInfo        *fftypes.JSONAny  `json:"extraInfo"`
-	ContractLocation *fftypes.JSONAny  `json:"contractLocation"`
+	ExtraInfo        *fftypes.JSONAny  `json:"extraInfo,omitempty"`
+	ContractLocation *fftypes.JSONAny  `json:"contractLocation,omitempty"`
+	Logs             []fftypes.JSONAny `json:"logs,omitempty"` // all raw un-decoded logs should be included if includeLogs=true
+}
+
+type TransactionReceiptResponse struct {
+	TransactionReceiptResponseBase
+	Events []*Event `json:"events,omitempty"` // only for events that matched the filter, and were decoded
 }

@@ -81,8 +81,10 @@ func TestHandleTransactionProcessFailEvent(t *testing.T) {
 		TransactionHash: "0x1111",
 	}
 	receipt := &ffcapi.TransactionReceiptResponse{
-		ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-		ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+		},
 	}
 	eh := newTestManagedTransactionEventHandler()
 	mws := &wsmocks.WebSocketServer{}

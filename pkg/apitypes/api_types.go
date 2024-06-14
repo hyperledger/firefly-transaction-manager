@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -199,10 +199,18 @@ func (lf ListenerFilters) Value() (driver.Value, error) {
 	return jsonValue(lf)
 }
 
+type ListenerType = fftypes.FFEnum
+
+var (
+	ListenerTypeEvents = fftypes.FFEnumValue("fftm_listener_type", "events")
+	ListenerTypeBlocks = fftypes.FFEnumValue("fftm_listener_type", "blocks")
+)
+
 type Listener struct {
 	ID               *fftypes.UUID    `ffstruct:"listener" json:"id,omitempty"`
 	Created          *fftypes.FFTime  `ffstruct:"listener" json:"created"`
 	Updated          *fftypes.FFTime  `ffstruct:"listener" json:"updated"`
+	Type             *ListenerType    `ffstruct:"listener" json:"type" ffenum:"fftm_listener_type"`
 	Name             *string          `ffstruct:"listener" json:"name"`
 	StreamID         *fftypes.UUID    `ffstruct:"listener" json:"stream" ffexcludeoutput:"true"`
 	EthCompatAddress *string          `ffstruct:"listener" json:"address,omitempty"`
@@ -348,9 +356,10 @@ func CheckUpdateStringMap(changed bool, merged *map[string]string, old map[strin
 }
 
 type EventContext struct {
-	StreamID       *fftypes.UUID `json:"streamId"`     // the ID of the event stream for this event
-	EthCompatSubID *fftypes.UUID `json:"subId"`        // ID of the listener - EthCompat "subscription" naming
-	ListenerName   string        `json:"listenerName"` // name of the listener
+	StreamID       *fftypes.UUID `json:"streamId,omitempty"`     // the ID of the event stream for this event
+	EthCompatSubID *fftypes.UUID `json:"subId,omitempty"`        // ID of the listener - EthCompat "subscription" naming
+	ListenerName   string        `json:"listenerName,omitempty"` // name of the listener
+	ListenerType   ListenerType  `json:"listenerType,omitempty"`
 }
 
 type EventBatch struct {
@@ -364,17 +373,22 @@ type EventBatch struct {
 // The `data` is kept separate
 type EventWithContext struct {
 	StandardContext EventContext
-	ffcapi.Event
+	Event           *ffcapi.Event
+	BlockEvent      *ffcapi.BlockEvent
 }
 
 func (e *EventWithContext) MarshalJSON() ([]byte, error) {
 	m := make(map[string]interface{})
-	if e.Info != nil {
-		jsonmap.AddJSONFieldsToMap(reflect.ValueOf(e.Info), m)
+	if e.Event != nil {
+		if e.Event.Info != nil {
+			jsonmap.AddJSONFieldsToMap(reflect.ValueOf(e.Event.Info), m)
+		}
+		jsonmap.AddJSONFieldsToMap(reflect.ValueOf(&e.Event.ID), m)
+		m["data"] = e.Event.Data
+	} else if e.BlockEvent != nil {
+		jsonmap.AddJSONFieldsToMap(reflect.ValueOf(&e.BlockEvent), m)
 	}
-	jsonmap.AddJSONFieldsToMap(reflect.ValueOf(&e.ID), m)
 	jsonmap.AddJSONFieldsToMap(reflect.ValueOf(&e.StandardContext), m)
-	m["data"] = e.Data
 	return json.Marshal(m)
 }
 
@@ -383,14 +397,19 @@ func (e *EventWithContext) UnmarshalJSON(b []byte) error {
 	var m fftypes.JSONObject
 	err := json.Unmarshal(b, &m)
 	if err == nil && m != nil {
-		e.Info = m
-		data := m["data"]
-		delete(m, "data")
-		if data != nil {
-			b, _ := json.Marshal(&data)
-			e.Data = fftypes.JSONAnyPtrBytes(b)
+		if m.GetString("listenerType") == string(ListenerTypeBlocks) {
+			e.BlockEvent = &ffcapi.BlockEvent{}
+			err = json.Unmarshal(b, &e.BlockEvent)
+		} else {
+			e.Event = &ffcapi.Event{Info: m}
+			data := m["data"]
+			delete(m, "data")
+			if data != nil {
+				b, _ := json.Marshal(&data)
+				e.Event.Data = fftypes.JSONAnyPtrBytes(b)
+			}
+			err = json.Unmarshal(b, &e.Event.ID)
 		}
-		err = json.Unmarshal(b, &e.ID)
 		if err == nil {
 			err = json.Unmarshal(b, &e.StandardContext)
 		}

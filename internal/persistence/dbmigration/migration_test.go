@@ -53,8 +53,10 @@ func TestDBMigrationOK(t *testing.T) {
 	mdb2.On("WriteListener", mock.Anything, l).Return(nil)
 
 	tx := &apitypes.TXWithStatus{
-		ManagedTX:     &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
-		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
+		ManagedTX: &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
+		Receipt: &ffcapi.TransactionReceiptResponse{
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
+		},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
@@ -287,8 +289,10 @@ func TestMigrateTransactionsFailWriteConfirmations(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	tx := &apitypes.TXWithStatus{
-		ManagedTX:     &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
-		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
+		ManagedTX: &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
+		Receipt: &ffcapi.TransactionReceiptResponse{
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
+		},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
@@ -314,8 +318,10 @@ func TestMigrateTransactionsFailWriteReceipt(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	tx := &apitypes.TXWithStatus{
-		ManagedTX:     &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
-		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
+		ManagedTX: &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
+		Receipt: &ffcapi.TransactionReceiptResponse{
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
+		},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
@@ -340,8 +346,10 @@ func TestMigrateTransactionsFailWriteTx(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	tx := &apitypes.TXWithStatus{
-		ManagedTX:     &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
-		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
+		ManagedTX: &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
+		Receipt: &ffcapi.TransactionReceiptResponse{
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
+		},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
@@ -365,8 +373,10 @@ func TestMigrateTransactionsFailCheckExists(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	tx := &apitypes.TXWithStatus{
-		ManagedTX:     &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
-		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
+		ManagedTX: &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
+		Receipt: &ffcapi.TransactionReceiptResponse{
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
+		},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
@@ -389,8 +399,10 @@ func TestMigrateTransactionsFailGetDetail(t *testing.T) {
 	mdb2 := persistencemocks.NewPersistence(t)
 
 	tx := &apitypes.TXWithStatus{
-		ManagedTX:     &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
-		Receipt:       &ffcapi.TransactionReceiptResponse{BlockHash: fftypes.NewRandB32().String()},
+		ManagedTX: &apitypes.ManagedTX{ID: fftypes.NewUUID().String()},
+		Receipt: &ffcapi.TransactionReceiptResponse{
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
+		},
 		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)

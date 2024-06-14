@@ -55,3 +55,21 @@ func TestSortEvents(t *testing.T) {
 		assert.LessOrEqual(t, strings.Compare(listenerUpdates[i-1].Event.ID.ProtocolID(), listenerUpdates[i].Event.ID.ProtocolID()), 0)
 	}
 }
+
+func TestSortBlockEventsString(t *testing.T) {
+
+	assert.Equal(t, "block[12345/0x9614ad189f45ecff5f4949b22891c6bca7d83b40b50d8104bed101bc94395257]", (&BlockEvent{BlockInfo: BlockInfo{
+		BlockNumber: fftypes.NewFFBigInt(12345),
+		BlockHash:   "0x9614ad189f45ecff5f4949b22891c6bca7d83b40b50d8104bed101bc94395257",
+	}}).String())
+}
+
+func TestBlockListenerCheckpoint(t *testing.T) {
+
+	b10 := &BlockListenerCheckpoint{Block: 10}
+	b20 := &BlockListenerCheckpoint{Block: 20}
+	b30 := &BlockListenerCheckpoint{Block: 30}
+	assert.True(t, b10.LessThan(b20))
+	assert.False(t, b30.LessThan(b20))
+	assert.False(t, b20.LessThan(b20))
+}

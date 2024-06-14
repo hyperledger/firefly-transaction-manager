@@ -36,6 +36,7 @@ func (p *sqlPersistence) newListenersCollection(forMigration bool) *dbsql.CrudBa
 			dbsql.ColumnCreated,
 			dbsql.ColumnUpdated,
 			"name",
+			"type",
 			"stream_id",
 			"filters",
 			"options",
@@ -58,6 +59,8 @@ func (p *sqlPersistence) newListenersCollection(forMigration bool) *dbsql.CrudBa
 				return &inst.Created
 			case dbsql.ColumnUpdated:
 				return &inst.Updated
+			case "type":
+				return &inst.Type
 			case "name":
 				return &inst.Name
 			case "stream_id":

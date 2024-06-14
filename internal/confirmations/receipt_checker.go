@@ -94,7 +94,7 @@ func (rc *receiptChecker) run(i int) {
 		// We use the back-off retry handling of the retry loop to avoid tight loops,
 		// but in the case of errors we re-queue the individual item to the back of the
 		// queue so individual queued items do not get stuck for unrecoverable errors.
-		err := rc.bcm.retry.Do(ctx, "receipt check", func(attempt int) (bool, error) {
+		err := rc.bcm.retry.Do(ctx, "receipt check", func(_ int) (bool, error) {
 			startTime := time.Now()
 			pending := rc.waitNext()
 			if pending == nil {

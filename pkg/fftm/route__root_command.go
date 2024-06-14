@@ -107,6 +107,26 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 					return nil, err
 				}
 				return res.Outputs, nil
+			case apitypes.RequestTypeTransactionReceipt:
+				var tReq apitypes.TransactionReceiptRequest
+				if err = baseReq.UnmarshalTo(&tReq); err != nil {
+					return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
+				}
+				res, _, err := m.connector.TransactionReceipt(r.Req.Context(), &tReq.TransactionReceiptRequest)
+				if err != nil {
+					return nil, err
+				}
+				apiRes := &apitypes.TransactionReceiptResponse{
+					TransactionReceiptResponseBase: res.TransactionReceiptResponseBase,
+				}
+				// Ugly necessity to work around the complex serialization interface in EventWithContext without
+				// moving or duplicating the code
+				for _, e := range res.Events {
+					apiRes.Events = append(apiRes.Events, &apitypes.EventWithContext{
+						Event: e,
+					})
+				}
+				return apiRes, nil
 			default:
 				return nil, i18n.NewError(r.Req.Context(), tmmsgs.MsgUnsupportedRequestType, baseReq.Headers.Type)
 			}

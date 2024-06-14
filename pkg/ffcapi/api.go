@@ -100,14 +100,14 @@ type BlockHashEvent struct {
 
 // EventID are the set of required fields an FFCAPI compatible connector needs to map to the underlying blockchain constructs, to uniquely identify an event
 type EventID struct {
-	ListenerID       *fftypes.UUID    `json:"listenerId"`          // The listener for the event
-	Signature        string           `json:"signature"`           // The signature of this specific event (noting a listener might filter on multiple events)
-	BlockHash        string           `json:"blockHash"`           // String representation of the block, which will change if any transaction info in the block changes
-	BlockNumber      fftypes.FFuint64 `json:"blockNumber"`         // A numeric identifier for the block
-	TransactionHash  string           `json:"transactionHash"`     // The transaction
-	TransactionIndex fftypes.FFuint64 `json:"transactionIndex"`    // Index within the block of the transaction that emitted the event
-	LogIndex         fftypes.FFuint64 `json:"logIndex"`            // Index within the transaction of this emitted event log
-	Timestamp        *fftypes.FFTime  `json:"timestamp,omitempty"` // The on-chain timestamp
+	ListenerID       *fftypes.UUID    `json:"listenerId,omitempty"` // The listener for the event (omitted when decoding receipts)
+	Signature        string           `json:"signature"`            // The signature of this specific event (noting a listener might filter on multiple events)
+	BlockHash        string           `json:"blockHash"`            // String representation of the block, which will change if any transaction info in the block changes
+	BlockNumber      fftypes.FFuint64 `json:"blockNumber"`          // A numeric identifier for the block
+	TransactionHash  string           `json:"transactionHash"`      // The transaction
+	TransactionIndex fftypes.FFuint64 `json:"transactionIndex"`     // Index within the block of the transaction that emitted the event
+	LogIndex         fftypes.FFuint64 `json:"logIndex"`             // Index within the transaction of this emitted event log
+	Timestamp        *fftypes.FFTime  `json:"timestamp,omitempty"`  // The on-chain timestamp
 }
 
 // Event is a blockchain event that matches one of the started listeners,
@@ -120,14 +120,34 @@ type Event struct {
 	Data *fftypes.JSONAny // data
 }
 
+type BlockEvent struct {
+	ListenerID *fftypes.UUID `json:"listenerId"` // The listener for the event
+	BlockInfo
+}
+
 func (e *Event) String() string {
 	return e.ID.String()
+}
+
+func (e *BlockEvent) String() string {
+	return fmt.Sprintf("block[%d/%s]", e.BlockNumber.Uint64(), e.BlockHash)
 }
 
 // EventListenerCheckpoint is the interface that a checkpoint must implement, basically to make it sortable.
 // The checkpoint must also be JSON serializable
 type EventListenerCheckpoint interface {
 	LessThan(b EventListenerCheckpoint) bool
+}
+
+// BlockListenerCheckpoint is an implementation of EventListenerCheckpoint for block listener, which are a special
+// type of listener handled by the FFTM framework in the confirmation manager.
+type BlockListenerCheckpoint struct {
+	Block uint64 `json:"block"`
+}
+
+func (cp *BlockListenerCheckpoint) LessThan(b EventListenerCheckpoint) bool {
+	bcp := b.(*BlockListenerCheckpoint)
+	return cp.Block < bcp.Block
 }
 
 // String is unique in all cases for an event, by combining the protocol ID with the listener ID and block hash
@@ -166,6 +186,7 @@ func evLess(eI *Event, eJ *Event) bool {
 type ListenerEvent struct {
 	Checkpoint EventListenerCheckpoint `json:"checkpoint"`        // the checkpoint information associated with the event, must be non-nil if the event is not removed
 	Event      *Event                  `json:"event"`             // the event - for removed events, can only have the EventID fields set (to generate the protocol ID)
+	BlockEvent *BlockEvent             `json:"blockEvent"`        // the event for block listeners
 	Removed    bool                    `json:"removed,omitempty"` // when true, this is an explicit cancellation of a previous event
 }
 
@@ -191,7 +212,7 @@ const (
 	// ErrorKnownTransaction if the exact transaction is already known
 	ErrorKnownTransaction ErrorReason = "known_transaction"
 	// ErrorReasonDownstreamDown if the downstream JSONRPC endpoint is down
-	ErrorReasonDownstreamDown = "downstream_down"
+	ErrorReasonDownstreamDown ErrorReason = "downstream_down"
 )
 
 // TransactionInput is a standardized set of parameters that describe a transaction submission to a blockchain.

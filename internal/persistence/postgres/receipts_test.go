@@ -52,13 +52,17 @@ func TestReceiptsInsertTwoInOneCyclePSQL(t *testing.T) {
 
 	// Insert receipt
 	err := p.SetTransactionReceipt(ctx, tx1ID, &ffcapi.TransactionReceiptResponse{
-		BlockNumber: fftypes.NewFFBigInt(12345),
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockNumber: fftypes.NewFFBigInt(12345),
+		},
 	})
 	assert.NoError(t, err)
 
 	// Immediately replace it in the same cycle
 	err = p.SetTransactionReceipt(ctx, tx1ID, &ffcapi.TransactionReceiptResponse{
-		BlockNumber: fftypes.NewFFBigInt(23456),
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockNumber: fftypes.NewFFBigInt(23456),
+		},
 	})
 	assert.NoError(t, err)
 
@@ -98,13 +102,17 @@ func TestReceiptsReplaceInAnotherCyclePSQL(t *testing.T) {
 
 	// Insert receipt
 	err := p.SetTransactionReceipt(ctx, tx1ID, &ffcapi.TransactionReceiptResponse{
-		BlockNumber: fftypes.NewFFBigInt(12345),
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockNumber: fftypes.NewFFBigInt(12345),
+		},
 	})
 	assert.NoError(t, err)
 
 	// Replace it in the next cycle (note ConfigTXWriterBatchSize at head of test)
 	err = p.SetTransactionReceipt(ctx, tx1ID, &ffcapi.TransactionReceiptResponse{
-		BlockNumber: fftypes.NewFFBigInt(23456),
+		TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+			BlockNumber: fftypes.NewFFBigInt(23456),
+		},
 	})
 	assert.NoError(t, err)
 

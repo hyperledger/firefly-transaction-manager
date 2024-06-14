@@ -1,4 +1,4 @@
-// Copyright © 2022 Kaleido, Inc.
+// Copyright © 2024 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -14,18 +14,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package ffcapi
+package apitypes
 
 import (
-	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
-type BlockInfoByNumberRequest struct {
-	BlockNumber        *fftypes.FFBigInt `json:"blockNumber"`
-	AllowCache         bool              `json:"allowCache"`
-	ExpectedParentHash string            `json:"expectedParentHash"` // If set then a mismatched parent hash should be considered a cache miss (if the connector does caching)
+// TransactionReceiptRequest is the request payload to query for a receipt
+type TransactionReceiptRequest struct {
+	Headers RequestHeaders `json:"headers"`
+	ffcapi.TransactionReceiptRequest
 }
 
-type BlockInfoByNumberResponse struct {
-	BlockInfo
+// TransactionReceiptResponse is the response payload for a query
+type TransactionReceiptResponse struct {
+	ffcapi.TransactionReceiptResponseBase
+	Events []*EventWithContext `json:"events,omitempty"` // this is the serialization format for events (historical complexity)
 }

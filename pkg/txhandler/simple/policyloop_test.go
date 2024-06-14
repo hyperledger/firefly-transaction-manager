@@ -129,12 +129,14 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
-			BlockNumber:      fftypes.NewFFBigInt(12345),
-			TransactionIndex: fftypes.NewFFBigInt(10),
-			BlockHash:        fftypes.NewRandB32().String(),
-			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-			Success:          true,
-			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+				BlockNumber:      fftypes.NewFFBigInt(12345),
+				TransactionIndex: fftypes.NewFFBigInt(10),
+				BlockHash:        fftypes.NewRandB32().String(),
+				ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+				Success:          true,
+				ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+			},
 		})
 		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
@@ -199,12 +201,14 @@ func TestPolicyLoopIgnoreTransactionInformationalEventHandlingErrors(t *testing.
 		sth.inflight = []*pendingState{}
 		n := args[0].(*confirmations.Notification)
 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
-			BlockNumber:      fftypes.NewFFBigInt(12345),
-			TransactionIndex: fftypes.NewFFBigInt(10),
-			BlockHash:        fftypes.NewRandB32().String(),
-			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-			Success:          true,
-			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+				BlockNumber:      fftypes.NewFFBigInt(12345),
+				TransactionIndex: fftypes.NewFFBigInt(10),
+				BlockHash:        fftypes.NewRandB32().String(),
+				ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+				Success:          true,
+				ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+			},
 		})
 		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
@@ -310,11 +314,13 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
-			BlockNumber:      fftypes.NewFFBigInt(12345),
-			TransactionIndex: fftypes.NewFFBigInt(10),
-			BlockHash:        fftypes.NewRandB32().String(),
-			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-			Success:          false,
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+				BlockNumber:      fftypes.NewFFBigInt(12345),
+				TransactionIndex: fftypes.NewFFBigInt(10),
+				BlockHash:        fftypes.NewRandB32().String(),
+				ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+				Success:          false,
+			},
 		})
 		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
@@ -394,11 +400,13 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
-			BlockNumber:      fftypes.NewFFBigInt(12345),
-			TransactionIndex: fftypes.NewFFBigInt(10),
-			BlockHash:        fftypes.NewRandB32().String(),
-			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-			Success:          true,
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+				BlockNumber:      fftypes.NewFFBigInt(12345),
+				TransactionIndex: fftypes.NewFFBigInt(10),
+				BlockHash:        fftypes.NewRandB32().String(),
+				ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+				Success:          true,
+			},
 		})
 		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
@@ -574,12 +582,14 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
-			BlockNumber:      fftypes.NewFFBigInt(12345),
-			TransactionIndex: fftypes.NewFFBigInt(10),
-			BlockHash:        fftypes.NewRandB32().String(),
-			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-			Success:          true,
-			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+				BlockNumber:      fftypes.NewFFBigInt(12345),
+				TransactionIndex: fftypes.NewFFBigInt(10),
+				BlockHash:        fftypes.NewRandB32().String(),
+				ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+				Success:          true,
+				ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+			},
 		})
 		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
@@ -649,12 +659,14 @@ func TestPolicyLoopUpdateEventHandlerError(t *testing.T) {
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{
-			BlockNumber:      fftypes.NewFFBigInt(12345),
-			TransactionIndex: fftypes.NewFFBigInt(10),
-			BlockHash:        fftypes.NewRandB32().String(),
-			ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
-			Success:          true,
-			ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+				BlockNumber:      fftypes.NewFFBigInt(12345),
+				TransactionIndex: fftypes.NewFFBigInt(10),
+				BlockHash:        fftypes.NewRandB32().String(),
+				ProtocolID:       fmt.Sprintf("%.12d/%.6d", fftypes.NewFFBigInt(12345).Int64(), fftypes.NewFFBigInt(10).Int64()),
+				Success:          true,
+				ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
+			},
 		})
 		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)

@@ -40,6 +40,7 @@ func TestListenerBasicPSQL(t *testing.T) {
 		ID:       fftypes.NewUUID(),
 		Name:     strPtr("l1"),
 		StreamID: stream1,
+		Type:     &apitypes.ListenerTypeEvents,
 		Filters: apitypes.ListenerFilters{
 			*fftypes.JSONAnyPtr(`{"filter":"one"}`),
 			*fftypes.JSONAnyPtr(`{"filter":"two"}`),
@@ -66,6 +67,7 @@ func TestListenerBasicPSQL(t *testing.T) {
 	lUpdated := &apitypes.Listener{
 		ID:       l.ID,
 		Name:     strPtr("l2"),
+		Type:     &apitypes.ListenerTypeEvents,
 		StreamID: stream1,
 		Filters: apitypes.ListenerFilters{
 			*fftypes.JSONAnyPtr(`{"filter":"three"}`),
@@ -111,6 +113,7 @@ func TestListenerAfterPaginatePSQL(t *testing.T) {
 		l := &apitypes.Listener{
 			ID:       fftypes.NewUUID(),
 			Name:     strPtr(fmt.Sprintf("l_%.3d", i)),
+			Type:     &apitypes.ListenerTypeEvents,
 			StreamID: stream1,
 		}
 		if i >= 10 {

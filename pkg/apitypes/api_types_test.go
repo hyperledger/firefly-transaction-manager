@@ -189,8 +189,9 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 			StreamID:       NewULID(),
 			ListenerName:   "listener1",
 			EthCompatSubID: NewULID(),
+			ListenerType:   ListenerTypeEvents,
 		},
-		Event: ffcapi.Event{
+		Event: &ffcapi.Event{
 			ID: ffcapi.EventID{
 				ListenerID:       fftypes.NewUUID(),
 				BlockHash:        "0x12345",
@@ -214,8 +215,9 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 		"blockNumber":"12345",
 		"data": {"dk1":"dv1"},
 		"key1":"val1",
-		"listenerId":"`+e.ID.ListenerID.String()+`",
+		"listenerId":"`+e.Event.ID.ListenerID.String()+`",
 		"listenerName":"listener1",
+		"listenerType": "events",
 		"logIndex":"1",
 		"signature":"ev()",
 		"subId":"`+e.StandardContext.EthCompatSubID.String()+`",
@@ -228,10 +230,57 @@ func TestMarshalUnmarshalEventOK(t *testing.T) {
 	err = json.Unmarshal(b, &e2)
 	assert.NoError(t, err)
 
-	assert.Equal(t, e.ID.ListenerID, e2.ID.ListenerID)
+	assert.Equal(t, e.Event.ID.ListenerID, e2.Event.ID.ListenerID)
 	assert.Equal(t, e.StandardContext.StreamID, e2.StandardContext.StreamID)
-	assert.Equal(t, e.Data, e2.Data)
-	assert.Equal(t, "val1", e2.Info.(fftypes.JSONObject).GetString("key1"))
+	assert.Equal(t, e.Event.Data, e2.Event.Data)
+	assert.Equal(t, "val1", e2.Event.Info.(fftypes.JSONObject).GetString("key1"))
+
+}
+
+func TestMarshalUnmarshalBlockEventOK(t *testing.T) {
+
+	type customInfo struct {
+		InfoKey1 string `json:"key1"`
+	}
+
+	e := &EventWithContext{
+		StandardContext: EventContext{
+			StreamID:       NewULID(),
+			ListenerName:   "listener1",
+			EthCompatSubID: NewULID(),
+			ListenerType:   ListenerTypeBlocks,
+		},
+		BlockEvent: &ffcapi.BlockEvent{
+			ListenerID: fftypes.NewUUID(),
+			BlockInfo: ffcapi.BlockInfo{
+				BlockHash:         "0x12345",
+				BlockNumber:       fftypes.NewFFBigInt(12345),
+				ParentHash:        "0x23456",
+				TransactionHashes: []string{},
+			},
+		},
+	}
+
+	b, err := json.Marshal(&e)
+	assert.NoError(t, err)
+	assert.JSONEq(t, `{
+		"blockHash":"0x12345",
+		"parentHash": "0x23456",
+		"blockNumber":"12345",
+		"listenerId":"`+e.BlockEvent.ListenerID.String()+`",
+		"listenerName":"listener1",
+		"listenerType": "blocks",
+		"transactionHashes": [],
+		"subId":"`+e.StandardContext.EthCompatSubID.String()+`",
+		"streamId":"`+e.StandardContext.StreamID.String()+`"
+	}`, string(b))
+
+	var e2 *EventWithContext
+	err = json.Unmarshal(b, &e2)
+	assert.NoError(t, err)
+
+	assert.Equal(t, e.BlockEvent.ListenerID, e2.BlockEvent.ListenerID)
+	assert.Equal(t, e.StandardContext.StreamID, e2.StandardContext.StreamID)
 
 }
 

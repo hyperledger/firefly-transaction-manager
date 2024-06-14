@@ -45,6 +45,8 @@ type Manager interface {
 	Stop()
 	NewBlockHashes() chan<- *ffcapi.BlockHashEvent
 	CheckInFlight(listenerID *fftypes.UUID) bool
+	StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, fromBlock string, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *ffcapi.ListenerEvent) error
+	StopConfirmedBlockListener(ctx context.Context, id *fftypes.UUID) error
 }
 
 type NotificationType string
@@ -99,6 +101,8 @@ type blockConfirmationManager struct {
 	pendingMux            sync.Mutex
 	receiptChecker        *receiptChecker
 	retry                 *retry.Retry
+	cblLock               sync.Mutex
+	cbls                  map[fftypes.UUID]*confirmedBlockListener
 	fetchReceiptUponEntry bool
 	done                  chan struct{}
 }
@@ -108,6 +112,7 @@ func NewBlockConfirmationManager(baseContext context.Context, connector ffcapi.A
 	bcm := &blockConfirmationManager{
 		baseContext:           baseContext,
 		connector:             connector,
+		cbls:                  make(map[fftypes.UUID]*confirmedBlockListener),
 		blockListenerStale:    true,
 		requiredConfirmations: config.GetInt(tmconfig.ConfirmationsRequired),
 		staleReceiptTimeout:   config.GetDuration(tmconfig.ConfirmationsStaleReceiptTimeout),
@@ -233,6 +238,9 @@ func (bcm *blockConfirmationManager) Stop() {
 		// Reset context ready for restart
 		bcm.ctx, bcm.cancelFunc = context.WithCancel(bcm.baseContext)
 	}
+	for _, cbl := range bcm.copyCBLsList() {
+		_ = bcm.StopConfirmedBlockListener(bcm.ctx, cbl.id)
+	}
 }
 
 func (bcm *blockConfirmationManager) NewBlockHashes() chan<- *ffcapi.BlockHashEvent {
@@ -301,9 +309,10 @@ func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*apitypes
 	return blockInfo, nil
 }
 
-func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, expectedParentHash string) (*apitypes.BlockInfo, error) {
+func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, allowCache bool, expectedParentHash string) (*apitypes.BlockInfo, error) {
 	res, reason, err := bcm.connector.BlockInfoByNumber(bcm.ctx, &ffcapi.BlockInfoByNumberRequest{
 		BlockNumber:        fftypes.NewFFBigInt(int64(blockNumber)),
+		AllowCache:         allowCache,
 		ExpectedParentHash: expectedParentHash,
 	})
 	if err != nil {
@@ -326,6 +335,27 @@ func transformBlockInfo(res *ffcapi.BlockInfo) *apitypes.BlockInfo {
 	}
 }
 
+func (bcm *blockConfirmationManager) copyCBLsList() []*confirmedBlockListener {
+	bcm.cblLock.Lock()
+	defer bcm.cblLock.Unlock()
+	cbls := make([]*confirmedBlockListener, 0, len(bcm.cbls))
+	for _, cbl := range bcm.cbls {
+		cbls = append(cbls, cbl)
+	}
+	return cbls
+}
+
+func (bcm *blockConfirmationManager) propagateBlockHashToCBLs(bhe *ffcapi.BlockHashEvent) {
+	bcm.cblLock.Lock()
+	defer bcm.cblLock.Unlock()
+	for _, cbl := range bcm.cbls {
+		select {
+		case cbl.newBlockHashes <- bhe:
+		case <-cbl.processorDone:
+		}
+	}
+}
+
 func (bcm *blockConfirmationManager) confirmationsListener() {
 	defer close(bcm.done)
 	notifications := make([]*Notification, 0)
@@ -339,6 +369,11 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 				bcm.blockListenerStale = true
 			}
 			blockHashes = append(blockHashes, bhe.BlockHashes...)
+
+			// Need to also pass this event to any confirmed block listeners
+			// (they promise to always be efficient in handling these, having a go-routine
+			// dedicated to spinning fast just processing those separate to dispatching them)
+			bcm.propagateBlockHashToCBLs(bhe)
 
 			if bhe.Created != nil {
 				for i := 0; i < len(bhe.BlockHashes); i++ {
@@ -371,7 +406,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 
 		if bcm.blockListenerStale {
 			if err := bcm.walkChain(blocks); err != nil {
-				log.L(bcm.ctx).Errorf("Failed to create walk chain after restoring blockListener: %s", err)
+				log.L(bcm.ctx).Errorf("Failed to walk chain after restoring blockListener: %s", err)
 				continue
 			}
 			bcm.blockListenerStale = false
@@ -704,7 +739,7 @@ func (bs *blockState) getByNumber(blockNumber uint64, expectedParentHash string)
 	if block != nil {
 		return block, nil
 	}
-	block, err := bs.bcm.getBlockByNumber(blockNumber, expectedParentHash)
+	block, err := bs.bcm.getBlockByNumber(blockNumber, true, expectedParentHash)
 	if err != nil {
 		return nil, err
 	}
