@@ -206,11 +206,11 @@ func (cbl *confirmedBlockListener) processBlockNotification(block *apitypes.Bloc
 	}
 	switch {
 	case dispatchHead != nil && block.BlockNumber == dispatchHead.BlockNumber+1 && block.ParentHash == dispatchHead.BlockHash:
-		// Ok - we just need to pop it onto the list, and wake the thread
+		// Ok - we just need to pop it onto the list, and ensure we wake the dispatcher routine
 		log.L(cbl.ctx).Debugf("Directly passing block %d/%s to dispatcher after block %d/%s", block.BlockNumber, block.BlockHash, dispatchHead.BlockNumber, dispatchHead.BlockHash)
 		cbl.newHeadToAdd = append(cbl.newHeadToAdd, block)
-	case dispatchHead == nil:
-		// The dispatcher will check these against the checkpoint block before pulling them to the blocksSinceCheckpoint list
+	case dispatchHead == nil && (cbl.rollingCheckpoint == nil || block.BlockNumber.Uint64() == (cbl.rollingCheckpoint.Block+1)):
+		// This is the next block the dispatcher needs, to wake it up with this.
 		log.L(cbl.ctx).Debugf("Directly passing block %d/%s to dispatcher as no blocks pending", block.BlockNumber, block.BlockHash)
 		cbl.newHeadToAdd = append(cbl.newHeadToAdd, block)
 	default:
@@ -232,8 +232,7 @@ func (cbl *confirmedBlockListener) processBlockNotification(block *apitypes.Bloc
 		}
 	}
 
-	// We didn't fit the block into our existing tree, so this means it's ahead of where we are up to.
-	// So just ensure the dispatcher is racing up to it
+	// There's something for the dispatcher to process
 	cbl.tapDispatcher()
 
 }

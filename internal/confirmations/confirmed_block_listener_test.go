@@ -360,7 +360,7 @@ func TestCBLDispatcherFallsBehindHead(t *testing.T) {
 			time.Sleep(1 * time.Millisecond)
 		}
 		b := <-esDispatch
-		assert.Equal(t, b.BlockEvent.BlockNumber, blocks[i].BlockNumber)
+		assert.Equal(t, b.BlockEvent.BlockNumber.Uint64(), blocks[i].BlockNumber.Uint64())
 		assert.Equal(t, b.BlockEvent.BlockInfo, blocks[i].BlockInfo)
 	}
 
