@@ -467,14 +467,23 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 			}
 		case NewTransaction:
 			newItem := n.transactionPendingItem()
-			bcm.addOrReplaceItem(newItem)
-			if bcm.fetchReceiptUponEntry {
-				bcm.receiptChecker.schedule(newItem, false)
-			}
+			newItem.receiptCallback(bcm.ctx, &ffcapi.TransactionReceiptResponse{
+				TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+					BlockNumber:      fftypes.NewFFBigInt(1),
+					TransactionIndex: fftypes.NewFFBigInt(1),
+					BlockHash:        "",
+					Success:          true,
+				},
+			})
+			newItem.confirmationsCallback(bcm.ctx, &apitypes.ConfirmationsNotification{
+				Confirmed:     true,
+				NewFork:       true,
+				Confirmations: []*apitypes.Confirmation{},
+			})
 		case RemovedEventLog:
 			bcm.removeItem(n.eventPendingItem(), true)
 		case RemovedTransaction:
-			bcm.removeItem(n.transactionPendingItem(), true)
+			// bcm.removeItem(n.transactionPendingItem(), true)
 		case receiptArrived:
 			bcm.dispatchReceipt(n.pending, n.receipt, blocks)
 		default:
