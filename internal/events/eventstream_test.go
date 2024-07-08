@@ -91,6 +91,7 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 		&wsmocks.WebSocketChannels{},
 		listeners,
 		emm,
+		nil,
 	)
 	mfc.On("EventStreamNewCheckpointStruct").Return(&utCheckpointType{}).Maybe()
 	if err != nil {
@@ -125,12 +126,14 @@ func TestNewTestEventStreamMissingID(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
 	emm := &metricsmocks.EventMetricsEmitter{}
+
 	_, err := NewEventStream(context.Background(), &apitypes.EventStream{},
 		&ffcapimocks.API{},
 		&persistencemocks.Persistence{},
 		&wsmocks.WebSocketChannels{},
 		[]*apitypes.Listener{},
 		emm,
+		nil,
 	)
 	assert.Regexp(t, "FF21048", err)
 }
@@ -139,12 +142,14 @@ func TestNewTestEventStreamBadConfig(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
 	emm := &metricsmocks.EventMetricsEmitter{}
+
 	_, err := NewEventStream(context.Background(), testESConf(t, `{}`),
 		&ffcapimocks.API{},
 		&persistencemocks.Persistence{},
 		&wsmocks.WebSocketChannels{},
 		[]*apitypes.Listener{},
 		emm,
+		nil,
 	)
 	assert.Regexp(t, "FF21028", err)
 }

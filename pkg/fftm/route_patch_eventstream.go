@@ -38,7 +38,7 @@ var patchEventStream = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.EventStream{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.updateStream(r.Req.Context(), r.PP["streamId"], r.Input.(*apitypes.EventStream))
+			return m.UpdateStream(r.Req.Context(), r.PP["streamId"], r.Input.(*apitypes.EventStream))
 		},
 	}
 }

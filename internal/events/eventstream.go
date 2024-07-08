@@ -79,7 +79,9 @@ func InitDefaults() {
 	}
 }
 
-type eventStreamAction func(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error
+type InternalEventsDispatcher interface {
+	ProcessBatchedEvents(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error
+}
 
 type eventStreamBatch struct {
 	number      int64
@@ -92,7 +94,7 @@ type startedStreamState struct {
 	ctx               context.Context
 	cancelCtx         func()
 	startTime         *fftypes.FFTime
-	action            eventStreamAction
+	action            func(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error
 	eventLoopDone     chan struct{}
 	batchLoopDone     chan struct{}
 	blockListenerDone chan struct{}
@@ -110,6 +112,7 @@ type eventStream struct {
 	confirmations         confirmations.Manager
 	confirmationsRequired int
 	listeners             map[fftypes.UUID]*listener
+	internalDispatcher    InternalEventsDispatcher
 	wsChannels            ws.WebSocketChannels
 	retry                 *retry.Retry
 	currentState          *startedStreamState
@@ -125,6 +128,7 @@ func NewEventStream(
 	wsChannels ws.WebSocketChannels,
 	initialListeners []*apitypes.Listener,
 	eme metrics.EventMetricsEmitter,
+	internalDispatcher InternalEventsDispatcher,
 ) (ees Stream, err error) {
 	esCtx := log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String())
 	es := &eventStream{
@@ -134,6 +138,7 @@ func NewEventStream(
 		connector:             connector,
 		persistence:           persistence,
 		listeners:             make(map[fftypes.UUID]*listener),
+		internalDispatcher:    internalDispatcher,
 		wsChannels:            wsChannels,
 		retry:                 esDefaults.retry,
 		checkpointInterval:    config.GetDuration(tmconfig.EventStreamsCheckpointInterval),
@@ -162,18 +167,26 @@ func NewEventStream(
 
 func (es *eventStream) initAction(startedState *startedStreamState) error {
 	ctx := startedState.ctx
-	switch *es.spec.Type {
-	case apitypes.EventStreamTypeWebhook:
-		wa, err := newWebhookAction(ctx, es.spec.Webhook)
-		if err != nil {
-			return err
+	if es.internalDispatcher != nil {
+		if es.spec.Type != &apitypes.EventStreamTypeInternal {
+			// TODO: need to understand why this should be panic, copied from the default switch case
+			panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamTypeForModuleMode, *es.spec.Type))
 		}
-		startedState.action = wa.attemptBatch
-	case apitypes.EventStreamTypeWebSocket:
-		startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
-	default:
-		// mergeValidateEsConfig always be called previous to this
-		panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
+		startedState.action = es.internalDispatcher.ProcessBatchedEvents
+	} else {
+		switch *es.spec.Type {
+		case apitypes.EventStreamTypeWebhook:
+			wa, err := newWebhookAction(ctx, es.spec.Webhook)
+			if err != nil {
+				return err
+			}
+			startedState.action = wa.attemptBatch
+		case apitypes.EventStreamTypeWebSocket:
+			startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
+		default:
+			// mergeValidateEsConfig always be called previous to this
+			panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
+		}
 	}
 	return nil
 }
@@ -251,6 +264,8 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 		if merged.Webhook, changed, err = mergeValidateWhConfig(ctx, changed, base.Webhook, updates.Webhook); err != nil {
 			return nil, false, err
 		}
+	case apitypes.EventStreamTypeInternal:
+		// no checks are required for internal listener
 	default:
 		return nil, false, i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *merged.Type)
 	}

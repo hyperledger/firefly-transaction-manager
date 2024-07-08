@@ -50,7 +50,7 @@ var getSubscriptions = func(m *manager) *ffapi.Route {
 			{Name: "after", Description: tmmsgs.APIParamAfter},
 		}
 		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getListeners(r.Req.Context(), r.QP["after"], r.QP["limit"])
+			return m.GetListeners(r.Req.Context(), r.QP["after"], r.QP["limit"])
 		}
 	}
 	return route

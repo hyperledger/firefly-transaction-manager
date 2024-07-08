@@ -37,7 +37,7 @@ var postSubscriptions = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.createAndStoreNewListener(r.Req.Context(), r.Input.(*apitypes.Listener))
+			return m.createAndStoreNewListenerDeprecated(r.Req.Context(), r.Input.(*apitypes.Listener))
 		},
 	}
 }

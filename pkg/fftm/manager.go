@@ -42,6 +42,8 @@ import (
 
 type Manager interface {
 	Start() error
+	StreamManager
+	txhandler.TransactionManager
 	Close()
 }
 
@@ -50,9 +52,6 @@ type manager struct {
 	cancelCtx        func()
 	confirmations    confirmations.Manager
 	txHandler        txhandler.TransactionHandler
-	apiServer        httpserver.HTTPServer
-	metricsServer    httpserver.HTTPServer
-	wsServer         ws.WebSocketServer
 	persistence      persistence.Persistence
 	richQueryEnabled bool
 
@@ -65,10 +64,22 @@ type manager struct {
 	blockListenerDone chan struct{}
 	txHandlerDone     <-chan struct{}
 	started           bool
+
+	// configurations that are specific to FFTM running as a go module
+	moduleFunctions ModuleFunctions
+
+	// configurations that are specific to FFTM running as an HTTP server
+	apiServer         httpserver.HTTPServer
+	metricsServer     httpserver.HTTPServer
+	wsServer          ws.WebSocketServer
 	apiServerDone     chan error
 	metricsServerDone chan error
 	metricsEnabled    bool
 	metricsManager    metrics.Metrics
+}
+
+type ModuleFunctions interface {
+	events.InternalEventsDispatcher
 }
 
 func InitConfig() {
@@ -76,9 +87,9 @@ func InitConfig() {
 	events.InitDefaults()
 }
 
-func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
+func NewManager(ctx context.Context, connector ffcapi.API, mf ModuleFunctions) (Manager, error) {
 	var err error
-	m := newManager(ctx, connector)
+	m := newManager(ctx, connector, mf)
 	if err = m.initPersistence(ctx); err != nil {
 		return nil, err
 	}
@@ -88,16 +99,18 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 	return m, nil
 }
 
-func newManager(ctx context.Context, connector ffcapi.API) *manager {
+func newManager(ctx context.Context, connector ffcapi.API, mf ModuleFunctions) *manager {
 	m := &manager{
 		connector:         connector,
 		apiServerDone:     make(chan error),
 		metricsServerDone: make(chan error),
-		metricsEnabled:    config.GetBool(tmconfig.MetricsEnabled),
+		metricsEnabled:    config.GetBool(tmconfig.MetricsEnabled) && mf == nil,
 		eventStreams:      make(map[fftypes.UUID]events.Stream),
 		streamsByName:     make(map[string]*fftypes.UUID),
 		metricsManager:    metrics.NewMetricsManager(ctx),
+		moduleFunctions:   mf,
 	}
+
 	m.toolkit = &txhandler.Toolkit{
 		Connector:      m.connector,
 		MetricsManager: m.metricsManager,
@@ -108,10 +121,12 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 
 func (m *manager) initServices(ctx context.Context) (err error) {
 	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts", m.metricsManager)
-	m.wsServer = ws.NewWebSocketServer(ctx)
-	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(m.metricsEnabled), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
-	if err != nil {
-		return err
+	if m.moduleFunctions == nil {
+		m.wsServer = ws.NewWebSocketServer(ctx)
+		m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(m.metricsEnabled), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
+		if err != nil {
+			return err
+		}
 	}
 
 	// check whether a policy engine name is provided
@@ -129,13 +144,15 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	m.toolkit.EventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
 	m.txHandler.Init(ctx, m.toolkit)
 
-	// metrics service must be initialized after transaction handler
-	// in case the transaction handler has logic in the Init function
-	// to add more metrics
-	if m.metricsEnabled {
-		m.metricsServer, err = httpserver.NewHTTPServer(ctx, "metrics", m.createMetricsMuxRouter(), m.metricsServerDone, tmconfig.MetricsConfig, tmconfig.CorsConfig)
-		if err != nil {
-			return err
+	if m.moduleFunctions == nil {
+		// metrics service must be initialized after transaction handler
+		// in case the transaction handler has logic in the Init function
+		// to add more metrics
+		if m.metricsEnabled {
+			m.metricsServer, err = httpserver.NewHTTPServer(ctx, "metrics", m.createMetricsMuxRouter(), m.metricsServerDone, tmconfig.MetricsConfig, tmconfig.CorsConfig)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -166,9 +183,11 @@ func (m *manager) initPersistence(ctx context.Context) (err error) {
 }
 
 func (m *manager) Start() error {
-	go httpserver.RunDebugServer(m.ctx, tmconfig.DebugConfig)
+	if m.moduleFunctions == nil {
+		go httpserver.RunDebugServer(m.ctx, tmconfig.DebugConfig)
+	}
 
-	if err := m.restoreStreams(); err != nil {
+	if err := m._restoreStreams(); err != nil {
 		return err
 	}
 
@@ -179,9 +198,11 @@ func (m *manager) Start() error {
 		return err
 	}
 
-	go m.runAPIServer()
-	if m.metricsEnabled {
-		go m.runMetricsServer()
+	if m.moduleFunctions == nil {
+		go m.runAPIServer()
+		if m.metricsEnabled {
+			go m.runMetricsServer()
+		}
 	}
 	go m.confirmations.Start()
 

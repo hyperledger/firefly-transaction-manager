@@ -86,7 +86,7 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 
 	mca := &ffcapimocks.API{}
 	mca.On("NewBlockListener", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil).Maybe()
-	mm, err := NewManager(context.Background(), mca)
+	mm, err := NewManager(context.Background(), mca, nil)
 	assert.NoError(t, err)
 
 	m := mm.(*manager)
@@ -105,9 +105,7 @@ func newTestManagerMockNoRichDB(t *testing.T) (string, *manager, func()) {
 
 	url := testManagerCommonInit(t, false)
 
-	mca := &ffcapimocks.API{}
-
-	m := newManager(context.Background(), mca)
+	m := newManager(context.Background(), &ffcapimocks.API{}, nil)
 
 	mpm := &persistencemocks.Persistence{}
 	mpm.On("Close", mock.Anything).Return(nil)
@@ -133,9 +131,7 @@ func newTestManagerMockRichDB(t *testing.T) (string, *manager, *persistencemocks
 
 	url := testManagerCommonInit(t, false)
 
-	mca := &ffcapimocks.API{}
-
-	m := newManager(context.Background(), mca)
+	m := newManager(context.Background(), &ffcapimocks.API{}, nil)
 
 	mpm := &persistencemocks.Persistence{}
 	mpm.On("Close", mock.Anything).Return(nil)
@@ -170,7 +166,8 @@ func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
 
 	mca := &ffcapimocks.API{}
 	mca.On("NewBlockListener", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil).Maybe()
-	mm, err := NewManager(context.Background(), mca)
+
+	mm, err := NewManager(context.Background(), mca, nil)
 	assert.NoError(t, err)
 
 	m := mm.(*manager)
@@ -188,8 +185,7 @@ func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
 func newTestManagerMockPersistence(t *testing.T) (string, *manager, func()) {
 
 	url := testManagerCommonInit(t, false)
-
-	m := newManager(context.Background(), &ffcapimocks.API{})
+	m := newManager(context.Background(), &ffcapimocks.API{}, nil)
 	mp := &persistencemocks.Persistence{}
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 	m.persistence = mp
@@ -210,7 +206,7 @@ func TestNewManagerBadPersistencePathConfig(t *testing.T) {
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	_, err := NewManager(context.Background(), nil)
+	_, err := NewManager(context.Background(), nil, nil)
 	assert.Error(t, err)
 	assert.Regexp(t, "FF21050", err)
 
@@ -233,7 +229,7 @@ func TestNewManagerWithLegacyConfiguration(t *testing.T) {
 
 	tmconfig.DeprecatedPolicyEngineBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	m := newManager(context.Background(), &ffcapimocks.API{})
+	m := newManager(context.Background(), &ffcapimocks.API{}, nil)
 	mp := &persistencemocks.Persistence{}
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 	m.persistence = mp
@@ -253,7 +249,7 @@ func TestNewManagerBadHttpConfig(t *testing.T) {
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	_, err := NewManager(context.Background(), nil)
+	_, err := NewManager(context.Background(), nil, nil)
 	assert.Error(t, err)
 	assert.Regexp(t, "FF00151", err)
 
@@ -272,7 +268,7 @@ func TestNewManagerBadLevelDBConfig(t *testing.T) {
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	_, err = NewManager(context.Background(), nil)
+	_, err = NewManager(context.Background(), nil, nil)
 	assert.Regexp(t, "FF21049", err)
 
 }
@@ -286,7 +282,7 @@ func TestNewManagerBadPersistenceConfig(t *testing.T) {
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	_, err := NewManager(context.Background(), nil)
+	_, err := NewManager(context.Background(), nil, nil)
 	assert.Regexp(t, "FF21043", err)
 
 }
@@ -298,7 +294,7 @@ func TestNewManagerInvalidTransactionHandlerName(t *testing.T) {
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 	config.Set(tmconfig.TransactionsHandlerName, "wrong")
 
-	_, err := NewManager(context.Background(), nil)
+	_, err := NewManager(context.Background(), nil, nil)
 	assert.Regexp(t, "FF21070", err)
 
 }
@@ -307,7 +303,7 @@ func TestNewManagerMetricsOffByDefault(t *testing.T) {
 
 	tmconfig.Reset()
 
-	m := newManager(context.Background(), nil)
+	m := newManager(context.Background(), nil, nil)
 	assert.False(t, m.metricsEnabled)
 }
 
@@ -333,7 +329,7 @@ func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
 
-	_, err := NewManager(context.Background(), nil)
+	_, err := NewManager(context.Background(), nil, nil)
 	assert.Error(t, err)
 	assert.Regexp(t, "FF00151", err)
 }
@@ -381,7 +377,7 @@ func TestPSQLInitFail(t *testing.T) {
 	_ = testManagerCommonInit(t, false)
 	config.Set(tmconfig.PersistenceType, "postgres")
 
-	m := newManager(context.Background(), &ffcapimocks.API{})
+	m := newManager(context.Background(), &ffcapimocks.API{}, nil)
 
 	err := m.initPersistence(context.Background())
 	assert.Regexp(t, "FF21049", err)
@@ -393,7 +389,7 @@ func TestPSQLInitRichQueryEnabled(t *testing.T) {
 	config.Set(tmconfig.PersistenceType, "postgres")
 	tmconfig.PostgresSection.Set(dbsql.SQLConfDatasourceURL, "unused")
 
-	m := newManager(context.Background(), &ffcapimocks.API{})
+	m := newManager(context.Background(), &ffcapimocks.API{}, nil)
 
 	err := m.initPersistence(context.Background())
 	assert.NoError(t, err)

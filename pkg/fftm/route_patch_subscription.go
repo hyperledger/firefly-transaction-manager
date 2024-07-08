@@ -39,7 +39,7 @@ var patchSubscription = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.updateExistingListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"], r.Input.(*apitypes.Listener), false)
+			return m.UpdateListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"], r.Input.(*apitypes.Listener), false)
 		},
 	}
 }

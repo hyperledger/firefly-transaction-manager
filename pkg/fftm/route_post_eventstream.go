@@ -36,7 +36,7 @@ var postEventStream = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.EventStream{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.createAndStoreNewStream(r.Req.Context(), r.Input.(*apitypes.EventStream))
+			return m.CreateAndStoreNewStream(r.Req.Context(), r.Input.(*apitypes.EventStream))
 		},
 	}
 }

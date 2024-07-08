@@ -30,6 +30,7 @@ mocks-$(strip $(1))-$(strip $(2)): ${MOCKERY}
 endef
 
 $(eval $(call makemock, pkg/ffcapi,             API,                         ffcapimocks))
+$(eval $(call makemock, pkg/fftm,               ModuleFunctions,             fftmmocks))
 $(eval $(call makemock, pkg/txhandler,          TransactionHandler,          txhandlermocks))
 $(eval $(call makemock, pkg/txhandler,          ManagedTxEventHandler,       txhandlermocks))
 $(eval $(call makemock, internal/metrics,       TransactionHandlerMetrics,   metricsmocks))
@@ -41,6 +42,7 @@ $(eval $(call makemock, internal/persistence,   RichQuery,                   per
 $(eval $(call makemock, internal/ws,            WebSocketChannels,           wsmocks))
 $(eval $(call makemock, internal/ws,            WebSocketServer,             wsmocks))
 $(eval $(call makemock, internal/events,        Stream,                      eventsmocks))
+$(eval $(call makemock, internal/events,        InternalEventsDispatcher,    eventsmocks))
 $(eval $(call makemock, internal/apiclient,     FFTMClient,                  apiclientmocks))
 
 go-mod-tidy: .ALWAYS

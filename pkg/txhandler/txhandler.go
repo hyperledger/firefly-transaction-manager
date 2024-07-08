@@ -154,7 +154,18 @@ type TransactionHandler interface {
 	Start(ctx context.Context) (done <-chan struct{}, err error)
 
 	// Event handling functions
+
 	// Instructional events:
+	TransactionManager
+
+	// Informational events:
+	// HandleTransactionConfirmations - handles confirmations of blockchain transactions for a managed transaction
+	HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error)
+	// HandleTransactionReceiptReceived - handles receipt of blockchain transactions for a managed transaction
+	HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
+}
+
+type TransactionManager interface {
 	// HandleNewTransaction - handles event of adding new transactions onto blockchain
 	HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error)
 	// HandleNewContractDeployment - handles event of adding new smart contract deployment onto blockchain
@@ -165,10 +176,4 @@ type TransactionHandler interface {
 	HandleSuspendTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
 	// HandleResumeTransaction - handles event of resuming a suspended managed transaction
 	HandleResumeTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
-
-	// Informational events:
-	// HandleTransactionConfirmations - handles confirmations of blockchain transactions for a managed transaction
-	HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error)
-	// HandleTransactionReceiptReceived - handles receipt of blockchain transactions for a managed transaction
-	HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
 }

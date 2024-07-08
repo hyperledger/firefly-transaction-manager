@@ -40,7 +40,7 @@ func (m *manager) getTransactionByIDWithStatus(ctx context.Context, txID string,
 }
 
 func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signer string, pending bool, dirString string) (transactions []*apitypes.ManagedTX, err error) {
-	limit, err := m.parseLimit(ctx, limitStr)
+	limit, err := m._parseLimit(ctx, limitStr)
 	if err != nil {
 		return nil, err
 	}
@@ -119,4 +119,25 @@ func (m *manager) requestTransactionResume(ctx context.Context, txID string) (st
 
 	return http.StatusAccepted, canceledTx, nil
 
+}
+
+// exposing txhandler functions through manager
+func (m *manager) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
+	return m.txHandler.HandleNewTransaction(ctx, txReq)
+}
+
+func (m *manager) HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
+	return m.txHandler.HandleNewContractDeployment(ctx, txReq)
+}
+
+func (m *manager) HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
+	return m.txHandler.HandleCancelTransaction(ctx, txID)
+}
+
+func (m *manager) HandleSuspendTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
+	return m.txHandler.HandleSuspendTransaction(ctx, txID)
+}
+
+func (m *manager) HandleResumeTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
+	return m.txHandler.HandleResumeTransaction(ctx, txID)
 }

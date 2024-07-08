@@ -36,7 +36,24 @@ const (
 	startupPaginationLimit = 25
 )
 
-func (m *manager) restoreStreams() error {
+type StreamManager interface {
+	CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error)
+	GetStreams(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.EventStream, err error)
+	GetStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error)
+	UpdateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error)
+	DeleteStream(ctx context.Context, idStr string) error
+}
+
+type StreamListenerManager interface {
+	CreateAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error)
+	GetListeners(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.Listener, err error)
+	GetListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error)
+	UpdateListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error)
+	DeleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error
+}
+
+// Event stream functions
+func (m *manager) _restoreStreams() error {
 	var lastInPage *fftypes.UUID
 	for {
 		streamDefs, err := m.persistence.ListStreamsByCreateTime(m.ctx, lastInPage, startupPaginationLimit, txhandler.SortDirectionAscending)
@@ -54,10 +71,10 @@ func (m *manager) restoreStreams() error {
 			}
 			// check to see if it's already started
 			if _, ok := m.eventStreams[*def.ID]; !ok {
-				closeoutName, err := m.reserveStreamName(m.ctx, *def.Name, def.ID)
+				closeoutName, err := m._reserveStreamName(m.ctx, *def.Name, def.ID)
 				var s events.Stream
 				if err == nil {
-					s, err = m.addRuntimeStream(def, streamListeners)
+					s, err = m._addRuntimeStream(def, streamListeners)
 				}
 				if err == nil && !*def.Suspended {
 					err = s.Start(m.ctx)
@@ -72,7 +89,7 @@ func (m *manager) restoreStreams() error {
 	return nil
 }
 
-func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftypes.UUID) error {
+func (m *manager) _deleteAllStreamListeners(ctx context.Context, streamID *fftypes.UUID) error {
 	for {
 		// Do not specify after as we just delete everything
 		listenerDefs, err := m.persistence.ListStreamListenersByCreateTime(ctx, nil, startupPaginationLimit, txhandler.SortDirectionAscending, streamID)
@@ -91,8 +108,8 @@ func (m *manager) deleteAllStreamListeners(ctx context.Context, streamID *fftype
 	return nil
 }
 
-func (m *manager) addRuntimeStream(def *apitypes.EventStream, listeners []*apitypes.Listener) (events.Stream, error) {
-	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.wsServer, listeners, m.metricsManager)
+func (m *manager) _addRuntimeStream(def *apitypes.EventStream, listeners []*apitypes.Listener) (events.Stream, error) {
+	s, err := events.NewEventStream(m.ctx, def, m.connector, m.persistence, m.wsServer, listeners, m.metricsManager, m.moduleFunctions)
 	if err != nil {
 		return nil, err
 	}
@@ -103,31 +120,7 @@ func (m *manager) addRuntimeStream(def *apitypes.EventStream, listeners []*apity
 	return s, nil
 }
 
-func (m *manager) deleteStream(ctx context.Context, idStr string) error {
-	id, err := fftypes.ParseUUID(ctx, idStr)
-	if err != nil {
-		return err
-	}
-	m.mux.Lock()
-	s := m.eventStreams[*id]
-	delete(m.eventStreams, *id)
-	if s != nil {
-		delete(m.streamsByName, *s.Spec().Name)
-	}
-	m.mux.Unlock()
-	if err := m.deleteAllStreamListeners(ctx, id); err != nil {
-		return err
-	}
-	if err := m.persistence.DeleteStream(ctx, id); err != nil {
-		return err
-	}
-	if s != nil {
-		return s.Delete(ctx)
-	}
-	return nil
-}
-
-func (m *manager) reserveStreamName(ctx context.Context, name string, id *fftypes.UUID) (func(bool), error) {
+func (m *manager) _reserveStreamName(ctx context.Context, name string, id *fftypes.UUID) (func(bool), error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -157,7 +150,7 @@ func (m *manager) reserveStreamName(ctx context.Context, name string, id *fftype
 	}, nil
 }
 
-func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error) {
+func (m *manager) CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error) {
 	def.ID = apitypes.NewULID()
 	def.Created = nil // set to updated time by events.NewEventStream
 	if def.Name == nil || *def.Name == "" {
@@ -165,13 +158,13 @@ func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.Eve
 	}
 
 	stored := false
-	closeoutName, err := m.reserveStreamName(ctx, *def.Name, def.ID)
+	closeoutName, err := m._reserveStreamName(ctx, *def.Name, def.ID)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { closeoutName(stored) }()
 
-	s, err := m.addRuntimeStream(def, nil /* no listeners when a new stream is first created */)
+	s, err := m._addRuntimeStream(def, nil /* no listeners when a new stream is first created */)
 	if err != nil {
 		return nil, err
 	}
@@ -192,71 +185,32 @@ func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.Eve
 	return spec, nil
 }
 
-func (m *manager) createAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error) {
-	streamID, err := fftypes.ParseUUID(ctx, idStr)
+func (m *manager) GetStreams(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.EventStream, err error) {
+	after, limit, err := m._parseAfterAndLimit(ctx, afterStr, limitStr)
 	if err != nil {
 		return nil, err
 	}
-	def.StreamID = streamID
-	return m.createAndStoreNewListener(ctx, def)
+	return m.persistence.ListStreamsByCreateTime(ctx, after, limit, txhandler.SortDirectionDescending)
 }
 
-func (m *manager) createAndStoreNewListener(ctx context.Context, def *apitypes.Listener) (*apitypes.Listener, error) {
-	return m.createOrUpdateListener(ctx, apitypes.NewULID(), def, false)
-}
-
-func (m *manager) updateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
-	l, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
+func (m *manager) GetStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error) {
+	id, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return nil, err
-	}
-	updates.StreamID = l.StreamID
-	return m.createOrUpdateListener(ctx, l.ID, updates, reset)
-}
-
-func (m *manager) createOrUpdateListener(ctx context.Context, id *fftypes.UUID, newOrUpdates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
-	if err := mergeEthCompatMethods(ctx, newOrUpdates); err != nil {
-		return nil, err
-	}
-	var s events.Stream
-	if newOrUpdates.StreamID != nil {
-		m.mux.Lock()
-		s = m.eventStreams[*newOrUpdates.StreamID]
-		m.mux.Unlock()
-	}
-	if s == nil {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, newOrUpdates.StreamID)
-	}
-	def, err := s.AddOrUpdateListener(ctx, id, newOrUpdates, reset)
-	if err != nil {
-		return nil, err
-	}
-	if err := m.persistence.WriteListener(ctx, def); err != nil {
-		err1 := s.RemoveListener(ctx, def.ID)
-		log.L(ctx).Infof("Cleaned up runtime listener after write failed (err?=%v)", err1)
-		return nil, err
-	}
-	return def, nil
-}
-
-func (m *manager) deleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error {
-	spec, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
-	if err != nil {
-		return err
 	}
 	m.mux.Lock()
-	s := m.eventStreams[*spec.StreamID]
+	s := m.eventStreams[*id]
 	m.mux.Unlock()
 	if s == nil {
-		return i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, spec.StreamID)
+		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, idStr)
 	}
-	if err := s.RemoveListener(ctx, spec.ID); err != nil {
-		return err
-	}
-	return m.persistence.DeleteListener(ctx, spec.ID)
+	return &apitypes.EventStreamWithStatus{
+		EventStream: *s.Spec(),
+		Status:      s.Status(),
+	}, nil
 }
 
-func (m *manager) updateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error) {
+func (m *manager) UpdateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error) {
 	id, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return nil, err
@@ -270,7 +224,7 @@ func (m *manager) updateStream(ctx context.Context, idStr string, updates *apity
 
 	nameChanged := false
 	if updates.Name != nil && *updates.Name != "" {
-		closeoutName, err := m.reserveStreamName(ctx, *updates.Name, id)
+		closeoutName, err := m._reserveStreamName(ctx, *updates.Name, id)
 		if err != nil {
 			return nil, err
 		}
@@ -297,53 +251,71 @@ func (m *manager) updateStream(ctx context.Context, idStr string, updates *apity
 	return spec, nil
 }
 
-func (m *manager) getStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error) {
+func (m *manager) DeleteStream(ctx context.Context, idStr string) error {
 	id, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	m.mux.Lock()
 	s := m.eventStreams[*id]
+	delete(m.eventStreams, *id)
+	if s != nil {
+		delete(m.streamsByName, *s.Spec().Name)
+	}
 	m.mux.Unlock()
+	if err := m._deleteAllStreamListeners(ctx, id); err != nil {
+		return err
+	}
+	if err := m.persistence.DeleteStream(ctx, id); err != nil {
+		return err
+	}
+	if s != nil {
+		return s.Delete(ctx)
+	}
+	return nil
+}
+
+// Stream listener functions
+
+func (m *manager) _createOrUpdateListener(ctx context.Context, id *fftypes.UUID, newOrUpdates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
+	if err := _mergeEthCompatMethods(ctx, newOrUpdates); err != nil {
+		return nil, err
+	}
+	var s events.Stream
+	if newOrUpdates.StreamID != nil {
+		m.mux.Lock()
+		s = m.eventStreams[*newOrUpdates.StreamID]
+		m.mux.Unlock()
+	}
 	if s == nil {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, idStr)
+		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, newOrUpdates.StreamID)
 	}
-	return &apitypes.EventStreamWithStatus{
-		EventStream: *s.Spec(),
-		Status:      s.Status(),
-	}, nil
-}
-
-func (m *manager) parseLimit(ctx context.Context, limitStr string) (limit int, err error) {
-	if limitStr != "" {
-		if limit, err = strconv.Atoi(limitStr); err != nil {
-			return -1, i18n.NewError(ctx, tmmsgs.MsgInvalidLimit, limitStr, err)
-		}
-	}
-	return limit, nil
-}
-
-func (m *manager) parseAfterAndLimit(ctx context.Context, afterStr, limitStr string) (after *fftypes.UUID, limit int, err error) {
-	if limit, err = m.parseLimit(ctx, limitStr); err != nil {
-		return nil, -1, i18n.NewError(ctx, tmmsgs.MsgInvalidLimit, limitStr, err)
-	}
-	if afterStr != "" {
-		if after, err = fftypes.ParseUUID(ctx, afterStr); err != nil {
-			return nil, -1, err
-		}
-	}
-	return after, limit, nil
-}
-
-func (m *manager) getStreams(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.EventStream, err error) {
-	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
+	def, err := s.AddOrUpdateListener(ctx, id, newOrUpdates, reset)
 	if err != nil {
 		return nil, err
 	}
-	return m.persistence.ListStreamsByCreateTime(ctx, after, limit, txhandler.SortDirectionDescending)
+	if err := m.persistence.WriteListener(ctx, def); err != nil {
+		err1 := s.RemoveListener(ctx, def.ID)
+		log.L(ctx).Infof("Cleaned up runtime listener after write failed (err?=%v)", err1)
+		return nil, err
+	}
+	return def, nil
 }
 
-func (m *manager) getListenerSpec(ctx context.Context, streamIDStr, listenerIDStr string) (spec *apitypes.Listener, err error) {
+func (m *manager) createAndStoreNewListenerDeprecated(ctx context.Context, def *apitypes.Listener) (*apitypes.Listener, error) {
+	return m._createOrUpdateListener(ctx, apitypes.NewULID(), def, false)
+}
+
+func (m *manager) CreateAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error) {
+	streamID, err := fftypes.ParseUUID(ctx, idStr)
+	if err != nil {
+		return nil, err
+	}
+	def.StreamID = streamID
+	return m.createAndStoreNewListenerDeprecated(ctx, def)
+}
+
+func (m *manager) _getListenerSpec(ctx context.Context, streamIDStr, listenerIDStr string) (spec *apitypes.Listener, err error) {
 	var streamID *fftypes.UUID
 	if streamIDStr != "" {
 		streamID, err = fftypes.ParseUUID(ctx, streamIDStr)
@@ -367,34 +339,8 @@ func (m *manager) getListenerSpec(ctx context.Context, streamIDStr, listenerIDSt
 	return spec, nil
 }
 
-func (m *manager) getListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error) {
-	spec, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr)
-	if err != nil {
-		return nil, err
-	}
-	l = &apitypes.ListenerWithStatus{Listener: *spec}
-	status, _, err := m.connector.EventListenerHWM(ctx, &ffcapi.EventListenerHWMRequest{
-		StreamID:   spec.StreamID,
-		ListenerID: spec.ID,
-	})
-	if err == nil {
-		l.EventListenerHWMResponse = *status
-	} else {
-		log.L(ctx).Warnf("Failed to query status for listener %s/%s: %s", spec.StreamID, spec.ID, err)
-	}
-	return l, nil
-}
-
-func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.Listener, err error) {
-	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
-	if err != nil {
-		return nil, err
-	}
-	return m.persistence.ListListenersByCreateTime(ctx, after, limit, txhandler.SortDirectionDescending)
-}
-
 func (m *manager) getStreamListenersByCreateTime(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
-	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
+	after, limit, err := m._parseAfterAndLimit(ctx, afterStr, limitStr)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +359,61 @@ func (m *manager) getStreamListenersRich(ctx context.Context, streamID string, f
 	return m.persistence.RichQuery().ListStreamListeners(ctx, id, filter)
 }
 
-func mergeEthCompatMethods(ctx context.Context, listener *apitypes.Listener) error {
+func (m *manager) GetListeners(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.Listener, err error) {
+	after, limit, err := m._parseAfterAndLimit(ctx, afterStr, limitStr)
+	if err != nil {
+		return nil, err
+	}
+	return m.persistence.ListListenersByCreateTime(ctx, after, limit, txhandler.SortDirectionDescending)
+}
+
+func (m *manager) GetListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error) {
+	spec, err := m._getListenerSpec(ctx, streamIDStr, listenerIDStr)
+	if err != nil {
+		return nil, err
+	}
+	l = &apitypes.ListenerWithStatus{Listener: *spec}
+	status, _, err := m.connector.EventListenerHWM(ctx, &ffcapi.EventListenerHWMRequest{
+		StreamID:   spec.StreamID,
+		ListenerID: spec.ID,
+	})
+	if err == nil {
+		l.EventListenerHWMResponse = *status
+	} else {
+		log.L(ctx).Warnf("Failed to query status for listener %s/%s: %s", spec.StreamID, spec.ID, err)
+	}
+	return l, nil
+}
+
+func (m *manager) UpdateListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
+	l, err := m._getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
+	if err != nil {
+		return nil, err
+	}
+	updates.StreamID = l.StreamID
+	return m._createOrUpdateListener(ctx, l.ID, updates, reset)
+}
+
+func (m *manager) DeleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error {
+	spec, err := m._getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
+	if err != nil {
+		return err
+	}
+	m.mux.Lock()
+	s := m.eventStreams[*spec.StreamID]
+	m.mux.Unlock()
+	if s == nil {
+		return i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, spec.StreamID)
+	}
+	if err := s.RemoveListener(ctx, spec.ID); err != nil {
+		return err
+	}
+	return m.persistence.DeleteListener(ctx, spec.ID)
+}
+
+// other internal functions
+
+func _mergeEthCompatMethods(ctx context.Context, listener *apitypes.Listener) error {
 	if listener.EthCompatMethods != nil {
 		if listener.Options == nil {
 			listener.Options = fftypes.JSONAnyPtr("{}")
@@ -433,4 +433,25 @@ func mergeEthCompatMethods(ctx context.Context, listener *apitypes.Listener) err
 		listener.EthCompatMethods = nil
 	}
 	return nil
+}
+
+func (m *manager) _parseLimit(ctx context.Context, limitStr string) (limit int, err error) {
+	if limitStr != "" {
+		if limit, err = strconv.Atoi(limitStr); err != nil {
+			return -1, i18n.NewError(ctx, tmmsgs.MsgInvalidLimit, limitStr, err)
+		}
+	}
+	return limit, nil
+}
+
+func (m *manager) _parseAfterAndLimit(ctx context.Context, afterStr, limitStr string) (after *fftypes.UUID, limit int, err error) {
+	if limit, err = m._parseLimit(ctx, limitStr); err != nil {
+		return nil, -1, i18n.NewError(ctx, tmmsgs.MsgInvalidLimit, limitStr, err)
+	}
+	if afterStr != "" {
+		if after, err = fftypes.ParseUUID(ctx, afterStr); err != nil {
+			return nil, -1, err
+		}
+	}
+	return after, limit, nil
 }

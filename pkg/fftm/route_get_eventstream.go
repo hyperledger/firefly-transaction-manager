@@ -38,7 +38,7 @@ var getEventStream = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.EventStreamWithStatus{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getStream(r.Req.Context(), r.PP["streamId"])
+			return m.GetStream(r.Req.Context(), r.PP["streamId"])
 		},
 	}
 }
