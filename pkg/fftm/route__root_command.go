@@ -83,7 +83,7 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 					if err = baseReq.UnmarshalTo(&tReq); err != nil {
 						return nil, true /* reject */, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 					}
-					return m.txHandler.HandleNewTransaction(r.Req.Context(), &tReq)
+					return m.HandleNewTransaction(r.Req.Context(), &tReq)
 				}), nil
 			case apitypes.RequestTypeDeploy:
 				// We have to supply an extra submissionRejected boolean on submission errors
@@ -92,7 +92,7 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 					if err = baseReq.UnmarshalTo(&tReq); err != nil {
 						return nil, true /* reject */, i18n.NewError(r.Req.Context(), tmmsgs.MsgInvalidRequestErr, baseReq.Headers.Type, err)
 					}
-					return m.txHandler.HandleNewContractDeployment(r.Req.Context(), &tReq)
+					return m.HandleNewContractDeployment(r.Req.Context(), &tReq)
 				}), nil
 			case apitypes.RequestTypeQuery:
 				var tReq apitypes.QueryRequest

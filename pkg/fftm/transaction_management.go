@@ -87,7 +87,7 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 
 func (m *manager) requestTransactionDeletion(ctx context.Context, txID string) (status int, transaction *apitypes.ManagedTX, err error) {
 
-	canceledTx, err := m.txHandler.HandleCancelTransaction(ctx, txID)
+	canceledTx, err := m.HandleCancelTransaction(ctx, txID)
 
 	if err != nil {
 		return http.StatusInternalServerError, nil, err
@@ -99,7 +99,7 @@ func (m *manager) requestTransactionDeletion(ctx context.Context, txID string) (
 
 func (m *manager) requestTransactionSuspend(ctx context.Context, txID string) (status int, transaction *apitypes.ManagedTX, err error) {
 
-	canceledTx, err := m.txHandler.HandleSuspendTransaction(ctx, txID)
+	canceledTx, err := m.HandleSuspendTransaction(ctx, txID)
 
 	if err != nil {
 		return http.StatusInternalServerError, nil, err
@@ -111,7 +111,7 @@ func (m *manager) requestTransactionSuspend(ctx context.Context, txID string) (s
 
 func (m *manager) requestTransactionResume(ctx context.Context, txID string) (status int, transaction *apitypes.ManagedTX, err error) {
 
-	canceledTx, err := m.txHandler.HandleResumeTransaction(ctx, txID)
+	canceledTx, err := m.HandleResumeTransaction(ctx, txID)
 
 	if err != nil {
 		return http.StatusInternalServerError, nil, err

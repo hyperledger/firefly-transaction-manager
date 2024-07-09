@@ -31,6 +31,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmconfig"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/confirmationsmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
+	"github.com/hyperledger/firefly-transaction-manager/mocks/fftmmocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
@@ -397,4 +398,38 @@ func TestPSQLInitRichQueryEnabled(t *testing.T) {
 
 	assert.True(t, m.richQueryEnabled)
 	assert.NotNil(t, m.toolkit.RichQuery)
+}
+
+func TestModuleMode(t *testing.T) {
+
+	_ = testManagerCommonInit(t, false)
+
+	dir := t.TempDir()
+	config.Set(tmconfig.PersistenceLevelDBPath, dir)
+
+	m := newManager(context.Background(), &ffcapimocks.API{}, &fftmmocks.ModuleFunctions{})
+	mpm := &persistencemocks.Persistence{}
+	mpm.On("Close", mock.Anything).Return(nil)
+	mpm.On("ListStreamsByCreateTime", mock.Anything, mock.Anything, startupPaginationLimit, txhandler.SortDirectionAscending).Return(nil, nil)
+	mrq := &persistencemocks.RichQuery{}
+	mpm.On("RichQuery").Return(mrq)
+	m.persistence = mpm
+	m.richQueryEnabled = true
+	mcm := &confirmationsmocks.Manager{}
+	m.confirmations = mcm
+	mcm.On("Start").Return().Maybe()
+	mca := m.connector.(*ffcapimocks.API)
+	mca.On("NewBlockListener", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReason(""), nil).Maybe()
+
+	err := m.initPersistence(context.Background())
+	assert.NoError(t, err)
+
+	err = m.initServices(context.Background())
+	assert.NoError(t, err)
+	assert.Nil(t, m.apiServer)
+	assert.Nil(t, m.metricsServer)
+	assert.Nil(t, m.wsServer)
+
+	err = m.Start()
+	assert.NoError(t, err)
 }
