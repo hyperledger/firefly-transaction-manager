@@ -338,11 +338,11 @@ func TestCreateStreamValidateFail(t *testing.T) {
 
 }
 
-func TestCreateAndStoreNewStreamListenerBadID(t *testing.T) {
+func TestCreateAndStoreNewListenerBadID(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	_, err := m.CreateAndStoreNewStreamListener(m.ctx, "bad", nil)
+	_, err := m.CreateAndStoreNewListener(m.ctx, "bad", nil)
 	assert.Regexp(t, "FF00138", err)
 }
 

@@ -131,6 +131,9 @@ func NewEventStream(
 	internalDispatcher InternalEventsDispatcher,
 ) (ees Stream, err error) {
 	esCtx := log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String())
+	if persistedSpec.Type != nil && *persistedSpec.Type == apitypes.EventStreamTypeInternal && internalDispatcher == nil {
+		return nil, i18n.NewError(esCtx, tmmsgs.MsgMissingInternalDispatcher)
+	}
 	es := &eventStream{
 		bgCtx:                 esCtx,
 		status:                apitypes.EventStreamStatusStopped,
@@ -167,26 +170,21 @@ func NewEventStream(
 
 func (es *eventStream) initAction(startedState *startedStreamState) error {
 	ctx := startedState.ctx
-	if es.internalDispatcher != nil {
-		if es.spec.Type != &apitypes.EventStreamTypeInternal {
-			// TODO: need to understand why this should be panic, copied from the default switch case
-			panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamTypeForModuleMode, *es.spec.Type))
+
+	switch *es.spec.Type {
+	case apitypes.EventStreamTypeWebhook:
+		wa, err := newWebhookAction(ctx, es.spec.Webhook)
+		if err != nil {
+			return err
 		}
+		startedState.action = wa.attemptBatch
+	case apitypes.EventStreamTypeWebSocket:
+		startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
+	case apitypes.EventStreamTypeInternal:
 		startedState.action = es.internalDispatcher.ProcessBatchedEvents
-	} else {
-		switch *es.spec.Type {
-		case apitypes.EventStreamTypeWebhook:
-			wa, err := newWebhookAction(ctx, es.spec.Webhook)
-			if err != nil {
-				return err
-			}
-			startedState.action = wa.attemptBatch
-		case apitypes.EventStreamTypeWebSocket:
-			startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
-		default:
-			// mergeValidateEsConfig always be called previous to this
-			panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
-		}
+	default:
+		// mergeValidateEsConfig always be called previous to this
+		panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
 	}
 	return nil
 }

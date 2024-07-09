@@ -38,7 +38,7 @@ var postEventStreamListeners = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.CreateAndStoreNewStreamListener(r.Req.Context(), r.PP["streamId"], r.Input.(*apitypes.Listener))
+			return m.CreateAndStoreNewListener(r.Req.Context(), r.PP["streamId"], r.Input.(*apitypes.Listener))
 		},
 	}
 }

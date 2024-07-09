@@ -44,8 +44,8 @@ type StreamManager interface {
 	DeleteStream(ctx context.Context, idStr string) error
 }
 
-type StreamListenerManager interface {
-	CreateAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error)
+type ListenerManager interface {
+	CreateAndStoreNewListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error)
 	GetListeners(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.Listener, err error)
 	GetListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error)
 	UpdateListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error)
@@ -306,7 +306,7 @@ func (m *manager) createAndStoreNewListenerDeprecated(ctx context.Context, def *
 	return m._createOrUpdateListener(ctx, apitypes.NewULID(), def, false)
 }
 
-func (m *manager) CreateAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error) {
+func (m *manager) CreateAndStoreNewListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error) {
 	streamID, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return nil, err

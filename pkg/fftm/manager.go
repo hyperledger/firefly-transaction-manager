@@ -43,6 +43,7 @@ import (
 type Manager interface {
 	Start() error
 	StreamManager
+	ListenerManager
 	txhandler.TransactionManager
 	Close()
 }
