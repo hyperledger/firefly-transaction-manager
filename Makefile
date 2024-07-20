@@ -16,7 +16,7 @@ test: deps lint
 coverage.html:
 		$(VGO) tool cover -html=coverage.txt
 coverage: test coverage.html
-lint:
+lint: 
 		$(VGO) install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.55.2
 		GOGC=20 $(LINT) run -v --timeout 5m
 
