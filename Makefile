@@ -21,7 +21,7 @@ lint:
 		GOGC=20 $(LINT) run -v --timeout 5m
 
 ${MOCKERY}:
-		$(VGO) install github.com/vektra/mockery/v2@latest
+		$(VGO) install github.com/vektra/mockery/v2@v2.43.1
 
 define makemock
 mocks: mocks-$(strip $(1))-$(strip $(2))
