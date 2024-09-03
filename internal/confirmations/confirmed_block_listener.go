@@ -194,12 +194,12 @@ func (cbl *confirmedBlockListener) processBlockNotification(block *apitypes.Bloc
 	var dispatchHead *apitypes.BlockInfo
 	if len(cbl.newHeadToAdd) > 0 {
 		// we've snuck in multiple notifications while the dispatcher is busy... don't add indefinitely to this list
-		if len(cbl.newHeadToAdd) > 10 /* not considered worth adding/explaining a tuning property for this */ {
+		if len(cbl.newHeadToAdd) >= 10 /* not considered worth adding/explaining a tuning property for this */ {
 			log.L(cbl.ctx).Infof("Block listener fell behind head of chain")
-			cbl.newHeadToAdd = nil
-		} else {
-			dispatchHead = cbl.newHeadToAdd[len(cbl.newHeadToAdd)-1]
+			// Nothing more we can do in this function until it catches up - we just have to discard the notification
+			return
 		}
+		dispatchHead = cbl.newHeadToAdd[len(cbl.newHeadToAdd)-1]
 	}
 	if dispatchHead == nil && len(cbl.blocksSinceCheckpoint) > 0 {
 		dispatchHead = cbl.blocksSinceCheckpoint[len(cbl.blocksSinceCheckpoint)-1]
