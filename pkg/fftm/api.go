@@ -90,6 +90,6 @@ func (m *manager) runAPIServer() {
 	m.apiServer.ServeHTTP(m.ctx)
 }
 
-func (m *manager) runMetricsServer() {
-	m.metricsServer.ServeHTTP(m.ctx)
+func (m *manager) runMonitoringServer() {
+	m.monitoringServer.ServeHTTP(m.ctx)
 }

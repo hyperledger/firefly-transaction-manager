@@ -91,6 +91,8 @@ var WebhookPrefix config.Section
 
 var MonitoringConfig config.Section
 
+var DeprecatedMetricsConfig config.Section
+
 func setDefaults() {
 	viper.SetDefault(string(TransactionsMaxHistoryCount), 50)
 	viper.SetDefault(string(ConfirmationsRequired), 20)
@@ -165,12 +167,7 @@ func Reset() {
 	TransactionHandlerBaseConfig = config.RootSection("transactions.handler") // Transaction handler must be registered outside of this package
 
 	MonitoringConfig = config.RootSection("monitoring")
-	MetricsConfig := config.RootSection("metrics")
-	if MetricsConfig.GetBool("enabled") && !MonitoringConfig.GetBool("enabled") {
-		// only use the deprecated metrics config if the monitoring config is not enabled
-		httpserver.InitHTTPConfig(MetricsConfig, 6000)
-	} else {
-		httpserver.InitHTTPConfig(MonitoringConfig, 6000)
-	}
-
+	DeprecatedMetricsConfig = config.RootSection("metrics")
+	httpserver.InitHTTPConfig(DeprecatedMetricsConfig, 6000)
+	httpserver.InitHTTPConfig(MonitoringConfig, 6000)
 }
