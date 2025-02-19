@@ -174,28 +174,35 @@
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
-|address|The IP address on which the metrics HTTP API should listen|`int`|`127.0.0.1`
-|enabled|Enables the metrics API|`boolean`|`false`
+|enabled|Deprecated: Please use 'monitoring.enabled' instead|`boolean`|`false`
 |path|The path from which to serve the Prometheus metrics|`string`|`/metrics`
-|port|The port on which the metrics HTTP API should listen|`int`|`6000`
-|publicURL|The fully qualified public URL for the metrics API. This is used for building URLs in HTTP responses and in OpenAPI Spec generation|URL `string`|`<nil>`
-|readTimeout|The maximum time to wait when reading from an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
-|shutdownTimeout|The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
-|writeTimeout|The maximum time to wait when writing to an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
 
-## metrics.auth
+## monitoring
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|address|Listener address|`int`|`127.0.0.1`
+|enabled|Deprecated: Please use 'monitoring.metricsPath' instead|`string`|`false`
+|metricsPath|Enables the monitoring APIs|`boolean`|`/metrics`
+|port|Listener port|`int`|`6000`
+|publicURL|Externally available URL for the HTTP endpoint|`string`|`<nil>`
+|readTimeout|HTTP server read timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
+|shutdownTimeout|HTTP server shutdown timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
+|writeTimeout|HTTP server write timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
+
+## monitoring.auth
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |type|The auth plugin to use for server side authentication of requests|`string`|`<nil>`
 
-## metrics.auth.basic
+## monitoring.auth.basic
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |passwordfile|The path to a .htpasswd file to use for authenticating requests. Passwords should be hashed with bcrypt.|`string`|`<nil>`
 
-## metrics.tls
+## monitoring.tls
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
