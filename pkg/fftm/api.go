@@ -59,17 +59,30 @@ func (m *manager) router(metricsEnabled bool) *mux.Router {
 
 	mux.HandleFunc("/ws", m.wsServer.Handler)
 
-	mux.NotFoundHandler = hf.APIWrapper(func(res http.ResponseWriter, req *http.Request) (status int, err error) {
+	mux.NotFoundHandler = hf.APIWrapper(func(_ http.ResponseWriter, req *http.Request) (status int, err error) {
 		return 404, i18n.NewError(req.Context(), i18n.Msg404NotFound)
 	})
 	return mux
 }
 
-func (m *manager) createMetricsMuxRouter() *mux.Router {
+func (m *manager) createMonitoringMuxRouter() *mux.Router {
 	r := mux.NewRouter()
 
-	r.Path(config.GetString(tmconfig.MetricsPath)).Handler(m.metricsManager.HTTPHandler())
-
+	if config.GetBool(tmconfig.DeprecatedMetricsEnabled) {
+		r.Path(config.GetString(tmconfig.DeprecatedMetricsPath)).Handler(m.metricsManager.HTTPHandler())
+	} else {
+		r.Path(config.GetString(tmconfig.MonitoringMetricsPath)).Handler(m.metricsManager.HTTPHandler())
+	}
+	hf := ffapi.HandlerFactory{
+		DefaultRequestTimeout: config.GetDuration(tmconfig.APIDefaultRequestTimeout),
+		MaxTimeout:            config.GetDuration(tmconfig.APIMaxRequestTimeout),
+	}
+	for _, route := range m.monitoringRoutes() {
+		r.Path(route.Path).Methods(route.Method).Handler(hf.RouteHandler(route))
+	}
+	r.NotFoundHandler = hf.APIWrapper(func(_ http.ResponseWriter, req *http.Request) (status int, err error) {
+		return 404, i18n.NewError(req.Context(), i18n.Msg404NotFound)
+	})
 	return r
 }
 

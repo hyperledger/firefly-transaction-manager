@@ -98,7 +98,8 @@ func newTransactionWriter(bgCtx context.Context, p *sqlPersistence, conf config.
 	batchMaxSize := conf.GetInt(ConfigTXWriterBatchSize)
 	cacheSlots := conf.GetInt(ConfigTXWriterCacheSlots)
 	tw = &transactionWriter{
-		p:                   p,
+		p: p,
+		//nolint:gosec // Safe conversion as workerCount is always positive
 		workerCount:         uint32(workerCount),
 		batchTimeout:        conf.GetDuration(ConfigTXWriterBatchTimeout),
 		batchMaxSize:        batchMaxSize,
@@ -354,6 +355,7 @@ func (tw *transactionWriter) assignNonces(ctx context.Context, txInsertsByFrom m
 				}
 			}
 			log.L(ctx).Infof("Assigned nonce %s / %d to %s", signer, cacheEntry.nextNonce, op.txInsert.ID)
+			//nolint:gosec // Safe conversion as nextNonce is always positive
 			op.txInsert.Nonce = fftypes.NewFFBigInt(int64(cacheEntry.nextNonce))
 			cacheEntry.nextNonce++
 			tw.nextNonceCache.Add(signer, cacheEntry)

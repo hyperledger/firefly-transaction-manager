@@ -31,7 +31,7 @@ func (c *fftmClient) GetEventStreams(ctx context.Context) ([]apitypes.EventStrea
 		SetResult(&eventStreams).
 		Get("eventstreams")
 	if !resp.IsSuccess() {
-		return nil, fmt.Errorf(string(resp.Body()))
+		return nil, fmt.Errorf("%s", string(resp.Body()))
 	}
 	return eventStreams, err
 }
@@ -43,7 +43,7 @@ func (c *fftmClient) GetListeners(ctx context.Context, eventStreamID string) ([]
 		SetResult(&listeners).
 		Get(fmt.Sprintf("eventstreams/%s/listeners", eventStreamID))
 	if !resp.IsSuccess() {
-		return nil, fmt.Errorf(string(resp.Body()))
+		return nil, fmt.Errorf("%s", string(resp.Body()))
 	}
 	return listeners, err
 }
@@ -56,7 +56,7 @@ func (c *fftmClient) DeleteEventStream(ctx context.Context, eventStreamID string
 		return err
 	}
 	if !resp.IsSuccess() {
-		return fmt.Errorf(string(resp.Body()))
+		return fmt.Errorf("%s", string(resp.Body()))
 	}
 	return nil
 }
@@ -92,7 +92,7 @@ func (c *fftmClient) DeleteListener(ctx context.Context, eventStreamID, listener
 		return err
 	}
 	if !resp.IsSuccess() {
-		return fmt.Errorf(string(resp.Body()))
+		return fmt.Errorf("%s", string(resp.Body()))
 	}
 	return nil
 }

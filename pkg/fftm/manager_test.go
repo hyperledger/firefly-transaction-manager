@@ -55,7 +55,7 @@ func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").SubSection(simple.GasOracleConfig).Set(simple.GasOracleMode, simple.GasOracleModeDisabled)
 
 	if withMetrics {
-		tmconfig.MetricsConfig.Set("enabled", true)
+		tmconfig.MonitoringConfig.Set("enabled", true)
 	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -66,8 +66,8 @@ func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
 
 	if withMetrics {
-		tmconfig.MetricsConfig.Set(httpserver.HTTPConfPort, 6010)
-		tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
+		tmconfig.MonitoringConfig.Set(httpserver.HTTPConfPort, 6010)
+		tmconfig.MonitoringConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
 	}
 
 	// config.Set(tmconfig.PolicyLoopInterval, "1ns") //TODO: fix this
@@ -308,7 +308,7 @@ func TestNewManagerMetricsOffByDefault(t *testing.T) {
 	tmconfig.Reset()
 
 	m := newManager(context.Background(), nil)
-	assert.False(t, m.metricsEnabled)
+	assert.False(t, m.monitoringEnabled)
 }
 
 func TestNewManagerWithMetrics(t *testing.T) {
@@ -317,7 +317,7 @@ func TestNewManagerWithMetrics(t *testing.T) {
 	defer close()
 	_ = m.Start()
 
-	assert.True(t, m.metricsEnabled)
+	assert.True(t, m.monitoringEnabled)
 }
 
 func TestNewManagerWithMetricsBadConfig(t *testing.T) {
@@ -325,8 +325,8 @@ func TestNewManagerWithMetricsBadConfig(t *testing.T) {
 	tmconfig.Reset()
 	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "simple")
 
-	tmconfig.MetricsConfig.Set("enabled", true)
-	tmconfig.MetricsConfig.Set(httpserver.HTTPConfAddress, "::::")
+	tmconfig.MonitoringConfig.Set("enabled", true)
+	tmconfig.MonitoringConfig.Set(httpserver.HTTPConfAddress, "::::")
 	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
 

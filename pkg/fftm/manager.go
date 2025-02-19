@@ -59,16 +59,16 @@ type manager struct {
 	connector ffcapi.API
 	toolkit   *txhandler.Toolkit
 
-	mux               sync.Mutex
-	eventStreams      map[fftypes.UUID]events.Stream
-	streamsByName     map[string]*fftypes.UUID
-	blockListenerDone chan struct{}
-	txHandlerDone     <-chan struct{}
-	started           bool
-	apiServerDone     chan error
-	metricsServerDone chan error
-	metricsEnabled    bool
-	metricsManager    metrics.Metrics
+	mux                  sync.Mutex
+	eventStreams         map[fftypes.UUID]events.Stream
+	streamsByName        map[string]*fftypes.UUID
+	blockListenerDone    chan struct{}
+	txHandlerDone        <-chan struct{}
+	started              bool
+	apiServerDone        chan error
+	monitoringServerDone chan error
+	monitoringEnabled    bool
+	metricsManager       metrics.Metrics
 }
 
 func InitConfig() {
@@ -90,13 +90,13 @@ func NewManager(ctx context.Context, connector ffcapi.API) (Manager, error) {
 
 func newManager(ctx context.Context, connector ffcapi.API) *manager {
 	m := &manager{
-		connector:         connector,
-		apiServerDone:     make(chan error),
-		metricsServerDone: make(chan error),
-		metricsEnabled:    config.GetBool(tmconfig.MetricsEnabled),
-		eventStreams:      make(map[fftypes.UUID]events.Stream),
-		streamsByName:     make(map[string]*fftypes.UUID),
-		metricsManager:    metrics.NewMetricsManager(ctx),
+		connector:            connector,
+		apiServerDone:        make(chan error),
+		monitoringServerDone: make(chan error),
+		monitoringEnabled:    config.GetBool(tmconfig.DeprecatedMetricsEnabled) || config.GetBool(tmconfig.MonitoringEnabled),
+		eventStreams:         make(map[fftypes.UUID]events.Stream),
+		streamsByName:        make(map[string]*fftypes.UUID),
+		metricsManager:       metrics.NewMetricsManager(ctx),
 	}
 	m.toolkit = &txhandler.Toolkit{
 		Connector:      m.connector,
@@ -109,7 +109,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 func (m *manager) initServices(ctx context.Context) (err error) {
 	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts", m.metricsManager)
 	m.wsServer = ws.NewWebSocketServer(ctx)
-	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(m.metricsEnabled), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
+	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(m.monitoringEnabled), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
 	if err != nil {
 		return err
 	}
@@ -132,8 +132,8 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	// metrics service must be initialized after transaction handler
 	// in case the transaction handler has logic in the Init function
 	// to add more metrics
-	if m.metricsEnabled {
-		m.metricsServer, err = httpserver.NewHTTPServer(ctx, "metrics", m.createMetricsMuxRouter(), m.metricsServerDone, tmconfig.MetricsConfig, tmconfig.CorsConfig)
+	if m.monitoringEnabled {
+		m.metricsServer, err = httpserver.NewHTTPServer(ctx, "metrics", m.createMonitoringMuxRouter(), m.monitoringServerDone, tmconfig.MonitoringConfig, tmconfig.CorsConfig)
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func (m *manager) Start() error {
 	}
 
 	go m.runAPIServer()
-	if m.metricsEnabled {
+	if m.monitoringEnabled {
 		go m.runMetricsServer()
 	}
 	go m.confirmations.Start()
@@ -198,8 +198,8 @@ func (m *manager) Close() {
 	if m.started {
 		m.started = false
 		<-m.apiServerDone
-		if m.metricsEnabled {
-			<-m.metricsServerDone
+		if m.monitoringEnabled {
+			<-m.monitoringServerDone
 		}
 		<-m.txHandlerDone
 		<-m.blockListenerDone

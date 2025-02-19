@@ -65,6 +65,7 @@ var esDefaults struct {
 }
 
 func InitDefaults() {
+	//nolint:gosec
 	esDefaults.batchSize = config.GetInt64(tmconfig.EventStreamsDefaultsBatchSize)
 	esDefaults.batchTimeout = fftypes.FFDuration(config.GetDuration(tmconfig.EventStreamsDefaultsBatchTimeout))
 	esDefaults.errorHandling = fftypes.FFEnum(config.GetString(tmconfig.EventStreamsDefaultsErrorHandling))
@@ -218,6 +219,7 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 
 	// Batch timeout
 	if updates.EthCompatBatchTimeoutMS != nil {
+		//nolint:gosec
 		dv := fftypes.FFDuration(*updates.EthCompatBatchTimeoutMS) * fftypes.FFDuration(time.Millisecond)
 		changed = apitypes.CheckUpdateDuration(changed, &merged.BatchTimeout, base.BatchTimeout, &dv, esDefaults.batchTimeout)
 	} else {
@@ -226,6 +228,7 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 
 	// Retry timeout
 	if updates.EthCompatRetryTimeoutSec != nil {
+		//nolint:gosec
 		dv := fftypes.FFDuration(*updates.EthCompatRetryTimeoutSec) * fftypes.FFDuration(time.Second)
 		changed = apitypes.CheckUpdateDuration(changed, &merged.RetryTimeout, base.RetryTimeout, &dv, esDefaults.retryTimeout)
 	} else {
@@ -234,6 +237,7 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 
 	// Blocked retry delay
 	if updates.EthCompatBlockedRetryDelaySec != nil {
+		//nolint:gosec
 		dv := fftypes.FFDuration(*updates.EthCompatBlockedRetryDelaySec) * fftypes.FFDuration(time.Second)
 		changed = apitypes.CheckUpdateDuration(changed, &merged.BlockedRetryDelay, base.BlockedRetryDelay, &dv, esDefaults.blockedRetryDelay)
 	} else {
@@ -509,7 +513,8 @@ func (es *eventStream) Start(ctx context.Context) error {
 		startTime:     fftypes.Now(),
 		eventLoopDone: make(chan struct{}),
 		batchLoopDone: make(chan struct{}),
-		updates:       make(chan *ffcapi.ListenerEvent, int(*es.spec.BatchSize)),
+		//nolint:gosec
+		updates: make(chan *ffcapi.ListenerEvent, int(*es.spec.BatchSize)),
 	}
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.currentState = startedState
@@ -781,6 +786,8 @@ func (es *eventStream) checkConfirmedEventForBatch(e *ffcapi.ListenerEvent) (l *
 func (es *eventStream) batchLoop(startedState *startedStreamState) {
 	defer close(startedState.batchLoopDone)
 	ctx := startedState.ctx
+
+	//nolint:gosec
 	maxSize := int(*es.spec.BatchSize)
 	batchNumber := int64(0)
 
@@ -955,7 +962,7 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 	}
 
 	// We only return if the context is cancelled, or the checkpoint succeeds
-	return es.retry.Do(startedState.ctx, "checkpoint", func(attempt int) (retry bool, err error) {
+	return es.retry.Do(startedState.ctx, "checkpoint", func(_ int) (retry bool, err error) {
 		return true, es.persistence.WriteCheckpoint(startedState.ctx, cp)
 	})
 }

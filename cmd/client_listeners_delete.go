@@ -30,7 +30,7 @@ func clientListenersDeleteCommand(clientFactory func() (apiclient.FFTMClient, er
 		Use:   "delete",
 		Short: "Delete event streams",
 		Long:  "",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := clientFactory()
 			if err != nil {
 				return err

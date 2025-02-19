@@ -41,7 +41,7 @@ func buildLeveldb2postgresCommand(initConfig func() error) *cobra.Command {
 	leveldb2postgresEventStreamsCmd := &cobra.Command{
 		Use:   "leveldb2postgres",
 		Short: "Migrate from LevelDB to PostgreSQL persistence",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			if err := initConfig(); err != nil {
 				return err
 			}

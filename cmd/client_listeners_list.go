@@ -30,7 +30,7 @@ func clientListenersListCommand(clientFactory func() (apiclient.FFTMClient, erro
 		Use:   "list",
 		Short: "List listeners",
 		Long:  "",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			client, err := clientFactory()
 			if err != nil {
 				return err
