@@ -10,7 +10,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: golang:1.22-bullseye
+    container: golang:1.23-bullseye
     defaults:
       run:
         shell: bash # needed for codecov
