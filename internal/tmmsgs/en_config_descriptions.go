@@ -106,9 +106,9 @@ var (
 
 	ConfigMetricsAddress           = ffc("config.metrics.address", "The IP address on which the metrics HTTP API should listen", i18n.IntType)
 	DeprecatedConfigMetricsEnabled = ffc("config.metrics.enabled", "Deprecated: Please use 'monitoring.enabled' instead", i18n.BooleanType)
-	DeprecatedConfigMetricsPath    = ffc("config.monitoring.enabled", "Deprecated: Please use 'monitoring.metricsPath' instead", i18n.StringType)
-	ConfigMonitoringEnabled        = ffc("config.monitoring.metricsPath", "Enables the monitoring APIs", i18n.BooleanType)
-	ConfigMonitoringMetricsPath    = ffc("config.metrics.path", "The path from which to serve the Prometheus metrics", i18n.StringType)
+	DeprecatedConfigMetricsPath    = ffc("config.metrics.path", "Deprecated: Please use 'monitoring.metricsPath' instead", i18n.StringType)
+	ConfigMonitoringEnabled        = ffc("config.monitoring.enabled", "Enables the monitoring APIs", i18n.BooleanType)
+	ConfigMonitoringMetricsPath    = ffc("config.monitoring.metricsPath", "The path from which to serve the Prometheus metrics", i18n.StringType)
 	ConfigMetricsPort              = ffc("config.metrics.port", "The port on which the metrics HTTP API should listen", i18n.IntType)
 	ConfigMetricsPublicURL         = ffc("config.metrics.publicURL", "The fully qualified public URL for the metrics API. This is used for building URLs in HTTP responses and in OpenAPI Spec generation", "URL "+i18n.StringType)
 	ConfigMetricsReadTimeout       = ffc("config.metrics.readTimeout", "The maximum time to wait when reading from an HTTP connection", i18n.TimeDurationType)

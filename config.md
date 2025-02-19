@@ -176,7 +176,7 @@
 |---|-----------|----|-------------|
 |address|The IP address on which the metrics HTTP API should listen|`int`|`127.0.0.1`
 |enabled|Deprecated: Please use 'monitoring.enabled' instead|`boolean`|`false`
-|path|The path from which to serve the Prometheus metrics|`string`|`/metrics`
+|path|Deprecated: Please use 'monitoring.metricsPath' instead|`string`|`/metrics`
 |port|The port on which the metrics HTTP API should listen|`int`|`6000`
 |publicURL|The fully qualified public URL for the metrics API. This is used for building URLs in HTTP responses and in OpenAPI Spec generation|URL `string`|`<nil>`
 |readTimeout|The maximum time to wait when reading from an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
@@ -215,8 +215,8 @@
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |address|Listener address|`int`|`127.0.0.1`
-|enabled|Deprecated: Please use 'monitoring.metricsPath' instead|`string`|`false`
-|metricsPath|Enables the monitoring APIs|`boolean`|`/metrics`
+|enabled|Enables the monitoring APIs|`boolean`|`false`
+|metricsPath|The path from which to serve the Prometheus metrics|`string`|`/metrics`
 |port|Listener port|`int`|`6000`
 |publicURL|Externally available URL for the HTTP endpoint|`string`|`<nil>`
 |readTimeout|HTTP server read timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
