@@ -25,7 +25,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-var getReadyStatus = func(m *manager) *ffapi.Route {
+var deprecatedGetReadyStatus = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
 		Name:            "getReadyStatus",
 		Path:            "/status/ready",
@@ -33,6 +33,23 @@ var getReadyStatus = func(m *manager) *ffapi.Route {
 		PathParams:      nil,
 		QueryParams:     nil,
 		Description:     tmmsgs.APIEndpointGetStatusReady,
+		JSONInputValue:  nil,
+		JSONOutputValue: func() interface{} { return &apitypes.ReadyStatus{} },
+		JSONOutputCodes: []int{http.StatusOK},
+		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
+			return m.getReadyStatus(r.Req.Context())
+		},
+	}
+}
+
+var getReadiness = func(m *manager) *ffapi.Route {
+	return &ffapi.Route{
+		Name:            "getReadiness",
+		Path:            "/readyz",
+		Method:          http.MethodGet,
+		PathParams:      nil,
+		QueryParams:     nil,
+		Description:     tmmsgs.APIEndpointGetReadiness,
 		JSONInputValue:  nil,
 		JSONOutputValue: func() interface{} { return &apitypes.ReadyStatus{} },
 		JSONOutputCodes: []int{http.StatusOK},

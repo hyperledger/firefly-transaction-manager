@@ -28,11 +28,11 @@ func (m *manager) routes() []*ffapi.Route {
 		getEventStreamListener(m),
 		getEventStreamListeners(m),
 		getEventStreams(m),
-		getStatus(m),
+		deprecatedGetStatus(m),
 		getSubscription(m),
 		getSubscriptions(m),
-		getLiveStatus(m),  // TODO: remove this route from the API routes, they are already in the monitoring routes
-		getReadyStatus(m), // TODO: remove this route from the API routes, they are already in the monitoring routes
+		deprecatedGetLiveStatus(m),  // TODO: remove this route from the API routes, they are already in the monitoring routes
+		deprecatedGetReadyStatus(m), // TODO: remove this route from the API routes, they are already in the monitoring routes
 		getTransaction(m),
 		getTransactionConfirmations(m),
 		getTransactionHistory(m),
@@ -58,7 +58,7 @@ func (m *manager) routes() []*ffapi.Route {
 
 func (m *manager) monitoringRoutes() []*ffapi.Route {
 	return []*ffapi.Route{
-		getLiveStatus(m),
-		getReadyStatus(m),
+		getReadiness(m),
+		getLiveness(m),
 	}
 }
