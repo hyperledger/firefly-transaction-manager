@@ -355,7 +355,7 @@ func (tw *transactionWriter) assignNonces(ctx context.Context, txInsertsByFrom m
 				}
 			}
 			log.L(ctx).Infof("Assigned nonce %s / %d to %s", signer, cacheEntry.nextNonce, op.txInsert.ID)
-			//nolint:gosec // Safe conversion as nextNonce is always positive
+			//nolint:gosec
 			op.txInsert.Nonce = fftypes.NewFFBigInt(int64(cacheEntry.nextNonce))
 			cacheEntry.nextNonce++
 			tw.nextNonceCache.Add(signer, cacheEntry)
