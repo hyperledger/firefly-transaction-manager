@@ -1,4 +1,4 @@
-// Copyright © 2024 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -263,95 +263,96 @@ type LiveGasPrice struct {
 }
 
 // CheckUpdateString helper merges supplied configuration, with a base, and applies a default if unset
-func CheckUpdateString(changed bool, merged **string, old *string, new *string, defValue string) bool {
-	if new != nil {
-		*merged = new
+func CheckUpdateString(changed bool, merged **string, oldValue *string, newValue *string, defValue string) bool {
+	if newValue != nil {
+		*merged = newValue
 	} else {
-		*merged = old
+		*merged = oldValue
 	}
 	if *merged == nil {
 		v := defValue
 		*merged = &v
 		return true
 	}
-	return changed || old == nil || *old != **merged
+	return changed || oldValue == nil || *oldValue != **merged
 }
 
 // CheckUpdateBool helper merges supplied configuration, with a base, and applies a default if unset
-func CheckUpdateBool(changed bool, merged **bool, old *bool, new *bool, defValue bool) bool {
-	if new != nil {
-		*merged = new
+func CheckUpdateBool(changed bool, merged **bool, oldValue *bool, newValue *bool, defValue bool) bool {
+	if newValue != nil {
+		*merged = newValue
 	} else {
-		*merged = old
+		*merged = oldValue
 	}
 	if *merged == nil {
 		v := defValue
 		*merged = &v
 		return true
 	}
-	return changed || old == nil || *old != **merged
+	return changed || oldValue == nil || *oldValue != **merged
 }
 
 // CheckUpdateUint64 helper merges supplied configuration, with a base, and applies a default if unset
-func CheckUpdateUint64(changed bool, merged **uint64, old *uint64, new *uint64, defValue int64) bool {
-	if new != nil {
-		*merged = new
+func CheckUpdateUint64(changed bool, merged **uint64, oldValue *uint64, newValue *uint64, defValue int64) bool {
+	if newValue != nil {
+		*merged = newValue
 	} else {
-		*merged = old
+		*merged = oldValue
 	}
 	if *merged == nil {
+		//nolint:gosec
 		v := uint64(defValue)
 		*merged = &v
 		return true
 	}
-	return changed || old == nil || *old != **merged
+	return changed || oldValue == nil || *oldValue != **merged
 }
 
 // CheckUpdateDuration helper merges supplied configuration, with a base, and applies a default if unset
-func CheckUpdateDuration(changed bool, merged **fftypes.FFDuration, old *fftypes.FFDuration, new *fftypes.FFDuration, defValue fftypes.FFDuration) bool {
-	if new != nil {
-		*merged = new
+func CheckUpdateDuration(changed bool, merged **fftypes.FFDuration, oldValue *fftypes.FFDuration, newValue *fftypes.FFDuration, defValue fftypes.FFDuration) bool {
+	if newValue != nil {
+		*merged = newValue
 	} else {
-		*merged = old
+		*merged = oldValue
 	}
 	if *merged == nil {
 		v := defValue
 		*merged = &v
 		return true
 	}
-	return changed || old == nil || *old != **merged
+	return changed || oldValue == nil || *oldValue != **merged
 }
 
 // CheckUpdateEnum helper merges supplied configuration, with a base, and applies a default if unset
-func CheckUpdateEnum(changed bool, merged **fftypes.FFEnum, old *fftypes.FFEnum, new *fftypes.FFEnum, defValue fftypes.FFEnum) bool {
-	if new != nil {
-		*merged = new
+func CheckUpdateEnum(changed bool, merged **fftypes.FFEnum, oldValue *fftypes.FFEnum, newValue *fftypes.FFEnum, defValue fftypes.FFEnum) bool {
+	if newValue != nil {
+		*merged = newValue
 	} else {
-		*merged = old
+		*merged = oldValue
 	}
 	if *merged == nil {
 		v := defValue
 		*merged = &v
 		return true
 	}
-	return changed || old == nil || *old != **merged
+	return changed || oldValue == nil || *oldValue != **merged
 }
 
 // CheckUpdateStringMap helper merges supplied configuration, with a base, and applies a default if unset
-func CheckUpdateStringMap(changed bool, merged *map[string]string, old map[string]string, new map[string]string) bool {
-	if new != nil {
-		*merged = new
-		changed = changed || (old == nil)
+func CheckUpdateStringMap(changed bool, merged *map[string]string, oldValue map[string]string, newValue map[string]string) bool {
+	if newValue != nil {
+		*merged = newValue
+		changed = changed || (oldValue == nil)
 	} else {
-		*merged = old
+		*merged = oldValue
 		return false // new was nil, we cannot have changed
 	}
 	if changed {
 		return true
 	}
 	// We need to compare otherwise
-	jsonOld, _ := json.Marshal(old)
-	jsonNew, _ := json.Marshal(new)
+	jsonOld, _ := json.Marshal(oldValue)
+	jsonNew, _ := json.Marshal(newValue)
 	return !bytes.Equal(jsonOld, jsonNew)
 }
 

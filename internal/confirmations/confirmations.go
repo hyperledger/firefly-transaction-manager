@@ -1,4 +1,4 @@
-// Copyright © 2024 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -311,6 +311,7 @@ func (bcm *blockConfirmationManager) getBlockByHash(blockHash string) (*apitypes
 
 func (bcm *blockConfirmationManager) getBlockByNumber(blockNumber uint64, allowCache bool, expectedParentHash string) (*apitypes.BlockInfo, error) {
 	res, reason, err := bcm.connector.BlockInfoByNumber(bcm.ctx, &ffcapi.BlockInfoByNumberRequest{
+		//nolint:gosec
 		BlockNumber:        fftypes.NewFFBigInt(int64(blockNumber)),
 		AllowCache:         allowCache,
 		ExpectedParentHash: expectedParentHash,

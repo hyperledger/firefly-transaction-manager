@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -18,6 +18,7 @@ package apiclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 
@@ -31,7 +32,7 @@ func (c *fftmClient) GetEventStreams(ctx context.Context) ([]apitypes.EventStrea
 		SetResult(&eventStreams).
 		Get("eventstreams")
 	if !resp.IsSuccess() {
-		return nil, fmt.Errorf(string(resp.Body()))
+		return nil, errors.New(string(resp.Body()))
 	}
 	return eventStreams, err
 }
@@ -43,7 +44,7 @@ func (c *fftmClient) GetListeners(ctx context.Context, eventStreamID string) ([]
 		SetResult(&listeners).
 		Get(fmt.Sprintf("eventstreams/%s/listeners", eventStreamID))
 	if !resp.IsSuccess() {
-		return nil, fmt.Errorf(string(resp.Body()))
+		return nil, errors.New(string(resp.Body()))
 	}
 	return listeners, err
 }
@@ -56,7 +57,7 @@ func (c *fftmClient) DeleteEventStream(ctx context.Context, eventStreamID string
 		return err
 	}
 	if !resp.IsSuccess() {
-		return fmt.Errorf(string(resp.Body()))
+		return errors.New(string(resp.Body()))
 	}
 	return nil
 }
@@ -92,7 +93,7 @@ func (c *fftmClient) DeleteListener(ctx context.Context, eventStreamID, listener
 		return err
 	}
 	if !resp.IsSuccess() {
-		return fmt.Errorf(string(resp.Body()))
+		return errors.New(string(resp.Body()))
 	}
 	return nil
 }

@@ -175,8 +175,8 @@
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|
 |address|The IP address on which the metrics HTTP API should listen|`int`|`127.0.0.1`
-|enabled|Enables the metrics API|`boolean`|`false`
-|path|The path from which to serve the Prometheus metrics|`string`|`/metrics`
+|enabled|Deprecated: Please use 'monitoring.enabled' instead|`boolean`|`false`
+|path|Deprecated: Please use 'monitoring.metricsPath' instead|`string`|`/metrics`
 |port|The port on which the metrics HTTP API should listen|`int`|`6000`
 |publicURL|The fully qualified public URL for the metrics API. This is used for building URLs in HTTP responses and in OpenAPI Spec generation|URL `string`|`<nil>`
 |readTimeout|The maximum time to wait when reading from an HTTP connection|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
@@ -196,6 +196,46 @@
 |passwordfile|The path to a .htpasswd file to use for authenticating requests. Passwords should be hashed with bcrypt.|`string`|`<nil>`
 
 ## metrics.tls
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|ca|The TLS certificate authority in PEM format (this option is ignored if caFile is also set)|`string`|`<nil>`
+|caFile|The path to the CA file for TLS on this API|`string`|`<nil>`
+|cert|The TLS certificate in PEM format (this option is ignored if certFile is also set)|`string`|`<nil>`
+|certFile|The path to the certificate file for TLS on this API|`string`|`<nil>`
+|clientAuth|Enables or disables client auth for TLS on this API|`string`|`<nil>`
+|enabled|Enables or disables TLS on this API|`boolean`|`false`
+|insecureSkipHostVerify|When to true in unit test development environments to disable TLS verification. Use with extreme caution|`boolean`|`<nil>`
+|key|The TLS certificate key in PEM format (this option is ignored if keyFile is also set)|`string`|`<nil>`
+|keyFile|The path to the private key file for TLS on this API|`string`|`<nil>`
+|requiredDNAttributes|A set of required subject DN attributes. Each entry is a regular expression, and the subject certificate must have a matching attribute of the specified type (CN, C, O, OU, ST, L, STREET, POSTALCODE, SERIALNUMBER are valid attributes)|`map[string]string`|`<nil>`
+
+## monitoring
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|address|Listener address|`int`|`127.0.0.1`
+|enabled|Enables the monitoring APIs|`boolean`|`false`
+|metricsPath|The path from which to serve the Prometheus metrics|`string`|`/metrics`
+|port|Listener port|`int`|`6000`
+|publicURL|Externally available URL for the HTTP endpoint|`string`|`<nil>`
+|readTimeout|HTTP server read timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
+|shutdownTimeout|HTTP server shutdown timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`10s`
+|writeTimeout|HTTP server write timeout|[`time.Duration`](https://pkg.go.dev/time#Duration)|`15s`
+
+## monitoring.auth
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|type|The auth plugin to use for server side authentication of requests|`string`|`<nil>`
+
+## monitoring.auth.basic
+
+|Key|Description|Type|Default Value|
+|---|-----------|----|-------------|
+|passwordfile|The path to a .htpasswd file to use for authenticating requests. Passwords should be hashed with bcrypt.|`string`|`<nil>`
+
+## monitoring.tls
 
 |Key|Description|Type|Default Value|
 |---|-----------|----|-------------|

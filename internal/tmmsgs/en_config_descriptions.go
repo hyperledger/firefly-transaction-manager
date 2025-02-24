@@ -1,4 +1,4 @@
-// Copyright © 2024 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -104,14 +104,16 @@ var (
 	ConfigWebhooksURL             = ffc("config.webhooks.url", "Unused (overridden by the WebHook configuration of an individual event stream)", i18n.IgnoredType)
 	ConfigWebhooksProxyURL        = ffc("config.webhooks.proxy.url", "Optional HTTP proxy to use when invoking WebHooks", i18n.StringType)
 
-	ConfigMetricsAddress         = ffc("config.metrics.address", "The IP address on which the metrics HTTP API should listen", i18n.IntType)
-	ConfigMetricsEnabled         = ffc("config.metrics.enabled", "Enables the metrics API", i18n.BooleanType)
-	ConfigMetricsPath            = ffc("config.metrics.path", "The path from which to serve the Prometheus metrics", i18n.StringType)
-	ConfigMetricsPort            = ffc("config.metrics.port", "The port on which the metrics HTTP API should listen", i18n.IntType)
-	ConfigMetricsPublicURL       = ffc("config.metrics.publicURL", "The fully qualified public URL for the metrics API. This is used for building URLs in HTTP responses and in OpenAPI Spec generation", "URL "+i18n.StringType)
-	ConfigMetricsReadTimeout     = ffc("config.metrics.readTimeout", "The maximum time to wait when reading from an HTTP connection", i18n.TimeDurationType)
-	ConfigMetricsWriteTimeout    = ffc("config.metrics.writeTimeout", "The maximum time to wait when writing to an HTTP connection", i18n.TimeDurationType)
-	ConfigMetricsShutdownTimeout = ffc("config.metrics.shutdownTimeout", "The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server", i18n.TimeDurationType)
+	ConfigMetricsAddress           = ffc("config.metrics.address", "The IP address on which the metrics HTTP API should listen", i18n.IntType)
+	DeprecatedConfigMetricsEnabled = ffc("config.metrics.enabled", "Deprecated: Please use 'monitoring.enabled' instead", i18n.BooleanType)
+	DeprecatedConfigMetricsPath    = ffc("config.metrics.path", "Deprecated: Please use 'monitoring.metricsPath' instead", i18n.StringType)
+	ConfigMonitoringEnabled        = ffc("config.monitoring.enabled", "Enables the monitoring APIs", i18n.BooleanType)
+	ConfigMonitoringMetricsPath    = ffc("config.monitoring.metricsPath", "The path from which to serve the Prometheus metrics", i18n.StringType)
+	ConfigMetricsPort              = ffc("config.metrics.port", "The port on which the metrics HTTP API should listen", i18n.IntType)
+	ConfigMetricsPublicURL         = ffc("config.metrics.publicURL", "The fully qualified public URL for the metrics API. This is used for building URLs in HTTP responses and in OpenAPI Spec generation", "URL "+i18n.StringType)
+	ConfigMetricsReadTimeout       = ffc("config.metrics.readTimeout", "The maximum time to wait when reading from an HTTP connection", i18n.TimeDurationType)
+	ConfigMetricsWriteTimeout      = ffc("config.metrics.writeTimeout", "The maximum time to wait when writing to an HTTP connection", i18n.TimeDurationType)
+	ConfigMetricsShutdownTimeout   = ffc("config.metrics.shutdownTimeout", "The maximum amount of time to wait for any open HTTP requests to finish before shutting down the HTTP server", i18n.TimeDurationType)
 
 	ConfigDatabasePostgresMaxConnIdleTime   = ffc("config.persistence.postgres.maxConnIdleTime", "The maximum amount of time a database connection can be idle", i18n.TimeDurationType)
 	ConfigDatabasePostgresMaxConnLifetime   = ffc("config.persistence.postgres.maxConnLifetime", "The maximum amount of time to keep a database connection open", i18n.TimeDurationType)

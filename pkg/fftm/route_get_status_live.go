@@ -25,11 +25,28 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 )
 
-// getStatus deprecated, is present for backwards compatibility with the previous generation of connectors i.e. Ethconnect
-var getStatus = func(m *manager) *ffapi.Route {
+// deprecatedGetStatus deprecated, is present for backwards compatibility with the previous generation of connectors i.e. Ethconnect
+var deprecatedGetStatus = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
 		Name:            "getStatus",
 		Path:            "/status",
+		Method:          http.MethodGet,
+		PathParams:      nil,
+		QueryParams:     nil,
+		Description:     tmmsgs.APIEndpointGetStatus,
+		JSONInputValue:  nil,
+		JSONOutputValue: func() interface{} { return &apitypes.LiveStatus{} },
+		JSONOutputCodes: []int{http.StatusOK},
+		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
+			return m.getLiveStatus(r.Req.Context())
+		},
+	}
+}
+
+var deprecatedGetLiveStatus = func(m *manager) *ffapi.Route {
+	return &ffapi.Route{
+		Name:            "getLiveStatus",
+		Path:            "/status/live",
 		Method:          http.MethodGet,
 		PathParams:      nil,
 		QueryParams:     nil,
@@ -43,14 +60,14 @@ var getStatus = func(m *manager) *ffapi.Route {
 	}
 }
 
-var getLiveStatus = func(m *manager) *ffapi.Route {
+var getLiveness = func(m *manager) *ffapi.Route {
 	return &ffapi.Route{
-		Name:            "getLiveStatus",
-		Path:            "/status/live",
+		Name:            "getLiveness",
+		Path:            "/livez",
 		Method:          http.MethodGet,
 		PathParams:      nil,
 		QueryParams:     nil,
-		Description:     tmmsgs.APIEndpointGetStatusLive,
+		Description:     tmmsgs.APIEndpointGetLiveness,
 		JSONInputValue:  nil,
 		JSONOutputValue: func() interface{} { return &apitypes.LiveStatus{} },
 		JSONOutputCodes: []int{http.StatusOK},

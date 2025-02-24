@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -141,6 +141,7 @@ func (p *sqlPersistence) ListTransactionsByCreateTime(ctx context.Context, after
 }
 
 func (p *sqlPersistence) ListTransactionsByNonce(ctx context.Context, signer string, after *fftypes.FFBigInt, limit int, dir txhandler.SortDirection) ([]*apitypes.ManagedTX, error) {
+	//nolint:gosec // Safe conversion as limit is always positive
 	fb := persistence.TransactionFilters.NewFilterLimit(ctx, uint64(limit))
 	conditions := []ffapi.Filter{
 		fb.Eq("from", signer),

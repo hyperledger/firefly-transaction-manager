@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -28,11 +28,11 @@ func (m *manager) routes() []*ffapi.Route {
 		getEventStreamListener(m),
 		getEventStreamListeners(m),
 		getEventStreams(m),
-		getLiveStatus(m),
-		getStatus(m),
+		deprecatedGetStatus(m),
 		getSubscription(m),
 		getSubscriptions(m),
-		getReadyStatus(m),
+		deprecatedGetLiveStatus(m),  // TODO: remove this route from the API routes, they are already in the monitoring routes
+		deprecatedGetReadyStatus(m), // TODO: remove this route from the API routes, they are already in the monitoring routes
 		getTransaction(m),
 		getTransactionConfirmations(m),
 		getTransactionHistory(m),
@@ -53,5 +53,12 @@ func (m *manager) routes() []*ffapi.Route {
 		getGasPrice(m),
 		postTransactionSuspend(m),
 		postTransactionResume(m),
+	}
+}
+
+func (m *manager) monitoringRoutes() []*ffapi.Route {
+	return []*ffapi.Route{
+		getReadiness(m),
+		getLiveness(m),
 	}
 }

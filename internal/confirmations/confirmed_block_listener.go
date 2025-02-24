@@ -1,4 +1,4 @@
-// Copyright © 2024 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -357,6 +357,7 @@ func (cbl *confirmedBlockListener) dispatchAllConfirmed() {
 				BlockEvent: &ffcapi.BlockEvent{
 					ListenerID: cbl.id,
 					BlockInfo: ffcapi.BlockInfo{
+						//nolint:gosec
 						BlockNumber:       fftypes.NewFFBigInt(int64(block.BlockNumber)),
 						BlockHash:         block.BlockHash,
 						ParentHash:        block.ParentHash,

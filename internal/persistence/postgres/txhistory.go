@@ -1,4 +1,4 @@
-// Copyright © 2024 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -153,7 +153,9 @@ func (p *sqlPersistence) buildHistorySummary(ctx context.Context, txID string, b
 	var lastRecordSameSubStatus *apitypes.TXHistoryRecord
 	for {
 		filter := persistence.TXHistoryFilters.
+			//nolint:gosec // Safe conversion as pageSize is always positive
 			NewFilterLimit(ctx, uint64(pageSize)).Eq("transaction", txID).
+			//nolint:gosec // Safe conversion as skip is always positive
 			Skip(uint64(skip))
 		page, _, err := p.txHistory.GetMany(ctx, filter)
 		if err != nil {

@@ -1,4 +1,4 @@
-// Copyright © 2024 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -56,8 +56,10 @@ var (
 	APIMaxRequestTimeout                          = ffc("api.maxRequestTimeout")
 	APIPassthroughHeaders                         = ffc("api.passthroughHeaders")
 	APISimpleQuery                                = ffc("api.simpleQuery")
-	MetricsEnabled                                = ffc("metrics.enabled")
-	MetricsPath                                   = ffc("metrics.path")
+	DeprecatedMetricsEnabled                      = ffc("metrics.enabled")
+	DeprecatedMetricsPath                         = ffc("metrics.path")
+	MonitoringEnabled                             = ffc("monitoring.enabled")
+	MonitoringMetricsPath                         = ffc("monitoring.metricsPath")
 	TransactionsHandlerName                       = ffc("transactions.handler.name")
 	TransactionsMaxHistoryCount                   = ffc("transactions.maxHistoryCount")
 	TransactionsNonceStateTimeout                 = ffc("transactions.nonceStateTimeout")
@@ -87,7 +89,9 @@ var TransactionHandlerBaseConfig config.Section
 
 var WebhookPrefix config.Section
 
-var MetricsConfig config.Section
+var MonitoringConfig config.Section
+
+var DeprecatedMetricsConfig config.Section
 
 func setDefaults() {
 	viper.SetDefault(string(TransactionsMaxHistoryCount), 50)
@@ -121,8 +125,11 @@ func setDefaults() {
 	viper.SetDefault(string(EventStreamsRetryInitDelay), "250ms")
 	viper.SetDefault(string(EventStreamsRetryMaxDelay), "30s")
 	viper.SetDefault(string(EventStreamsRetryFactor), 2.0)
-	viper.SetDefault(string(MetricsEnabled), false)
-	viper.SetDefault(string(MetricsPath), "/metrics")
+	viper.SetDefault(string(DeprecatedMetricsEnabled), false)
+	viper.SetDefault(string(DeprecatedMetricsPath), "/metrics")
+
+	viper.SetDefault(string(MonitoringEnabled), false)
+	viper.SetDefault(string(MonitoringMetricsPath), "/metrics")
 
 	viper.SetDefault(string(APIPassthroughHeaders), []string{})
 	viper.SetDefault(string(DeprecatedPolicyEngineName), "simple")
@@ -159,6 +166,8 @@ func Reset() {
 
 	TransactionHandlerBaseConfig = config.RootSection("transactions.handler") // Transaction handler must be registered outside of this package
 
-	MetricsConfig = config.RootSection("metrics")
-	httpserver.InitHTTPConfig(MetricsConfig, 6000)
+	MonitoringConfig = config.RootSection("monitoring")
+	DeprecatedMetricsConfig = config.RootSection("metrics")
+	httpserver.InitHTTPConfig(DeprecatedMetricsConfig, 6000)
+	httpserver.InitHTTPConfig(MonitoringConfig, 6000)
 }

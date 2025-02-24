@@ -1,4 +1,4 @@
-// Copyright © 2024 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -58,7 +58,7 @@ func NewMetricsManager(ctx context.Context) Metrics {
 	)
 	mm := &metricsManager{
 		ctx:                     ctx,
-		metricsEnabled:          config.GetBool(tmconfig.MetricsEnabled),
+		metricsEnabled:          config.GetBool(tmconfig.DeprecatedMetricsEnabled) || config.GetBool(tmconfig.MonitoringEnabled),
 		timeMap:                 make(map[string]time.Time),
 		metricsRegistry:         metricsRegistry,
 		eventsMetricsManager:    eventsMetricsManager,
@@ -74,7 +74,10 @@ func (mm *metricsManager) IsMetricsEnabled() bool {
 }
 
 func (mm *metricsManager) HTTPHandler() http.Handler {
-	httpHandler, _ := mm.metricsRegistry.HTTPHandler(mm.ctx, promhttp.HandlerOpts{})
+	httpHandler, err := mm.metricsRegistry.HTTPHandler(mm.ctx, promhttp.HandlerOpts{})
+	if err != nil {
+		panic(err)
+	}
 	return httpHandler
 }
 

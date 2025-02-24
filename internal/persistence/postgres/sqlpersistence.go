@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -103,6 +103,7 @@ func (p *sqlPersistence) RichQuery() persistence.RichQuery {
 }
 
 func (p *sqlPersistence) seqAfterFilter(ctx context.Context, qf *ffapi.QueryFields, after *int64, limit int, dir txhandler.SortDirection, conditions ...ffapi.Filter) (filter ffapi.Filter) {
+	//nolint:gosec // Safe conversion as limit is always positive
 	fb := qf.NewFilterLimit(ctx, uint64(limit))
 	if after != nil {
 		if dir == txhandler.SortDirectionDescending {
