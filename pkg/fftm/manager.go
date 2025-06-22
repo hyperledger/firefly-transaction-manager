@@ -43,6 +43,7 @@ import (
 type Manager interface {
 	Start() error
 	Close()
+	TransactionHandler() txhandler.TransactionHandler
 }
 
 type manager struct {
@@ -199,6 +200,10 @@ func (m *manager) Start() error {
 	}
 	m.started = true
 	return nil
+}
+
+func (m *manager) TransactionHandler() txhandler.TransactionHandler {
+	return m.txHandler
 }
 
 func (m *manager) Close() {

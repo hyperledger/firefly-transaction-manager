@@ -41,6 +41,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 const testManagerName = "unittest"
@@ -93,6 +94,8 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 	mcm := &confirmationsmocks.Manager{}
 	mcm.On("Start").Return().Maybe()
 	m.confirmations = mcm
+
+	require.NotNil(t, m.TransactionHandler())
 
 	return url,
 		m,
