@@ -37,10 +37,10 @@ func TestGetTransactionErrors(t *testing.T) {
 	mp.On("GetTransactionByIDWithStatus", m.ctx, mock.Anything, false).Return(nil, nil).Once()
 	mp.On("Close", mock.Anything).Return(nil).Maybe()
 
-	_, err := m.getTransactionByIDWithStatus(m.ctx, "id", true)
+	_, err := m.GetTransactionByIDWithStatus(m.ctx, "id", true)
 	assert.Regexp(t, "pop", err)
 
-	_, err = m.getTransactionByIDWithStatus(m.ctx, "id", false)
+	_, err = m.GetTransactionByIDWithStatus(m.ctx, "id", false)
 	assert.Regexp(t, "FF21067", err)
 
 	mp.AssertExpectations(t)

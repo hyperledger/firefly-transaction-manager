@@ -41,7 +41,7 @@ var getTransaction = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.TXWithStatus{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getTransactionByIDWithStatus(r.Req.Context(), r.PP["transactionId"], strings.EqualFold(r.QP["history"], "true"))
+			return m.GetTransactionByIDWithStatus(r.Req.Context(), r.PP["transactionId"], strings.EqualFold(r.QP["history"], "true"))
 		},
 	}
 }
