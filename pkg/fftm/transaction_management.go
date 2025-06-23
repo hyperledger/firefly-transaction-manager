@@ -28,7 +28,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
-func (m *manager) getTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error) {
+func (m *manager) GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error) {
 	tx, err := m.persistence.GetTransactionByIDWithStatus(ctx, txID, withHistory)
 	if err != nil {
 		return nil, err
