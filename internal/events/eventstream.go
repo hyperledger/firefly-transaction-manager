@@ -49,6 +49,7 @@ type Stream interface {
 	Start(ctx context.Context) error                                     // Start delivery
 	Stop(ctx context.Context) error                                      // Stop delivery (does not remove checkpoints)
 	Delete(ctx context.Context) error                                    // Stop delivery, and clean up any checkpoint
+	InternalStream() <-chan *apitypes.EventBatchWithConfirm
 }
 
 // esDefaults are the defaults for new event streams, read from the config once in InitDefaults()
@@ -116,6 +117,7 @@ type eventStream struct {
 	currentState          *startedStreamState
 	checkpointInterval    time.Duration
 	batchChannel          chan *ffcapi.ListenerEvent
+	internalStream        chan *apitypes.EventBatchWithConfirm
 }
 
 func NewEventStream(
@@ -140,6 +142,7 @@ func NewEventStream(
 		checkpointInterval:    config.GetDuration(tmconfig.EventStreamsCheckpointInterval),
 		confirmations:         confirmations.NewBlockConfirmationManager(esCtx, connector, "_es_"+persistedSpec.ID.String(), eme),
 		confirmationsRequired: config.GetInt(tmconfig.ConfirmationsRequired),
+		internalStream:        make(chan *apitypes.EventBatchWithConfirm),
 	}
 	// The configuration we have in memory, applies all the defaults to what is passed in
 	// to ensure there are no nil fields on the configuration object.
@@ -161,6 +164,36 @@ func NewEventStream(
 	return es, nil
 }
 
+func (es *eventStream) InternalStream() <-chan *apitypes.EventBatchWithConfirm {
+	return es.internalStream
+}
+
+func (es *eventStream) internalDispatch(ctx context.Context, batchNumber int64, attempt int, events []*apitypes.EventWithContext) error {
+
+	ed := &apitypes.EventBatchWithConfirm{
+		EventBatch: apitypes.EventBatch{
+			BatchNumber: batchNumber,
+			Events:      events,
+		},
+		Confirm: make(chan error, 1),
+	}
+
+	select {
+	case es.internalStream <- ed:
+	case <-ctx.Done():
+		return i18n.NewError(ctx, i18n.MsgContextCanceled)
+	}
+	log.L(ctx).Infof("Event batch %d with %d events dispatched to internal listener from stream %s (attempt=%d)", batchNumber, len(events), es.spec.ID, attempt)
+
+	select {
+	case err := <-ed.Confirm:
+		return err
+	case <-ctx.Done():
+		return i18n.NewError(ctx, i18n.MsgContextCanceled)
+	}
+
+}
+
 func (es *eventStream) initAction(startedState *startedStreamState) error {
 	ctx := startedState.ctx
 	switch *es.spec.Type {
@@ -172,6 +205,8 @@ func (es *eventStream) initAction(startedState *startedStreamState) error {
 		startedState.action = wa.attemptBatch
 	case apitypes.EventStreamTypeWebSocket:
 		startedState.action = newWebSocketAction(es.wsChannels, es.spec.WebSocket, *es.spec.Name).attemptBatch
+	case apitypes.EventStreamTypeInternal:
+		startedState.action = es.internalDispatch
 	default:
 		// mergeValidateEsConfig always be called previous to this
 		panic(i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *es.spec.Type))
@@ -255,6 +290,7 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 		if merged.Webhook, changed, err = mergeValidateWhConfig(ctx, changed, base.Webhook, updates.Webhook); err != nil {
 			return nil, false, err
 		}
+	case apitypes.EventStreamTypeInternal:
 	default:
 		return nil, false, i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *merged.Type)
 	}

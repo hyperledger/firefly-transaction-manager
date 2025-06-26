@@ -43,6 +43,7 @@ type EventStreamType = fftypes.FFEnum
 var (
 	EventStreamTypeWebhook   = fftypes.FFEnumValue("estype", "webhook")
 	EventStreamTypeWebSocket = fftypes.FFEnumValue("estype", "websocket")
+	EventStreamTypeInternal  = fftypes.FFEnumValue("estype", "internal")
 )
 
 type ErrorHandlingType = fftypes.FFEnum
@@ -366,6 +367,11 @@ type EventContext struct {
 type EventBatch struct {
 	BatchNumber int64               `json:"batchNumber"`
 	Events      []*EventWithContext `json:"events"`
+}
+
+type EventBatchWithConfirm struct {
+	EventBatch
+	Confirm chan error
 }
 
 // EventWithContext is what is delivered

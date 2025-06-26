@@ -157,7 +157,7 @@ func (m *manager) reserveStreamName(ctx context.Context, name string, id *fftype
 	}, nil
 }
 
-func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error) {
+func (m *manager) CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error) {
 	def.ID = apitypes.NewULID()
 	def.Created = nil // set to updated time by events.NewEventStream
 	if def.Name == nil || *def.Name == "" {
@@ -192,7 +192,7 @@ func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.Eve
 	return spec, nil
 }
 
-func (m *manager) createAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error) {
+func (m *manager) CreateAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error) {
 	streamID, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return nil, err
@@ -297,7 +297,7 @@ func (m *manager) updateStream(ctx context.Context, idStr string, updates *apity
 	return spec, nil
 }
 
-func (m *manager) getStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error) {
+func (m *manager) getStream(ctx context.Context, idStr string) (events.Stream, error) {
 	id, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return nil, err
@@ -308,10 +308,29 @@ func (m *manager) getStream(ctx context.Context, idStr string) (*apitypes.EventS
 	if s == nil {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, idStr)
 	}
+	return s, nil
+}
+
+func (m *manager) GetStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error) {
+	s, err := m.getStream(ctx, idStr)
+	if err != nil {
+		return nil, err
+	}
 	return &apitypes.EventStreamWithStatus{
 		EventStream: *s.Spec(),
 		Status:      s.Status(),
 	}, nil
+}
+
+func (m *manager) GetInternalStreamChannel(ctx context.Context, idStr string) (<-chan *apitypes.EventBatchWithConfirm, error) {
+	s, err := m.getStream(ctx, idStr)
+	if err != nil {
+		return nil, err
+	}
+	if *s.Spec().Type != apitypes.EventStreamTypeInternal {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotInternal, idStr)
+	}
+	return s.InternalStream(), nil
 }
 
 func (m *manager) parseLimit(ctx context.Context, limitStr string) (limit int, err error) {
@@ -367,7 +386,7 @@ func (m *manager) getListenerSpec(ctx context.Context, streamIDStr, listenerIDSt
 	return spec, nil
 }
 
-func (m *manager) getListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error) {
+func (m *manager) GetListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error) {
 	spec, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr)
 	if err != nil {
 		return nil, err

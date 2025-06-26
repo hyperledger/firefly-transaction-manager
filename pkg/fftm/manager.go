@@ -45,6 +45,12 @@ type Manager interface {
 	Start() error
 	Close()
 
+	GetInternalStreamChannel(ctx context.Context, idStr string) (<-chan *apitypes.EventBatchWithConfirm, error)
+	GetStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error)
+	GetListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error)
+	CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error)
+	CreateAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error)
+
 	GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error)
 	TransactionHandler() txhandler.TransactionHandler
 }
@@ -135,22 +141,19 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	m.toolkit.EventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
 	m.txHandler.Init(ctx, m.toolkit)
 
+	return m.initMonitoringRouter(ctx)
+}
+
+func (m *manager) initMonitoringRouter(ctx context.Context) (err error) {
 	// metrics service must be initialized after transaction handler
 	// in case the transaction handler has logic in the Init function
 	// to add more metrics
 	if m.monitoringEnabled {
 		m.monitoringServer, err = httpserver.NewHTTPServer(ctx, "monitoring", m.createMonitoringMuxRouter(), m.monitoringServerDone, tmconfig.MonitoringConfig, tmconfig.CorsConfig)
-		if err != nil {
-			return err
-		}
 	} else if m.deprecatedMetricsEnabled {
 		m.monitoringServer, err = httpserver.NewHTTPServer(ctx, "metrics", m.createMonitoringMuxRouter(), m.monitoringServerDone, tmconfig.DeprecatedMetricsConfig, tmconfig.CorsConfig)
-		if err != nil {
-			return err
-		}
-
 	}
-	return nil
+	return err
 }
 
 func (m *manager) initPersistence(ctx context.Context) (err error) {

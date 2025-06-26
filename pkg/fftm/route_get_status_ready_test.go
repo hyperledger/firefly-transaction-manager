@@ -17,16 +17,41 @@
 package fftm
 
 import (
+	"fmt"
+	"testing"
+
 	"github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetReadyStatus(t *testing.T) {
+	_, m, done := newTestManagerWithMetrics(t, false)
+	defer done()
+
+	require.True(t, m.monitoringEnabled)
+	require.NotNil(t, getReadiness(m).JSONOutputValue())
+	url := fmt.Sprintf("http://%s", m.monitoringServer.Addr())
+
+	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("IsReady", mock.Anything).Return(&ffcapi.ReadyResponse{Ready: true}, ffcapi.ErrorReason(""), nil)
+
+	err := m.Start()
+	assert.NoError(t, err)
+
+	var liv apitypes.LiveStatus
+	res, err := resty.New().R().
+		SetResult(&liv).
+		Get(url + "/readyz")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+}
+
+func TestGetReadyStatusDeprecated(t *testing.T) {
 	url, m, done := newTestManager(t)
 	defer done()
 

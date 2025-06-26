@@ -48,15 +48,15 @@ const testManagerName = "unittest"
 
 func strPtr(s string) *string { return &s }
 
-func testManagerCommonInit(t *testing.T, withMetrics bool) string {
+func testManagerCommonInit(t *testing.T, extraConfig ...func()) string {
 
 	InitConfig()
 	viper.SetDefault(string(tmconfig.TransactionsHandlerName), "simple")
 	txRegistry.RegisterHandler(&simple.TransactionHandlerFactory{})
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").SubSection(simple.GasOracleConfig).Set(simple.GasOracleMode, simple.GasOracleModeDisabled)
 
-	if withMetrics {
-		tmconfig.MonitoringConfig.Set("enabled", true)
+	for _, fn := range extraConfig {
+		fn()
 	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -65,11 +65,6 @@ func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 	ln.Close()
 	tmconfig.APIConfig.Set(httpserver.HTTPConfPort, managerPort)
 	tmconfig.APIConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
-
-	if withMetrics {
-		tmconfig.MonitoringConfig.Set(httpserver.HTTPConfPort, 6010)
-		tmconfig.MonitoringConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
-	}
 
 	// config.Set(tmconfig.PolicyLoopInterval, "1ns") //TODO: fix this
 	tmconfig.TransactionHandlerBaseConfig.SubSection("simple").Set(simple.FixedGasPrice, "223344556677")
@@ -80,7 +75,7 @@ func testManagerCommonInit(t *testing.T, withMetrics bool) string {
 func newTestManager(t *testing.T) (string, *manager, func()) {
 	logrus.SetLevel(logrus.TraceLevel)
 
-	url := testManagerCommonInit(t, false)
+	url := testManagerCommonInit(t)
 
 	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
@@ -106,7 +101,7 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 
 func newTestManagerMockNoRichDB(t *testing.T) (string, *manager, func()) {
 
-	url := testManagerCommonInit(t, false)
+	url := testManagerCommonInit(t)
 
 	mca := &ffcapimocks.API{}
 
@@ -134,7 +129,7 @@ func newTestManagerMockNoRichDB(t *testing.T) (string, *manager, func()) {
 
 func newTestManagerMockRichDB(t *testing.T) (string, *manager, *persistencemocks.RichQuery, func()) {
 
-	url := testManagerCommonInit(t, false)
+	url := testManagerCommonInit(t)
 
 	mca := &ffcapimocks.API{}
 
@@ -164,9 +159,19 @@ func newTestManagerMockRichDB(t *testing.T) (string, *manager, *persistencemocks
 		}
 }
 
-func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
+func newTestManagerWithMetrics(t *testing.T, deprecated bool) (string, *manager, func()) {
 
-	url := testManagerCommonInit(t, true)
+	url := testManagerCommonInit(t, func() {
+		if deprecated {
+			tmconfig.DeprecatedMetricsConfig.Set("enabled", true)
+			tmconfig.DeprecatedMetricsConfig.Set(httpserver.HTTPConfPort, 0)
+			tmconfig.DeprecatedMetricsConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
+		} else {
+			tmconfig.MonitoringConfig.Set("enabled", true)
+			tmconfig.MonitoringConfig.Set(httpserver.HTTPConfPort, 0)
+			tmconfig.MonitoringConfig.Set(httpserver.HTTPConfAddress, "127.0.0.1")
+		}
+	})
 
 	dir := t.TempDir()
 	config.Set(tmconfig.PersistenceLevelDBPath, dir)
@@ -190,7 +195,7 @@ func newTestManagerWithMetrics(t *testing.T) (string, *manager, func()) {
 
 func newTestManagerMockPersistence(t *testing.T) (string, *manager, func()) {
 
-	url := testManagerCommonInit(t, false)
+	url := testManagerCommonInit(t)
 
 	m := newManager(context.Background(), &ffcapimocks.API{})
 	mp := &persistencemocks.Persistence{}
@@ -316,11 +321,20 @@ func TestNewManagerMetricsOffByDefault(t *testing.T) {
 
 func TestNewManagerWithMetrics(t *testing.T) {
 
-	_, m, close := newTestManagerWithMetrics(t)
+	_, m, close := newTestManagerWithMetrics(t, false)
 	defer close()
 	_ = m.Start()
 
 	assert.True(t, m.monitoringEnabled)
+}
+
+func TestNewManagerWithDeprecatedMetrics(t *testing.T) {
+
+	_, m, close := newTestManagerWithMetrics(t, true)
+	defer close()
+	_ = m.Start()
+
+	assert.True(t, m.deprecatedMetricsEnabled)
 }
 
 func TestNewManagerWithMetricsBadConfig(t *testing.T) {
@@ -381,7 +395,7 @@ func TestStartBlockListenerFail(t *testing.T) {
 
 func TestPSQLInitFail(t *testing.T) {
 
-	_ = testManagerCommonInit(t, false)
+	_ = testManagerCommonInit(t)
 	config.Set(tmconfig.PersistenceType, "postgres")
 
 	m := newManager(context.Background(), &ffcapimocks.API{})
@@ -392,7 +406,7 @@ func TestPSQLInitFail(t *testing.T) {
 
 func TestPSQLInitRichQueryEnabled(t *testing.T) {
 
-	_ = testManagerCommonInit(t, false)
+	_ = testManagerCommonInit(t)
 	config.Set(tmconfig.PersistenceType, "postgres")
 	tmconfig.PostgresSection.Set(dbsql.SQLConfDatasourceURL, "unused")
 
