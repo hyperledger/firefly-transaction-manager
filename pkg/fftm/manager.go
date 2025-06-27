@@ -21,7 +21,6 @@ import (
 	"sync"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
-	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
@@ -42,21 +41,24 @@ import (
 	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
 )
 
+type EventStream = events.Stream
+
 type Manager interface {
 	Start() error
 	Close()
 
-	CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error)
-	GetStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error)
-	ListStreamsRich(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.EventStream, *ffapi.FilterResult, error)
-	UpdateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error)
-	DeleteStream(ctx context.Context, idStr string) error
+	// API managed event streams have checkpoints stored externally.
+	// Events are access by calling PollAPIMangedStream() on the returned stream.
+	// - The spec must have a UUID, but no name or type.
+	// - Multiple calls with the same ID will return the same object.
+	// - Use "isNew" to determine if the event stream was freshly initialized from the listener array
+	// - If not freshly initialized, the listeners array ignored (you can choose to do check the existing listener list yourself)
+	GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es EventStream, err error)
 
-	CreateAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error)
-	GetListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error)
-	ListStreamListenersRich(ctx context.Context, streamIDStr string, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
-	UpdateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error)
-	DeleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error
+	// Resources will be used by the stream in the background, so if your object is deleted
+	// then this function should be called to clean-up any in-memory state (if there is any
+	// possibility you previously called GetAPIManagedEventStream)
+	CleanupAPIManagedEventStream(id *fftypes.UUID)
 
 	GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error)
 	TransactionHandler() txhandler.TransactionHandler

@@ -157,6 +157,36 @@ func (m *manager) reserveStreamName(ctx context.Context, name string, id *fftype
 	}, nil
 }
 
+func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es EventStream, err error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	if spec.ID == nil || spec.Name != nil || spec.Type != nil {
+		return isNew, nil, i18n.NewError(m.ctx, tmmsgs.MsgStreamAPIManagedIDNoNameType)
+	}
+
+	es = m.eventStreams[*spec.ID]
+	if es != nil {
+		return isNew, es, nil
+	}
+
+	es, err = events.NewAPIManagedEventStream(m.ctx, spec, m.connector, listeners, m.metricsManager)
+	if err == nil {
+		isNew = true
+		m.eventStreams[*spec.ID] = es
+	}
+	return isNew, es, err
+}
+
+func (m *manager) CleanupAPIManagedEventStream(id *fftypes.UUID) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+	es := m.eventStreams[*id]
+	if es != nil {
+		_ = es.Delete(m.ctx)
+	}
+}
+
 func (m *manager) CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error) {
 	def.ID = apitypes.NewULID()
 	def.Created = nil // set to updated time by events.NewEventStream

@@ -779,3 +779,35 @@ func TestListStreamListenersOK(t *testing.T) {
 	assert.NoError(t, err)
 
 }
+
+func TestGetAPIManagedEventStreamBadSpec(t *testing.T) {
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	shouldNotBeNamed := "fred"
+	_, _, err := m.GetAPIManagedEventStream(&apitypes.EventStream{
+		ID:   apitypes.NewULID(),
+		Name: &shouldNotBeNamed,
+	}, []*apitypes.Listener{})
+	assert.Regexp(t, "FF21092", err)
+
+}
+
+func TestGetAPIManagedEventStreamRetained(t *testing.T) {
+	_, m, close := newTestManagerMockPersistence(t)
+	defer close()
+
+	spec := &apitypes.EventStream{ID: apitypes.NewULID()}
+
+	isNew, es1, err := m.GetAPIManagedEventStream(spec, []*apitypes.Listener{})
+	assert.NoError(t, err)
+	assert.True(t, isNew, err)
+
+	isNew, es2, err := m.GetAPIManagedEventStream(spec, []*apitypes.Listener{})
+	assert.NoError(t, err)
+	assert.False(t, isNew, err)
+	assert.Same(t, es1, es2)
+
+	m.CleanupAPIManagedEventStream(spec.ID)
+
+}

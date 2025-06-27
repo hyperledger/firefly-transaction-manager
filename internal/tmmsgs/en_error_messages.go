@@ -106,4 +106,5 @@ var (
 	MsgBadListenerType                         = ffe("FF21089", "Invalid listener type: %s", http.StatusBadRequest)
 	MsgFromBlockInvalid                        = ffe("FF21090", "From block invalid. Must be 'earliest', 'latest' or a decimal: %s", http.StatusBadRequest)
 	MsgStreamAPIManaged                        = ffe("FF21091", "Event stream '%v' is API managed and cannot be started directly", http.StatusBadRequest)
+	MsgStreamAPIManagedIDNoNameType            = ffe("FF21092", "API managed streams must have a valid UUID and no name or type", http.StatusBadRequest)
 )
