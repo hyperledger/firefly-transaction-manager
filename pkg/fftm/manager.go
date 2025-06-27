@@ -36,12 +36,11 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/eventapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
 )
-
-type EventStream = events.Stream
 
 type Manager interface {
 	Start() error
@@ -53,7 +52,7 @@ type Manager interface {
 	// - Multiple calls with the same ID will return the same object.
 	// - Use "isNew" to determine if the event stream was freshly initialized from the listener array
 	// - If not freshly initialized, the listeners array ignored (you can choose to do check the existing listener list yourself)
-	GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es EventStream, err error)
+	GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es eventapi.EventStream, err error)
 
 	// Resources will be used by the stream in the background, so if your object is deleted
 	// then this function should be called to clean-up any in-memory state (if there is any

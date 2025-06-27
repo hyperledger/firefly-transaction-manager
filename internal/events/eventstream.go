@@ -38,23 +38,11 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/eventapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
-type Stream interface {
-	AddOrUpdateListener(ctx context.Context, id *fftypes.UUID,
-		updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) // Add or update a listener
-	RemoveListener(ctx context.Context, id *fftypes.UUID) error          // Stop and remove a listener
-	UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error // Apply definition updates (if there are changes)
-	Spec() *apitypes.EventStream                                         // Retrieve the merged definition to persist
-	Status() apitypes.EventStreamStatus                                  // Get the current status
-	Start(ctx context.Context) error                                     // Start delivery
-	Stop(ctx context.Context) error                                      // Stop delivery (does not remove checkpoints)
-	Delete(ctx context.Context) error                                    // Stop delivery, and clean up any checkpoint
-
-	// For externally managed persistence with API to drive the internal event listener
-	PollAPIMangedStream(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint) (events []*apitypes.EventWithContext, checkpointOut *apitypes.EventStreamCheckpoint, err error)
-}
+type Stream = eventapi.EventStream
 
 // esDefaults are the defaults for new event streams, read from the config once in InitDefaults()
 var esDefaults struct {

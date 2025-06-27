@@ -28,6 +28,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/eventapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
@@ -157,7 +158,7 @@ func (m *manager) reserveStreamName(ctx context.Context, name string, id *fftype
 	}, nil
 }
 
-func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es EventStream, err error) {
+func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es eventapi.EventStream, err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
