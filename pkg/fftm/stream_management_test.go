@@ -568,49 +568,6 @@ func TestGetStreamNotFound(t *testing.T) {
 
 }
 
-func TestGetInternalStreamChannelNotFound(t *testing.T) {
-	_, m, close := newTestManagerMockPersistence(t)
-	defer close()
-
-	_, err := m.GetInternalStreamChannel(m.ctx, apitypes.NewULID().String())
-	assert.Regexp(t, "FF21045", err)
-
-}
-
-func TestGetInternalStreamChannelWrongType(t *testing.T) {
-	_, m, close := newTestManagerMockPersistence(t)
-	defer close()
-	mfc := m.connector.(*ffcapimocks.API)
-	mp := m.persistence.(*persistencemocks.Persistence)
-
-	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
-	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
-	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
-
-	es, err := m.CreateAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1")})
-
-	_, err = m.GetInternalStreamChannel(m.ctx, es.ID.String())
-	assert.Regexp(t, "FF21091", err)
-}
-
-func TestGetInternalStreamChannelOk(t *testing.T) {
-	_, m, close := newTestManagerMockPersistence(t)
-	defer close()
-	mfc := m.connector.(*ffcapimocks.API)
-	mp := m.persistence.(*persistencemocks.Persistence)
-
-	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
-	mp.On("WriteStream", m.ctx, mock.Anything).Return(nil)
-	mp.On("GetCheckpoint", m.ctx, mock.Anything).Return(nil, nil)
-
-	es, err := m.CreateAndStoreNewStream(m.ctx, &apitypes.EventStream{Name: strPtr("stream1"), Type: &apitypes.EventStreamTypeInternal})
-
-	c, err := m.GetInternalStreamChannel(m.ctx, es.ID.String())
-	assert.NoError(t, err)
-	assert.NotNil(t, c)
-
-}
-
 func TestGetStreamsBadLimit(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()

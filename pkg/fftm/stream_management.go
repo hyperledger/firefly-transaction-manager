@@ -322,17 +322,6 @@ func (m *manager) GetStream(ctx context.Context, idStr string) (*apitypes.EventS
 	}, nil
 }
 
-func (m *manager) GetInternalStreamChannel(ctx context.Context, idStr string) (<-chan *apitypes.EventBatchWithConfirm, error) {
-	s, err := m.getStream(ctx, idStr)
-	if err != nil {
-		return nil, err
-	}
-	if *s.Spec().Type != apitypes.EventStreamTypeInternal {
-		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotInternal, idStr)
-	}
-	return s.InternalStream(), nil
-}
-
 func (m *manager) parseLimit(ctx context.Context, limitStr string) (limit int, err error) {
 	if limitStr != "" {
 		if limit, err = strconv.Atoi(limitStr); err != nil {

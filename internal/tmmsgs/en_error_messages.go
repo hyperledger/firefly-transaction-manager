@@ -105,5 +105,5 @@ var (
 	MsgBlockListenerNotStarted                 = ffe("FF21088", "Block listener %s not started", http.StatusConflict)
 	MsgBadListenerType                         = ffe("FF21089", "Invalid listener type: %s", http.StatusBadRequest)
 	MsgFromBlockInvalid                        = ffe("FF21090", "From block invalid. Must be 'earliest', 'latest' or a decimal: %s", http.StatusBadRequest)
-	MsgStreamNotInternal                       = ffe("FF21091", "Event stream '%v' is not internal", http.StatusBadRequest)
+	MsgStreamAPIManaged                        = ffe("FF21091", "Event stream '%v' is API managed and cannot be started directly", http.StatusBadRequest)
 )

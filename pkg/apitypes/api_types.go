@@ -43,7 +43,6 @@ type EventStreamType = fftypes.FFEnum
 var (
 	EventStreamTypeWebhook   = fftypes.FFEnumValue("estype", "webhook")
 	EventStreamTypeWebSocket = fftypes.FFEnumValue("estype", "websocket")
-	EventStreamTypeInternal  = fftypes.FFEnumValue("estype", "internal")
 )
 
 type ErrorHandlingType = fftypes.FFEnum

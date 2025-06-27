@@ -49,7 +49,6 @@ type Manager interface {
 	CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error)
 	GetStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error)
 	ListStreamsRich(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.EventStream, *ffapi.FilterResult, error)
-	GetInternalStreamChannel(ctx context.Context, idStr string) (<-chan *apitypes.EventBatchWithConfirm, error)
 	UpdateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error)
 	DeleteStream(ctx context.Context, idStr string) error
 
