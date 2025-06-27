@@ -48,7 +48,7 @@ var getEventStreams = func(m *manager) *ffapi.Route {
 			{Name: "after", Description: tmmsgs.APIParamAfter},
 		}
 		route.JSONHandler = func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getStreams(r.Req.Context(), r.QP["after"], r.QP["limit"])
+			return m.GetStreamsByCreateTime(r.Req.Context(), r.QP["after"], r.QP["limit"])
 		}
 	}
 	return route

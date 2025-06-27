@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
+	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
 	"github.com/hyperledger/firefly-common/pkg/i18n"
@@ -45,11 +46,18 @@ type Manager interface {
 	Start() error
 	Close()
 
-	GetInternalStreamChannel(ctx context.Context, idStr string) (<-chan *apitypes.EventBatchWithConfirm, error)
-	GetStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error)
-	GetListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error)
 	CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error)
+	GetStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error)
+	ListStreamsRich(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.EventStream, *ffapi.FilterResult, error)
+	GetInternalStreamChannel(ctx context.Context, idStr string) (<-chan *apitypes.EventBatchWithConfirm, error)
+	UpdateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error)
+	DeleteStream(ctx context.Context, idStr string) error
+
 	CreateAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error)
+	GetListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error)
+	ListStreamListenersRich(ctx context.Context, streamIDStr string, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error)
+	UpdateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error)
+	DeleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error
 
 	GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error)
 	TransactionHandler() txhandler.TransactionHandler

@@ -39,7 +39,7 @@ var postSubscriptionReset = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.updateExistingListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"], r.Input.(*apitypes.Listener), true)
+			return m.UpdateExistingListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"], r.Input.(*apitypes.Listener), true)
 		},
 	}
 }

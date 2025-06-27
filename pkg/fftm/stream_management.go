@@ -103,7 +103,7 @@ func (m *manager) addRuntimeStream(def *apitypes.EventStream, listeners []*apity
 	return s, nil
 }
 
-func (m *manager) deleteStream(ctx context.Context, idStr string) error {
+func (m *manager) DeleteStream(ctx context.Context, idStr string) error {
 	id, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return err
@@ -205,7 +205,7 @@ func (m *manager) createAndStoreNewListener(ctx context.Context, def *apitypes.L
 	return m.createOrUpdateListener(ctx, apitypes.NewULID(), def, false)
 }
 
-func (m *manager) updateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
+func (m *manager) UpdateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
 	l, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
 	if err != nil {
 		return nil, err
@@ -239,7 +239,7 @@ func (m *manager) createOrUpdateListener(ctx context.Context, id *fftypes.UUID, 
 	return def, nil
 }
 
-func (m *manager) deleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error {
+func (m *manager) DeleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error {
 	spec, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
 	if err != nil {
 		return err
@@ -256,7 +256,7 @@ func (m *manager) deleteListener(ctx context.Context, streamIDStr, listenerIDStr
 	return m.persistence.DeleteListener(ctx, spec.ID)
 }
 
-func (m *manager) updateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error) {
+func (m *manager) UpdateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error) {
 	id, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return nil, err
@@ -354,7 +354,25 @@ func (m *manager) parseAfterAndLimit(ctx context.Context, afterStr, limitStr str
 	return after, limit, nil
 }
 
-func (m *manager) getStreams(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.EventStream, err error) {
+func (m *manager) ListStreamsRich(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.EventStream, *ffapi.FilterResult, error) {
+	if !m.richQueryEnabled {
+		return nil, nil, i18n.NewError(ctx, tmmsgs.MsgInvalidNonRichQuery)
+	}
+	return m.persistence.RichQuery().ListStreams(ctx, filter)
+}
+
+func (m *manager) ListStreamListenersRich(ctx context.Context, streamIDStr string, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
+	if !m.richQueryEnabled {
+		return nil, nil, i18n.NewError(ctx, tmmsgs.MsgInvalidNonRichQuery)
+	}
+	streamID, err := fftypes.ParseUUID(ctx, streamIDStr)
+	if err != nil {
+		return nil, nil, err
+	}
+	return m.persistence.RichQuery().ListStreamListeners(ctx, streamID, filter)
+}
+
+func (m *manager) GetStreamsByCreateTime(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.EventStream, err error) {
 	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
 	if err != nil {
 		return nil, err
@@ -412,12 +430,12 @@ func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (
 	return m.persistence.ListListenersByCreateTime(ctx, after, limit, txhandler.SortDirectionDescending)
 }
 
-func (m *manager) getStreamListenersByCreateTime(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
+func (m *manager) getStreamListenersByCreateTime(ctx context.Context, afterStr, limitStr, streamIDStr string) (listeners []*apitypes.Listener, err error) {
 	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
 	if err != nil {
 		return nil, err
 	}
-	id, err := fftypes.ParseUUID(ctx, idStr)
+	id, err := fftypes.ParseUUID(ctx, streamIDStr)
 	if err != nil {
 		return nil, err
 	}
