@@ -116,7 +116,7 @@ func (p *sqlPersistence) notifyTxCompletions() {
 	p.txCompletionsWaiters = nil
 }
 
-func (p *sqlPersistence) WaitTxCompletionUpdates(ctx context.Context, timeBeforeLastPoll time.Time) {
+func (p *sqlPersistence) WaitTxCompletionUpdates(ctx context.Context, timeBeforeLastPoll time.Time) bool {
 	// Possible there's already an update by the time we arrived locked in here...
 	p.txCompletionsLock.Lock()
 	var waitChl chan struct{}
@@ -131,6 +131,8 @@ func (p *sqlPersistence) WaitTxCompletionUpdates(ctx context.Context, timeBefore
 		select {
 		case <-waitChl:
 		case <-ctx.Done():
+			return false
 		}
 	}
+	return true
 }

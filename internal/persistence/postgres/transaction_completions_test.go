@@ -93,7 +93,7 @@ func TestTransactionCompletionsInsertNotify(t *testing.T) {
 	timeBeforePoll := time.Now()
 	waiterDone := make(chan struct{})
 	go func() {
-		p.WaitTxCompletionUpdates(ctx, timeBeforePoll)
+		assert.True(t, p.WaitTxCompletionUpdates(ctx, timeBeforePoll))
 		close(waiterDone)
 	}()
 
@@ -136,7 +136,7 @@ func TestTransactionCompletionsWakeNotifyOnClose(t *testing.T) {
 	ctx, cancelCtx := context.WithCancel(ctx)
 	cancelCtx()
 
-	p.WaitTxCompletionUpdates(ctx, time.Now())
+	require.False(t, p.WaitTxCompletionUpdates(ctx, time.Now()))
 }
 
 func TestTransactionCompletionsQueryFail(t *testing.T) {

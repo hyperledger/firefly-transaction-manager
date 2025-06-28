@@ -72,7 +72,7 @@ type RichQuery interface {
 
 type TransactionCompletions interface {
 	ListTxCompletionsByCreateTime(ctx context.Context, after *int64, limit int, dir SortDirection) ([]*apitypes.TXCompletion, error)
-	WaitTxCompletionUpdates(ctx context.Context, timeBeforeLastPoll time.Time)
+	WaitTxCompletionUpdates(ctx context.Context, timeBeforeLastPoll time.Time) bool
 }
 
 type TransactionHistoryPersistence interface {
