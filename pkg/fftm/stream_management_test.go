@@ -32,6 +32,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRestoreStreamsAndListenersOK(t *testing.T) {
@@ -809,6 +810,7 @@ func TestGetAPIManagedEventStreamRetained(t *testing.T) {
 	assert.False(t, isNew, err)
 	assert.Same(t, es1, es2)
 
-	m.CleanupAPIManagedEventStream(*spec.Name)
+	err = m.CleanupAPIManagedEventStream(*spec.Name)
+	require.NoError(t, err)
 
 }

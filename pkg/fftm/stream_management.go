@@ -186,7 +186,7 @@ func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners
 	return isNew, es, err
 }
 
-func (m *manager) CleanupAPIManagedEventStream(name string) {
+func (m *manager) CleanupAPIManagedEventStream(name string) (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -195,9 +195,10 @@ func (m *manager) CleanupAPIManagedEventStream(name string) {
 	if esID != nil {
 		es := m.eventStreams[*esID]
 		if es != nil {
-			_ = es.Delete(m.ctx)
+			err = es.Delete(m.ctx)
 		}
 	}
+	return
 }
 
 func (m *manager) CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error) {

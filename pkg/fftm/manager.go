@@ -58,7 +58,7 @@ type Manager interface {
 	// Resources will be used by the stream in the background, so if your object is deleted
 	// then this function should be called to clean-up any in-memory state (if there is any
 	// possibility you previously called GetAPIManagedEventStream)
-	CleanupAPIManagedEventStream(name string)
+	CleanupAPIManagedEventStream(name string) error
 
 	GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error)
 	TransactionHandler() txhandler.TransactionHandler
