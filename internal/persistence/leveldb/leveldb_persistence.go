@@ -256,6 +256,10 @@ func (p *leveldbPersistence) RichQuery() persistence.RichQuery {
 	panic("not supported")
 }
 
+func (p *leveldbPersistence) TransactionCompletions() persistence.TransactionCompletions {
+	panic("not supported")
+}
+
 func (p *leveldbPersistence) WriteCheckpoint(ctx context.Context, checkpoint *apitypes.EventStreamCheckpoint) error {
 	return p.writeJSON(ctx, prefixedKey(checkpointsPrefix, checkpoint.StreamID), checkpoint)
 }

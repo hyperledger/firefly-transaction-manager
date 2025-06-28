@@ -17,18 +17,26 @@
 package fftm
 
 import (
+	"fmt"
+	"testing"
+
 	"github.com/go-resty/resty/v2"
+	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"testing"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetLiveStatus(t *testing.T) {
-	url, m, done := newTestManager(t)
+	_, m, done := newTestManagerWithMetrics(t, false)
 	defer done()
+
+	require.True(t, m.monitoringEnabled)
+	require.NotNil(t, getLiveness(m).JSONOutputValue())
+	url := fmt.Sprintf("http://%s", m.monitoringServer.Addr())
 
 	mfc := m.connector.(*ffcapimocks.API)
 	mfc.On("IsLive", mock.Anything).Return(&ffcapi.LiveResponse{Up: true}, ffcapi.ErrorReason(""), nil)
@@ -39,9 +47,32 @@ func TestGetLiveStatus(t *testing.T) {
 	var liv apitypes.LiveStatus
 	res, err := resty.New().R().
 		SetResult(&liv).
-		Get(url + "/status/live")
+		Get(url + "/livez")
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
+}
+
+func TestGetMonitoring404(t *testing.T) {
+	_, m, done := newTestManagerWithMetrics(t, false)
+	defer done()
+
+	require.True(t, m.monitoringEnabled)
+	require.NotNil(t, getLiveness(m).JSONOutputValue())
+	url := fmt.Sprintf("http://%s", m.monitoringServer.Addr())
+
+	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("IsLive", mock.Anything).Return(&ffcapi.LiveResponse{Up: true}, ffcapi.ErrorReason(""), nil)
+
+	err := m.Start()
+	assert.NoError(t, err)
+
+	var errRes fftypes.RESTError
+	res, err := resty.New().R().
+		SetError(&errRes).
+		Get(url + "/not-found")
+	assert.NoError(t, err)
+	assert.Equal(t, 404, res.StatusCode())
+	assert.Regexp(t, "FF00167", errRes.Error)
 }
 
 func TestGetStatus(t *testing.T) {
@@ -58,6 +89,24 @@ func TestGetStatus(t *testing.T) {
 	res, err := resty.New().R().
 		SetResult(&liv).
 		Get(url + "/status")
+	assert.NoError(t, err)
+	assert.Equal(t, 200, res.StatusCode())
+}
+
+func TestGetDeprecatedLiveStatus(t *testing.T) {
+	url, m, done := newTestManager(t)
+	defer done()
+
+	mfc := m.connector.(*ffcapimocks.API)
+	mfc.On("IsLive", mock.Anything).Return(&ffcapi.LiveResponse{Up: true}, ffcapi.ErrorReason(""), nil)
+
+	err := m.Start()
+	assert.NoError(t, err)
+
+	var liv apitypes.LiveStatus
+	res, err := resty.New().R().
+		SetResult(&liv).
+		Get(url + "/status/live")
 	assert.NoError(t, err)
 	assert.Equal(t, 200, res.StatusCode())
 }

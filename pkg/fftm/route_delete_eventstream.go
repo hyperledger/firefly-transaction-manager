@@ -37,7 +37,7 @@ var deleteEventStream = func(m *manager) *ffapi.Route {
 		JSONOutputValue: nil,
 		JSONOutputCodes: []int{http.StatusNoContent},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			err = m.deleteStream(r.Req.Context(), r.PP["streamId"])
+			err = m.DeleteStream(r.Req.Context(), r.PP["streamId"])
 			return nil, err
 		},
 	}

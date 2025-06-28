@@ -403,6 +403,30 @@ func (tw *transactionWriter) preInsertIdempotencyCheck(ctx context.Context, b *t
 	return validInserts, nil
 }
 
+func (tw *transactionWriter) mergeTxUpdates(ctx context.Context, b *transactionWriterBatch) (txCompletions []*apitypes.TXCompletion, mergedUpdates map[string]*apitypes.TXUpdates) {
+	// We build a list of transaction completions to write, in a lock at the very end of the transaction
+	txCompletions = make([]*apitypes.TXCompletion, 0, len(b.txUpdates))
+	// Do all the transaction updates
+	mergedUpdates = make(map[string]*apitypes.TXUpdates)
+	for _, op := range b.txUpdates {
+		update, merge := mergedUpdates[op.txID]
+		if merge {
+			update.Merge(op.txUpdate)
+		} else {
+			mergedUpdates[op.txID] = op.txUpdate
+		}
+		if op.txUpdate.Status != nil && (*op.txUpdate.Status == apitypes.TxStatusSucceeded || *op.txUpdate.Status == apitypes.TxStatusFailed) {
+			txCompletions = append(txCompletions, &apitypes.TXCompletion{
+				ID:     op.txID,
+				Time:   fftypes.Now(),
+				Status: *op.txUpdate.Status,
+			})
+		}
+		log.L(ctx).Debugf("Updating transaction %s in write operation %s (merged=%t)", op.txID, op.opID, merge)
+	}
+	return
+}
+
 func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transactionWriterBatch) error {
 	txInserts, err := tw.preInsertIdempotencyCheck(ctx, b)
 	if err != nil {
@@ -424,17 +448,8 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 			_ = tw.txMetaCache.Add(t.ID, &txCacheEntry{lastCompacted: fftypes.Now()})
 		}
 	}
-	// Do all the transaction updates
-	mergedUpdates := make(map[string]*apitypes.TXUpdates)
-	for _, op := range b.txUpdates {
-		update, merge := mergedUpdates[op.txID]
-		if merge {
-			update.Merge(op.txUpdate)
-		} else {
-			mergedUpdates[op.txID] = op.txUpdate
-		}
-		log.L(ctx).Debugf("Updating transaction %s in write operation %s (merged=%t)", op.txID, op.opID, merge)
-	}
+	// We build a list of transaction completions to write, in a lock at the very end of the transaction
+	txCompletions, mergedUpdates := tw.mergeTxUpdates(ctx, b)
 	for txID, update := range mergedUpdates {
 		if err := tw.p.updateTransaction(ctx, txID, update); err != nil {
 			log.L(ctx).Errorf("Update transaction %s failed: %s", txID, err)
@@ -489,6 +504,12 @@ func (tw *transactionWriter) executeBatchOps(ctx context.Context, b *transaction
 				return err
 			}
 		}
+	}
+	// Lock the completions table and then insert all the completions (with conflict safety)
+	// We do this last as we want to hold the sequencing lock on this table for the shorted amount of time.
+	if err := tw.p.writeTransactionCompletions(ctx, txCompletions); err != nil {
+		log.L(ctx).Errorf("Inserting %d transaction completions failed: %s", len(txCompletions), err)
+		return err
 	}
 	// Do all the transaction deletes
 	for _, txID := range b.txDeletes {

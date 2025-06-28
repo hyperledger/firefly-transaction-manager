@@ -18,6 +18,7 @@ package postgres
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
@@ -53,6 +54,10 @@ type sqlPersistence struct {
 
 	historySummaryLimit int
 	nonceStateTimeout   time.Duration
+
+	txCompletionsLock    sync.Mutex
+	txCompletionsTime    time.Time
+	txCompletionsWaiters []chan struct{}
 }
 
 // InitConfig gets called after config reset to initialize the config structure
@@ -99,6 +104,10 @@ func newSQLPersistence(bgCtx context.Context, db *dbsql.Database, conf config.Se
 }
 
 func (p *sqlPersistence) RichQuery() persistence.RichQuery {
+	return p
+}
+
+func (p *sqlPersistence) TransactionCompletions() persistence.TransactionCompletions {
 	return p
 }
 

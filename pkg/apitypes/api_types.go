@@ -368,6 +368,11 @@ type EventBatch struct {
 	Events      []*EventWithContext `json:"events"`
 }
 
+type EventBatchWithConfirm struct {
+	EventBatch
+	Confirm chan error
+}
+
 // EventWithContext is what is delivered
 // There is custom serialization to flatten the whole structure, so all the custom `info` fields from the
 // connector are alongside the required context fields.

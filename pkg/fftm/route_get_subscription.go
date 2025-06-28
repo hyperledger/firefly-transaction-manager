@@ -39,7 +39,7 @@ var getSubscription = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return m.getListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"])
+			return m.GetListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"])
 		},
 	}
 }

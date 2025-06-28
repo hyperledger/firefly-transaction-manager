@@ -39,7 +39,7 @@ var deleteSubscription = func(m *manager) *ffapi.Route {
 		JSONOutputValue: func() interface{} { return &apitypes.Listener{} },
 		JSONOutputCodes: []int{http.StatusNoContent},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
-			return nil, m.deleteListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"])
+			return nil, m.DeleteListener(r.Req.Context(), "" /* no streamId on this path */, r.PP["listenerId"])
 		},
 	}
 }

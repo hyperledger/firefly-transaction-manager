@@ -208,6 +208,13 @@ type TXUpdates struct {
 	ErrorMessage    *string           `json:"errorMessage,omitempty"`
 }
 
+type TXCompletion struct {
+	Sequence *int64          `json:"sequence,omitempty"`
+	ID       string          `json:"id"`
+	Time     *fftypes.FFTime `json:"created"`
+	Status   TxStatus        `json:"status"`
+}
+
 func (txu *TXUpdates) Merge(txu2 *TXUpdates) {
 	if txu2.Status != nil {
 		txu.Status = txu2.Status

@@ -31,6 +31,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTransactionBasicValidationPSQL(t *testing.T) {
@@ -212,6 +213,22 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 	actualMTXJson, err := json.Marshal(mtx)
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expectedMTXJson), string(actualMTXJson))
+
+	// Check we can get the completion
+	completions, err := p.ListTxCompletionsByCreateTime(ctx, nil, 25, txhandler.SortDirectionAscending)
+	require.NoError(t, err)
+	require.Len(t, completions, 1)
+	require.Equal(t, txID, completions[0].ID)
+	require.Equal(t, apitypes.TxStatusFailed, completions[0].Status)
+	txCompleteSeq := *completions[0].Sequence
+
+	// Check we can skip past it
+	completions, err = p.ListTxCompletionsByCreateTime(ctx, &txCompleteSeq, 25, txhandler.SortDirectionAscending)
+	require.NoError(t, err)
+	require.Empty(t, completions)
+	completions, err = p.ListTxCompletionsByCreateTime(ctx, &txCompleteSeq, 25, txhandler.SortDirectionDescending)
+	require.NoError(t, err)
+	require.Empty(t, completions)
 
 	// Finally clean up
 	err = p.DeleteTransaction(ctx, txID)
