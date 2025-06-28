@@ -48,7 +48,8 @@ type Manager interface {
 
 	// API managed event streams have checkpoints stored externally.
 	// Events are access by calling PollAPIMangedStream() on the returned stream.
-	// - The spec must have a UUID, but no name or type.
+	// - The spec must have a name, but no UUID or type.
+	// - The name must be unique to managed API streams (separate namespace to persisted ones)
 	// - Multiple calls with the same ID will return the same object.
 	// - Use "isNew" to determine if the event stream was freshly initialized from the listener array
 	// - If not freshly initialized, the listeners array ignored (you can choose to do check the existing listener list yourself)
@@ -57,7 +58,7 @@ type Manager interface {
 	// Resources will be used by the stream in the background, so if your object is deleted
 	// then this function should be called to clean-up any in-memory state (if there is any
 	// possibility you previously called GetAPIManagedEventStream)
-	CleanupAPIManagedEventStream(id *fftypes.UUID)
+	CleanupAPIManagedEventStream(name string)
 
 	GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error)
 	TransactionHandler() txhandler.TransactionHandler
@@ -80,6 +81,7 @@ type manager struct {
 	mux                      sync.Mutex
 	eventStreams             map[fftypes.UUID]events.Stream
 	streamsByName            map[string]*fftypes.UUID
+	apiStreamsByName         map[string]*fftypes.UUID
 	blockListenerDone        chan struct{}
 	txHandlerDone            <-chan struct{}
 	started                  bool
@@ -116,6 +118,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 		monitoringEnabled:        config.GetBool(tmconfig.MonitoringEnabled),
 		eventStreams:             make(map[fftypes.UUID]events.Stream),
 		streamsByName:            make(map[string]*fftypes.UUID),
+		apiStreamsByName:         make(map[string]*fftypes.UUID),
 		metricsManager:           metrics.NewMetricsManager(ctx),
 	}
 	m.toolkit = &txhandler.Toolkit{

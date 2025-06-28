@@ -162,29 +162,41 @@ func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	if spec.ID == nil || spec.Name != nil || spec.Type != nil {
-		return isNew, nil, i18n.NewError(m.ctx, tmmsgs.MsgStreamAPIManagedIDNoNameType)
+	if spec.Name == nil || *spec.Name == "" || spec.ID != nil || spec.Type != nil {
+		return isNew, nil, i18n.NewError(m.ctx, tmmsgs.MsgStreamAPIManagedNameNoIDOrType)
 	}
 
-	es = m.eventStreams[*spec.ID]
+	// Shallow copy so as not to modify the incoming spec
+	def := *spec
+	def.ID = m.apiStreamsByName[*def.Name]
+	if def.ID != nil {
+		es = m.eventStreams[*def.ID]
+	}
 	if es != nil {
 		return isNew, es, nil
 	}
+	def.ID = fftypes.NewUUID()
 
-	es, err = events.NewAPIManagedEventStream(m.ctx, spec, m.connector, listeners, m.metricsManager)
+	es, err = events.NewAPIManagedEventStream(m.ctx, &def, m.connector, listeners, m.metricsManager)
 	if err == nil {
 		isNew = true
-		m.eventStreams[*spec.ID] = es
+		m.eventStreams[*def.ID] = es
+		m.apiStreamsByName[*def.Name] = def.ID
 	}
 	return isNew, es, err
 }
 
-func (m *manager) CleanupAPIManagedEventStream(id *fftypes.UUID) {
+func (m *manager) CleanupAPIManagedEventStream(name string) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
-	es := m.eventStreams[*id]
-	if es != nil {
-		_ = es.Delete(m.ctx)
+
+	esID := m.apiStreamsByName[name]
+	delete(m.apiStreamsByName, name)
+	if esID != nil {
+		es := m.eventStreams[*esID]
+		if es != nil {
+			_ = es.Delete(m.ctx)
+		}
 	}
 }
 

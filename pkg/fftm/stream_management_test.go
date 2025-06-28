@@ -784,10 +784,10 @@ func TestGetAPIManagedEventStreamBadSpec(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	shouldNotBeNamed := "fred"
+	randName := apitypes.NewULID().String()
 	_, _, err := m.GetAPIManagedEventStream(&apitypes.EventStream{
 		ID:   apitypes.NewULID(),
-		Name: &shouldNotBeNamed,
+		Name: &randName,
 	}, []*apitypes.Listener{})
 	assert.Regexp(t, "FF21092", err)
 
@@ -797,7 +797,8 @@ func TestGetAPIManagedEventStreamRetained(t *testing.T) {
 	_, m, close := newTestManagerMockPersistence(t)
 	defer close()
 
-	spec := &apitypes.EventStream{ID: apitypes.NewULID()}
+	randName := apitypes.NewULID().String()
+	spec := &apitypes.EventStream{Name: &randName}
 
 	isNew, es1, err := m.GetAPIManagedEventStream(spec, []*apitypes.Listener{})
 	assert.NoError(t, err)
@@ -808,6 +809,6 @@ func TestGetAPIManagedEventStreamRetained(t *testing.T) {
 	assert.False(t, isNew, err)
 	assert.Same(t, es1, es2)
 
-	m.CleanupAPIManagedEventStream(spec.ID)
+	m.CleanupAPIManagedEventStream(*spec.Name)
 
 }
