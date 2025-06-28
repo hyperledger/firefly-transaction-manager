@@ -418,4 +418,6 @@ func TestPSQLInitRichQueryEnabled(t *testing.T) {
 
 	assert.True(t, m.richQueryEnabled)
 	assert.NotNil(t, m.toolkit.RichQuery)
+	require.NotNil(t, m.TransactionCompletions())
+
 }

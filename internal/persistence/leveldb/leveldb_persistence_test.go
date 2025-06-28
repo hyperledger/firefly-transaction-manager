@@ -106,6 +106,10 @@ func TestRichQueryNotSupported(t *testing.T) {
 		p.RichQuery()
 	})
 
+	assert.Panics(t, func() {
+		p.TransactionCompletions()
+	})
+
 }
 
 func TestReadWriteStreams(t *testing.T) {

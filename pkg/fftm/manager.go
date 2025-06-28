@@ -60,7 +60,14 @@ type Manager interface {
 	// possibility you previously called GetAPIManagedEventStream)
 	CleanupAPIManagedEventStream(name string) error
 
+	// Access directly to the transaction completions polling interface, which allows blocking-polling interactions with an
+	// ordered stream of transaction completions
+	TransactionCompletions() txhandler.TransactionCompletions
+
+	// Ability to query a transaction by ID to get full status
 	GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error)
+
+	// Ability to submit new transactions into the transaction handler for management/submission
 	TransactionHandler() txhandler.TransactionHandler
 }
 
@@ -221,6 +228,10 @@ func (m *manager) Start() error {
 
 func (m *manager) TransactionHandler() txhandler.TransactionHandler {
 	return m.txHandler
+}
+
+func (m *manager) TransactionCompletions() txhandler.TransactionCompletions {
+	return m.persistence.TransactionCompletions()
 }
 
 func (m *manager) Close() {

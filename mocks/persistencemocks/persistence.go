@@ -637,6 +637,26 @@ func (_m *Persistence) SetTransactionReceipt(ctx context.Context, txID string, r
 	return r0
 }
 
+// TransactionCompletions provides a mock function with no fields
+func (_m *Persistence) TransactionCompletions() persistence.TransactionCompletions {
+	ret := _m.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for TransactionCompletions")
+	}
+
+	var r0 persistence.TransactionCompletions
+	if rf, ok := ret.Get(0).(func() persistence.TransactionCompletions); ok {
+		r0 = rf()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(persistence.TransactionCompletions)
+		}
+	}
+
+	return r0
+}
+
 // UpdateTransaction provides a mock function with given fields: ctx, txID, updates
 func (_m *Persistence) UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error {
 	ret := _m.Called(ctx, txID, updates)

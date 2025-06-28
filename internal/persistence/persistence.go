@@ -37,8 +37,9 @@ type Persistence interface {
 	TransactionPersistence
 	TransactionHistoryPersistence
 
-	RichQuery() RichQuery      // panics if not supported
-	Close(ctx context.Context) // close function is controlled by the manager
+	RichQuery() RichQuery                           // panics if not supported
+	TransactionCompletions() TransactionCompletions // panics if not supported
+	Close(ctx context.Context)                      // close function is controlled by the manager
 }
 
 var EventStreamFilters = &ffapi.QueryFields{
@@ -131,6 +132,10 @@ var TXHistoryFilters = &ffapi.QueryFields{
 
 type RichQuery interface {
 	txhandler.RichQuery
+}
+
+type TransactionCompletions interface {
+	txhandler.TransactionCompletions
 }
 
 type CheckpointPersistence interface {

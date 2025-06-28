@@ -65,6 +65,45 @@ func (_m *Stream) Delete(ctx context.Context) error {
 	return r0
 }
 
+// PollAPIMangedStream provides a mock function with given fields: ctx, checkpointIn
+func (_m *Stream) PollAPIMangedStream(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint) ([]*apitypes.EventWithContext, *apitypes.EventStreamCheckpoint, error) {
+	ret := _m.Called(ctx, checkpointIn)
+
+	if len(ret) == 0 {
+		panic("no return value specified for PollAPIMangedStream")
+	}
+
+	var r0 []*apitypes.EventWithContext
+	var r1 *apitypes.EventStreamCheckpoint
+	var r2 error
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.EventStreamCheckpoint) ([]*apitypes.EventWithContext, *apitypes.EventStreamCheckpoint, error)); ok {
+		return rf(ctx, checkpointIn)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *apitypes.EventStreamCheckpoint) []*apitypes.EventWithContext); ok {
+		r0 = rf(ctx, checkpointIn)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]*apitypes.EventWithContext)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, *apitypes.EventStreamCheckpoint) *apitypes.EventStreamCheckpoint); ok {
+		r1 = rf(ctx, checkpointIn)
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*apitypes.EventStreamCheckpoint)
+		}
+	}
+
+	if rf, ok := ret.Get(2).(func(context.Context, *apitypes.EventStreamCheckpoint) error); ok {
+		r2 = rf(ctx, checkpointIn)
+	} else {
+		r2 = ret.Error(2)
+	}
+
+	return r0, r1, r2
+}
+
 // RemoveListener provides a mock function with given fields: ctx, id
 func (_m *Stream) RemoveListener(ctx context.Context, id *fftypes.UUID) error {
 	ret := _m.Called(ctx, id)
