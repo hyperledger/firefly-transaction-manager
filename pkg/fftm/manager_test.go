@@ -91,6 +91,7 @@ func newTestManager(t *testing.T) (string, *manager, func()) {
 	m.confirmations = mcm
 
 	require.NotNil(t, m.TransactionHandler())
+	require.NotNil(t, m.APIRouter())
 
 	return url,
 		m,

@@ -20,6 +20,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gorilla/mux"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
@@ -45,6 +46,8 @@ import (
 type Manager interface {
 	Start() error
 	Close()
+
+	APIRouter() *mux.Router
 
 	// API managed event streams have checkpoints stored externally.
 	// Events are access by calling PollAPIMangedStream() on the returned stream.
@@ -76,6 +79,7 @@ type manager struct {
 	cancelCtx        func()
 	confirmations    confirmations.Manager
 	txHandler        txhandler.TransactionHandler
+	apiRouter        *mux.Router
 	apiServer        httpserver.HTTPServer
 	monitoringServer httpserver.HTTPServer
 	wsServer         ws.WebSocketServer
@@ -139,7 +143,8 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 func (m *manager) initServices(ctx context.Context) (err error) {
 	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts", m.metricsManager)
 	m.wsServer = ws.NewWebSocketServer(ctx)
-	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(m.monitoringEnabled || m.deprecatedMetricsEnabled), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
+	m.apiRouter = m.router(m.monitoringEnabled || m.deprecatedMetricsEnabled)
+	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.apiRouter, m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
 	if err != nil {
 		return err
 	}
@@ -232,6 +237,10 @@ func (m *manager) TransactionHandler() txhandler.TransactionHandler {
 
 func (m *manager) TransactionCompletions() txhandler.TransactionCompletions {
 	return m.persistence.TransactionCompletions()
+}
+
+func (m *manager) APIRouter() *mux.Router {
+	return m.apiRouter
 }
 
 func (m *manager) Close() {
