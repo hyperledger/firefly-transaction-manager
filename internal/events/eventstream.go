@@ -142,6 +142,17 @@ func NewAPIManagedEventStream(
 	listeners []*apitypes.Listener,
 	eme metrics.EventMetricsEmitter,
 ) (ees Stream, err error) {
+	// Caller must manage the ID of the listeners, if they wish to modify them after the event stream
+	// has been established. Listeners do not have a name, just an ID.
+	//
+	// A expected common pattern with API managed event streams is that they are created, and then never
+	// modified (just later cleaned up, and maybe recreated).
+	// As such we don't require UUIDs to be assigned to each listener.
+	for _, l := range listeners {
+		if l.ID == nil {
+			l.ID = fftypes.NewUUID()
+		}
+	}
 	return newEventStream(
 		bgCtx,
 		persistedSpec,

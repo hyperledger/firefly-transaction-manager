@@ -544,7 +544,6 @@ func TestAPIManagedEventStreamE2E(t *testing.T) {
 	InitDefaults()
 
 	l := &apitypes.Listener{
-		ID:   apitypes.NewULID(),
 		Name: strPtr("ut_listener"),
 		Type: &apitypes.ListenerTypeBlocks,
 	}
