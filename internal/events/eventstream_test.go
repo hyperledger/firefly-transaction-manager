@@ -537,6 +537,27 @@ func TestWebSocketEventStreamsE2EBlocks(t *testing.T) {
 	mfc.AssertExpectations(t)
 }
 
+func TestAPIManagedEventStreamMissingListenerIDs(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.EventStreamsDefaultsBatchTimeout, "1us")
+	InitDefaults()
+
+	mfc := &ffcapimocks.API{}
+	// Checkpoints are commonly tied to individual listeners, so it is critical that the caller manages
+	// deterministically the IDs of the listeners passed in. They cannot be empty (an error will be returned)
+	_, err := NewAPIManagedEventStream(context.Background(),
+		testESConf(t, `{}`),
+		mfc,
+		[]*apitypes.Listener{{
+			Name: strPtr("missing_id"),
+			Type: &apitypes.ListenerTypeBlocks,
+		}},
+		mockMetrics(),
+	)
+	require.Regexp(t, "FF21048", err)
+}
+
 func TestAPIManagedEventStreamE2E(t *testing.T) {
 
 	tmconfig.Reset()
@@ -544,6 +565,7 @@ func TestAPIManagedEventStreamE2E(t *testing.T) {
 	InitDefaults()
 
 	l := &apitypes.Listener{
+		ID:   apitypes.NewULID(),
 		Name: strPtr("ut_listener"),
 		Type: &apitypes.ListenerTypeBlocks,
 	}

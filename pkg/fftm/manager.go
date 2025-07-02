@@ -56,6 +56,9 @@ type Manager interface {
 	// - Multiple calls with the same ID will return the same object.
 	// - Use "isNew" to determine if the event stream was freshly initialized from the listener array
 	// - If not freshly initialized, the listeners array ignored (you can choose to do check the existing listener list yourself)
+	//
+	// Checkpoints are commonly tied to individual listeners, so it is critical that the caller manages
+	// deterministically the IDs of the listeners passed in. They cannot be empty (an error will be returned)
 	GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es eventapi.EventStream, err error)
 
 	// Resources will be used by the stream in the background, so if your object is deleted
