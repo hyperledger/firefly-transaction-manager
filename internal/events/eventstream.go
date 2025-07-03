@@ -863,9 +863,16 @@ func (es *eventStream) checkStartedStopCheckpointMismatch(ctx context.Context, c
 	}
 	if startedState != nil {
 		// We're started. We need to compare the checkpoint supplied to the one we have...
-		if (checkpointIn == nil && es.currentState.lastCheckpoint != nil) ||
-			(checkpointIn != nil && !checkpointIn.Time.Equal(es.currentState.lastCheckpoint)) {
+		var suppliedCheckpoint, existingCheckpoint string
+		if checkpointIn != nil {
+			suppliedCheckpoint = checkpointIn.Time.String()
+		}
+		if es.currentState.lastCheckpoint != nil {
+			existingCheckpoint = es.currentState.lastCheckpoint.String()
+		}
+		if suppliedCheckpoint != existingCheckpoint {
 			// ... if they don't match we need to stop before restarting (ensuring not to return startedState)
+			log.L(ctx).Infof("Checkpoint mismatch suppliedCheckpoint=%s existingCheckpoint=%s", suppliedCheckpoint, existingCheckpoint)
 			startedState = nil
 			err = es.Stop(ctx)
 		}
