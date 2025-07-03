@@ -1079,14 +1079,14 @@ func (es *eventStream) generateCheckpoint(startedState *startedStreamState, batc
 	startedState.lastCheckpoint = fftypes.Now()
 	cp := &apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
-		Time:      fftypes.Now(),
+		Time:      startedState.lastCheckpoint,
 		Listeners: make(map[fftypes.UUID]json.RawMessage),
 	}
 	if batch != nil {
 		for lID, lCP := range batch.checkpoints {
 			if l, ok := es.listeners[lID]; ok {
 				l.checkpoint = lCP
-				l.lastCheckpoint = fftypes.Now()
+				l.lastCheckpoint = startedState.lastCheckpoint
 				log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %+v", l.spec.SignatureString(), l.spec.ID, lCP)
 			}
 		}
