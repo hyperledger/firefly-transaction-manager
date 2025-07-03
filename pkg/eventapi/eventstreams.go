@@ -18,6 +18,7 @@ package eventapi
 
 import (
 	"context"
+	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
@@ -35,5 +36,5 @@ type EventStream interface {
 	Delete(ctx context.Context) error                                    // Stop delivery, and clean up any checkpoint
 
 	// For externally managed persistence with API to drive the internal event listener
-	PollAPIMangedStream(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint) (events []*apitypes.EventWithContext, checkpointOut *apitypes.EventStreamCheckpoint, err error)
+	PollAPIMangedStream(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint, timeout time.Duration) (events []*apitypes.EventWithContext, checkpointOut *apitypes.EventStreamCheckpoint, err error)
 }

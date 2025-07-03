@@ -876,7 +876,7 @@ func (es *eventStream) checkStartedStopCheckpointMismatch(ctx context.Context, c
 // Note the checkpointInterval will determine how often this function exits when
 // no events have arrived (with the latest checkpoint) so that the checkpoint can
 // be written for restart recovery by the caller of this function.
-func (es *eventStream) PollAPIMangedStream(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint) (events []*apitypes.EventWithContext, checkpointOut *apitypes.EventStreamCheckpoint, err error) {
+func (es *eventStream) PollAPIMangedStream(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint, timeout time.Duration) (events []*apitypes.EventWithContext, checkpointOut *apitypes.EventStreamCheckpoint, err error) {
 	// Must only have a single poll active at any given time.
 	// This lock is only taken in this function, and is taken BEFORE the es.mux (which we hold more briefly)
 	es.apiManagedRunLock.Lock()
@@ -901,11 +901,11 @@ func (es *eventStream) PollAPIMangedStream(ctx context.Context, checkpointIn *ap
 	}
 
 	// Start a checkpoint timer
-	var checkpointTimer = time.NewTimer(es.checkpointInterval)
-	defer checkpointTimer.Stop()
+	var pollTimer = time.NewTimer(timeout)
+	defer pollTimer.Stop()
 
 	// We use a random number for the batch
-	batch, err := es.batchPoll(ctx, checkpointTimer)
+	batch, err := es.batchPoll(ctx, pollTimer)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -917,7 +917,7 @@ func (es *eventStream) PollAPIMangedStream(ctx context.Context, checkpointIn *ap
 	return events, checkpointOut, nil
 }
 
-func (es *eventStream) batchPoll(ctx context.Context, checkpointTimer *time.Timer) (batch *eventStreamBatch, err error) {
+func (es *eventStream) batchPoll(ctx context.Context, pollTimer *time.Timer) (batch *eventStreamBatch, err error) {
 	maxSize := 1
 	maxSizeI64 := *es.spec.BatchSize
 	if maxSizeI64 > 0 && maxSizeI64 < math.MaxInt {
@@ -930,7 +930,7 @@ func (es *eventStream) batchPoll(ctx context.Context, checkpointTimer *time.Time
 			timeoutChannel = batch.timeout.C
 		} else {
 			// If we don't have a batch in-flight, then the (longer) checkpoint timer is used
-			timeoutChannel = checkpointTimer.C
+			timeoutChannel = pollTimer.C
 		}
 		timedOut := false
 		select {

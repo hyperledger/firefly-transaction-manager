@@ -634,20 +634,18 @@ func TestAPIManagedEventStreamE2E(t *testing.T) {
 	}()
 
 	// Do a first poll and get the events
-	batch1, cp1, err := es.PollAPIMangedStream(es.bgCtx, &apitypes.EventStreamCheckpoint{})
+	batch1, cp1, err := es.PollAPIMangedStream(es.bgCtx, &apitypes.EventStreamCheckpoint{}, 1*time.Second)
 	assert.Len(t, batch1, 1)
 	assert.NotNil(t, cp1.Time)
 
 	// Do a second poll, and get the timeout with no events
-	es.checkpointInterval = 10 * time.Millisecond
-	batch2, cp2, err := es.PollAPIMangedStream(es.bgCtx, cp1 /* correct to continue */)
+	batch2, cp2, err := es.PollAPIMangedStream(es.bgCtx, cp1 /* correct to continue */, 10*time.Millisecond)
 	assert.Empty(t, batch2)
 	assert.NotEqual(t, cp1.Time, cp2.Time)
 
 	// Do a third poll, and wind back in time to simulate a crash
 	// noting that we'll restart
-	es.checkpointInterval = 10 * time.Millisecond
-	batch3, cp3, err := es.PollAPIMangedStream(es.bgCtx, cp1 /* go back in time */)
+	batch3, cp3, err := es.PollAPIMangedStream(es.bgCtx, cp1 /* go back in time */, 10*time.Millisecond)
 	assert.Empty(t, batch3)
 	assert.NotEqual(t, cp1.Time, cp3.Time)
 	assert.NotEqual(t, cp2.Time, cp3.Time)
@@ -2235,12 +2233,12 @@ func TestStartAPIEventStreamStartFail(t *testing.T) {
 
 	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return((*ffcapi.EventStreamStartResponse)(nil), ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
-	_, _, err = ees.PollAPIMangedStream(context.Background(), nil)
+	_, _, err = ees.PollAPIMangedStream(context.Background(), nil, 1*time.Second)
 	require.Regexp(t, "pop", err)
 
 	// Fake that we're started, but we'll actually not be in the right state
 	ees.(*eventStream).currentState = &startedStreamState{}
-	_, _, err = ees.PollAPIMangedStream(context.Background(), &apitypes.EventStreamCheckpoint{Time: fftypes.Now()})
+	_, _, err = ees.PollAPIMangedStream(context.Background(), &apitypes.EventStreamCheckpoint{Time: fftypes.Now()}, 1*time.Second)
 	require.Regexp(t, "FF21027", err)
 }
 
@@ -2269,7 +2267,7 @@ func TestStartAPIEventStreamPollContextCancelled(t *testing.T) {
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
 	cancelCtx()
-	_, _, err = ees.PollAPIMangedStream(ctx, nil)
+	_, _, err = ees.PollAPIMangedStream(ctx, nil, 1*time.Second)
 	require.Regexp(t, "FF00154", err)
 
 }

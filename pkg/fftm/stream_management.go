@@ -177,11 +177,13 @@ func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners
 	}
 	def.ID = fftypes.NewUUID()
 
+	log.L(m.ctx).Infof("Creating API managed event stream %s", *def.Name)
 	es, err = events.NewAPIManagedEventStream(m.ctx, &def, m.connector, listeners, m.metricsManager)
 	if err == nil {
 		isNew = true
 		m.eventStreams[*def.ID] = es
 		m.apiStreamsByName[*def.Name] = def.ID
+		log.L(m.ctx).Infof("Created API managed event stream %s (%s)", *def.Name, def.ID)
 	}
 	return isNew, es, err
 }
@@ -190,6 +192,7 @@ func (m *manager) CleanupAPIManagedEventStream(name string) (err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
+	log.L(m.ctx).Infof("Cleaning up API managed event stream %s", name)
 	esID := m.apiStreamsByName[name]
 	delete(m.apiStreamsByName, name)
 	if esID != nil {
@@ -198,6 +201,7 @@ func (m *manager) CleanupAPIManagedEventStream(name string) (err error) {
 			err = es.Delete(m.ctx)
 		}
 	}
+	log.L(m.ctx).Infof("Cleanup up API managed event stream complete %s (err=%s)", name, err)
 	return
 }
 
