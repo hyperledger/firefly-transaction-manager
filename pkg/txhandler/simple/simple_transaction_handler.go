@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Masterminds/sprig/v3"
-	"github.com/go-resty/resty/v2"
+	sprig "github.com/Masterminds/sprig/v3"
+	resty "github.com/go-resty/resty/v2"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/ffresty"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"

@@ -64,9 +64,11 @@ var postRootCommand = func(m *manager) *ffapi.Route {
 			return &openapi3.SchemaRef{
 				Value: &openapi3.Schema{
 					AnyOf: openapi3.SchemaRefs{
-						{Value: &openapi3.Schema{
-							Description: i18n.Expand(ctx, tmmsgs.APIEndpointDeleteEventStream),
-						}},
+						&openapi3.SchemaRef{
+							Value: &openapi3.Schema{
+								Description: i18n.Expand(ctx, tmmsgs.APIEndpointDeleteEventStream),
+							},
+						},
 						managedTX,
 					},
 				},
