@@ -39,7 +39,7 @@ var postEventStreamSuspend = func(m *manager) *ffapi.Route {
 		JSONOutputCodes: []int{http.StatusOK},
 		JSONHandler: func(r *ffapi.APIRequest) (output interface{}, err error) {
 			truthy := true
-			_, err = m.updateStream(r.Req.Context(), r.PP["streamId"], &apitypes.EventStream{
+			_, err = m.UpdateStream(r.Req.Context(), r.PP["streamId"], &apitypes.EventStream{
 				Suspended: &truthy,
 			})
 			return &struct{}{}, err

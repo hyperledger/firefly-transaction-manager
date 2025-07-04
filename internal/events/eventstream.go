@@ -20,7 +20,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/config"
@@ -36,20 +38,11 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/eventapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
-type Stream interface {
-	AddOrUpdateListener(ctx context.Context, id *fftypes.UUID,
-		updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) // Add or update a listener
-	RemoveListener(ctx context.Context, id *fftypes.UUID) error          // Stop and remove a listener
-	UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error // Apply definition updates (if there are changes)
-	Spec() *apitypes.EventStream                                         // Retrieve the merged definition to persist
-	Status() apitypes.EventStreamStatus                                  // Get the current status
-	Start(ctx context.Context) error                                     // Start delivery
-	Stop(ctx context.Context) error                                      // Stop delivery (does not remove checkpoints)
-	Delete(ctx context.Context) error                                    // Stop delivery, and clean up any checkpoint
-}
+type Stream = eventapi.EventStream
 
 // esDefaults are the defaults for new event streams, read from the config once in InitDefaults()
 var esDefaults struct {
@@ -94,6 +87,7 @@ type startedStreamState struct {
 	cancelCtx         func()
 	startTime         *fftypes.FFTime
 	action            eventStreamAction
+	lastCheckpoint    *fftypes.FFTime
 	eventLoopDone     chan struct{}
 	batchLoopDone     chan struct{}
 	blockListenerDone chan struct{}
@@ -107,7 +101,7 @@ type eventStream struct {
 	mux                   sync.Mutex
 	status                apitypes.EventStreamStatus
 	connector             ffcapi.API
-	persistence           persistence.Persistence
+	checkpointsDB         persistence.CheckpointPersistence
 	confirmations         confirmations.Manager
 	confirmationsRequired int
 	listeners             map[fftypes.UUID]*listener
@@ -116,34 +110,77 @@ type eventStream struct {
 	currentState          *startedStreamState
 	checkpointInterval    time.Duration
 	batchChannel          chan *ffcapi.ListenerEvent
+	batchNumber           atomic.Int64
+	apiManagedStream      bool
+	apiManagedRunLock     sync.Mutex
 }
 
 func NewEventStream(
 	bgCtx context.Context,
 	persistedSpec *apitypes.EventStream,
 	connector ffcapi.API,
-	persistence persistence.Persistence,
+	checkpointsDB persistence.CheckpointPersistence,
 	wsChannels ws.WebSocketChannels,
 	initialListeners []*apitypes.Listener,
 	eme metrics.EventMetricsEmitter,
 ) (ees Stream, err error) {
-	esCtx := log.WithLogField(bgCtx, "eventstream", persistedSpec.ID.String())
+	return newEventStream(
+		bgCtx,
+		persistedSpec,
+		connector,
+		checkpointsDB,
+		false, // persistence managed
+		wsChannels,
+		initialListeners,
+		eme)
+}
+
+func NewAPIManagedEventStream(
+	bgCtx context.Context,
+	persistedSpec *apitypes.EventStream,
+	connector ffcapi.API,
+	listeners []*apitypes.Listener,
+	eme metrics.EventMetricsEmitter,
+) (ees Stream, err error) {
+	return newEventStream(
+		bgCtx,
+		persistedSpec,
+		connector,
+		nil,  // no persistence
+		true, // API managed
+		nil,  // no WS channels - only consumption is via API polling
+		listeners,
+		eme)
+}
+
+func newEventStream(
+	bgCtx context.Context,
+	spec *apitypes.EventStream,
+	connector ffcapi.API,
+	checkpointsDB persistence.CheckpointPersistence,
+	apiManagedStream bool,
+	wsChannels ws.WebSocketChannels,
+	initialListeners []*apitypes.Listener,
+	eme metrics.EventMetricsEmitter,
+) (ees Stream, err error) {
+	esCtx := log.WithLogField(bgCtx, "eventstream", spec.ID.String())
 	es := &eventStream{
 		bgCtx:                 esCtx,
 		status:                apitypes.EventStreamStatusStopped,
-		spec:                  persistedSpec,
+		spec:                  spec,
 		connector:             connector,
-		persistence:           persistence,
+		checkpointsDB:         checkpointsDB,
 		listeners:             make(map[fftypes.UUID]*listener),
 		wsChannels:            wsChannels,
 		retry:                 esDefaults.retry,
 		checkpointInterval:    config.GetDuration(tmconfig.EventStreamsCheckpointInterval),
-		confirmations:         confirmations.NewBlockConfirmationManager(esCtx, connector, "_es_"+persistedSpec.ID.String(), eme),
+		confirmations:         confirmations.NewBlockConfirmationManager(esCtx, connector, "_es_"+spec.ID.String(), eme),
 		confirmationsRequired: config.GetInt(tmconfig.ConfirmationsRequired),
+		apiManagedStream:      apiManagedStream,
 	}
 	// The configuration we have in memory, applies all the defaults to what is passed in
 	// to ensure there are no nil fields on the configuration object.
-	if es.spec, _, err = mergeValidateEsConfig(esCtx, nil, persistedSpec); err != nil {
+	if es.spec, _, err = mergeValidateEsConfig(esCtx, apiManagedStream, nil, spec); err != nil {
 		return nil, err
 	}
 	es.batchChannel = make(chan *ffcapi.ListenerEvent, *es.spec.BatchSize)
@@ -179,7 +216,7 @@ func (es *eventStream) initAction(startedState *startedStreamState) error {
 	return nil
 }
 
-func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, updates *apitypes.EventStream) (merged *apitypes.EventStream, changed bool, err error) {
+func mergeValidateEsConfig(ctx context.Context, apiManagedStream bool, base *apitypes.EventStream, updates *apitypes.EventStream) (merged *apitypes.EventStream, changed bool, err error) {
 
 	// Merged is assured to not have any unset values (default set in all cases), or any EthCompat fields
 	if base == nil {
@@ -204,7 +241,10 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 	// - Note we do not check for uniqueness of the name at this layer in the code, but we do require unique names.
 	//   That's the responsibility of the calling code that manages the persistence of the configured streams.
 	changed = apitypes.CheckUpdateString(changed, &merged.Name, base.Name, updates.Name, "")
-	if *merged.Name == "" {
+	if apiManagedStream {
+		idStr := merged.ID.String()
+		merged.Name = &idStr
+	} else if *merged.Name == "" {
 		return nil, false, i18n.NewError(ctx, tmmsgs.MsgMissingName)
 	}
 
@@ -244,19 +284,23 @@ func mergeValidateEsConfig(ctx context.Context, base *apitypes.EventStream, upda
 		changed = apitypes.CheckUpdateDuration(changed, &merged.BlockedRetryDelay, base.BlockedRetryDelay, updates.BlockedRetryDelay, esDefaults.blockedRetryDelay)
 	}
 
-	// Type
-	changed = apitypes.CheckUpdateEnum(changed, &merged.Type, base.Type, updates.Type, apitypes.EventStreamTypeWebSocket)
-	switch *merged.Type {
-	case apitypes.EventStreamTypeWebSocket:
-		if merged.WebSocket, changed, err = mergeValidateWsConfig(ctx, changed, base.WebSocket, updates.WebSocket); err != nil {
-			return nil, false, err
+	// Type - not applicable to API managed streams
+	if apiManagedStream {
+		merged.Type = nil
+	} else {
+		changed = apitypes.CheckUpdateEnum(changed, &merged.Type, base.Type, updates.Type, apitypes.EventStreamTypeWebSocket)
+		switch *merged.Type {
+		case apitypes.EventStreamTypeWebSocket:
+			if merged.WebSocket, changed, err = mergeValidateWsConfig(ctx, changed, base.WebSocket, updates.WebSocket); err != nil {
+				return nil, false, err
+			}
+		case apitypes.EventStreamTypeWebhook:
+			if merged.Webhook, changed, err = mergeValidateWhConfig(ctx, changed, base.Webhook, updates.Webhook); err != nil {
+				return nil, false, err
+			}
+		default:
+			return nil, false, i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *merged.Type)
 		}
-	case apitypes.EventStreamTypeWebhook:
-		if merged.Webhook, changed, err = mergeValidateWhConfig(ctx, changed, base.Webhook, updates.Webhook); err != nil {
-			return nil, false, err
-		}
-	default:
-		return nil, false, i18n.NewError(ctx, tmmsgs.MsgInvalidStreamType, *merged.Type)
 	}
 
 	return merged, changed, nil
@@ -267,7 +311,7 @@ func (es *eventStream) Spec() *apitypes.EventStream {
 }
 
 func (es *eventStream) UpdateSpec(ctx context.Context, updates *apitypes.EventStream) error {
-	merged, changed, err := mergeValidateEsConfig(ctx, es.spec, updates)
+	merged, changed, err := mergeValidateEsConfig(ctx, es.apiManagedStream, es.spec, updates)
 	if err != nil {
 		return err
 	}
@@ -352,6 +396,10 @@ func (es *eventStream) mergeListenerOptions(id *fftypes.UUID, updates *apitypes.
 }
 
 func (es *eventStream) verifyListenerOptions(ctx context.Context, id *fftypes.UUID, updatesOrNew *apitypes.Listener) (*apitypes.Listener, error) {
+	if id == nil {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgMissingID)
+	}
+
 	// Merge the supplied options with defaults and any existing config.
 	spec := es.mergeListenerOptions(id, updatesOrNew)
 
@@ -433,12 +481,12 @@ func (es *eventStream) AddOrUpdateListener(ctx context.Context, id *fftypes.UUID
 func (es *eventStream) resetListenerCheckpoint(ctx context.Context, l *listener) error {
 	l.checkpoint = nil
 	l.lastCheckpoint = nil
-	cp, err := es.persistence.GetCheckpoint(ctx, es.spec.ID)
+	cp, err := es.checkpointsDB.GetCheckpoint(ctx, es.spec.ID)
 	if err != nil || cp == nil {
 		return err
 	}
 	delete(cp.Listeners, *l.spec.ID)
-	return es.persistence.WriteCheckpoint(ctx, cp)
+	return es.checkpointsDB.WriteCheckpoint(ctx, cp)
 }
 
 func (es *eventStream) lockedListenerUpdate(ctx context.Context, spec *apitypes.Listener, reset bool) (bool, *listener, *startedStreamState, error) {
@@ -502,10 +550,21 @@ func (es *eventStream) checkSetStatus(ctx context.Context, requiredState apitype
 }
 
 func (es *eventStream) Start(ctx context.Context) error {
+	// Note that API managed event listeners cannot be started via this function,
+	// they will automatically start/stop the internal components when APIManagedPoll is called
+	if es.apiManagedStream {
+		return i18n.NewError(ctx, tmmsgs.MsgStreamAPIManaged, es.spec.ID)
+	}
+
+	_, err := es.start(ctx, nil)
+	return err
+}
+
+func (es *eventStream) start(ctx context.Context, apiManagedCheckpoint *apitypes.EventStreamCheckpoint) (*startedStreamState, error) {
 	es.mux.Lock()
 	defer es.mux.Unlock()
 	if err := es.checkSetStatus(ctx, apitypes.EventStreamStatusStopped, apitypes.EventStreamStatusStarted); err != nil {
-		return err
+		return nil, err
 	}
 	log.L(ctx).Infof("Starting event stream %s", es)
 
@@ -518,14 +577,20 @@ func (es *eventStream) Start(ctx context.Context) error {
 	}
 	startedState.ctx, startedState.cancelCtx = context.WithCancel(es.bgCtx)
 	es.currentState = startedState
-	err := es.initAction(startedState)
-	if err != nil {
-		return err
-	}
 
-	cp, err := es.persistence.GetCheckpoint(ctx, es.spec.ID)
-	if err != nil {
-		return err
+	var cp *apitypes.EventStreamCheckpoint
+	if es.apiManagedStream {
+		cp = apiManagedCheckpoint
+	} else {
+		err := es.initAction(startedState)
+		if err != nil {
+			return nil, err
+		}
+
+		cp, err = es.checkpointsDB.GetCheckpoint(ctx, es.spec.ID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	initialEventListeners := make([]*ffcapi.EventListenerAddRequest, 0)
@@ -538,7 +603,7 @@ func (es *eventStream) Start(ctx context.Context) error {
 		}
 	}
 	startedState.blocks, startedState.blockListenerDone = blocklistener.BufferChannel(startedState.ctx, es.confirmations)
-	_, _, err = es.connector.EventStreamStart(startedState.ctx, &ffcapi.EventStreamStartRequest{
+	_, _, err := es.connector.EventStreamStart(startedState.ctx, &ffcapi.EventStreamStartRequest{
 		ID:               es.spec.ID,
 		EventStream:      startedState.updates,
 		StreamContext:    startedState.ctx,
@@ -546,13 +611,16 @@ func (es *eventStream) Start(ctx context.Context) error {
 		InitialListeners: initialEventListeners,
 	})
 	if err != nil {
+		es.currentState = nil
 		_ = es.checkSetStatus(ctx, apitypes.EventStreamStatusStarted, apitypes.EventStreamStatusStopped)
-		return err
+		return nil, err
 	}
 
 	// Kick off the loops
 	go es.eventLoop(startedState)
-	go es.batchLoop(startedState)
+	if !es.apiManagedStream {
+		go es.batchLoop(startedState)
+	}
 
 	// Start the confirmations manager
 	es.confirmations.Start()
@@ -563,11 +631,11 @@ func (es *eventStream) Start(ctx context.Context) error {
 		if err := es.confirmations.StartConfirmedBlockListener(startedState.ctx, bl.ListenerID, bl.FromBlock, bl.Checkpoint, es.batchChannel); err != nil {
 			// There are no known reasons for this to fail, as we're starting a fresh set of listeners
 			log.L(startedState.ctx).Errorf("Failed to start block listener: %s", err)
-			return err
+			return nil, err
 		}
 	}
 
-	return err
+	return startedState, err
 }
 
 func (es *eventStream) requestStop(ctx context.Context) (*startedStreamState, error) {
@@ -619,7 +687,9 @@ func (es *eventStream) Stop(ctx context.Context) error {
 	<-startedState.eventLoopDone
 
 	// Wait for our batch loop to stop
-	<-startedState.batchLoopDone
+	if !es.apiManagedStream {
+		<-startedState.batchLoopDone
+	}
 
 	// Wait for our block listener to stop
 	<-startedState.blockListenerDone
@@ -644,8 +714,10 @@ func (es *eventStream) Delete(ctx context.Context) error {
 	// If we error out, that way the caller can retry.
 	es.mux.Lock()
 	defer es.mux.Unlock()
-	if err := es.persistence.DeleteCheckpoint(ctx, es.spec.ID); err != nil {
-		return err
+	if !es.apiManagedStream {
+		if err := es.checkpointsDB.DeleteCheckpoint(ctx, es.spec.ID); err != nil {
+			return err
+		}
 	}
 	return es.checkSetStatus(ctx, apitypes.EventStreamStatusStopped, apitypes.EventStreamStatusDeleted)
 }
@@ -781,18 +853,83 @@ func (es *eventStream) checkConfirmedEventForBatch(e *ffcapi.ListenerEvent) (l *
 	return l, ewc
 }
 
-// batchLoop receives confirmed events from the confirmation manager,
-// batches them together, and drives the actions.
-func (es *eventStream) batchLoop(startedState *startedStreamState) {
-	defer close(startedState.batchLoopDone)
-	ctx := startedState.ctx
+func (es *eventStream) checkStartedStopCheckpointMismatch(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint) (startedState *startedStreamState, err error) {
+	es.mux.Lock()
+	startedState = es.currentState
+	es.mux.Unlock()
 
-	//nolint:gosec
-	maxSize := int(*es.spec.BatchSize)
-	batchNumber := int64(0)
+	if checkpointIn != nil && checkpointIn.Time == nil {
+		checkpointIn = nil // an empty object is not considered a checkpoint
+	}
+	if startedState != nil {
+		// We're started. We need to compare the checkpoint supplied to the one we have...
+		var suppliedCheckpoint, existingCheckpoint string
+		if checkpointIn != nil {
+			suppliedCheckpoint = checkpointIn.Time.String()
+		}
+		if es.currentState.lastCheckpoint != nil {
+			existingCheckpoint = es.currentState.lastCheckpoint.String()
+		}
+		if suppliedCheckpoint != existingCheckpoint {
+			// ... if they don't match we need to stop before restarting (ensuring not to return startedState)
+			log.L(ctx).Infof("Checkpoint mismatch suppliedCheckpoint=%s existingCheckpoint=%s", suppliedCheckpoint, existingCheckpoint)
+			startedState = nil
+			err = es.Stop(ctx)
+		}
+	}
+	return startedState, err
+}
 
-	var batch *eventStreamBatch
-	var checkpointTimer = time.NewTimer(es.checkpointInterval)
+// Note the checkpointInterval will determine how often this function exits when
+// no events have arrived (with the latest checkpoint) so that the checkpoint can
+// be written for restart recovery by the caller of this function.
+func (es *eventStream) PollAPIMangedStream(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint, timeout time.Duration) (events []*apitypes.EventWithContext, checkpointOut *apitypes.EventStreamCheckpoint, err error) {
+	// Must only have a single poll active at any given time.
+	// This lock is only taken in this function, and is taken BEFORE the es.mux (which we hold more briefly)
+	es.apiManagedRunLock.Lock()
+	defer es.apiManagedRunLock.Unlock()
+
+	// Because in this mode of operation the checkpoint is managed externally,
+	// it's entirely possible a recovery of other externally managed components will
+	// occur such that our tracking of the checkpoint is mis-aligned with the actual
+	// checkpoint that is passed in.
+	// In this case the EXTERNAL CHECKPOINT is the source of truth.
+	startedState, err := es.checkStartedStopCheckpointMismatch(ctx, checkpointIn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we weren't already running, we need to start from our external checkpoint
+	if startedState == nil {
+		startedState, err = es.start(ctx, checkpointIn)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	// Start a checkpoint timer
+	var pollTimer = time.NewTimer(timeout)
+	defer pollTimer.Stop()
+
+	// We use a random number for the batch
+	batch, err := es.batchPoll(ctx, pollTimer)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	checkpointOut = es.generateCheckpoint(startedState, batch)
+	if batch != nil {
+		events = batch.events
+	}
+	return events, checkpointOut, nil
+}
+
+func (es *eventStream) batchPoll(ctx context.Context, pollTimer *time.Timer) (batch *eventStreamBatch, err error) {
+	maxSize := 1
+	maxSizeI64 := *es.spec.BatchSize
+	if maxSizeI64 > 0 && maxSizeI64 < math.MaxInt {
+		maxSize = int(maxSizeI64)
+	}
 	for {
 		var timeoutChannel <-chan time.Time
 		if batch != nil {
@@ -800,7 +937,7 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 			timeoutChannel = batch.timeout.C
 		} else {
 			// If we don't have a batch in-flight, then the (longer) checkpoint timer is used
-			timeoutChannel = checkpointTimer.C
+			timeoutChannel = pollTimer.C
 		}
 		timedOut := false
 		select {
@@ -808,12 +945,12 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 			l, ewc := es.checkConfirmedEventForBatch(fev)
 			if l != nil && ewc != nil {
 				if batch == nil {
-					batchNumber++
 					batch = &eventStreamBatch{
-						number:      batchNumber,
+						number:      es.batchNumber.Add(1),
 						timeout:     time.NewTimer(time.Duration(*es.spec.BatchTimeout)),
 						checkpoints: make(map[fftypes.UUID]ffcapi.EventListenerCheckpoint),
 					}
+					defer batch.timeout.Stop()
 				}
 				if fev.Checkpoint != nil {
 					batch.checkpoints[*l.spec.ID] = fev.Checkpoint
@@ -821,34 +958,41 @@ func (es *eventStream) batchLoop(startedState *startedStreamState) {
 				batch.events = append(batch.events, ewc)
 			}
 		case <-timeoutChannel:
-			timedOut = true
-			if batch == nil {
-				checkpointTimer = time.NewTimer(es.checkpointInterval)
-			}
+			timedOut = true // could be checkpoint or batch
 		case <-ctx.Done():
-			// The started context exited, we are stopping
-			if checkpointTimer != nil {
-				checkpointTimer.Stop()
-			}
-			log.L(ctx).Debugf("Batch loop exiting")
-			return
+			return nil, i18n.NewError(ctx, i18n.MsgContextCanceled)
 		}
-
 		if timedOut || (batch != nil && len(batch.events) >= maxSize) {
-			var err error
-			if batch != nil {
-				batch.timeout.Stop()
-				err = es.performActionsWithRetry(startedState, batch)
-			}
-			if err == nil {
-				checkpointTimer = time.NewTimer(es.checkpointInterval) // Reset the checkpoint timeout
-				err = es.writeCheckpoint(startedState, batch)
-			}
-			if err != nil {
-				log.L(ctx).Debugf("Batch loop exiting: %s", err)
-				return
-			}
-			batch = nil
+			return batch, nil // batch will be nil here on checkpoint timeout
+		}
+	}
+}
+
+// batchLoop receives confirmed events from the confirmation manager,
+// batches them together, and drives the actions.
+//
+// (Not for apiManagedStream - where polling and checkpoint storage is external)
+func (es *eventStream) batchLoop(startedState *startedStreamState) {
+	defer close(startedState.batchLoopDone)
+	ctx := startedState.ctx
+
+	var checkpointTimer = time.NewTimer(es.checkpointInterval)
+	defer func() {
+		checkpointTimer.Stop()
+	}()
+	for {
+		batch, err := es.batchPoll(ctx, checkpointTimer)
+		if batch != nil {
+			err = es.performActionsWithRetry(startedState, batch)
+		}
+		if err == nil {
+			checkpointTimer.Stop()
+			checkpointTimer = time.NewTimer(es.checkpointInterval) // Reset the checkpoint timeout
+			err = es.writeCheckpoint(startedState, batch)
+		}
+		if err != nil {
+			log.L(ctx).Debugf("Batch loop exiting: %s", err)
+			return
 		}
 	}
 }
@@ -928,20 +1072,21 @@ func (es *eventStream) checkUpdateHWMCheckpoint(ctx context.Context, l *listener
 
 }
 
-func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *eventStreamBatch) (err error) {
+func (es *eventStream) generateCheckpoint(startedState *startedStreamState, batch *eventStreamBatch) *apitypes.EventStreamCheckpoint {
 	// We update the checkpoints (under lock) for all listeners with events in this batch.
 	// The last event for any listener in the batch wins.
 	es.mux.Lock()
+	startedState.lastCheckpoint = fftypes.Now()
 	cp := &apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
-		Time:      fftypes.Now(),
+		Time:      startedState.lastCheckpoint,
 		Listeners: make(map[fftypes.UUID]json.RawMessage),
 	}
 	if batch != nil {
 		for lID, lCP := range batch.checkpoints {
 			if l, ok := es.listeners[lID]; ok {
 				l.checkpoint = lCP
-				l.lastCheckpoint = fftypes.Now()
+				l.lastCheckpoint = startedState.lastCheckpoint
 				log.L(es.bgCtx).Tracef("%s (%s) checkpoint: %+v", l.spec.SignatureString(), l.spec.ID, lCP)
 			}
 		}
@@ -960,10 +1105,16 @@ func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *
 		cpb, _ := json.Marshal(es.checkUpdateHWMCheckpoint(startedState.ctx, l))
 		cp.Listeners[*l.spec.ID] = cpb
 	}
+	return cp
+}
+
+func (es *eventStream) writeCheckpoint(startedState *startedStreamState, batch *eventStreamBatch) (err error) {
+
+	cp := es.generateCheckpoint(startedState, batch)
 
 	// We only return if the context is cancelled, or the checkpoint succeeds
 	return es.retry.Do(startedState.ctx, "checkpoint", func(_ int) (retry bool, err error) {
-		return true, es.persistence.WriteCheckpoint(startedState.ctx, cp)
+		return true, es.checkpointsDB.WriteCheckpoint(startedState.ctx, cp)
 	})
 }
 

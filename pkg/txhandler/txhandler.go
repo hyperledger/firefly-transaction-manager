@@ -18,6 +18,7 @@ package txhandler
 
 import (
 	"context"
+	"time"
 
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
@@ -67,6 +68,11 @@ type RichQuery interface {
 	NewTransactionFilter(ctx context.Context) ffapi.FilterBuilder
 	NewConfirmationFilter(ctx context.Context) ffapi.FilterBuilder
 	NewTxHistoryFilter(ctx context.Context) ffapi.FilterBuilder
+}
+
+type TransactionCompletions interface {
+	ListTxCompletionsByCreateTime(ctx context.Context, after *int64, limit int, dir SortDirection) ([]*apitypes.TXCompletion, error)
+	WaitTxCompletionUpdates(ctx context.Context, timeBeforeLastPoll time.Time) bool
 }
 
 type TransactionHistoryPersistence interface {

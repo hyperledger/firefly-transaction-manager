@@ -28,6 +28,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/events"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/eventapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
@@ -103,7 +104,7 @@ func (m *manager) addRuntimeStream(def *apitypes.EventStream, listeners []*apity
 	return s, nil
 }
 
-func (m *manager) deleteStream(ctx context.Context, idStr string) error {
+func (m *manager) DeleteStream(ctx context.Context, idStr string) error {
 	id, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return err
@@ -157,7 +158,54 @@ func (m *manager) reserveStreamName(ctx context.Context, name string, id *fftype
 	}, nil
 }
 
-func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error) {
+func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es eventapi.EventStream, err error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	if spec.Name == nil || *spec.Name == "" || spec.ID != nil || spec.Type != nil {
+		return isNew, nil, i18n.NewError(m.ctx, tmmsgs.MsgStreamAPIManagedNameNoIDOrType)
+	}
+
+	// Shallow copy so as not to modify the incoming spec
+	def := *spec
+	def.ID = m.apiStreamsByName[*def.Name]
+	if def.ID != nil {
+		es = m.eventStreams[*def.ID]
+	}
+	if es != nil {
+		return isNew, es, nil
+	}
+	def.ID = fftypes.NewUUID()
+
+	log.L(m.ctx).Infof("Creating API managed event stream %s", *def.Name)
+	es, err = events.NewAPIManagedEventStream(m.ctx, &def, m.connector, listeners, m.metricsManager)
+	if err == nil {
+		isNew = true
+		m.eventStreams[*def.ID] = es
+		m.apiStreamsByName[*def.Name] = def.ID
+		log.L(m.ctx).Infof("Created API managed event stream %s (%s)", *def.Name, def.ID)
+	}
+	return isNew, es, err
+}
+
+func (m *manager) CleanupAPIManagedEventStream(name string) (err error) {
+	m.mux.Lock()
+	defer m.mux.Unlock()
+
+	log.L(m.ctx).Infof("Cleaning up API managed event stream %s", name)
+	esID := m.apiStreamsByName[name]
+	delete(m.apiStreamsByName, name)
+	if esID != nil {
+		es := m.eventStreams[*esID]
+		if es != nil {
+			err = es.Delete(m.ctx)
+		}
+	}
+	log.L(m.ctx).Infof("Cleanup up API managed event stream complete %s (err=%s)", name, err)
+	return
+}
+
+func (m *manager) CreateAndStoreNewStream(ctx context.Context, def *apitypes.EventStream) (*apitypes.EventStream, error) {
 	def.ID = apitypes.NewULID()
 	def.Created = nil // set to updated time by events.NewEventStream
 	if def.Name == nil || *def.Name == "" {
@@ -192,7 +240,7 @@ func (m *manager) createAndStoreNewStream(ctx context.Context, def *apitypes.Eve
 	return spec, nil
 }
 
-func (m *manager) createAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error) {
+func (m *manager) CreateAndStoreNewStreamListener(ctx context.Context, idStr string, def *apitypes.Listener) (*apitypes.Listener, error) {
 	streamID, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return nil, err
@@ -205,7 +253,7 @@ func (m *manager) createAndStoreNewListener(ctx context.Context, def *apitypes.L
 	return m.createOrUpdateListener(ctx, apitypes.NewULID(), def, false)
 }
 
-func (m *manager) updateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
+func (m *manager) UpdateExistingListener(ctx context.Context, streamIDStr, listenerIDStr string, updates *apitypes.Listener, reset bool) (*apitypes.Listener, error) {
 	l, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
 	if err != nil {
 		return nil, err
@@ -239,7 +287,7 @@ func (m *manager) createOrUpdateListener(ctx context.Context, id *fftypes.UUID, 
 	return def, nil
 }
 
-func (m *manager) deleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error {
+func (m *manager) DeleteListener(ctx context.Context, streamIDStr, listenerIDStr string) error {
 	spec, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr) // Verify the listener exists in storage
 	if err != nil {
 		return err
@@ -256,7 +304,7 @@ func (m *manager) deleteListener(ctx context.Context, streamIDStr, listenerIDStr
 	return m.persistence.DeleteListener(ctx, spec.ID)
 }
 
-func (m *manager) updateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error) {
+func (m *manager) UpdateStream(ctx context.Context, idStr string, updates *apitypes.EventStream) (*apitypes.EventStream, error) {
 	id, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return nil, err
@@ -297,7 +345,7 @@ func (m *manager) updateStream(ctx context.Context, idStr string, updates *apity
 	return spec, nil
 }
 
-func (m *manager) getStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error) {
+func (m *manager) getStream(ctx context.Context, idStr string) (events.Stream, error) {
 	id, err := fftypes.ParseUUID(ctx, idStr)
 	if err != nil {
 		return nil, err
@@ -307,6 +355,14 @@ func (m *manager) getStream(ctx context.Context, idStr string) (*apitypes.EventS
 	m.mux.Unlock()
 	if s == nil {
 		return nil, i18n.NewError(ctx, tmmsgs.MsgStreamNotFound, idStr)
+	}
+	return s, nil
+}
+
+func (m *manager) GetStream(ctx context.Context, idStr string) (*apitypes.EventStreamWithStatus, error) {
+	s, err := m.getStream(ctx, idStr)
+	if err != nil {
+		return nil, err
 	}
 	return &apitypes.EventStreamWithStatus{
 		EventStream: *s.Spec(),
@@ -335,7 +391,25 @@ func (m *manager) parseAfterAndLimit(ctx context.Context, afterStr, limitStr str
 	return after, limit, nil
 }
 
-func (m *manager) getStreams(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.EventStream, err error) {
+func (m *manager) ListStreamsRich(ctx context.Context, filter ffapi.AndFilter) ([]*apitypes.EventStream, *ffapi.FilterResult, error) {
+	if !m.richQueryEnabled {
+		return nil, nil, i18n.NewError(ctx, tmmsgs.MsgInvalidNonRichQuery)
+	}
+	return m.persistence.RichQuery().ListStreams(ctx, filter)
+}
+
+func (m *manager) ListStreamListenersRich(ctx context.Context, streamIDStr string, filter ffapi.AndFilter) ([]*apitypes.Listener, *ffapi.FilterResult, error) {
+	if !m.richQueryEnabled {
+		return nil, nil, i18n.NewError(ctx, tmmsgs.MsgInvalidNonRichQuery)
+	}
+	streamID, err := fftypes.ParseUUID(ctx, streamIDStr)
+	if err != nil {
+		return nil, nil, err
+	}
+	return m.persistence.RichQuery().ListStreamListeners(ctx, streamID, filter)
+}
+
+func (m *manager) GetStreamsByCreateTime(ctx context.Context, afterStr, limitStr string) (streams []*apitypes.EventStream, err error) {
 	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
 	if err != nil {
 		return nil, err
@@ -367,7 +441,7 @@ func (m *manager) getListenerSpec(ctx context.Context, streamIDStr, listenerIDSt
 	return spec, nil
 }
 
-func (m *manager) getListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error) {
+func (m *manager) GetListener(ctx context.Context, streamIDStr, listenerIDStr string) (l *apitypes.ListenerWithStatus, err error) {
 	spec, err := m.getListenerSpec(ctx, streamIDStr, listenerIDStr)
 	if err != nil {
 		return nil, err
@@ -393,12 +467,12 @@ func (m *manager) getListeners(ctx context.Context, afterStr, limitStr string) (
 	return m.persistence.ListListenersByCreateTime(ctx, after, limit, txhandler.SortDirectionDescending)
 }
 
-func (m *manager) getStreamListenersByCreateTime(ctx context.Context, afterStr, limitStr, idStr string) (streams []*apitypes.Listener, err error) {
+func (m *manager) getStreamListenersByCreateTime(ctx context.Context, afterStr, limitStr, streamIDStr string) (listeners []*apitypes.Listener, err error) {
 	after, limit, err := m.parseAfterAndLimit(ctx, afterStr, limitStr)
 	if err != nil {
 		return nil, err
 	}
-	id, err := fftypes.ParseUUID(ctx, idStr)
+	id, err := fftypes.ParseUUID(ctx, streamIDStr)
 	if err != nil {
 		return nil, err
 	}

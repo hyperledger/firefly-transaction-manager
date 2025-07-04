@@ -42,6 +42,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 func strPtr(s string) *string { return &s }
@@ -74,10 +75,7 @@ func newTestEventStream(t *testing.T, conf string) (es *eventStream) {
 	return es
 }
 
-func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf string, listeners ...*apitypes.Listener) (es *eventStream, err error) {
-	tmconfig.Reset()
-	config.Set(tmconfig.EventStreamsDefaultsBatchTimeout, "1us")
-	InitDefaults()
+func mockMetrics() *metricsmocks.EventMetricsEmitter {
 	emm := &metricsmocks.EventMetricsEmitter{}
 	emm.On("RecordNotificationQueueingMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordBlockHashProcessMetrics", mock.Anything, mock.Anything).Maybe()
@@ -85,12 +83,20 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 	emm.On("RecordReceiptCheckMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordReceiptMetrics", mock.Anything, mock.Anything, mock.Anything).Maybe()
 	emm.On("RecordConfirmationMetrics", mock.Anything, mock.Anything).Maybe()
+	return emm
+}
+
+func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf string, listeners ...*apitypes.Listener) (es *eventStream, err error) {
+	tmconfig.Reset()
+	config.Set(tmconfig.EventStreamsDefaultsBatchTimeout, "1us")
+	InitDefaults()
+
 	ees, err := NewEventStream(context.Background(), testESConf(t, conf),
 		mfc,
 		&persistencemocks.Persistence{},
 		&wsmocks.WebSocketChannels{},
 		listeners,
-		emm,
+		mockMetrics(),
 	)
 	mfc.On("EventStreamNewCheckpointStruct").Return(&utCheckpointType{}).Maybe()
 	if err != nil {
@@ -156,7 +162,7 @@ func TestConfigNewDefaultsUpdate(t *testing.T) {
 	es := testESConf(t, `{
 		"name":  "test1"
 	}`)
-	es, changed, err := mergeValidateEsConfig(context.Background(), nil, es)
+	es, changed, err := mergeValidateEsConfig(context.Background(), false, nil, es)
 	assert.NoError(t, err)
 	assert.True(t, changed)
 
@@ -179,11 +185,11 @@ func TestConfigNewDefaultsUpdate(t *testing.T) {
 		}
 	}`, string(b))
 
-	es, changed, err = mergeValidateEsConfig(context.Background(), es, es)
+	es, changed, err = mergeValidateEsConfig(context.Background(), false, es, es)
 	assert.NoError(t, err)
 	assert.False(t, changed)
 
-	es2, changed, err := mergeValidateEsConfig(context.Background(), es, testESConf(t, `{
+	es2, changed, err := mergeValidateEsConfig(context.Background(), false, es, testESConf(t, `{
 		"id": "4023945d-ea5d-43aa-ab4f-f39f8c055c7e",`+ /* ignored */ `
 		"batchSize": 111,
 		"batchTimeoutMS": 222,
@@ -228,7 +234,7 @@ func TestConfigNewMissingWebhookConf(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
 
-	_, _, err := mergeValidateEsConfig(context.Background(), nil, testESConf(t, `{
+	_, _, err := mergeValidateEsConfig(context.Background(), false, nil, testESConf(t, `{
 		"name": "test",
 		"type": "webhook",
 		"websocket": {}
@@ -241,7 +247,7 @@ func TestConfigBadWebSocketDistModeConf(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
 
-	_, _, err := mergeValidateEsConfig(context.Background(), nil, testESConf(t, `{
+	_, _, err := mergeValidateEsConfig(context.Background(), false, nil, testESConf(t, `{
 		"name": "test",
 		"type": "websocket",
 		"websocket": {
@@ -256,7 +262,7 @@ func TestConfigWebSocketBroadcast(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
 
-	es, _, err := mergeValidateEsConfig(context.Background(), nil, testESConf(t, `{
+	es, _, err := mergeValidateEsConfig(context.Background(), false, nil, testESConf(t, `{
 		"name": "test",
 		"type": "websocket",
 		"websocket": {
@@ -272,7 +278,7 @@ func TestConfigNewBadType(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
 
-	_, _, err := mergeValidateEsConfig(context.Background(), nil, testESConf(t, `{
+	_, _, err := mergeValidateEsConfig(context.Background(), false, nil, testESConf(t, `{
 		"name": "test",
 		"type": "wrong"
 	}`))
@@ -284,7 +290,7 @@ func TestConfigNewWebhookRetryMigration(t *testing.T) {
 	tmconfig.Reset()
 	InitDefaults()
 
-	es, changed, err := mergeValidateEsConfig(context.Background(), nil, testESConf(t, `{
+	es, changed, err := mergeValidateEsConfig(context.Background(), false, nil, testESConf(t, `{
 		"name": "test",
 		"type": "webhook",
 		"webhook": {
@@ -362,7 +368,7 @@ func TestWebSocketEventStreamsE2EMigrationThenStart(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(&apitypes.EventStreamCheckpoint{
 		StreamID: es.spec.ID,
 		Time:     fftypes.Now(),
@@ -465,7 +471,7 @@ func TestWebSocketEventStreamsE2EBlocks(t *testing.T) {
 	}).Return(nil)
 	mcm.On("StopConfirmedBlockListener", mock.Anything, l.ID).Return(nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	// load existing checkpoint on start
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(&apitypes.EventStreamCheckpoint{
 		StreamID: es.spec.ID,
@@ -531,13 +537,135 @@ func TestWebSocketEventStreamsE2EBlocks(t *testing.T) {
 	mfc.AssertExpectations(t)
 }
 
+func TestAPIManagedEventStreamMissingListenerIDs(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.EventStreamsDefaultsBatchTimeout, "1us")
+	InitDefaults()
+
+	mfc := &ffcapimocks.API{}
+	// Checkpoints are commonly tied to individual listeners, so it is critical that the caller manages
+	// deterministically the IDs of the listeners passed in. They cannot be empty (an error will be returned)
+	_, err := NewAPIManagedEventStream(context.Background(),
+		testESConf(t, `{}`),
+		mfc,
+		[]*apitypes.Listener{{
+			Name: strPtr("missing_id"),
+			Type: &apitypes.ListenerTypeBlocks,
+		}},
+		mockMetrics(),
+	)
+	require.Regexp(t, "FF21048", err)
+}
+
+func TestAPIManagedEventStreamE2E(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.EventStreamsDefaultsBatchTimeout, "1us")
+	InitDefaults()
+
+	l := &apitypes.Listener{
+		ID:   apitypes.NewULID(),
+		Name: strPtr("ut_listener"),
+		Type: &apitypes.ListenerTypeBlocks,
+	}
+
+	mfc := &ffcapimocks.API{}
+	ees, err := NewAPIManagedEventStream(context.Background(),
+		testESConf(t, `{}`),
+		mfc,
+		[]*apitypes.Listener{l},
+		mockMetrics(),
+	)
+	require.NoError(t, err)
+
+	started := make(chan (chan<- *ffcapi.ListenerEvent), 1)
+	mfc.On("EventStreamNewCheckpointStruct").Return(&utCheckpointType{}).Maybe()
+	es := ees.(*eventStream)
+	mcm := &confirmationsmocks.Manager{}
+	es.confirmations = mcm
+	es.confirmationsRequired = 1
+	mcm.On("Start").Return(nil).Maybe()
+	mcm.On("Stop").Return(nil).Maybe()
+	mcm.On("Notify", mock.Anything).Run(func(args mock.Arguments) {
+		n := args[0].(*confirmations.Notification)
+		if n.Event != nil {
+			go n.Event.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{
+				Confirmed: true,
+			})
+		}
+	}).Return(nil).Maybe()
+	mcm.On("StartConfirmedBlockListener", mock.Anything, l.ID, "latest", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		select {
+		case started <- args[4].(chan<- *ffcapi.ListenerEvent):
+		default:
+		}
+	}).Return(nil)
+	mcm.On("StopConfirmedBlockListener", mock.Anything, l.ID).Return(nil)
+	mcm.On("CheckInFlight", l.ID).Return(true) // simulate in-flight to prevent checking HWM
+
+	mfc.On("EventStreamStart", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStartRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Run(func(args mock.Arguments) {
+		r := args[1].(*ffcapi.EventStreamStartRequest)
+		assert.Empty(t, r.InitialListeners)
+	}).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
+
+	mfc.On("EventStreamStopped", mock.Anything, mock.MatchedBy(func(r *ffcapi.EventStreamStoppedRequest) bool {
+		return r.ID.Equals(es.spec.ID)
+	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
+
+	err = es.Start(es.bgCtx) // manual start is error
+	assert.Regexp(t, "FF21091", err)
+
+	go func() {
+		r := <-started
+		r <- &ffcapi.ListenerEvent{
+			Checkpoint: &ffcapi.BlockListenerCheckpoint{Block: 10001},
+			BlockEvent: &ffcapi.BlockEvent{
+				ListenerID: l.ID,
+				BlockInfo: ffcapi.BlockInfo{
+					BlockNumber: fftypes.NewFFBigInt(10001),
+					BlockHash:   fftypes.NewRandB32().String(),
+					ParentHash:  fftypes.NewRandB32().String(),
+				},
+			},
+		}
+	}()
+
+	// Do a first poll and get the events
+	batch1, cp1, err := es.PollAPIMangedStream(es.bgCtx, &apitypes.EventStreamCheckpoint{}, 1*time.Second)
+	assert.Len(t, batch1, 1)
+	assert.NotNil(t, cp1.Time)
+
+	// Do a second poll, and get the timeout with no events
+	batch2, cp2, err := es.PollAPIMangedStream(es.bgCtx, cp1 /* correct to continue */, 10*time.Millisecond)
+	assert.Empty(t, batch2)
+	assert.NotEqual(t, cp1.Time, cp2.Time)
+
+	// Do a third poll, and wind back in time to simulate a crash
+	// noting that we'll restart
+	batch3, cp3, err := es.PollAPIMangedStream(es.bgCtx, cp1 /* go back in time */, 10*time.Millisecond)
+	assert.Empty(t, batch3)
+	assert.NotEqual(t, cp1.Time, cp3.Time)
+	assert.NotEqual(t, cp2.Time, cp3.Time)
+
+	err = es.RemoveListener(es.bgCtx, l.ID)
+	assert.NoError(t, err)
+
+	err = es.Stop(es.bgCtx)
+	assert.NoError(t, err)
+
+	mfc.AssertExpectations(t)
+}
+
 func TestStartEventStreamCheckpointReadFail(t *testing.T) {
 
 	es := newTestEventStream(t, `{
 		"name": "ut_stream"
 	}`)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, fmt.Errorf("pop"))
 
 	err := es.Start(es.bgCtx)
@@ -557,7 +685,7 @@ func TestStartEventStreamCheckpointInvalid(t *testing.T) {
 		FromBlock: strPtr("12345"),
 	}
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(&apitypes.EventStreamCheckpoint{
 		StreamID: es.spec.ID,
 		Time:     fftypes.Now(),
@@ -654,7 +782,7 @@ func TestWebhookEventStreamsE2EAddAfterStart(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && bytes.Equal(cp.Listeners[*l.ID], json.RawMessage(`{"someSequenceNumber":12345}`))
@@ -789,7 +917,7 @@ func TestUpdateStreamStarted(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
@@ -857,7 +985,7 @@ func TestAddRemoveListener(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
@@ -914,7 +1042,7 @@ func TestUpdateListenerAndDeleteStarted(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(nil, nil)
 	msp.On("DeleteCheckpoint", mock.Anything, es.spec.ID).Return(fmt.Errorf("pop")).Once()
 	msp.On("DeleteCheckpoint", mock.Anything, es.spec.ID).Return(nil)
@@ -984,7 +1112,7 @@ func TestUpdateListenerFail(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l1.ID, l1, false)
@@ -1068,7 +1196,7 @@ func TestUpdateStreamRestartFail(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	err := es.Start(es.bgCtx)
@@ -1124,7 +1252,7 @@ func TestUpdateAttemptChangeSignature(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
@@ -1211,7 +1339,7 @@ func TestStartWithBlockListenerFailBeforeStart(t *testing.T) {
 	mcm := es.confirmations.(*confirmationsmocks.Manager)
 	mcm.On("StartConfirmedBlockListener", mock.Anything, l.ID, "latest", mock.Anything, mock.Anything).Return(fmt.Errorf("pop"))
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil)
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
@@ -1249,7 +1377,7 @@ func TestAddBlockListenerFailAfterStart(t *testing.T) {
 	mcm := es.confirmations.(*confirmationsmocks.Manager)
 	mcm.On("StartConfirmedBlockListener", mock.Anything, l.ID, "latest", mock.Anything, mock.Anything).Return(fmt.Errorf("pop"))
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil)
 
 	err := es.Start(es.bgCtx)
@@ -1317,7 +1445,7 @@ func TestUpdateStreamStopFail(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	_, err := es.AddOrUpdateListener(es.bgCtx, l.ID, l, false)
@@ -1374,7 +1502,7 @@ func TestResetListenerRestartFail(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(&apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
 		Listeners: make(map[fftypes.UUID]json.RawMessage),
@@ -1412,7 +1540,7 @@ func TestResetListenerWriteCheckpointFail(t *testing.T) {
 	mfc := es.connector.(*ffcapimocks.API)
 	mfc.On("EventListenerVerifyOptions", mock.Anything, mock.Anything).Return(&ffcapi.EventListenerVerifyOptionsResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, es.spec.ID).Return(&apitypes.EventStreamCheckpoint{
 		StreamID:  es.spec.ID,
 		Listeners: make(map[fftypes.UUID]json.RawMessage),
@@ -1473,7 +1601,7 @@ func TestWebSocketBroadcastActionCloseDuringCheckpoint(t *testing.T) {
 
 	first := true
 	done := make(chan struct{})
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.Anything).Return(fmt.Errorf("pop")).Run(func(args mock.Arguments) {
 		if first {
 			go func() {
@@ -1540,7 +1668,7 @@ func TestActionRetryOk(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	err := es.Start(es.bgCtx)
@@ -1591,7 +1719,7 @@ func TestActionRetrySkip(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	err := es.Start(es.bgCtx)
@@ -1633,7 +1761,7 @@ func TestActionRetryBlock(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(&ffcapi.EventStreamStoppedResponse{}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	err := es.Start(es.bgCtx)
@@ -1684,7 +1812,7 @@ func TestDeleteFail(t *testing.T) {
 		return r.ID.Equals(es.spec.ID)
 	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("GetCheckpoint", mock.Anything, mock.Anything).Return(nil, nil) // no existing checkpoint
 
 	err := es.Start(es.bgCtx)
@@ -1896,7 +2024,7 @@ func TestSkipEventsBehindCheckpointAndUnknownListener(t *testing.T) {
 	}
 	es.listeners[*li.spec.ID] = li
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && bytes.Equal(cp.Listeners[*li.spec.ID], json.RawMessage(`{"someSequenceNumber":2001}`))
 	})).Return(nil).Run(func(args mock.Arguments) {
@@ -1961,7 +2089,7 @@ func TestHWMCheckpointAfterInactivity(t *testing.T) {
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 12345},
 	}, ffcapi.ErrorReason(""), nil)
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && bytes.Equal(cp.Listeners[*li.spec.ID], json.RawMessage(`{"someSequenceNumber":12345}`))
 	})).Return(nil)
@@ -1999,7 +2127,7 @@ func TestHWMCheckpointInFlightSkip(t *testing.T) {
 	es.confirmationsRequired = 1
 	es.listeners[*li.spec.ID] = li
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && string(cp.Listeners[*li.spec.ID]) == `null`
 	})).Return(nil)
@@ -2041,7 +2169,7 @@ func TestHWMCheckpointFail(t *testing.T) {
 		ss.cancelCtx()
 	}).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop"))
 
-	msp := es.persistence.(*persistencemocks.Persistence)
+	msp := es.checkpointsDB.(*persistencemocks.Persistence)
 	msp.On("WriteCheckpoint", mock.Anything, mock.MatchedBy(func(cp *apitypes.EventStreamCheckpoint) bool {
 		return cp.StreamID.Equals(es.spec.ID) && string(cp.Listeners[*li.spec.ID]) == `null`
 	})).Return(nil)
@@ -2080,4 +2208,66 @@ func TestBuildBlockAddREquestBadCheckpoint(t *testing.T) {
 		},
 	})
 	assert.Nil(t, blar.Checkpoint)
+}
+
+func TestStartAPIEventStreamStartFail(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.EventStreamsDefaultsBatchTimeout, "1us")
+	InitDefaults()
+
+	l := &apitypes.Listener{
+		ID:   apitypes.NewULID(),
+		Name: strPtr("ut_listener"),
+		Type: &apitypes.ListenerTypeBlocks,
+	}
+
+	mfc := &ffcapimocks.API{}
+	ees, err := NewAPIManagedEventStream(context.Background(),
+		testESConf(t, `{}`),
+		mfc,
+		[]*apitypes.Listener{l},
+		mockMetrics(),
+	)
+	require.NoError(t, err)
+
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return((*ffcapi.EventStreamStartResponse)(nil), ffcapi.ErrorReason(""), fmt.Errorf("pop"))
+
+	_, _, err = ees.PollAPIMangedStream(context.Background(), nil, 1*time.Second)
+	require.Regexp(t, "pop", err)
+
+	// Fake that we're started, but we'll actually not be in the right state
+	ees.(*eventStream).currentState = &startedStreamState{}
+	_, _, err = ees.PollAPIMangedStream(context.Background(), &apitypes.EventStreamCheckpoint{Time: fftypes.Now()}, 1*time.Second)
+	require.Regexp(t, "FF21027", err)
+}
+
+func TestStartAPIEventStreamPollContextCancelled(t *testing.T) {
+
+	tmconfig.Reset()
+	config.Set(tmconfig.EventStreamsDefaultsBatchTimeout, "1us")
+	InitDefaults()
+
+	l := &apitypes.Listener{
+		ID:   apitypes.NewULID(),
+		Name: strPtr("ut_listener"),
+		Type: &apitypes.ListenerTypeBlocks,
+	}
+
+	mfc := &ffcapimocks.API{}
+	ees, err := NewAPIManagedEventStream(context.Background(),
+		testESConf(t, `{}`),
+		mfc,
+		[]*apitypes.Listener{l},
+		mockMetrics(),
+	)
+	require.NoError(t, err)
+
+	mfc.On("EventStreamStart", mock.Anything, mock.Anything).Return(&ffcapi.EventStreamStartResponse{}, ffcapi.ErrorReason(""), nil)
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	cancelCtx()
+	_, _, err = ees.PollAPIMangedStream(ctx, nil, 1*time.Second)
+	require.Regexp(t, "FF00154", err)
+
 }

@@ -20,6 +20,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/gorilla/mux"
 	"github.com/hyperledger/firefly-common/pkg/config"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-common/pkg/httpserver"
@@ -36,6 +37,7 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/internal/ws"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/eventapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 	txRegistry "github.com/hyperledger/firefly-transaction-manager/pkg/txhandler/registry"
@@ -45,7 +47,33 @@ type Manager interface {
 	Start() error
 	Close()
 
+	APIRouter() *mux.Router
+
+	// API managed event streams have checkpoints stored externally.
+	// Events are access by calling PollAPIMangedStream() on the returned stream.
+	// - The spec must have a name, but no UUID or type.
+	// - The name must be unique to managed API streams (separate namespace to persisted ones)
+	// - Multiple calls with the same ID will return the same object.
+	// - Use "isNew" to determine if the event stream was freshly initialized from the listener array
+	// - If not freshly initialized, the listeners array ignored (you can choose to do check the existing listener list yourself)
+	//
+	// Checkpoints are commonly tied to individual listeners, so it is critical that the caller manages
+	// deterministically the IDs of the listeners passed in. They cannot be empty (an error will be returned)
+	GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es eventapi.EventStream, err error)
+
+	// Resources will be used by the stream in the background, so if your object is deleted
+	// then this function should be called to clean-up any in-memory state (if there is any
+	// possibility you previously called GetAPIManagedEventStream)
+	CleanupAPIManagedEventStream(name string) error
+
+	// Access directly to the transaction completions polling interface, which allows blocking-polling interactions with an
+	// ordered stream of transaction completions
+	TransactionCompletions() txhandler.TransactionCompletions
+
+	// Ability to query a transaction by ID to get full status
 	GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error)
+
+	// Ability to submit new transactions into the transaction handler for management/submission
 	TransactionHandler() txhandler.TransactionHandler
 }
 
@@ -54,6 +82,7 @@ type manager struct {
 	cancelCtx        func()
 	confirmations    confirmations.Manager
 	txHandler        txhandler.TransactionHandler
+	apiRouter        *mux.Router
 	apiServer        httpserver.HTTPServer
 	monitoringServer httpserver.HTTPServer
 	wsServer         ws.WebSocketServer
@@ -66,6 +95,7 @@ type manager struct {
 	mux                      sync.Mutex
 	eventStreams             map[fftypes.UUID]events.Stream
 	streamsByName            map[string]*fftypes.UUID
+	apiStreamsByName         map[string]*fftypes.UUID
 	blockListenerDone        chan struct{}
 	txHandlerDone            <-chan struct{}
 	started                  bool
@@ -102,6 +132,7 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 		monitoringEnabled:        config.GetBool(tmconfig.MonitoringEnabled),
 		eventStreams:             make(map[fftypes.UUID]events.Stream),
 		streamsByName:            make(map[string]*fftypes.UUID),
+		apiStreamsByName:         make(map[string]*fftypes.UUID),
 		metricsManager:           metrics.NewMetricsManager(ctx),
 	}
 	m.toolkit = &txhandler.Toolkit{
@@ -115,7 +146,8 @@ func newManager(ctx context.Context, connector ffcapi.API) *manager {
 func (m *manager) initServices(ctx context.Context) (err error) {
 	m.confirmations = confirmations.NewBlockConfirmationManager(ctx, m.connector, "receipts", m.metricsManager)
 	m.wsServer = ws.NewWebSocketServer(ctx)
-	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.router(m.monitoringEnabled || m.deprecatedMetricsEnabled), m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
+	m.apiRouter = m.router(m.monitoringEnabled || m.deprecatedMetricsEnabled)
+	m.apiServer, err = httpserver.NewHTTPServer(ctx, "api", m.apiRouter, m.apiServerDone, tmconfig.APIConfig, tmconfig.CorsConfig)
 	if err != nil {
 		return err
 	}
@@ -135,22 +167,19 @@ func (m *manager) initServices(ctx context.Context) (err error) {
 	m.toolkit.EventHandler = NewManagedTransactionEventHandler(ctx, m.confirmations, m.wsServer, m.txHandler)
 	m.txHandler.Init(ctx, m.toolkit)
 
+	return m.initMonitoringRouter(ctx)
+}
+
+func (m *manager) initMonitoringRouter(ctx context.Context) (err error) {
 	// metrics service must be initialized after transaction handler
 	// in case the transaction handler has logic in the Init function
 	// to add more metrics
 	if m.monitoringEnabled {
 		m.monitoringServer, err = httpserver.NewHTTPServer(ctx, "monitoring", m.createMonitoringMuxRouter(), m.monitoringServerDone, tmconfig.MonitoringConfig, tmconfig.CorsConfig)
-		if err != nil {
-			return err
-		}
 	} else if m.deprecatedMetricsEnabled {
 		m.monitoringServer, err = httpserver.NewHTTPServer(ctx, "metrics", m.createMonitoringMuxRouter(), m.monitoringServerDone, tmconfig.DeprecatedMetricsConfig, tmconfig.CorsConfig)
-		if err != nil {
-			return err
-		}
-
 	}
-	return nil
+	return err
 }
 
 func (m *manager) initPersistence(ctx context.Context) (err error) {
@@ -207,6 +236,14 @@ func (m *manager) Start() error {
 
 func (m *manager) TransactionHandler() txhandler.TransactionHandler {
 	return m.txHandler
+}
+
+func (m *manager) TransactionCompletions() txhandler.TransactionCompletions {
+	return m.persistence.TransactionCompletions()
+}
+
+func (m *manager) APIRouter() *mux.Router {
+	return m.apiRouter
 }
 
 func (m *manager) Close() {
