@@ -80,6 +80,24 @@ func (_m *Manager) Start() {
 	_m.Called()
 }
 
+// StartBlockConfirmationsListener provides a mock function with given fields: ctx, id, fromBlock, checkpoint, eventStream
+func (_m *Manager) StartBlockConfirmationsListener(ctx context.Context, id *fftypes.UUID, fromBlock string, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *ffcapi.ConfirmationsForListenerEvent) error {
+	ret := _m.Called(ctx, id, fromBlock, checkpoint, eventStream)
+
+	if len(ret) == 0 {
+		panic("no return value specified for StartBlockConfirmationsListener")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *fftypes.UUID, string, *ffcapi.BlockListenerCheckpoint, chan<- *ffcapi.ConfirmationsForListenerEvent) error); ok {
+		r0 = rf(ctx, id, fromBlock, checkpoint, eventStream)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // StartConfirmedBlockListener provides a mock function with given fields: ctx, id, fromBlock, checkpoint, eventStream
 func (_m *Manager) StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, fromBlock string, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *ffcapi.ListenerEvent) error {
 	ret := _m.Called(ctx, id, fromBlock, checkpoint, eventStream)

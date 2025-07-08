@@ -488,7 +488,7 @@ func (sth *simpleTransactionHandler) policyEngineAPIRequest(ctx context.Context,
 	}
 }
 
-func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error) {
+func (sth *simpleTransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *ffcapi.ConfirmationsNotification) (err error) {
 	// Will be picked up on the next policy loop cycle
 	sth.inflightRWMux.RLock()
 	var pending *pendingState

@@ -1032,10 +1032,10 @@ func TestAddConfirmations(t *testing.T) {
 	defer done()
 	mtx := newTestTX("0x12345", apitypes.TxStatusPending)
 
-	conf1 := &apitypes.Confirmation{
+	conf1 := &ffcapi.Confirmation{
 		BlockNumber: fftypes.FFuint64(11111),
 	}
-	conf2 := &apitypes.Confirmation{
+	conf2 := &ffcapi.Confirmation{
 		BlockNumber: fftypes.FFuint64(22222),
 	}
 
@@ -1053,14 +1053,14 @@ func TestAddConfirmations(t *testing.T) {
 
 	confirmations, err := p.GetTransactionConfirmations(ctx, mtx.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, []*apitypes.Confirmation{conf1, conf2}, confirmations)
+	assert.Equal(t, []*ffcapi.Confirmation{conf1, conf2}, confirmations)
 
 	err = p.AddTransactionConfirmations(ctx, mtx.ID, true, conf2)
 	assert.NoError(t, err)
 
 	confirmations, err = p.GetTransactionConfirmations(ctx, mtx.ID)
 	assert.NoError(t, err)
-	assert.Equal(t, []*apitypes.Confirmation{conf2}, confirmations)
+	assert.Equal(t, []*ffcapi.Confirmation{conf2}, confirmations)
 
 }
 

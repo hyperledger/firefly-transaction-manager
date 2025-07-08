@@ -64,7 +64,7 @@ type RunContext struct {
 	context.Context
 	TX            *apitypes.ManagedTX
 	Receipt       *ffcapi.TransactionReceiptResponse
-	Confirmations *apitypes.ConfirmationsNotification
+	Confirmations *ffcapi.ConfirmationsNotification
 	Confirmed     bool
 	SyncAction    policyEngineAPIRequestType
 	// Input/output
@@ -191,7 +191,7 @@ type pendingState struct {
 	receipt                 *ffcapi.TransactionReceiptResponse
 	info                    *simplePolicyInfo
 	confirmed               bool
-	confirmations           *apitypes.ConfirmationsNotification
+	confirmations           *ffcapi.ConfirmationsNotification
 	receiptNotify           *fftypes.FFTime
 	confirmNotify           *fftypes.FFTime
 	remove                  bool

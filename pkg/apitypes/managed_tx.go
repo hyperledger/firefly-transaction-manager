@@ -266,7 +266,7 @@ func (txu *TXUpdates) Merge(txu2 *TXUpdates) {
 type TXWithStatus struct {
 	*ManagedTX
 	Receipt                  *ffcapi.TransactionReceiptResponse `json:"receipt,omitempty"`
-	Confirmations            []*Confirmation                    `json:"confirmations,omitempty"`
+	Confirmations            []*ffcapi.Confirmation             `json:"confirmations,omitempty"`
 	DeprecatedHistorySummary []*TxHistorySummaryEntry           `json:"historySummary,omitempty"` // LevelDB only: maintains a summary to retain data while limiting single JSON payload size
 	History                  []*TxHistoryStateTransitionEntry   `json:"history,omitempty"`
 }
@@ -281,6 +281,22 @@ type BlockInfo struct {
 	BlockHash         string           `json:"blockHash"`
 	ParentHash        string           `json:"parentHash"`
 	TransactionHashes []string         `json:"transactionHashes,omitempty"`
+}
+
+func (b *BlockInfo) ToConfirmation() *ffcapi.Confirmation {
+	return &ffcapi.Confirmation{
+		BlockNumber: b.BlockNumber,
+		BlockHash:   b.BlockHash,
+		ParentHash:  b.ParentHash,
+	}
+}
+
+func BlockInfosToConfirmations(blocks []*BlockInfo) []*ffcapi.Confirmation {
+	confirmations := make([]*ffcapi.Confirmation, len(blocks))
+	for i, b := range blocks {
+		confirmations[i] = b.ToConfirmation()
+	}
+	return confirmations
 }
 
 type ReplyType string
@@ -328,7 +344,7 @@ type ManagedTransactionEvent struct {
 	// ReceiptHandler can be passed on the event as a closure with extra variables
 	ReceiptHandler func(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error
 	// ConfirmationHandler can be passed on the event as a closure with extra variables
-	ConfirmationHandler func(ctx context.Context, txID string, notification *ConfirmationsNotification) error
+	ConfirmationHandler func(ctx context.Context, txID string, notification *ffcapi.ConfirmationsNotification) error
 }
 
 type ReceiptRecord struct {

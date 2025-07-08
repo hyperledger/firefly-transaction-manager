@@ -42,7 +42,7 @@ func (_m *Persistence) AddSubStatusAction(ctx context.Context, txID string, subS
 }
 
 // AddTransactionConfirmations provides a mock function with given fields: ctx, txID, clearExisting, confirmations
-func (_m *Persistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error {
+func (_m *Persistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*ffcapi.Confirmation) error {
 	_va := make([]interface{}, len(confirmations))
 	for _i := range confirmations {
 		_va[_i] = confirmations[_i]
@@ -57,7 +57,7 @@ func (_m *Persistence) AddTransactionConfirmations(ctx context.Context, txID str
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, bool, ...*apitypes.Confirmation) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool, ...*ffcapi.Confirmation) error); ok {
 		r0 = rf(ctx, txID, clearExisting, confirmations...)
 	} else {
 		r0 = ret.Error(0)
@@ -324,23 +324,23 @@ func (_m *Persistence) GetTransactionByNonce(ctx context.Context, signer string,
 }
 
 // GetTransactionConfirmations provides a mock function with given fields: ctx, txID
-func (_m *Persistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error) {
+func (_m *Persistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]*ffcapi.Confirmation, error) {
 	ret := _m.Called(ctx, txID)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetTransactionConfirmations")
 	}
 
-	var r0 []*apitypes.Confirmation
+	var r0 []*ffcapi.Confirmation
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*apitypes.Confirmation, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]*ffcapi.Confirmation, error)); ok {
 		return rf(ctx, txID)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string) []*apitypes.Confirmation); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string) []*ffcapi.Confirmation); ok {
 		r0 = rf(ctx, txID)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*apitypes.Confirmation)
+			r0 = ret.Get(0).([]*ffcapi.Confirmation)
 		}
 	}
 

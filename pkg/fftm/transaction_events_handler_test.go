@@ -185,7 +185,7 @@ func TestHandleTransactionHashUpdateEventSwallowErrors(t *testing.T) {
 	})).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		n.Transaction.Receipt(context.Background(), &ffcapi.TransactionReceiptResponse{})
-		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{
+		n.Transaction.Confirmations(context.Background(), &ffcapi.ConfirmationsNotification{
 			Confirmed: true,
 		})
 	}).Return(nil)

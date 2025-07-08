@@ -416,7 +416,7 @@ func (p *leveldbPersistence) GetTransactionReceipt(ctx context.Context, txID str
 	return txh.Receipt, err
 }
 
-func (p *leveldbPersistence) GetTransactionConfirmations(ctx context.Context, txID string) (confirmations []*apitypes.Confirmation, err error) {
+func (p *leveldbPersistence) GetTransactionConfirmations(ctx context.Context, txID string) (confirmations []*ffcapi.Confirmation, err error) {
 	txh, err := p.GetTransactionByIDWithStatus(ctx, txID, false)
 	if err != nil || txh == nil {
 		return nil, err
@@ -525,7 +525,7 @@ func (p *leveldbPersistence) SetTransactionReceipt(ctx context.Context, txID str
 	return p.writeTransaction(ctx, tx, false)
 }
 
-func (p *leveldbPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error {
+func (p *leveldbPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*ffcapi.Confirmation) error {
 	tx, err := p.getPersistedTX(ctx, txID)
 	if err != nil {
 		return err

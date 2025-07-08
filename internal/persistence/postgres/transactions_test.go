@@ -94,9 +94,9 @@ func TestTransactionBasicValidationPSQL(t *testing.T) {
 	assert.NoError(t, err)
 
 	// A few confirmations
-	confirmations := make([]*apitypes.Confirmation, 5)
+	confirmations := make([]*ffcapi.Confirmation, 5)
 	for i := 0; i < len(confirmations); i++ {
-		confirmations[i] = &apitypes.Confirmation{
+		confirmations[i] = &ffcapi.Confirmation{
 			BlockNumber: fftypes.FFuint64(i),
 			BlockHash:   fmt.Sprintf("0x1%.3d", i),
 			ParentHash:  fmt.Sprintf("0x2%.3d", i),

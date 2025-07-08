@@ -56,9 +56,9 @@ func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 	p.writer.queue(ctx, insertOp)
 
 	// A few confirmations for tx1 - we'll zap these later with a fork
-	var confirmations []*apitypes.Confirmation
+	var confirmations []*ffcapi.Confirmation
 	for i := 0; i < 5; i++ {
-		confirmations = append(confirmations, &apitypes.Confirmation{
+		confirmations = append(confirmations, &ffcapi.Confirmation{
 			BlockNumber: fftypes.FFuint64(i),
 			BlockHash:   fmt.Sprintf("0x11%.3d", i),
 			ParentHash:  fmt.Sprintf("0x22%.3d", i),
@@ -70,7 +70,7 @@ func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 	// A few confirmations for tx2 - these should stay
 	confirmations = confirmations[:0]
 	for i := 0; i < 2; i++ {
-		confirmations = append(confirmations, &apitypes.Confirmation{
+		confirmations = append(confirmations, &ffcapi.Confirmation{
 			BlockNumber: fftypes.FFuint64(i),
 			BlockHash:   fmt.Sprintf("0x11%.3d", i),
 			ParentHash:  fmt.Sprintf("0x22%.3d", i),
@@ -82,7 +82,7 @@ func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 	// Replace with a fork
 	confirmations = confirmations[:0]
 	for i := 0; i < 3; i++ {
-		confirmations = append(confirmations, &apitypes.Confirmation{
+		confirmations = append(confirmations, &ffcapi.Confirmation{
 			BlockNumber: fftypes.FFuint64(i),
 			BlockHash:   fmt.Sprintf("0x33%.3d", i),
 			ParentHash:  fmt.Sprintf("0x44%.3d", i),
@@ -94,7 +94,7 @@ func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 	// Add more to that fork
 	confirmations = confirmations[:0]
 	for i := 3; i < 6; i++ {
-		confirmations = append(confirmations, &apitypes.Confirmation{
+		confirmations = append(confirmations, &ffcapi.Confirmation{
 			BlockNumber: fftypes.FFuint64(i),
 			BlockHash:   fmt.Sprintf("0x55%.3d", i),
 			ParentHash:  fmt.Sprintf("0x66%.3d", i),
@@ -111,7 +111,7 @@ func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 	// Check them for tx1 with the fork re-write
 	confirmations, err = p.GetTransactionConfirmations(ctx, tx1ID)
 	assert.NoError(t, err)
-	assert.Equal(t, []*apitypes.Confirmation{
+	assert.Equal(t, []*ffcapi.Confirmation{
 		{
 			BlockNumber: 0,
 			BlockHash:   "0x33000",
@@ -147,7 +147,7 @@ func TestTransactionConfirmationsOrderPSQL(t *testing.T) {
 	// Check them for tx2 that we didn't break those
 	confirmations, err = p.GetTransactionConfirmations(ctx, tx2ID)
 	assert.NoError(t, err)
-	assert.Equal(t, []*apitypes.Confirmation{
+	assert.Equal(t, []*ffcapi.Confirmation{
 		{
 			BlockNumber: 0,
 			BlockHash:   "0x11000",

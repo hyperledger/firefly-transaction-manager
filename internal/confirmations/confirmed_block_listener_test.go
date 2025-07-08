@@ -42,7 +42,7 @@ func TestCBLCatchUpToHeadFromZeroNoConfirmations(t *testing.T) {
 	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
 
 	bcm.requiredConfirmations = 0
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch, nil)
 	assert.NoError(t, err)
 
 	for i := 0; i < len(blocks)-bcm.requiredConfirmations; i++ {
@@ -70,7 +70,7 @@ func TestCBLCatchUpToHeadFromZeroWithConfirmations(t *testing.T) {
 	mbiNum.Run(func(args mock.Arguments) { mockBlockNumberReturn(mbiNum, args, blocks) })
 
 	bcm.requiredConfirmations = 5
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch, nil)
 	assert.NoError(t, err)
 
 	for i := 0; i < len(blocks)-bcm.requiredConfirmations; i++ {
@@ -105,7 +105,7 @@ func TestCBLListenFromCurrentBlock(t *testing.T) {
 	mca.On("BlockInfoByNumber", mock.Anything, mock.Anything).Return(nil, ffcapi.ErrorReasonNotFound, fmt.Errorf("not found")).Maybe()
 
 	bcm.requiredConfirmations = 5
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "", nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "", nil, esDispatch, nil)
 	assert.NoError(t, err)
 
 	// Notify starting at block 5
@@ -153,7 +153,7 @@ func TestCBLListenFromCurrentUsingCheckpointBlock(t *testing.T) {
 	bcm.requiredConfirmations = 5
 	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "", &ffcapi.BlockListenerCheckpoint{
 		Block: 12345,
-	}, esDispatch)
+	}, esDispatch, nil)
 	assert.NoError(t, err)
 
 	assert.False(t, cbl.waitingForFromBlock)
@@ -249,7 +249,7 @@ func testCBLHandleReorgInConfirmationWindow(t *testing.T, blockLenBeforeReorg, o
 	mbiHash.Run(func(args mock.Arguments) { mockBlockHashReturn(mbiHash, args, blocksAfterReorg) })
 
 	bcm.requiredConfirmations = reqConf
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch, nil)
 	assert.NoError(t, err)
 
 	for i := 0; i < len(blocksAfterReorg)-bcm.requiredConfirmations; i++ {
@@ -314,7 +314,7 @@ func TestCBLHandleRandomConflictingBlockNotification(t *testing.T) {
 		return req.BlockHash == randBlock.BlockHash
 	})).Return(randBlock, ffcapi.ErrorReason(""), nil)
 
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, ffcapi.FromBlockEarliest, nil, esDispatch, nil)
 	assert.NoError(t, err)
 	cbl.requiredConfirmations = 5
 
@@ -342,7 +342,7 @@ func TestCBLDispatcherFallsBehindHead(t *testing.T) {
 	bcm.requiredConfirmations = 5
 
 	// Start a CBL, but then cancel the dispatcher
-	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "", nil, esDispatch)
+	cbl, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "", nil, esDispatch, nil)
 	assert.NoError(t, err)
 	cbl.cancelFunc()
 	<-cbl.dispatcherDone
@@ -385,7 +385,7 @@ func TestCBLStartBadFromBlock(t *testing.T) {
 
 	id := fftypes.NewUUID()
 
-	_, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "wrong", nil, esDispatch)
+	_, err := bcm.startConfirmedBlockListener(bcm.ctx, id, "wrong", nil, esDispatch, nil)
 	assert.Regexp(t, "FF21090", err)
 
 	bcm.Stop()
@@ -409,11 +409,11 @@ func TestProcessBlockHashesSwallowsFailure(t *testing.T) {
 func TestDispatchAllConfirmedNonBlocking(t *testing.T) {
 	bcm, _ := newTestBlockConfirmationManager()
 	cbl := &confirmedBlockListener{
-		id:            fftypes.NewUUID(),
-		ctx:           bcm.ctx,
-		bcm:           bcm,
-		processorDone: make(chan struct{}),
-		eventStream:   make(chan<- *ffcapi.ListenerEvent), // blocks indefinitely
+		id:                      fftypes.NewUUID(),
+		ctx:                     bcm.ctx,
+		bcm:                     bcm,
+		processorDone:           make(chan struct{}),
+		blockEventOutputChannel: make(chan<- *ffcapi.ListenerEvent), // blocks indefinitely
 	}
 
 	cbl.requiredConfirmations = 0
@@ -423,7 +423,7 @@ func TestDispatchAllConfirmedNonBlocking(t *testing.T) {
 	waitForDispatchReturn := make(chan struct{})
 	go func() {
 		defer close(waitForDispatchReturn)
-		cbl.dispatchAllConfirmed()
+		cbl.dispatchEventsToOutputChannel()
 	}()
 
 	bcm.cancelFunc()

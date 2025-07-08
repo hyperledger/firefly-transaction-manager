@@ -138,7 +138,7 @@ func TestPolicyLoopE2EOk(t *testing.T) {
 				ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
 			},
 		})
-		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
+		n.Transaction.Confirmations(context.Background(), &ffcapi.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
@@ -210,7 +210,7 @@ func TestPolicyLoopIgnoreTransactionInformationalEventHandlingErrors(t *testing.
 				ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
 			},
 		})
-		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
+		n.Transaction.Confirmations(context.Background(), &ffcapi.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
@@ -322,7 +322,7 @@ func TestPolicyLoopE2EReverted(t *testing.T) {
 				Success:          false,
 			},
 		})
-		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
+		n.Transaction.Confirmations(context.Background(), &ffcapi.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
@@ -408,7 +408,7 @@ func TestPolicyLoopResubmitNewTXID(t *testing.T) {
 				Success:          true,
 			},
 		})
-		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
+		n.Transaction.Confirmations(context.Background(), &ffcapi.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
@@ -591,7 +591,7 @@ func TestPolicyLoopUpdateFail(t *testing.T) {
 				ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
 			},
 		})
-		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
+		n.Transaction.Confirmations(context.Background(), &ffcapi.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
@@ -668,7 +668,7 @@ func TestPolicyLoopUpdateEventHandlerError(t *testing.T) {
 				ContractLocation: fftypes.JSONAnyPtr(`{"address": "0x24746b95d118b2b4e8d07b06b1bad988fbf9415d"}`),
 			},
 		})
-		n.Transaction.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{Confirmed: true})
+		n.Transaction.Confirmations(context.Background(), &ffcapi.ConfirmationsNotification{Confirmed: true})
 	}).Return(nil)
 	eh.ConfirmationManager = mc
 	mws := &wsmocks.WebSocketServer{}
@@ -1408,10 +1408,10 @@ func TestPolicyStoreConfirmationsFail(t *testing.T) {
 				},
 			},
 			confirmNotify: fftypes.Now(),
-			confirmations: &apitypes.ConfirmationsNotification{
+			confirmations: &ffcapi.ConfirmationsNotification{
 				Confirmed:     true,
 				NewFork:       true,
-				Confirmations: []*apitypes.Confirmation{},
+				Confirmations: []*ffcapi.Confirmation{},
 			},
 		},
 	}

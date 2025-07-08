@@ -24,6 +24,7 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
 
 func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.ConfirmationRecord] {
@@ -50,7 +51,7 @@ func (p *sqlPersistence) newConfirmationsCollection() *dbsql.CrudBase[*apitypes.
 		NilValue:      func() *apitypes.ConfirmationRecord { return nil },
 		NewInstance: func() *apitypes.ConfirmationRecord {
 			return &apitypes.ConfirmationRecord{
-				Confirmation: &apitypes.Confirmation{},
+				Confirmation: &ffcapi.Confirmation{},
 			}
 		},
 		GetFieldPtr: func(inst *apitypes.ConfirmationRecord, col string) interface{} {
@@ -85,21 +86,21 @@ func (p *sqlPersistence) ListTransactionConfirmations(ctx context.Context, txID 
 	return p.confirmations.GetMany(ctx, filter.Condition(filter.Builder().Eq("transaction", txID)))
 }
 
-func (p *sqlPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error) {
+func (p *sqlPersistence) GetTransactionConfirmations(ctx context.Context, txID string) ([]*ffcapi.Confirmation, error) {
 	// We query in increasing insertion order
 	filter := persistence.ConfirmationFilters.NewFilter(ctx).Eq("transaction", txID).Sort("sequence").Ascending()
 	records, _, err := p.confirmations.GetMany(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	confirmations := make([]*apitypes.Confirmation, len(records))
+	confirmations := make([]*ffcapi.Confirmation, len(records))
 	for i, r := range records {
 		confirmations[i] = r.Confirmation
 	}
 	return confirmations, nil
 }
 
-func (p *sqlPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error {
+func (p *sqlPersistence) AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*ffcapi.Confirmation) error {
 	// Dispatch to TX writer
 	for i, c := range confirmations {
 		op := newTransactionOperation(txID)

@@ -184,7 +184,7 @@ func (_m *TransactionHandler) HandleSuspendTransaction(ctx context.Context, txID
 }
 
 // HandleTransactionConfirmations provides a mock function with given fields: ctx, txID, notification
-func (_m *TransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) error {
+func (_m *TransactionHandler) HandleTransactionConfirmations(ctx context.Context, txID string, notification *ffcapi.ConfirmationsNotification) error {
 	ret := _m.Called(ctx, txID, notification)
 
 	if len(ret) == 0 {
@@ -192,7 +192,7 @@ func (_m *TransactionHandler) HandleTransactionConfirmations(ctx context.Context
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *apitypes.ConfirmationsNotification) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.ConfirmationsNotification) error); ok {
 		r0 = rf(ctx, txID, notification)
 	} else {
 		r0 = ret.Error(0)

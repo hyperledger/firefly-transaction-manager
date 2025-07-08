@@ -51,8 +51,8 @@ type TransactionPersistence interface {
 	GetTransactionReceipt(ctx context.Context, txID string) (receipt *ffcapi.TransactionReceiptResponse, err error)
 	SetTransactionReceipt(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) error
 
-	GetTransactionConfirmations(ctx context.Context, txID string) ([]*apitypes.Confirmation, error)
-	AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*apitypes.Confirmation) error
+	GetTransactionConfirmations(ctx context.Context, txID string) ([]*ffcapi.Confirmation, error)
+	AddTransactionConfirmations(ctx context.Context, txID string, clearExisting bool, confirmations ...*ffcapi.Confirmation) error
 }
 
 type RichQuery interface {
@@ -174,7 +174,7 @@ type TransactionHandler interface {
 
 	// Informational events:
 	// HandleTransactionConfirmations - handles confirmations of blockchain transactions for a managed transaction
-	HandleTransactionConfirmations(ctx context.Context, txID string, notification *apitypes.ConfirmationsNotification) (err error)
+	HandleTransactionConfirmations(ctx context.Context, txID string, notification *ffcapi.ConfirmationsNotification) (err error)
 	// HandleTransactionReceiptReceived - handles receipt of blockchain transactions for a managed transaction
 	HandleTransactionReceiptReceived(ctx context.Context, txID string, receipt *ffcapi.TransactionReceiptResponse) (err error)
 }

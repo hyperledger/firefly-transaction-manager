@@ -73,7 +73,7 @@ func (eh *ManagedTransactionEventHandler) HandleEvent(_ context.Context, e apity
 						log.L(ctx).Errorf("Receipt for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", e.Tx.ID, e.Tx.TransactionHeaders.From, e.Tx.Nonce.Int64(), e.Tx.TransactionHash, err.Error())
 					}
 				},
-				Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+				Confirmations: func(ctx context.Context, notification *ffcapi.ConfirmationsNotification) {
 					if err := e.ConfirmationHandler(ctx, txID, notification); err != nil {
 						log.L(ctx).Errorf("Confirmation for transaction %s at nonce %s / %d - hash: %s was not handled due to %s", e.Tx.ID, e.Tx.TransactionHeaders.From, e.Tx.Nonce.Int64(), e.Tx.TransactionHash, err.Error())
 					}

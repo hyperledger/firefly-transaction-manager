@@ -178,7 +178,7 @@ func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners
 	def.ID = fftypes.NewUUID()
 
 	log.L(m.ctx).Infof("Creating API managed event stream %s", *def.Name)
-	es, err = events.NewAPIManagedEventStream(m.ctx, &def, m.connector, listeners, m.metricsManager)
+	es, err = events.NewAPIManagedEventStream(m.ctx, &def, false, m.connector, listeners, m.metricsManager)
 	if err == nil {
 		isNew = true
 		m.eventStreams[*def.ID] = es

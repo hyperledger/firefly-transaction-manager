@@ -411,7 +411,7 @@ func TestExecuteBatchOpsInsertConfirmationFail(t *testing.T) {
 
 	err := p.writer.executeBatchOps(ctx, &transactionWriterBatch{
 		confirmationInserts: []*apitypes.ConfirmationRecord{{
-			Confirmation: &apitypes.Confirmation{},
+			Confirmation: &ffcapi.Confirmation{},
 		}},
 	})
 	assert.Regexp(t, "FF00177", err)

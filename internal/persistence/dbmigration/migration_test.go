@@ -57,7 +57,7 @@ func TestDBMigrationOK(t *testing.T) {
 		Receipt: &ffcapi.TransactionReceiptResponse{
 			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
 		},
-		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
+		Confirmations: []*ffcapi.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, tx.ManagedTX, paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{}, nil)
@@ -293,7 +293,7 @@ func TestMigrateTransactionsFailWriteConfirmations(t *testing.T) {
 		Receipt: &ffcapi.TransactionReceiptResponse{
 			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
 		},
-		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
+		Confirmations: []*ffcapi.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, nil)
@@ -322,7 +322,7 @@ func TestMigrateTransactionsFailWriteReceipt(t *testing.T) {
 		Receipt: &ffcapi.TransactionReceiptResponse{
 			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
 		},
-		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
+		Confirmations: []*ffcapi.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, nil)
@@ -350,7 +350,7 @@ func TestMigrateTransactionsFailWriteTx(t *testing.T) {
 		Receipt: &ffcapi.TransactionReceiptResponse{
 			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
 		},
-		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
+		Confirmations: []*ffcapi.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, nil)
@@ -377,7 +377,7 @@ func TestMigrateTransactionsFailCheckExists(t *testing.T) {
 		Receipt: &ffcapi.TransactionReceiptResponse{
 			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
 		},
-		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
+		Confirmations: []*ffcapi.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, nil)
@@ -403,7 +403,7 @@ func TestMigrateTransactionsFailGetDetail(t *testing.T) {
 		Receipt: &ffcapi.TransactionReceiptResponse{
 			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{BlockHash: fftypes.NewRandB32().String()},
 		},
-		Confirmations: []*apitypes.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
+		Confirmations: []*ffcapi.Confirmation{{BlockHash: fftypes.NewRandB32().String()}},
 	}
 	mdb1.On("ListTransactionsByCreateTime", mock.Anything, (*apitypes.ManagedTX)(nil), paginationLimit, txhandler.SortDirectionAscending).Return([]*apitypes.ManagedTX{tx.ManagedTX}, nil)
 	mdb1.On("GetTransactionByIDWithStatus", mock.Anything, tx.ID, false).Return(tx, fmt.Errorf("pop"))

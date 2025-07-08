@@ -190,6 +190,35 @@ type ListenerEvent struct {
 	Removed    bool                    `json:"removed,omitempty"` // when true, this is an explicit cancellation of a previous event
 }
 
+type Confirmation struct {
+	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
+	BlockHash   string           `json:"blockHash"`
+	ParentHash  string           `json:"parentHash"`
+}
+
+type ConfirmationsNotification struct {
+	// Confirmed marks we've reached the confirmation threshold
+	Confirmed bool `json:"confirmed,omitempty"`
+	// NewFork is true when NewConfirmations is a complete list of confirmations.
+	// Otherwise, Confirmations is an additive delta on top of a previous list of confirmations.
+	NewFork bool `json:"newFork,omitempty"`
+	// Confirmations is the list of confirmations being notified - assured to be non-nil, but might be empty.
+	Confirmations []*Confirmation
+}
+
+type ConfirmationContext struct {
+	ConfirmationsNotification
+	CurrentConfirmationCount int `json:"currentConfirmationCount"` // the current number of confirmations for this event
+	TargetConfirmationCount  int `json:"targetConfirmationCount"`  // the target number of confirmations for this event
+}
+
+// ListenerEvent is an event+checkpoint for a particular listener, and is the object delivered over the event stream channel when
+// a new event is detected for delivery to the confirmation manager.
+type ConfirmationsForListenerEvent struct {
+	ConfirmationContext
+	Event *ListenerEvent `json:"event"` // the event that the confirmations are for
+}
+
 // ErrorReason are a set of standard error conditions that a blockchain connector can return
 // from execution, that affect the action of the transaction manager to the response.
 // It is important that error mapping is performed for each of these classification

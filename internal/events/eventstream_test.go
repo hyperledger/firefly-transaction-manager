@@ -111,7 +111,7 @@ func newTestEventStreamWithListener(t *testing.T, mfc *ffcapimocks.API, conf str
 	mcm.On("Notify", mock.Anything).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		if n.Event != nil {
-			go n.Event.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{
+			go n.Event.Confirmations(context.Background(), &ffcapi.ConfirmationsNotification{
 				Confirmed: true,
 			})
 		}
@@ -548,6 +548,7 @@ func TestAPIManagedEventStreamMissingListenerIDs(t *testing.T) {
 	// deterministically the IDs of the listeners passed in. They cannot be empty (an error will be returned)
 	_, err := NewAPIManagedEventStream(context.Background(),
 		testESConf(t, `{}`),
+		false,
 		mfc,
 		[]*apitypes.Listener{{
 			Name: strPtr("missing_id"),
@@ -573,6 +574,7 @@ func TestAPIManagedEventStreamE2E(t *testing.T) {
 	mfc := &ffcapimocks.API{}
 	ees, err := NewAPIManagedEventStream(context.Background(),
 		testESConf(t, `{}`),
+		false,
 		mfc,
 		[]*apitypes.Listener{l},
 		mockMetrics(),
@@ -590,7 +592,7 @@ func TestAPIManagedEventStreamE2E(t *testing.T) {
 	mcm.On("Notify", mock.Anything).Run(func(args mock.Arguments) {
 		n := args[0].(*confirmations.Notification)
 		if n.Event != nil {
-			go n.Event.Confirmations(context.Background(), &apitypes.ConfirmationsNotification{
+			go n.Event.Confirmations(context.Background(), &ffcapi.ConfirmationsNotification{
 				Confirmed: true,
 			})
 		}
@@ -1946,7 +1948,7 @@ func TestEventLoopConfirmationsManagerBypass(t *testing.T) {
 
 	go func() {
 		ss.updates <- u1
-		u2 := <-es.batchChannel
+		u2 := <-es.eventBatchChannel
 		assert.Equal(t, u1, u2)
 		ss.cancelCtx()
 	}()
@@ -2037,19 +2039,19 @@ func TestSkipEventsBehindCheckpointAndUnknownListener(t *testing.T) {
 		es.batchLoop(ss)
 		wg.Done()
 	}()
-	es.batchChannel <- &ffcapi.ListenerEvent{
+	es.eventBatchChannel <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 1999}, // before checkpoint - redelivery
 		Event:      &ffcapi.Event{ID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 1999}},
 	}
-	es.batchChannel <- &ffcapi.ListenerEvent{
+	es.eventBatchChannel <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2000}, // on checkpoint - redelivery
 		Event:      &ffcapi.Event{ID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 2000}},
 	}
-	es.batchChannel <- &ffcapi.ListenerEvent{
+	es.eventBatchChannel <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2001}, // this is for a listener that no longer exists on the ES
 		Event:      &ffcapi.Event{ID: ffcapi.EventID{ListenerID: fftypes.NewUUID(), BlockNumber: 2001}},
 	}
-	es.batchChannel <- &ffcapi.ListenerEvent{
+	es.eventBatchChannel <- &ffcapi.ListenerEvent{
 		Checkpoint: &utCheckpointType{SomeSequenceNumber: 2001}, // this is a new event
 		Event:      &ffcapi.Event{ID: ffcapi.EventID{ListenerID: listenerID, BlockNumber: 2001}},
 	}
@@ -2187,7 +2189,7 @@ func TestCheckConfirmedEventForBatchIgnoreInvalid(t *testing.T) {
 
 	es := newTestEventStream(t, `{"name": "ut_stream"}`)
 
-	l, ewc := es.checkConfirmedEventForBatch(&ffcapi.ListenerEvent{})
+	l, ewc := es.convertListenerEventForBatchOutput(&ffcapi.ListenerEvent{})
 	assert.Nil(t, l)
 	assert.Nil(t, ewc)
 }
@@ -2225,6 +2227,7 @@ func TestStartAPIEventStreamStartFail(t *testing.T) {
 	mfc := &ffcapimocks.API{}
 	ees, err := NewAPIManagedEventStream(context.Background(),
 		testESConf(t, `{}`),
+		false,
 		mfc,
 		[]*apitypes.Listener{l},
 		mockMetrics(),
@@ -2257,6 +2260,7 @@ func TestStartAPIEventStreamPollContextCancelled(t *testing.T) {
 	mfc := &ffcapimocks.API{}
 	ees, err := NewAPIManagedEventStream(context.Background(),
 		testESConf(t, `{}`),
+		false,
 		mfc,
 		[]*apitypes.Listener{l},
 		mockMetrics(),

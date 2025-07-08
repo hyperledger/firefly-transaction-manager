@@ -378,9 +378,10 @@ type EventBatchWithConfirm struct {
 // connector are alongside the required context fields.
 // The `data` is kept separate
 type EventWithContext struct {
-	StandardContext EventContext
-	Event           *ffcapi.Event
-	BlockEvent      *ffcapi.BlockEvent
+	StandardContext     EventContext
+	ConfirmationContext *ffcapi.ConfirmationContext // this is the context for confirmations, if any
+	Event               *ffcapi.Event
+	BlockEvent          *ffcapi.BlockEvent
 }
 
 func (e *EventWithContext) MarshalJSON() ([]byte, error) {
@@ -423,32 +424,16 @@ func (e *EventWithContext) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-func ConfirmationFromBlock(block *BlockInfo) *Confirmation {
-	return &Confirmation{
+func ConfirmationFromBlock(block *BlockInfo) *ffcapi.Confirmation {
+	return &ffcapi.Confirmation{
 		BlockNumber: block.BlockNumber,
 		BlockHash:   block.BlockHash,
 		ParentHash:  block.ParentHash,
 	}
 }
 
-type ConfirmationsNotification struct {
-	// Confirmed marks we've reached the confirmation threshold
-	Confirmed bool
-	// NewFork is true when NewConfirmations is a complete list of confirmations.
-	// Otherwise, Confirmations is an additive delta on top of a previous list of confirmations.
-	NewFork bool
-	// Confirmations is the list of confirmations being notified - assured to be non-nil, but might be empty.
-	Confirmations []*Confirmation
-}
-
-type Confirmation struct {
-	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
-	BlockHash   string           `json:"blockHash"`
-	ParentHash  string           `json:"parentHash"`
-}
-
 type ConfirmationRecord struct {
 	dbsql.ResourceBase        // default persistence headers for this micro object
 	TransactionID      string `json:"transaction"` // owning transaction
-	*Confirmation
+	*ffcapi.Confirmation
 }
