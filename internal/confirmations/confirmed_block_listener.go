@@ -63,10 +63,9 @@ type confirmedBlockListener struct {
 	dispatcherDone          chan struct{}
 
 	// attributes that are used for confirmation streaming only
-	streamConfirmations          bool // whether this listener is for confirmations or just block events
-	confirmationsOutputChannel   chan<- *ffcapi.ConfirmationsForListenerEvent
-	indexOfNewBlockConfirmations int  // (relies on stateLock mutex) the highest block number that has been dispatched as confirmations of other events, used to only dispatch incremental changes
-	reOrgedSinceDispatch         bool // (relies on stateLock mutex) whether the canonical chain has been re-orged since the last confirmation dispatch
+	streamConfirmations        bool // whether this listener is for confirmations or just block events
+	confirmationsOutputChannel chan<- *ffcapi.ConfirmationsForListenerEvent
+	reOrgedSinceDispatch       bool // (relies on stateLock mutex) whether the canonical chain has been re-orged since the last confirmation dispatch
 }
 
 func (bcm *blockConfirmationManager) StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, fromBlock string, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *ffcapi.ListenerEvent) error {
@@ -389,19 +388,14 @@ func (cbl *confirmedBlockListener) dispatchEventsToOutputChannel() {
 		}
 		confirmationBlocks := []*apitypes.BlockInfo{}
 		if cbl.streamConfirmations {
-			if i < totalBlocks-1 || (!cbl.reOrgedSinceDispatch && cbl.indexOfNewBlockConfirmations < totalBlocks-1) {
+			if i < totalBlocks-1 {
 				// build up the array when the current block is not the last one
-				// and we've not dispatched the last block already
-				confirmationStartingIndex := i + 1
-				if !cbl.reOrgedSinceDispatch && cbl.indexOfNewBlockConfirmations > confirmationStartingIndex {
-					confirmationStartingIndex = cbl.indexOfNewBlockConfirmations
-				}
 				confirmationEndingIndex := i + cbl.requiredConfirmations + 1
 				if confirmationEndingIndex > totalBlocks {
 					confirmationEndingIndex = totalBlocks
 				}
 
-				confirmationBlocks = cbl.blocksSinceCheckpoint[confirmationStartingIndex:confirmationEndingIndex]
+				confirmationBlocks = cbl.blocksSinceCheckpoint[i+1 : confirmationEndingIndex]
 			}
 		}
 		if i < earliestUncomfirmedBlockIndex || cbl.requiredConfirmations == 0 {
@@ -456,7 +450,6 @@ func (cbl *confirmedBlockListener) dispatchEventsToOutputChannel() {
 		}
 	}
 	cbl.blocksSinceCheckpoint = append([]*apitypes.BlockInfo{}, cbl.blocksSinceCheckpoint[earliestUncomfirmedBlockIndex:]...)
-	cbl.indexOfNewBlockConfirmations = len(cbl.blocksSinceCheckpoint)
 	cbl.reOrgedSinceDispatch = false
 	cbl.stateLock.Unlock()
 }
