@@ -789,7 +789,7 @@ func TestGetAPIManagedEventStreamBadSpec(t *testing.T) {
 	_, _, err := m.GetAPIManagedEventStream(&apitypes.EventStream{
 		ID:   apitypes.NewULID(),
 		Name: &randName,
-	}, []*apitypes.Listener{})
+	}, []*apitypes.Listener{}, false)
 	assert.Regexp(t, "FF21092", err)
 
 }
@@ -801,11 +801,11 @@ func TestGetAPIManagedEventStreamRetained(t *testing.T) {
 	randName := apitypes.NewULID().String()
 	spec := &apitypes.EventStream{Name: &randName}
 
-	isNew, es1, err := m.GetAPIManagedEventStream(spec, []*apitypes.Listener{})
+	isNew, es1, err := m.GetAPIManagedEventStream(spec, []*apitypes.Listener{}, false)
 	assert.NoError(t, err)
 	assert.True(t, isNew, err)
 
-	isNew, es2, err := m.GetAPIManagedEventStream(spec, []*apitypes.Listener{})
+	isNew, es2, err := m.GetAPIManagedEventStream(spec, []*apitypes.Listener{}, false)
 	assert.NoError(t, err)
 	assert.False(t, isNew, err)
 	assert.Same(t, es1, es2)
