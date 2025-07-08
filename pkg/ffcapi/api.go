@@ -203,7 +203,7 @@ type ConfirmationsNotification struct {
 	// Otherwise, Confirmations is an additive delta on top of a previous list of confirmations.
 	NewFork bool `json:"newFork,omitempty"`
 	// Confirmations is the list of confirmations being notified - assured to be non-nil, but might be empty.
-	Confirmations []*Confirmation
+	Confirmations []*Confirmation `json:"confirmations,omitempty"` // the list of confirmations for this event, ordered by block number
 }
 
 type ConfirmationContext struct {

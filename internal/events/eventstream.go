@@ -848,8 +848,8 @@ func (es *eventStream) convertListenerEventForBatchOutput(e *ffcapi.ListenerEven
 		// However, we need to protect the application from receiving the re-detections.
 		// This loop is the right place for this check, as we are responsible for writing the checkpoints and
 		// delivering to the application. So we are the one source of truth.
-		log.L(es.bgCtx).Debugf("%s '%s' event re-detected behind checkpoint: %s", l.spec.ID, l.spec.SignatureString(), eToLog)
-		return nil, nil
+		log.L(es.bgCtx).Warnf("%s '%s' event re-detected with checkpoint %d behind checkpoint %d : %s", l.spec.ID, l.spec.SignatureString(), e.Checkpoint.(*ffcapi.BlockListenerCheckpoint).Block, currentCheckpoint.(*ffcapi.BlockListenerCheckpoint).Block, eToLog)
+		// return nil, nil
 	}
 	if e.Event != nil {
 		ewc = &apitypes.EventWithContext{
@@ -861,7 +861,7 @@ func (es *eventStream) convertListenerEventForBatchOutput(e *ffcapi.ListenerEven
 			},
 			Event: e.Event,
 		}
-		log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.SignatureString(), e.Event)
+		log.L(es.bgCtx).Debugf("%s '%s' event confirmed: %s", l.spec.ID, l.spec.SignatureString(), eToLog)
 	} else {
 		ewc = &apitypes.EventWithContext{
 			StandardContext: apitypes.EventContext{
@@ -872,7 +872,7 @@ func (es *eventStream) convertListenerEventForBatchOutput(e *ffcapi.ListenerEven
 			},
 			BlockEvent: e.BlockEvent,
 		}
-		log.L(es.bgCtx).Debugf("%s '%s' block event confirmed: %s", l.spec.ID, l.spec.SignatureString(), e.Event)
+		log.L(es.bgCtx).Debugf("%s '%s' block event confirmed: %s", l.spec.ID, l.spec.SignatureString(), eToLog)
 	}
 	return l, ewc
 }
@@ -1004,6 +1004,9 @@ func (es *eventStream) batchPoll(ctx context.Context, pollTimer *time.Timer) (ba
 			return nil, i18n.NewError(ctx, i18n.MsgContextCanceled)
 		}
 		if timedOut || (batch != nil && len(batch.events) >= maxSize) {
+			if batch != nil {
+				log.L(ctx).Debugf("Batch %d completed with %d events", batch.number, len(batch.events))
+			}
 			return batch, nil // batch will be nil here on checkpoint timeout
 		}
 	}
