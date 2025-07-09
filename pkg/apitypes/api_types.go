@@ -447,12 +447,12 @@ func ConfirmationFromBlock(block *BlockInfo) *Confirmation {
 
 type ConfirmationsNotification struct {
 	// Confirmed marks we've reached the confirmation threshold
-	Confirmed bool
+	Confirmed bool `json:"confirmed"`
 	// NewFork is true when NewConfirmations is a complete list of confirmations.
 	// Otherwise, Confirmations is an additive delta on top of a previous list of confirmations.
-	NewFork bool
+	NewFork bool `json:"newFork"`
 	// Confirmations is the list of confirmations being notified - assured to be non-nil, but might be empty.
-	Confirmations []*Confirmation
+	Confirmations []*Confirmation `json:"confirmations,omitempty"`
 }
 
 type Confirmation struct {
