@@ -406,6 +406,8 @@ func (cbl *confirmedBlockListener) dispatchEventsToOutputChannel() {
 			cbl.rollingCheckpoint = &ffcapi.BlockListenerCheckpoint{
 				Block: block.BlockNumber.Uint64(),
 			}
+			// for confirmed blocks we always set the checkpoint to the current rolling checkpoint
+			cbEvent.Checkpoint = cbl.rollingCheckpoint
 			if cbl.streamConfirmations {
 				toDispatch.TargetConfirmationCount = cbl.requiredConfirmations
 				toDispatch.CurrentConfirmationCount = cbl.requiredConfirmations
