@@ -283,6 +283,22 @@ type BlockInfo struct {
 	TransactionHashes []string         `json:"transactionHashes,omitempty"`
 }
 
+func (b *BlockInfo) ToConfirmation() *Confirmation {
+	return &Confirmation{
+		BlockNumber: b.BlockNumber,
+		BlockHash:   b.BlockHash,
+		ParentHash:  b.ParentHash,
+	}
+}
+
+func BlockInfosToConfirmations(blocks []*BlockInfo) []*Confirmation {
+	confirmations := make([]*Confirmation, len(blocks))
+	for i, b := range blocks {
+		confirmations[i] = b.ToConfirmation()
+	}
+	return confirmations
+}
+
 type ReplyType string
 
 const (

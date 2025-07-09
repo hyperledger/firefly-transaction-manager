@@ -67,12 +67,12 @@ func (_m *Stream) Delete(ctx context.Context) error {
 	return r0
 }
 
-// PollAPIMangedStream provides a mock function with given fields: ctx, checkpointIn, timeout
-func (_m *Stream) PollAPIMangedStream(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint, timeout time.Duration) ([]*apitypes.EventWithContext, *apitypes.EventStreamCheckpoint, error) {
+// PollAPIManagedStream provides a mock function with given fields: ctx, checkpointIn, timeout
+func (_m *Stream) PollAPIManagedStream(ctx context.Context, checkpointIn *apitypes.EventStreamCheckpoint, timeout time.Duration) ([]*apitypes.EventWithContext, *apitypes.EventStreamCheckpoint, error) {
 	ret := _m.Called(ctx, checkpointIn, timeout)
 
 	if len(ret) == 0 {
-		panic("no return value specified for PollAPIMangedStream")
+		panic("no return value specified for PollAPIManagedStream")
 	}
 
 	var r0 []*apitypes.EventWithContext

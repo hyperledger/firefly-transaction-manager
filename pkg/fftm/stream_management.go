@@ -158,7 +158,7 @@ func (m *manager) reserveStreamName(ctx context.Context, name string, id *fftype
 	}, nil
 }
 
-func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener) (isNew bool, es eventapi.EventStream, err error) {
+func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners []*apitypes.Listener, streamConfirmations bool) (isNew bool, es eventapi.EventStream, err error) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
@@ -178,7 +178,7 @@ func (m *manager) GetAPIManagedEventStream(spec *apitypes.EventStream, listeners
 	def.ID = fftypes.NewUUID()
 
 	log.L(m.ctx).Infof("Creating API managed event stream %s", *def.Name)
-	es, err = events.NewAPIManagedEventStream(m.ctx, &def, m.connector, listeners, m.metricsManager)
+	es, err = events.NewAPIManagedEventStream(m.ctx, &def, streamConfirmations, m.connector, listeners, m.metricsManager)
 	if err == nil {
 		isNew = true
 		m.eventStreams[*def.ID] = es

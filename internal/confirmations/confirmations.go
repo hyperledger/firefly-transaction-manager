@@ -46,6 +46,7 @@ type Manager interface {
 	NewBlockHashes() chan<- *ffcapi.BlockHashEvent
 	CheckInFlight(listenerID *fftypes.UUID) bool
 	StartConfirmedBlockListener(ctx context.Context, id *fftypes.UUID, fromBlock string, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *ffcapi.ListenerEvent) error
+	StartBlockConfirmationsListener(ctx context.Context, id *fftypes.UUID, fromBlock string, checkpoint *ffcapi.BlockListenerCheckpoint, eventStream chan<- *apitypes.ConfirmationsForListenerEvent) error
 	StopConfirmedBlockListener(ctx context.Context, id *fftypes.UUID) error
 }
 
