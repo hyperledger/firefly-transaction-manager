@@ -151,10 +151,10 @@ func NewAPIManagedEventStream(
 		bgCtx,
 		persistedSpec,
 		connector,
-		nil, // no persistence
-		streamConfirmations,
+		nil,  // no persistence
 		true, // API managed
-		nil,  // no WS channels - only consumption is via API polling
+		streamConfirmations,
+		nil, // no WS channels - only consumption is via API polling
 		listeners,
 		eme)
 }

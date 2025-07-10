@@ -799,7 +799,9 @@ func TestGetAPIManagedEventStreamRetained(t *testing.T) {
 	defer close()
 
 	randName := apitypes.NewULID().String()
-	spec := &apitypes.EventStream{Name: &randName}
+	spec := &apitypes.EventStream{
+		Name: &randName,
+	}
 
 	isNew, es1, err := m.GetAPIManagedEventStream(spec, []*apitypes.Listener{}, false)
 	assert.NoError(t, err)
