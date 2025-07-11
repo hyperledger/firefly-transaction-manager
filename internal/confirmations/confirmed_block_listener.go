@@ -436,9 +436,7 @@ func (cbl *confirmedBlockListener) dispatchEventsToOutputChannel() {
 
 		}
 		if toDispatch == nil {
-			cbl.blocksSinceCheckpoint = append([]*apitypes.BlockInfo{}, cbl.blocksSinceCheckpoint[earliestUncomfirmedBlockIndex:]...)
-			cbl.stateLock.Unlock()
-			return
+			break
 		}
 		log.L(cbl.ctx).Infof("Dispatching block %d/%s", toDispatch.Event.BlockEvent.BlockNumber.Uint64(), toDispatch.Event.BlockEvent.BlockHash)
 		if cbl.streamConfirmations {
