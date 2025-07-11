@@ -848,7 +848,8 @@ func (es *eventStream) convertListenerEventForBatchOutput(e *ffcapi.ListenerEven
 		// However, we need to protect the application from receiving the re-detections.
 		// This loop is the right place for this check, as we are responsible for writing the checkpoints and
 		// delivering to the application. So we are the one source of truth.
-		log.L(es.bgCtx).Warnf("%s '%s' event re-detected with checkpoint %d behind checkpoint %d : %s", l.spec.ID, l.spec.SignatureString(), e.Checkpoint.(*ffcapi.BlockListenerCheckpoint).Block, currentCheckpoint.(*ffcapi.BlockListenerCheckpoint).Block, eToLog)
+
+		log.L(es.bgCtx).Debugf("%s '%s' event re-detected behind checkpoint: %s", l.spec.ID, l.spec.SignatureString(), eToLog)
 		return nil, nil
 	}
 	if e.Event != nil {
