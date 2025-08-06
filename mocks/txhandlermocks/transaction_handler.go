@@ -220,7 +220,7 @@ func (_m *TransactionHandler) HandleTransactionReceiptReceived(ctx context.Conte
 }
 
 // HandleTransactionUpdate provides a mock function with given fields: ctx, txID, update
-func (_m *TransactionHandler) HandleTransactionUpdate(ctx context.Context, txID string, update *apitypes.TXUpdatesExternal) (*apitypes.ManagedTX, error) {
+func (_m *TransactionHandler) HandleTransactionUpdate(ctx context.Context, txID string, update apitypes.TXUpdatesExternal) (*apitypes.ManagedTX, error) {
 	ret := _m.Called(ctx, txID, update)
 
 	if len(ret) == 0 {
@@ -229,10 +229,10 @@ func (_m *TransactionHandler) HandleTransactionUpdate(ctx context.Context, txID 
 
 	var r0 *apitypes.ManagedTX
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *apitypes.TXUpdatesExternal) (*apitypes.ManagedTX, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, apitypes.TXUpdatesExternal) (*apitypes.ManagedTX, error)); ok {
 		return rf(ctx, txID, update)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, *apitypes.TXUpdatesExternal) *apitypes.ManagedTX); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, apitypes.TXUpdatesExternal) *apitypes.ManagedTX); ok {
 		r0 = rf(ctx, txID, update)
 	} else {
 		if ret.Get(0) != nil {
@@ -240,7 +240,7 @@ func (_m *TransactionHandler) HandleTransactionUpdate(ctx context.Context, txID 
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, *apitypes.TXUpdatesExternal) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, apitypes.TXUpdatesExternal) error); ok {
 		r1 = rf(ctx, txID, update)
 	} else {
 		r1 = ret.Error(1)

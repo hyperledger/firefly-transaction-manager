@@ -48,7 +48,7 @@ const (
 
 type policyEngineAPIRequest struct {
 	requestType policyEngineAPIRequestType
-	txUpdates   *apitypes.TXUpdatesExternal
+	txUpdates   apitypes.TXUpdatesExternal
 	txID        string
 	startTime   time.Time
 	response    chan policyEngineAPIResponse
@@ -227,7 +227,7 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 		if pending == nil {
 			mtx, err := sth.getTransactionByID(ctx, request.txID)
 			if err != nil {
-				request.response <- policyEngineAPIResponse{err: err}
+				request.response <- policyEngineAPIResponse{err: err, status: http.StatusInternalServerError}
 				continue
 			}
 			// This transaction was valid, but outside of our in-flight set - we still evaluate the policy engine in-line for it.
@@ -238,7 +238,7 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 		switch request.requestType {
 		case ActionDelete, ActionSuspend, ActionResume, ActionUpdate:
 			if err := sth.execPolicy(ctx, pending, request); err != nil {
-				request.response <- policyEngineAPIResponse{err: err}
+				request.response <- policyEngineAPIResponse{err: err, status: http.StatusInternalServerError}
 			} else {
 				res := policyEngineAPIResponse{tx: pending.mtx, status: http.StatusAccepted}
 				if pending.remove || request.requestType == ActionResume || request.requestType == ActionUpdate /* always sync */ {
@@ -275,6 +275,9 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 	if syncRequest != nil {
 		ctx.SyncAction = syncRequest.requestType
 		if syncRequest.requestType == ActionUpdate {
+			if syncRequest.txUpdates.GasPrice != nil {
+				return nil, i18n.NewError(ctx, tmmsgs.MsgTxHandlerUnsupportedFieldForUpdate, "gasPrice")
+			}
 			txUpdates, updated := mtx.ApplyExternalTxUpdates(syncRequest.txUpdates)
 			if updated {
 				// persist the updated transaction information
@@ -331,7 +334,7 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 
 	ctx, err := sth.pendingToRunContext(baseCtx, pending, syncRequest)
 	if err != nil {
-		return nil
+		return err
 	}
 	mtx := ctx.TX
 

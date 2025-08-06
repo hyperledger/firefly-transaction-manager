@@ -41,7 +41,7 @@ func TestPatchTransaction(t *testing.T) {
 	mockUpdate := &apitypes.TXUpdatesExternal{
 		Gas: fftypes.NewFFBigInt(10003),
 	}
-	mth.On("HandleTransactionUpdate", mock.Anything, tx.ID, mockUpdate).Return(tx, nil).Once()
+	mth.On("HandleTransactionUpdate", mock.Anything, tx.ID, *mockUpdate).Return(tx, nil).Once()
 	m.txHandler = &mth
 
 	var txOut *apitypes.ManagedTX
@@ -64,7 +64,7 @@ func TestPatchTransactionFailed(t *testing.T) {
 	mockUpdate := &apitypes.TXUpdatesExternal{
 		Gas: fftypes.NewFFBigInt(10003),
 	}
-	mth.On("HandleTransactionUpdate", mock.Anything, "1234", mockUpdate).Return(nil, fmt.Errorf("error")).Once()
+	mth.On("HandleTransactionUpdate", mock.Anything, "1234", *mockUpdate).Return(nil, fmt.Errorf("error")).Once()
 	m.txHandler = &mth
 
 	var txOut *apitypes.ManagedTX

@@ -181,7 +181,7 @@ func (mtx *ManagedTX) SetSequence(i int64) {
 
 // ApplyExternalTxUpdates applies the external updates to the managed transaction
 // and returns the updates that were applied
-func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate *TXUpdatesExternal) (txUpdates TXUpdates, updated bool) {
+func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpdates TXUpdates, updated bool) {
 	txUpdates = TXUpdates{}
 
 	if txUpdate.To != nil && mtx.To != *txUpdate.To {

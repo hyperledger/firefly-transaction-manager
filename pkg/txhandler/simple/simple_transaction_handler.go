@@ -300,7 +300,7 @@ func (sth *simpleTransactionHandler) HandleSuspendTransaction(ctx context.Contex
 	return res.tx, res.err
 }
 
-func (sth *simpleTransactionHandler) HandleTransactionUpdate(ctx context.Context, txID string, updates *apitypes.TXUpdatesExternal) (mtx *apitypes.ManagedTX, err error) {
+func (sth *simpleTransactionHandler) HandleTransactionUpdate(ctx context.Context, txID string, updates apitypes.TXUpdatesExternal) (mtx *apitypes.ManagedTX, err error) {
 	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
 		requestType: ActionUpdate,
 		txID:        txID,

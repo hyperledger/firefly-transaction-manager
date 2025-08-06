@@ -115,7 +115,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 	tests := []struct {
 		name           string
 		initialTx      *ManagedTX
-		updates        *TXUpdatesExternal
+		updates        TXUpdatesExternal
 		expectedTx     *ManagedTX
 		expectedResult TXUpdates
 		expectedUpdate bool
@@ -132,7 +132,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				GasPrice:        fftypes.JSONAnyPtr(`"20000000000"`),
 				TransactionData: "0x",
 			},
-			updates: &TXUpdatesExternal{},
+			updates: TXUpdatesExternal{},
 			expectedTx: &ManagedTX{
 				TransactionHeaders: ffcapi.TransactionHeaders{
 					To:    "0x123",
@@ -153,7 +153,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					To: "0x123",
 				},
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				To: ptrTo("0x456"),
 			},
 			expectedTx: &ManagedTX{
@@ -173,7 +173,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					To: "0x123",
 				},
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				To: ptrTo("0x123"),
 			},
 			expectedTx: &ManagedTX{
@@ -191,7 +191,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Nonce: fftypes.NewFFBigInt(1),
 				},
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				Nonce: fftypes.NewFFBigInt(2),
 			},
 			expectedTx: &ManagedTX{
@@ -211,7 +211,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Nonce: fftypes.NewFFBigInt(1),
 				},
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				Nonce: fftypes.NewFFBigInt(1),
 			},
 			expectedTx: &ManagedTX{
@@ -229,7 +229,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Nonce: nil,
 				},
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				Nonce: fftypes.NewFFBigInt(1),
 			},
 			expectedTx: &ManagedTX{
@@ -249,7 +249,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Gas: fftypes.NewFFBigInt(21000),
 				},
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				Gas: fftypes.NewFFBigInt(50000),
 			},
 			expectedTx: &ManagedTX{
@@ -269,7 +269,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Gas: fftypes.NewFFBigInt(21000),
 				},
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				Gas: fftypes.NewFFBigInt(21000),
 			},
 			expectedTx: &ManagedTX{
@@ -287,7 +287,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Value: fftypes.NewFFBigInt(1000),
 				},
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				Value: fftypes.NewFFBigInt(2000),
 			},
 			expectedTx: &ManagedTX{
@@ -307,7 +307,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Value: fftypes.NewFFBigInt(1000),
 				},
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				Value: fftypes.NewFFBigInt(1000),
 			},
 			expectedTx: &ManagedTX{
@@ -323,7 +323,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			initialTx: &ManagedTX{
 				GasPrice: fftypes.JSONAnyPtr(`"20000000000"`),
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				GasPrice: fftypes.JSONAnyPtr(`"30000000000"`),
 			},
 			expectedTx: &ManagedTX{
@@ -339,7 +339,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			initialTx: &ManagedTX{
 				GasPrice: fftypes.JSONAnyPtr(`"20000000000"`),
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				GasPrice: fftypes.JSONAnyPtr(`"20000000000"`),
 			},
 			expectedTx: &ManagedTX{
@@ -353,7 +353,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			initialTx: &ManagedTX{
 				TransactionData: "0x",
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				TransactionData: ptrTo("0x123456"),
 			},
 			expectedTx: &ManagedTX{
@@ -369,7 +369,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			initialTx: &ManagedTX{
 				TransactionData: "0x123456",
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				TransactionData: ptrTo("0x123456"),
 			},
 			expectedTx: &ManagedTX{
@@ -390,7 +390,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				GasPrice:        fftypes.JSONAnyPtr(`"20000000000"`),
 				TransactionData: "0x",
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				To:              ptrTo("0x456"),
 				Nonce:           fftypes.NewFFBigInt(2),
 				Gas:             fftypes.NewFFBigInt(50000),
@@ -430,7 +430,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				GasPrice:        fftypes.JSONAnyPtr(`"20000000000"`),
 				TransactionData: "0x",
 			},
-			updates: &TXUpdatesExternal{
+			updates: TXUpdatesExternal{
 				To:    ptrTo("0x456"),
 				Nonce: fftypes.NewFFBigInt(2),
 				// Gas, Value, GasPrice, TransactionData not specified

@@ -86,7 +86,10 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 }
 
 func (m *manager) updateTransaction(ctx context.Context, txID string, txUpdate *apitypes.TXUpdatesExternal) (transaction *apitypes.ManagedTX, err error) {
-	updatedTx, err := m.txHandler.HandleTransactionUpdate(ctx, txID, txUpdate)
+	if txUpdate == nil {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgInvalidSortDirection)
+	}
+	updatedTx, err := m.txHandler.HandleTransactionUpdate(ctx, txID, *txUpdate)
 
 	if err != nil {
 		return nil, err
