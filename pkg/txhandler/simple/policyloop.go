@@ -43,10 +43,12 @@ const (
 	ActionDelete
 	ActionSuspend
 	ActionResume
+	ActionUpdate
 )
 
 type policyEngineAPIRequest struct {
 	requestType policyEngineAPIRequestType
+	txUpdates   *apitypes.TXUpdatesExternal
 	txID        string
 	startTime   time.Time
 	response    chan policyEngineAPIResponse
@@ -234,13 +236,12 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 		}
 
 		switch request.requestType {
-		case ActionDelete, ActionSuspend, ActionResume:
-			reqType := request.requestType
-			if err := sth.execPolicy(ctx, pending, &reqType); err != nil {
+		case ActionDelete, ActionSuspend, ActionResume, ActionUpdate:
+			if err := sth.execPolicy(ctx, pending, request); err != nil {
 				request.response <- policyEngineAPIResponse{err: err}
 			} else {
 				res := policyEngineAPIResponse{tx: pending.mtx, status: http.StatusAccepted}
-				if pending.remove || request.requestType == ActionResume /* always sync */ {
+				if pending.remove || request.requestType == ActionResume || request.requestType == ActionUpdate /* always sync */ {
 					res.status = http.StatusOK // synchronously completed
 				}
 				request.response <- res
@@ -254,7 +255,7 @@ func (sth *simpleTransactionHandler) processPolicyAPIRequests(ctx context.Contex
 
 }
 
-func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context, pending *pendingState, syncRequest *policyEngineAPIRequestType) (ctx *RunContext, err error) {
+func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context, pending *pendingState, syncRequest *policyEngineAPIRequest) (ctx *RunContext, err error) {
 
 	// Take a snapshot of the pending state under the lock
 	pending.mux.Lock()
@@ -272,13 +273,24 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 	confirmNotify := pending.confirmNotify
 	receiptNotify := pending.receiptNotify
 	if syncRequest != nil {
-		ctx.SyncAction = *syncRequest
+		ctx.SyncAction = syncRequest.requestType
+		if syncRequest.requestType == ActionUpdate {
+			txUpdates, updated := mtx.ApplyExternalTxUpdates(syncRequest.txUpdates)
+			if updated {
+				// persist the updated transaction information
+				// and process the transaction in the policy loop cycle
+				ctx.TXUpdates = txUpdates
+				ctx.UpdateType = Update
+				ctx.ProcessTx = true
+			}
+		}
 	}
 
 	if ctx.SyncAction == ActionDelete && mtx.DeleteRequested == nil {
 		mtx.DeleteRequested = fftypes.Now()
 		ctx.UpdateType = Update // might change to delete later
 		ctx.TXUpdates.DeleteRequested = mtx.DeleteRequested
+		ctx.ProcessTx = true
 	}
 
 	// Process any state updates that were queued to us from notifications from the confirmation manager
@@ -315,7 +327,7 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 	return ctx, nil
 }
 
-func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending *pendingState, syncRequest *policyEngineAPIRequestType) (err error) {
+func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending *pendingState, syncRequest *policyEngineAPIRequest) (err error) {
 
 	ctx, err := sth.pendingToRunContext(baseCtx, pending, syncRequest)
 	if err != nil {
@@ -355,8 +367,9 @@ func (sth *simpleTransactionHandler) execPolicy(baseCtx context.Context, pending
 		// We get woken for lots of reasons to go through the policy loop, but we only want
 		// to drive the policy engine at regular intervals.
 		// So we track the last time we ran the policy engine against each pending item.
-		// We always call the policy engine on every loop, when deletion has been requested.
-		if ctx.SyncAction == ActionDelete || time.Since(pending.lastPolicyCycle) > sth.policyLoopInterval {
+		// We always call the policy engine on every loop, when transaction update affects
+		// the in-flight transaction process. (ctx.ProcessTx is set to true)
+		if ctx.ProcessTx || time.Since(pending.lastPolicyCycle) > sth.policyLoopInterval {
 			// Pass the state to the pluggable policy engine to potentially perform more actions against it,
 			// such as submitting for the first time, or raising the gas etc.
 

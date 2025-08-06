@@ -219,6 +219,36 @@ func (_m *TransactionHandler) HandleTransactionReceiptReceived(ctx context.Conte
 	return r0
 }
 
+// HandleTransactionUpdate provides a mock function with given fields: ctx, txID, update
+func (_m *TransactionHandler) HandleTransactionUpdate(ctx context.Context, txID string, update *apitypes.TXUpdatesExternal) (*apitypes.ManagedTX, error) {
+	ret := _m.Called(ctx, txID, update)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HandleTransactionUpdate")
+	}
+
+	var r0 *apitypes.ManagedTX
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, *apitypes.TXUpdatesExternal) (*apitypes.ManagedTX, error)); ok {
+		return rf(ctx, txID, update)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, *apitypes.TXUpdatesExternal) *apitypes.ManagedTX); ok {
+		r0 = rf(ctx, txID, update)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*apitypes.ManagedTX)
+		}
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string, *apitypes.TXUpdatesExternal) error); ok {
+		r1 = rf(ctx, txID, update)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
 // Init provides a mock function with given fields: ctx, toolkit
 func (_m *TransactionHandler) Init(ctx context.Context, toolkit *txhandler.Toolkit) {
 	_m.Called(ctx, toolkit)

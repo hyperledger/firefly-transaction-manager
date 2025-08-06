@@ -896,6 +896,62 @@ func TestExecPolicyDeleteInflightSync(t *testing.T) {
 	assert.True(t, sth.inflight[0].remove)
 
 	mp.AssertExpectations(t)
+}
+
+func TestUpdateTransactionInflightSync(t *testing.T) {
+	f, tk, _, conf := newTestTransactionHandlerFactory(t)
+	conf.Set(FixedGasPrice, `12345`)
+
+	th, err := f.NewTransactionHandler(context.Background(), conf)
+	assert.NoError(t, err)
+
+	sth := th.(*simpleTransactionHandler)
+	sth.ctx = context.Background()
+	sth.Init(sth.ctx, tk)
+	eh := &fftm.ManagedTransactionEventHandler{
+		Ctx:       context.Background(),
+		TxHandler: sth,
+	}
+	mc := &confirmationsmocks.Manager{}
+	mc.On("Notify", mock.Anything).Return(nil)
+	eh.ConfirmationManager = mc
+	mws := &wsmocks.WebSocketServer{}
+	mws.On("SendReply", mock.Anything).Return(nil).Maybe()
+
+	eh.WsServer = mws
+	sth.toolkit.EventHandler = eh
+	mp := sth.toolkit.TXPersistence.(*persistencemocks.Persistence)
+	mp.On("InsertTransactionWithNextNonce", sth.ctx, mock.Anything, mock.Anything).Return(nil, nil).Once()
+	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mp.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, apitypes.TxActionRetrieveGasPrice, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mp.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, apitypes.TxActionSubmitTransaction, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	tx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
+	sth.inflight = []*pendingState{{mtx: tx}}
+	mp.On("UpdateTransaction", mock.Anything, tx.ID, mock.Anything).Return(nil)
+
+	mfc := sth.toolkit.Connector.(*ffcapimocks.API)
+	mfc.On("TransactionSend", mock.Anything, mock.Anything).Return(&ffcapi.TransactionSendResponse{
+		TransactionHash: fftypes.NewRandB32().String(),
+	}, ffcapi.ErrorReason(""), nil).Once()
+
+	req := &policyEngineAPIRequest{
+		requestType: ActionUpdate,
+		txID:        tx.ID,
+		txUpdates: &apitypes.TXUpdatesExternal{
+			Nonce: fftypes.NewFFBigInt(1001),
+		},
+		response: make(chan policyEngineAPIResponse, 1),
+	}
+	sth.policyEngineAPIRequests = append(sth.policyEngineAPIRequests, req)
+
+	sth.processPolicyAPIRequests(sth.ctx)
+
+	res := <-req.response
+	assert.NoError(t, res.err)
+	assert.Equal(t, http.StatusOK, res.status)
+	assert.True(t, sth.inflight[0].mtx.Nonce.Equals(fftypes.NewFFBigInt(1001)))
+
+	mp.AssertExpectations(t)
 
 }
 

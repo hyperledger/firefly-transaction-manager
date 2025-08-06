@@ -179,6 +179,57 @@ func (mtx *ManagedTX) SetSequence(i int64) {
 	mtx.SequenceID = fmt.Sprintf("%.12d", i)
 }
 
+// ApplyExternalTxUpdates applies the external updates to the managed transaction
+// and returns the updates that were applied
+func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate *TXUpdatesExternal) (txUpdates TXUpdates, updated bool) {
+	txUpdates = TXUpdates{}
+
+	if txUpdate.To != nil && mtx.To != *txUpdate.To {
+		mtx.To = *txUpdate.To
+		txUpdates.To = txUpdate.To
+		updated = true
+	}
+
+	if txUpdate.Nonce != nil {
+		if mtx.Nonce == nil || mtx.Nonce.Int().Cmp(txUpdate.Nonce.Int()) != 0 {
+			mtx.Nonce = txUpdate.Nonce
+			txUpdates.Nonce = txUpdate.Nonce
+			updated = true
+		}
+	}
+	if txUpdate.Gas != nil {
+		if mtx.Gas == nil || mtx.Gas.Int().Cmp(txUpdate.Gas.Int()) != 0 {
+			mtx.Gas = txUpdate.Gas
+			txUpdates.Gas = txUpdate.Gas
+			updated = true
+		}
+	}
+
+	if txUpdate.Value != nil {
+		if mtx.Value == nil || mtx.Value.Int().Cmp(txUpdate.Value.Int()) != 0 {
+			mtx.Value = txUpdate.Value
+			txUpdates.Value = txUpdate.Value
+			updated = true
+		}
+	}
+
+	if txUpdate.GasPrice != nil {
+		if mtx.GasPrice == nil || mtx.GasPrice.String() != txUpdate.GasPrice.String() {
+			mtx.GasPrice = txUpdate.GasPrice
+			txUpdates.GasPrice = txUpdate.GasPrice
+			updated = true
+		}
+	}
+
+	if txUpdate.TransactionData != nil && mtx.TransactionData != *txUpdate.TransactionData {
+		mtx.TransactionData = *txUpdate.TransactionData
+		txUpdates.TransactionData = txUpdate.TransactionData
+		updated = true
+	}
+
+	return txUpdates, updated
+}
+
 // TXUpdates specifies a set of updates that are possible on the base structure.
 //
 // Any non-nil fields will be set.
@@ -206,6 +257,15 @@ type TXUpdates struct {
 	FirstSubmit     *fftypes.FFTime   `json:"firstSubmit,omitempty"`
 	LastSubmit      *fftypes.FFTime   `json:"lastSubmit,omitempty"`
 	ErrorMessage    *string           `json:"errorMessage,omitempty"`
+}
+
+type TXUpdatesExternal struct {
+	To              *string           `json:"to,omitempty"`
+	Nonce           *fftypes.FFBigInt `json:"nonce,omitempty"`
+	Gas             *fftypes.FFBigInt `json:"gas,omitempty"`
+	Value           *fftypes.FFBigInt `json:"value,omitempty"`
+	GasPrice        *fftypes.JSONAny  `json:"gasPrice,omitempty"`
+	TransactionData *string           `json:"transactionData,omitempty"`
 }
 
 type TXCompletion struct {

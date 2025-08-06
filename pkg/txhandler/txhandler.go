@@ -171,6 +171,8 @@ type TransactionHandler interface {
 	HandleSuspendTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
 	// HandleResumeTransaction - handles event of resuming a suspended managed transaction
 	HandleResumeTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
+	// HandleTransactionUpdate - handles event of updating a managed transaction
+	HandleTransactionUpdate(ctx context.Context, txID string, update *apitypes.TXUpdatesExternal) (mtx *apitypes.ManagedTX, err error)
 
 	// Informational events:
 	// HandleTransactionConfirmations - handles confirmations of blockchain transactions for a managed transaction
