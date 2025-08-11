@@ -973,6 +973,7 @@ func TestUpdateTransactionInflightSync(t *testing.T) {
 	mp.On("AddSubStatusAction", sth.ctx, mock.Anything, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mp.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, apitypes.TxActionRetrieveGasPrice, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	mp.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, apitypes.TxActionSubmitTransaction, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mp.On("AddSubStatusAction", mock.Anything, mock.Anything, mock.Anything, apitypes.TxActionExternalUpdate, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	tx := sendSampleTX(t, sth, "0xaaaaa", 12345, "")
 	sth.inflight = []*pendingState{{mtx: tx}}
 	mp.On("UpdateTransaction", mock.Anything, tx.ID, mock.Anything).Return(nil)

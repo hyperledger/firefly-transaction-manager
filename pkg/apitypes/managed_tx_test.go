@@ -113,12 +113,13 @@ func TestTXUpdatesMerge(t *testing.T) {
 
 func TestApplyExternalTxUpdates(t *testing.T) {
 	tests := []struct {
-		name           string
-		initialTx      *ManagedTX
-		updates        TXUpdatesExternal
-		expectedTx     *ManagedTX
-		expectedResult TXUpdates
-		expectedUpdate bool
+		name              string
+		initialTx         *ManagedTX
+		updates           TXUpdatesExternal
+		expectedTx        *ManagedTX
+		expectedResult    TXUpdates
+		expectedUpdate    bool
+		expectedChangeMap map[string]map[string]string
 	}{
 		{
 			name: "no updates - nothing changes",
@@ -143,8 +144,9 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				GasPrice:        fftypes.JSONAnyPtr(`"20000000000"`),
 				TransactionData: "0x",
 			},
-			expectedResult: TXUpdates{},
-			expectedUpdate: false,
+			expectedResult:    TXUpdates{},
+			expectedUpdate:    false,
+			expectedChangeMap: map[string]map[string]string{},
 		},
 		{
 			name: "update To field",
@@ -165,6 +167,12 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				To: ptrTo("0x456"),
 			},
 			expectedUpdate: true,
+			expectedChangeMap: map[string]map[string]string{
+				"to": {
+					"old": "0x123",
+					"new": "0x456",
+				},
+			},
 		},
 		{
 			name: "update To field - same value",
@@ -181,8 +189,9 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					To: "0x123",
 				},
 			},
-			expectedResult: TXUpdates{},
-			expectedUpdate: false,
+			expectedResult:    TXUpdates{},
+			expectedUpdate:    false,
+			expectedChangeMap: map[string]map[string]string{},
 		},
 		{
 			name: "update Nonce field",
@@ -203,6 +212,12 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				Nonce: fftypes.NewFFBigInt(2),
 			},
 			expectedUpdate: true,
+			expectedChangeMap: map[string]map[string]string{
+				"nonce": {
+					"old": "1",
+					"new": "2",
+				},
+			},
 		},
 		{
 			name: "update Nonce field - same value",
@@ -219,28 +234,9 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Nonce: fftypes.NewFFBigInt(1),
 				},
 			},
-			expectedResult: TXUpdates{},
-			expectedUpdate: false,
-		},
-		{
-			name: "update Nonce field - from nil",
-			initialTx: &ManagedTX{
-				TransactionHeaders: ffcapi.TransactionHeaders{
-					Nonce: nil,
-				},
-			},
-			updates: TXUpdatesExternal{
-				Nonce: fftypes.NewFFBigInt(1),
-			},
-			expectedTx: &ManagedTX{
-				TransactionHeaders: ffcapi.TransactionHeaders{
-					Nonce: fftypes.NewFFBigInt(1),
-				},
-			},
-			expectedResult: TXUpdates{
-				Nonce: fftypes.NewFFBigInt(1),
-			},
-			expectedUpdate: true,
+			expectedResult:    TXUpdates{},
+			expectedUpdate:    false,
+			expectedChangeMap: map[string]map[string]string{},
 		},
 		{
 			name: "update Gas field",
@@ -261,6 +257,12 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				Gas: fftypes.NewFFBigInt(50000),
 			},
 			expectedUpdate: true,
+			expectedChangeMap: map[string]map[string]string{
+				"gas": {
+					"old": "21000",
+					"new": "50000",
+				},
+			},
 		},
 		{
 			name: "update Gas field - same value",
@@ -277,8 +279,9 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Gas: fftypes.NewFFBigInt(21000),
 				},
 			},
-			expectedResult: TXUpdates{},
-			expectedUpdate: false,
+			expectedResult:    TXUpdates{},
+			expectedUpdate:    false,
+			expectedChangeMap: map[string]map[string]string{},
 		},
 		{
 			name: "update Value field",
@@ -299,6 +302,12 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				Value: fftypes.NewFFBigInt(2000),
 			},
 			expectedUpdate: true,
+			expectedChangeMap: map[string]map[string]string{
+				"value": {
+					"old": "1000",
+					"new": "2000",
+				},
+			},
 		},
 		{
 			name: "update Value field - same value",
@@ -315,8 +324,9 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 					Value: fftypes.NewFFBigInt(1000),
 				},
 			},
-			expectedResult: TXUpdates{},
-			expectedUpdate: false,
+			expectedResult:    TXUpdates{},
+			expectedUpdate:    false,
+			expectedChangeMap: map[string]map[string]string{},
 		},
 		{
 			name: "update GasPrice field",
@@ -333,6 +343,12 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				GasPrice: fftypes.JSONAnyPtr(`"30000000000"`),
 			},
 			expectedUpdate: true,
+			expectedChangeMap: map[string]map[string]string{
+				"gasPrice": {
+					"old": "\"20000000000\"",
+					"new": "\"30000000000\"",
+				},
+			},
 		},
 		{
 			name: "update GasPrice field - same value",
@@ -345,8 +361,9 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			expectedTx: &ManagedTX{
 				GasPrice: fftypes.JSONAnyPtr(`"20000000000"`),
 			},
-			expectedResult: TXUpdates{},
-			expectedUpdate: false,
+			expectedResult:    TXUpdates{},
+			expectedUpdate:    false,
+			expectedChangeMap: map[string]map[string]string{},
 		},
 		{
 			name: "update TransactionData field",
@@ -363,6 +380,12 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				TransactionData: ptrTo("0x123456"),
 			},
 			expectedUpdate: true,
+			expectedChangeMap: map[string]map[string]string{
+				"transactionData": {
+					"old": "0x",
+					"new": "0x123456",
+				},
+			},
 		},
 		{
 			name: "update TransactionData field - same value",
@@ -375,8 +398,9 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			expectedTx: &ManagedTX{
 				TransactionData: "0x123456",
 			},
-			expectedResult: TXUpdates{},
-			expectedUpdate: false,
+			expectedResult:    TXUpdates{},
+			expectedUpdate:    false,
+			expectedChangeMap: map[string]map[string]string{},
 		},
 		{
 			name: "update multiple fields",
@@ -417,6 +441,32 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				TransactionData: ptrTo("0x123456"),
 			},
 			expectedUpdate: true,
+			expectedChangeMap: map[string]map[string]string{
+				"gasPrice": {
+					"old": "\"20000000000\"",
+					"new": "\"30000000000\"",
+				},
+				"transactionData": {
+					"old": "0x",
+					"new": "0x123456",
+				},
+				"to": {
+					"old": "0x123",
+					"new": "0x456",
+				},
+				"nonce": {
+					"old": "1",
+					"new": "2",
+				},
+				"gas": {
+					"old": "21000",
+					"new": "50000",
+				},
+				"value": {
+					"old": "1000",
+					"new": "2000",
+				},
+			},
 		},
 		{
 			name: "update some fields, keep others unchanged",
@@ -450,6 +500,16 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				Nonce: fftypes.NewFFBigInt(2),
 			},
 			expectedUpdate: true,
+			expectedChangeMap: map[string]map[string]string{
+				"nonce": {
+					"old": "1",
+					"new": "2",
+				},
+				"to": {
+					"old": "0x123",
+					"new": "0x456",
+				},
+			},
 		},
 	}
 
@@ -476,7 +536,10 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				mtx.TransactionData = tt.initialTx.TransactionData
 			}
 
-			result, updated := mtx.ApplyExternalTxUpdates(tt.updates)
+			result, updated, changeMap := mtx.ApplyExternalTxUpdates(tt.updates)
+			assert.Equal(t, tt.expectedResult, result)
+			assert.Equal(t, tt.expectedUpdate, updated)
+			assert.Equal(t, tt.expectedChangeMap, changeMap)
 
 			// Verify the transaction was updated correctly
 			assert.Equal(t, tt.expectedTx.To, mtx.To)

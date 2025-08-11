@@ -278,12 +278,15 @@ func (sth *simpleTransactionHandler) pendingToRunContext(baseCtx context.Context
 			if syncRequest.txUpdates.GasPrice != nil {
 				return nil, i18n.NewError(ctx, tmmsgs.MsgTxHandlerUnsupportedFieldForUpdate, "gasPrice")
 			}
-			txUpdates, updated := mtx.ApplyExternalTxUpdates(syncRequest.txUpdates)
+			txUpdates, updated, valueChangeMap := mtx.ApplyExternalTxUpdates(syncRequest.txUpdates)
 			if updated {
 				// persist the updated transaction information
 				// and process the transaction in the policy loop cycle
 				ctx.TXUpdates = txUpdates
 				ctx.UpdateType = Update
+				// Record the valueChangeMap as the info json
+				infoJSON, _ := json.Marshal(valueChangeMap)
+				ctx.AddSubStatusAction(apitypes.TxActionExternalUpdate, fftypes.JSONAnyPtr(string(infoJSON)), nil, fftypes.Now())
 				ctx.ProcessTx = true
 			}
 		}

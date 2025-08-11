@@ -79,6 +79,8 @@ type TxAction string
 const (
 	// TxActionStateTransition is a special value used for state transition entries, which are created using SetSubStatus
 	TxActionStateTransition TxAction = "StateTransition"
+	// TxActionExternalUpdate is used to record updates to the transaction through API calls
+	TxActionExternalUpdate TxAction = "ExternalUpdate"
 	// TxActionAssignNonce indicates that a nonce has been assigned to the transaction
 	TxActionAssignNonce TxAction = "AssignNonce"
 	// TxActionRetrieveGasPrice indicates the operation is getting a gas price
@@ -181,10 +183,18 @@ func (mtx *ManagedTX) SetSequence(i int64) {
 
 // ApplyExternalTxUpdates applies the external updates to the managed transaction
 // and returns the updates that were applied
-func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpdates TXUpdates, updated bool) {
+// ApplyExternalTxUpdates applies the external updates to the managed transaction
+// and returns the updates that were applied, whether any update occurred, and a map
+// of changed fields with their old and new values for easy JSON marshalling.
+func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpdates TXUpdates, updated bool, valueChangeMap map[string]map[string]string) {
 	txUpdates = TXUpdates{}
+	valueChangeMap = make(map[string]map[string]string)
 
 	if txUpdate.To != nil && mtx.To != *txUpdate.To {
+		valueChangeMap["to"] = map[string]string{
+			"old": mtx.To,
+			"new": *txUpdate.To,
+		}
 		mtx.To = *txUpdate.To
 		txUpdates.To = txUpdate.To
 		updated = true
@@ -192,6 +202,10 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 
 	if txUpdate.Nonce != nil {
 		if mtx.Nonce == nil || mtx.Nonce.Int().Cmp(txUpdate.Nonce.Int()) != 0 {
+			valueChangeMap["nonce"] = map[string]string{
+				"old": mtx.Nonce.String(),
+				"new": txUpdate.Nonce.String(),
+			}
 			mtx.Nonce = txUpdate.Nonce
 			txUpdates.Nonce = txUpdate.Nonce
 			updated = true
@@ -199,6 +213,10 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 	}
 	if txUpdate.Gas != nil {
 		if mtx.Gas == nil || mtx.Gas.Int().Cmp(txUpdate.Gas.Int()) != 0 {
+			valueChangeMap["gas"] = map[string]string{
+				"old": mtx.Gas.String(),
+				"new": txUpdate.Gas.String(),
+			}
 			mtx.Gas = txUpdate.Gas
 			txUpdates.Gas = txUpdate.Gas
 			updated = true
@@ -207,6 +225,10 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 
 	if txUpdate.Value != nil {
 		if mtx.Value == nil || mtx.Value.Int().Cmp(txUpdate.Value.Int()) != 0 {
+			valueChangeMap["value"] = map[string]string{
+				"old": mtx.Value.String(),
+				"new": txUpdate.Value.String(),
+			}
 			mtx.Value = txUpdate.Value
 			txUpdates.Value = txUpdate.Value
 			updated = true
@@ -215,6 +237,10 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 
 	if txUpdate.GasPrice != nil {
 		if mtx.GasPrice == nil || mtx.GasPrice.String() != txUpdate.GasPrice.String() {
+			valueChangeMap["gasPrice"] = map[string]string{
+				"old": mtx.GasPrice.String(),
+				"new": txUpdate.GasPrice.String(),
+			}
 			mtx.GasPrice = txUpdate.GasPrice
 			txUpdates.GasPrice = txUpdate.GasPrice
 			updated = true
@@ -222,12 +248,16 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 	}
 
 	if txUpdate.TransactionData != nil && mtx.TransactionData != *txUpdate.TransactionData {
+		valueChangeMap["transactionData"] = map[string]string{
+			"old": mtx.TransactionData,
+			"new": *txUpdate.TransactionData,
+		}
 		mtx.TransactionData = *txUpdate.TransactionData
 		txUpdates.TransactionData = txUpdate.TransactionData
 		updated = true
 	}
 
-	return txUpdates, updated
+	return txUpdates, updated, valueChangeMap
 }
 
 // TXUpdates specifies a set of updates that are possible on the base structure.
