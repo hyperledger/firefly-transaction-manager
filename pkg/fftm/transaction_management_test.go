@@ -35,15 +35,15 @@ func TestReconcileConfirmationsForTransaction(t *testing.T) {
 	mFFC := m.connector.(*ffcapimocks.API)
 
 	mFFC.On("ReconcileConfirmationsForTransaction", m.ctx, "0x1234567890", &ffcapi.ConfirmationMap{
-		ConfirmationQueueMap: make(map[string][]*ffcapi.Confirmation),
+		ConfirmationQueueMap: make(map[string][]*ffcapi.MinimalBlockInfo),
 	}, 1).Return(&ffcapi.ConfirmationMapUpdateResult{
 		ConfirmationMap: &ffcapi.ConfirmationMap{
-			ConfirmationQueueMap: make(map[string][]*ffcapi.Confirmation),
+			ConfirmationQueueMap: make(map[string][]*ffcapi.MinimalBlockInfo),
 		},
 	}, nil)
 
 	_, err := m.ReconcileConfirmationsForTransaction(m.ctx, "0x1234567890", &ffcapi.ConfirmationMap{
-		ConfirmationQueueMap: make(map[string][]*ffcapi.Confirmation),
+		ConfirmationQueueMap: make(map[string][]*ffcapi.MinimalBlockInfo),
 	}, 1)
 	assert.NoError(t, err)
 }
