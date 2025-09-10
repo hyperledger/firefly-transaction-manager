@@ -36,7 +36,7 @@ func TestReconcileConfirmationsForTransaction(t *testing.T) {
 
 	mFFC.On("ReconcileConfirmationsForTransaction", m.ctx, "0x1234567890", &ffcapi.ConfirmationMap{
 		ConfirmationQueueMap: make(map[string][]*ffcapi.MinimalBlockInfo),
-	}, 1).Return(&ffcapi.ConfirmationMapUpdateResult{
+	}, uint64(1)).Return(&ffcapi.ConfirmationMapUpdateResult{
 		ConfirmationMap: &ffcapi.ConfirmationMap{
 			ConfirmationQueueMap: make(map[string][]*ffcapi.MinimalBlockInfo),
 		},
@@ -44,7 +44,7 @@ func TestReconcileConfirmationsForTransaction(t *testing.T) {
 
 	_, err := m.ReconcileConfirmationsForTransaction(m.ctx, "0x1234567890", &ffcapi.ConfirmationMap{
 		ConfirmationQueueMap: make(map[string][]*ffcapi.MinimalBlockInfo),
-	}, 1)
+	}, uint64(1))
 	assert.NoError(t, err)
 }
 
