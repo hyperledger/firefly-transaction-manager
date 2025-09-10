@@ -21,11 +21,32 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/hyperledger/firefly-transaction-manager/mocks/ffcapimocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/persistencemocks"
 	"github.com/hyperledger/firefly-transaction-manager/mocks/txhandlermocks"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+func TestReconcileConfirmationsForTransaction(t *testing.T) {
+	_, m, done := newTestManager(t)
+	defer done()
+	mFFC := m.connector.(*ffcapimocks.API)
+
+	mFFC.On("ReconcileConfirmationsForTransaction", m.ctx, "0x1234567890", &ffcapi.ConfirmationMap{
+		ConfirmationQueueMap: make(map[string][]*ffcapi.Confirmation),
+	}, 1).Return(&ffcapi.ConfirmationMapUpdateResult{
+		ConfirmationMap: &ffcapi.ConfirmationMap{
+			ConfirmationQueueMap: make(map[string][]*ffcapi.Confirmation),
+		},
+	}, nil)
+
+	_, err := m.ReconcileConfirmationsForTransaction(m.ctx, "0x1234567890", &ffcapi.ConfirmationMap{
+		ConfirmationQueueMap: make(map[string][]*ffcapi.Confirmation),
+	}, 1)
+	assert.NoError(t, err)
+}
 
 func TestGetTransactionErrors(t *testing.T) {
 

@@ -85,11 +85,46 @@ type API interface {
 	// NewBlockListener creates a new block listener, decoupled from an event stream
 	NewBlockListener(ctx context.Context, req *NewBlockListenerRequest) (*NewBlockListenerResponse, ErrorReason, error)
 
+	// ReconcileConfirmationsForTransaction reconciles the confirmations for a transaction hash
+	ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, confirmMap *ConfirmationMap, targetConfirmationCount int) (*ConfirmationMapUpdateResult, error)
+
 	// IsLive confirms if the connector up and running
 	IsLive(ctx context.Context) (*LiveResponse, ErrorReason, error)
 
 	// IsReady confirms if the connector is connected to the downstream JSONRPC endpoint and therefore ready to receive traffic
 	IsReady(ctx context.Context) (*ReadyResponse, ErrorReason, error)
+}
+
+type ConfirmationMapUpdateResult struct {
+	*ConfirmationMap
+	HasNewFork              bool `json:"hasNewFork,omitempty"`         // when set to true, it means a fork is detected based on the existing confirmations
+	Rebuilt                 bool `json:"rebuilt,omitempty"`            // when set to true, it means all of the existing confirmations are discarded
+	HasNewConfirmation      bool `json:"hasNewConfirmation,omitempty"` // when set to true, it means new blocks from canonical chain are added to the confirmation queue
+	Confirmed               bool `json:"confirmed,omitempty"`          // when set to true, it means the confirmation queue is complete and all the blocks are confirmed
+	TargetConfirmationCount int  `json:"targetConfirmationCount"`      // the target number of confirmations for this event
+}
+
+type ConfirmationMap struct {
+	// confirmation map is contains a list of possible confirmations for a transaction
+	// the key is the hash of the first block that contains the transaction hash
+	// the first block is the block that contains the transaction hash
+	ConfirmationQueueMap map[string][]*Confirmation `json:"confirmationQueueMap,omitempty"`
+	// which block hash that leads a confirmation queue matches the canonical block hash
+	CanonicalBlockHash string `json:"canonicalBlockHash,omitempty"`
+}
+
+type Confirmation struct { // duplicate of apitypes.Confirmation due to circular dependency
+	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
+	BlockHash   string           `json:"blockHash"`
+	ParentHash  string           `json:"parentHash"`
+}
+
+func (c *Confirmation) Equal(other *Confirmation) bool {
+	return c.BlockNumber == other.BlockNumber && c.BlockHash == other.BlockHash && c.ParentHash == other.ParentHash
+}
+
+func (c *Confirmation) IsParentOf(other *Confirmation) bool {
+	return c.BlockHash == other.ParentHash && c.BlockNumber+1 == other.BlockNumber
 }
 
 type BlockHashEvent struct {
