@@ -86,7 +86,7 @@ type API interface {
 	NewBlockListener(ctx context.Context, req *NewBlockListenerRequest) (*NewBlockListenerResponse, ErrorReason, error)
 
 	// ReconcileConfirmationsForTransaction reconciles the confirmations for a transaction hash
-	ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, confirmMap *ConfirmationMap, targetConfirmationCount int) (*ConfirmationMapUpdateResult, error)
+	ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, confirmMap *ConfirmationMap, targetConfirmationCount uint64) (*ConfirmationMapUpdateResult, error)
 
 	// IsLive confirms if the connector up and running
 	IsLive(ctx context.Context) (*LiveResponse, ErrorReason, error)
@@ -97,11 +97,11 @@ type API interface {
 
 type ConfirmationMapUpdateResult struct {
 	*ConfirmationMap
-	HasNewFork              bool             `json:"hasNewFork,omitempty"`         // when set to true, it means a fork is detected based on the existing confirmations
-	Rebuilt                 bool             `json:"rebuilt,omitempty"`            // when set to true, it means all of the existing confirmations are discarded
-	HasNewConfirmation      bool             `json:"hasNewConfirmation,omitempty"` // when set to true, it means new blocks from canonical chain are added to the confirmation queue
-	Confirmed               bool             `json:"confirmed,omitempty"`          // when set to true, it means the confirmation queue is complete and all the blocks are confirmed
-	TargetConfirmationCount fftypes.FFuint64 `json:"targetConfirmationCount"`      // the target number of confirmations for this event
+	HasNewFork              bool   `json:"hasNewFork,omitempty"`         // when set to true, it means a fork is detected based on the existing confirmations
+	Rebuilt                 bool   `json:"rebuilt,omitempty"`            // when set to true, it means all of the existing confirmations are discarded
+	HasNewConfirmation      bool   `json:"hasNewConfirmation,omitempty"` // when set to true, it means new blocks from canonical chain are added to the confirmation queue
+	Confirmed               bool   `json:"confirmed,omitempty"`          // when set to true, it means the confirmation queue is complete and all the blocks are confirmed
+	TargetConfirmationCount uint64 `json:"targetConfirmationCount"`      // the target number of confirmations for this event
 }
 
 type ConfirmationMap struct {

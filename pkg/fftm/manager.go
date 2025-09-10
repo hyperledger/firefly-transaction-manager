@@ -75,7 +75,7 @@ type Manager interface {
 
 	// Ability to reconcile confirmations for a transaction
 	// This function uses the single in-memory canonical chain to check and build the confirmation map of a given transaction hash
-	ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, confirmMap *ffcapi.ConfirmationMap, targetConfirmationCount int) (*ffcapi.ConfirmationMapUpdateResult, error)
+	ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, confirmMap *ffcapi.ConfirmationMap, targetConfirmationCount uint64) (*ffcapi.ConfirmationMapUpdateResult, error)
 
 	// Ability to submit new transactions into the transaction handler for management/submission
 	TransactionHandler() txhandler.TransactionHandler

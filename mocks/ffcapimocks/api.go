@@ -664,7 +664,7 @@ func (_m *API) QueryInvoke(ctx context.Context, req *ffcapi.QueryInvokeRequest) 
 }
 
 // ReconcileConfirmationsForTransaction provides a mock function with given fields: ctx, txHash, confirmMap, targetConfirmationCount
-func (_m *API) ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, confirmMap *ffcapi.ConfirmationMap, targetConfirmationCount int) (*ffcapi.ConfirmationMapUpdateResult, error) {
+func (_m *API) ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, confirmMap *ffcapi.ConfirmationMap, targetConfirmationCount uint64) (*ffcapi.ConfirmationMapUpdateResult, error) {
 	ret := _m.Called(ctx, txHash, confirmMap, targetConfirmationCount)
 
 	if len(ret) == 0 {
@@ -673,10 +673,10 @@ func (_m *API) ReconcileConfirmationsForTransaction(ctx context.Context, txHash 
 
 	var r0 *ffcapi.ConfirmationMapUpdateResult
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.ConfirmationMap, int) (*ffcapi.ConfirmationMapUpdateResult, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.ConfirmationMap, uint64) (*ffcapi.ConfirmationMapUpdateResult, error)); ok {
 		return rf(ctx, txHash, confirmMap, targetConfirmationCount)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.ConfirmationMap, int) *ffcapi.ConfirmationMapUpdateResult); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, *ffcapi.ConfirmationMap, uint64) *ffcapi.ConfirmationMapUpdateResult); ok {
 		r0 = rf(ctx, txHash, confirmMap, targetConfirmationCount)
 	} else {
 		if ret.Get(0) != nil {
@@ -684,7 +684,7 @@ func (_m *API) ReconcileConfirmationsForTransaction(ctx context.Context, txHash 
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, *ffcapi.ConfirmationMap, int) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, *ffcapi.ConfirmationMap, uint64) error); ok {
 		r1 = rf(ctx, txHash, confirmMap, targetConfirmationCount)
 	} else {
 		r1 = ret.Error(1)
