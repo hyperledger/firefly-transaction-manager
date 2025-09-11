@@ -316,6 +316,11 @@ type TXUpdates struct {
 	ErrorMessage    *string           `json:"errorMessage,omitempty"`
 }
 
+// TXUpdatesExternal contains only the fields that are allowed to be updated through the external API
+// All field types are defined using pointer types, which allows the distinction between a field being
+// explicitly set to an empty value and not being set at all. This allows clean up of existing fields
+// e.g. { transactionData: "" } will set the transactionData field to an empty string (if different from current value),
+// while { transactionData: null } will leave the field unchanged.
 type TXUpdatesExternal struct {
 	To              *string           `json:"to,omitempty"`
 	Nonce           *fftypes.FFBigInt `json:"nonce,omitempty"`
