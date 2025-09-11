@@ -119,7 +119,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 		expectedTx        *ManagedTX
 		expectedResult    TXUpdates
 		expectedUpdate    bool
-		expectedChangeMap map[string]map[string]string
+		expectedChangeMap map[string]FieldUpdateRecord
 	}{
 		{
 			name: "no updates - nothing changes",
@@ -146,7 +146,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			},
 			expectedResult:    TXUpdates{},
 			expectedUpdate:    false,
-			expectedChangeMap: map[string]map[string]string{},
+			expectedChangeMap: map[string]FieldUpdateRecord{},
 		},
 		{
 			name: "update To field",
@@ -167,10 +167,10 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				To: ptrTo("0x456"),
 			},
 			expectedUpdate: true,
-			expectedChangeMap: map[string]map[string]string{
+			expectedChangeMap: map[string]FieldUpdateRecord{
 				"to": {
-					"old": "0x123",
-					"new": "0x456",
+					OldValue: ptrTo("0x123"),
+					NewValue: "0x456",
 				},
 			},
 		},
@@ -191,7 +191,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			},
 			expectedResult:    TXUpdates{},
 			expectedUpdate:    false,
-			expectedChangeMap: map[string]map[string]string{},
+			expectedChangeMap: map[string]FieldUpdateRecord{},
 		},
 		{
 			name: "update Nonce field",
@@ -212,10 +212,10 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				Nonce: fftypes.NewFFBigInt(2),
 			},
 			expectedUpdate: true,
-			expectedChangeMap: map[string]map[string]string{
+			expectedChangeMap: map[string]FieldUpdateRecord{
 				"nonce": {
-					"old": "1",
-					"new": "2",
+					OldValue: ptrTo("1"),
+					NewValue: "2",
 				},
 			},
 		},
@@ -236,7 +236,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			},
 			expectedResult:    TXUpdates{},
 			expectedUpdate:    false,
-			expectedChangeMap: map[string]map[string]string{},
+			expectedChangeMap: map[string]FieldUpdateRecord{},
 		},
 		{
 			name: "update Gas field",
@@ -257,10 +257,10 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				Gas: fftypes.NewFFBigInt(50000),
 			},
 			expectedUpdate: true,
-			expectedChangeMap: map[string]map[string]string{
+			expectedChangeMap: map[string]FieldUpdateRecord{
 				"gas": {
-					"old": "21000",
-					"new": "50000",
+					OldValue: ptrTo("21000"),
+					NewValue: "50000",
 				},
 			},
 		},
@@ -281,7 +281,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			},
 			expectedResult:    TXUpdates{},
 			expectedUpdate:    false,
-			expectedChangeMap: map[string]map[string]string{},
+			expectedChangeMap: map[string]FieldUpdateRecord{},
 		},
 		{
 			name: "update Value field",
@@ -302,10 +302,10 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				Value: fftypes.NewFFBigInt(2000),
 			},
 			expectedUpdate: true,
-			expectedChangeMap: map[string]map[string]string{
+			expectedChangeMap: map[string]FieldUpdateRecord{
 				"value": {
-					"old": "1000",
-					"new": "2000",
+					OldValue: ptrTo("1000"),
+					NewValue: "2000",
 				},
 			},
 		},
@@ -326,7 +326,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			},
 			expectedResult:    TXUpdates{},
 			expectedUpdate:    false,
-			expectedChangeMap: map[string]map[string]string{},
+			expectedChangeMap: map[string]FieldUpdateRecord{},
 		},
 		{
 			name: "update GasPrice field",
@@ -343,10 +343,10 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				GasPrice: fftypes.JSONAnyPtr(`"30000000000"`),
 			},
 			expectedUpdate: true,
-			expectedChangeMap: map[string]map[string]string{
+			expectedChangeMap: map[string]FieldUpdateRecord{
 				"gasPrice": {
-					"old": "\"20000000000\"",
-					"new": "\"30000000000\"",
+					OldValue: ptrTo("\"20000000000\""),
+					NewValue: "\"30000000000\"",
 				},
 			},
 		},
@@ -363,7 +363,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			},
 			expectedResult:    TXUpdates{},
 			expectedUpdate:    false,
-			expectedChangeMap: map[string]map[string]string{},
+			expectedChangeMap: map[string]FieldUpdateRecord{},
 		},
 		{
 			name: "update TransactionData field",
@@ -380,10 +380,10 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				TransactionData: ptrTo("0x123456"),
 			},
 			expectedUpdate: true,
-			expectedChangeMap: map[string]map[string]string{
+			expectedChangeMap: map[string]FieldUpdateRecord{
 				"transactionData": {
-					"old": "0x",
-					"new": "0x123456",
+					OldValue: ptrTo("0x"),
+					NewValue: "0x123456",
 				},
 			},
 		},
@@ -400,7 +400,7 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			},
 			expectedResult:    TXUpdates{},
 			expectedUpdate:    false,
-			expectedChangeMap: map[string]map[string]string{},
+			expectedChangeMap: map[string]FieldUpdateRecord{},
 		},
 		{
 			name: "update multiple fields",
@@ -441,30 +441,30 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				TransactionData: ptrTo("0x123456"),
 			},
 			expectedUpdate: true,
-			expectedChangeMap: map[string]map[string]string{
+			expectedChangeMap: map[string]FieldUpdateRecord{
 				"gasPrice": {
-					"old": "\"20000000000\"",
-					"new": "\"30000000000\"",
+					OldValue: ptrTo("\"20000000000\""),
+					NewValue: "\"30000000000\"",
 				},
 				"transactionData": {
-					"old": "0x",
-					"new": "0x123456",
+					OldValue: ptrTo("0x"),
+					NewValue: "0x123456",
 				},
 				"to": {
-					"old": "0x123",
-					"new": "0x456",
+					OldValue: ptrTo("0x123"),
+					NewValue: "0x456",
 				},
 				"nonce": {
-					"old": "1",
-					"new": "2",
+					OldValue: ptrTo("1"),
+					NewValue: "2",
 				},
 				"gas": {
-					"old": "21000",
-					"new": "50000",
+					OldValue: ptrTo("21000"),
+					NewValue: "50000",
 				},
 				"value": {
-					"old": "1000",
-					"new": "2000",
+					OldValue: ptrTo("1000"),
+					NewValue: "2000",
 				},
 			},
 		},
@@ -500,14 +500,14 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 				Nonce: fftypes.NewFFBigInt(2),
 			},
 			expectedUpdate: true,
-			expectedChangeMap: map[string]map[string]string{
+			expectedChangeMap: map[string]FieldUpdateRecord{
 				"nonce": {
-					"old": "1",
-					"new": "2",
+					OldValue: ptrTo("1"),
+					NewValue: "2",
 				},
 				"to": {
-					"old": "0x123",
-					"new": "0x456",
+					OldValue: ptrTo("0x123"),
+					NewValue: "0x456",
 				},
 			},
 		},
@@ -585,8 +585,4 @@ func TestApplyExternalTxUpdates(t *testing.T) {
 			assert.Equal(t, tt.expectedUpdate, updated)
 		})
 	}
-}
-
-func ptrTo[T any](v T) *T {
-	return &v
 }
