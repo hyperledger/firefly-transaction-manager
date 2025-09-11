@@ -63,6 +63,7 @@ var (
 	APIEndpointPostSubscriptions            = ffm("api.endpoints.post.subscriptions", "Create new listener - route deprecated in favor of /eventstreams/{streamId}/listeners")
 	APIEndpointPostTransactionSuspend       = ffm("api.endpoints.post.transactions.suspend", "Suspend processing on a pending transaction (no-op for completed transactions)")
 	APIEndpointPostTransactionResume        = ffm("api.endpoints.post.transactions.resume", "Resume processing on a suspended transaction")
+	APIEndpointPatchTransaction             = ffm("api.endpoints.patch.transactions", "Update a transaction")
 
 	APIParamStreamID      = ffm("api.params.streamId", "Event Stream ID")
 	APIParamListenerID    = ffm("api.params.listenerId", "Listener ID")

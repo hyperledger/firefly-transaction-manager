@@ -1,4 +1,4 @@
-// Copyright © 2023 Kaleido, Inc.
+// Copyright © 2023 - 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -87,6 +87,20 @@ func (m *manager) getTransactions(ctx context.Context, afterStr, limitStr, signe
 	default:
 		return m.persistence.ListTransactionsByCreateTime(ctx, afterTx, limit, dir)
 	}
+
+}
+
+func (m *manager) updateTransaction(ctx context.Context, txID string, txUpdate *apitypes.TXUpdatesExternal) (transaction *apitypes.ManagedTX, err error) {
+	if txUpdate == nil {
+		return nil, i18n.NewError(ctx, tmmsgs.MsgInvalidSortDirection)
+	}
+	updatedTx, err := m.txHandler.HandleTransactionUpdate(ctx, txID, *txUpdate)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return updatedTx, nil
 
 }
 

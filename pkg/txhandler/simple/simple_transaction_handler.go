@@ -1,4 +1,4 @@
-// Copyright © 2024 Kaleido, Inc.
+// Copyright © 2024 - 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -67,6 +67,7 @@ type RunContext struct {
 	Confirmations *apitypes.ConfirmationsNotification
 	Confirmed     bool
 	SyncAction    policyEngineAPIRequestType
+	ProcessTx     bool
 	// Input/output
 	SubStatus apitypes.TxSubStatus
 	Info      *simplePolicyInfo // must be updated in-place and set UpdatedInfo to true as well as UpdateType = Update
@@ -295,6 +296,15 @@ func (sth *simpleTransactionHandler) HandleSuspendTransaction(ctx context.Contex
 	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
 		requestType: ActionSuspend,
 		txID:        txID,
+	})
+	return res.tx, res.err
+}
+
+func (sth *simpleTransactionHandler) HandleTransactionUpdate(ctx context.Context, txID string, updates apitypes.TXUpdatesExternal) (mtx *apitypes.ManagedTX, err error) {
+	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
+		requestType: ActionUpdate,
+		txID:        txID,
+		txUpdates:   updates,
 	})
 	return res.tx, res.err
 }
