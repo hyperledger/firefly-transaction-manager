@@ -85,11 +85,50 @@ type API interface {
 	// NewBlockListener creates a new block listener, decoupled from an event stream
 	NewBlockListener(ctx context.Context, req *NewBlockListenerRequest) (*NewBlockListenerResponse, ErrorReason, error)
 
+	// ReconcileConfirmationsForTransaction reconciles the confirmations for a transaction hash
+	ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, confirmMap *ConfirmationMap, targetConfirmationCount uint64) (*ConfirmationMapUpdateResult, error)
+
 	// IsLive confirms if the connector up and running
 	IsLive(ctx context.Context) (*LiveResponse, ErrorReason, error)
 
 	// IsReady confirms if the connector is connected to the downstream JSONRPC endpoint and therefore ready to receive traffic
 	IsReady(ctx context.Context) (*ReadyResponse, ErrorReason, error)
+}
+
+type ConfirmationMapUpdateResult struct {
+	*ConfirmationMap
+	HasNewFork              bool   `json:"hasNewFork,omitempty"`         // when set to true, it means a fork is detected based on the existing confirmations
+	Rebuilt                 bool   `json:"rebuilt,omitempty"`            // when set to true, it means all of the existing confirmations are discarded
+	HasNewConfirmation      bool   `json:"hasNewConfirmation,omitempty"` // when set to true, it means new blocks from canonical chain are added to the confirmation queue
+	Confirmed               bool   `json:"confirmed,omitempty"`          // when set to true, it means the confirmation queue is complete and all the blocks are confirmed
+	TargetConfirmationCount uint64 `json:"targetConfirmationCount"`      // the target number of confirmations for this event
+}
+
+type ConfirmationMap struct {
+	// confirmation map maintains a list of possible confirmations for a transaction
+	// the key of the map is the hash of the first block (tx block) that contains the transaction hash
+	// the value of the map is an array of blocks, the first block is the tx block
+	// the rest of the blocks are blocks inside the range of the target confirmation count
+	// gap is allowed between the tx block and the second block
+	// no gaps are allowed after the second block
+	// the second block can be outside the target confirmation count when it is the last block in the confirmation queue
+	ConfirmationQueueMap map[string][]*MinimalBlockInfo `json:"confirmationQueueMap,omitempty"`
+	// the tx block hash that is on the current in-memory canonical chain
+	CanonicalBlockHash string `json:"canonicalBlockHash,omitempty"`
+}
+
+type MinimalBlockInfo struct { // duplicate of apitypes.Confirmation due to circular dependency
+	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
+	BlockHash   string           `json:"blockHash"`
+	ParentHash  string           `json:"parentHash"`
+}
+
+func (c *MinimalBlockInfo) Equal(other *MinimalBlockInfo) bool {
+	return c.BlockNumber == other.BlockNumber && c.BlockHash == other.BlockHash && c.ParentHash == other.ParentHash
+}
+
+func (c *MinimalBlockInfo) IsParentOf(other *MinimalBlockInfo) bool {
+	return c.BlockHash == other.ParentHash && c.BlockNumber+1 == other.BlockNumber
 }
 
 type BlockHashEvent struct {
