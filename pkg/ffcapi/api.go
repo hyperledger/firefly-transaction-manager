@@ -107,9 +107,7 @@ type ConfirmationMapUpdateResult struct {
 type ConfirmationMap struct {
 	// confirmation map maintains a list of possible confirmations for a transaction
 	// the key of the map is the hash of the first block (tx block) that contains the transaction hash
-	// the value of the map is an array of blocks, the first block is the tx block
-	// the rest of the blocks are blocks inside the range of the target confirmation count
-	// gap is allowed between the tx block and the second block
+	// the value of the map is an array of blocks
 	// no gaps are allowed after the second block
 	// the second block can be outside the target confirmation count when it is the last block in the confirmation queue
 	ConfirmationQueueMap map[string][]*MinimalBlockInfo `json:"confirmationQueueMap,omitempty"`
