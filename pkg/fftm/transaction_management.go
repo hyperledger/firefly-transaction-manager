@@ -29,8 +29,8 @@ import (
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
 
-func (m *manager) ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, confirmMap *ffcapi.ConfirmationMap, targetConfirmationCount uint64) (*ffcapi.ConfirmationMapUpdateResult, error) {
-	return m.connector.ReconcileConfirmationsForTransaction(ctx, txHash, confirmMap, targetConfirmationCount)
+func (m *manager) ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, existingConfirmations []*ffcapi.MinimalBlockInfo, targetConfirmationCount uint64) (*ffcapi.ConfirmationMapUpdateResult, error) {
+	return m.connector.ReconcileConfirmationsForTransaction(ctx, txHash, existingConfirmations, targetConfirmationCount)
 }
 
 func (m *manager) GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error) {
