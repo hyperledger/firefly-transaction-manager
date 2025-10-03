@@ -99,11 +99,9 @@ type ConfirmationMapUpdateResult struct {
 	// confirmation map maintains a list of confirmed blocks for a transaction
 	// the first block is the block that contains the transaction hash
 	Confirmations           []*MinimalBlockInfo `json:"confirmations,omitempty"`
-	HasNewFork              bool                `json:"hasNewFork,omitempty"`         // when set to true, it means a fork is detected based on the existing confirmations
-	Rebuilt                 bool                `json:"rebuilt,omitempty"`            // when set to true, it means all of the existing confirmations are discarded
-	HasNewConfirmation      bool                `json:"hasNewConfirmation,omitempty"` // when set to true, it means new blocks from canonical chain are added to the confirmation queue
-	Confirmed               bool                `json:"confirmed,omitempty"`          // when set to true, it means the confirmation queue is complete and all the blocks are confirmed
-	TargetConfirmationCount uint64              `json:"targetConfirmationCount"`      // the target number of confirmations for this event
+	NewFork                 bool                `json:"newFork,omitempty"`       // when true, it means a fork is detected based on the existing confirmations
+	Confirmed               bool                `json:"confirmed,omitempty"`     // when true, it means the confirmation queue is complete and all the blocks are confirmed
+	TargetConfirmationCount uint64              `json:"targetConfirmationCount"` // the target number of confirmations for this event
 }
 type MinimalBlockInfo struct { // duplicate of apitypes.Confirmation due to circular dependency
 	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
