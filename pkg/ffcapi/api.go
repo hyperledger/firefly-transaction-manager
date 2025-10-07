@@ -101,7 +101,7 @@ type ConfirmationMapUpdateResult struct {
 	Confirmations           []*MinimalBlockInfo `json:"confirmations,omitempty"`
 	NewFork                 bool                `json:"newFork,omitempty"`       // when true, it means a fork is detected based on the existing confirmations
 	Confirmed               bool                `json:"confirmed,omitempty"`     // when true, it means the confirmation queue is complete and all the blocks are confirmed
-	TargetConfirmationCount uint64              `json:"targetConfirmationCount"` // the target number of confirmations for this event
+	TargetConfirmationCount uint64              `json:"targetConfirmationCount"` // the target number of confirmations for this reconcile request
 }
 type MinimalBlockInfo struct { // duplicate of apitypes.Confirmation due to circular dependency
 	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
