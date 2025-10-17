@@ -34,7 +34,7 @@ func TestReconcileConfirmationsForTransaction(t *testing.T) {
 	defer done()
 	mFFC := m.connector.(*ffcapimocks.API)
 
-	mFFC.On("ReconcileConfirmationsForTransaction", m.ctx, "0x1234567890", []*ffcapi.MinimalBlockInfo{}, uint64(1)).Return(&ffcapi.ConfirmationMapUpdateResult{
+	mFFC.On("ReconcileConfirmationsForTransaction", m.ctx, "0x1234567890", []*ffcapi.MinimalBlockInfo{}, uint64(1)).Return(&ffcapi.ConfirmationUpdateResult{
 		Confirmations: []*ffcapi.MinimalBlockInfo{},
 	}, nil)
 

@@ -664,23 +664,23 @@ func (_m *API) QueryInvoke(ctx context.Context, req *ffcapi.QueryInvokeRequest) 
 }
 
 // ReconcileConfirmationsForTransaction provides a mock function with given fields: ctx, txHash, existingConfirmations, targetConfirmationCount
-func (_m *API) ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, existingConfirmations []*ffcapi.MinimalBlockInfo, targetConfirmationCount uint64) (*ffcapi.ConfirmationMapUpdateResult, error) {
+func (_m *API) ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, existingConfirmations []*ffcapi.MinimalBlockInfo, targetConfirmationCount uint64) (*ffcapi.ConfirmationUpdateResult, error) {
 	ret := _m.Called(ctx, txHash, existingConfirmations, targetConfirmationCount)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ReconcileConfirmationsForTransaction")
 	}
 
-	var r0 *ffcapi.ConfirmationMapUpdateResult
+	var r0 *ffcapi.ConfirmationUpdateResult
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []*ffcapi.MinimalBlockInfo, uint64) (*ffcapi.ConfirmationMapUpdateResult, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*ffcapi.MinimalBlockInfo, uint64) (*ffcapi.ConfirmationUpdateResult, error)); ok {
 		return rf(ctx, txHash, existingConfirmations, targetConfirmationCount)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, []*ffcapi.MinimalBlockInfo, uint64) *ffcapi.ConfirmationMapUpdateResult); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*ffcapi.MinimalBlockInfo, uint64) *ffcapi.ConfirmationUpdateResult); ok {
 		r0 = rf(ctx, txHash, existingConfirmations, targetConfirmationCount)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*ffcapi.ConfirmationMapUpdateResult)
+			r0 = ret.Get(0).(*ffcapi.ConfirmationUpdateResult)
 		}
 	}
 

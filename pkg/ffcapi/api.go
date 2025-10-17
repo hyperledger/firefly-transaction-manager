@@ -86,7 +86,7 @@ type API interface {
 	NewBlockListener(ctx context.Context, req *NewBlockListenerRequest) (*NewBlockListenerResponse, ErrorReason, error)
 
 	// ReconcileConfirmationsForTransaction reconciles the confirmations for a transaction hash
-	ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, existingConfirmations []*MinimalBlockInfo, targetConfirmationCount uint64) (*ConfirmationMapUpdateResult, error)
+	ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, existingConfirmations []*MinimalBlockInfo, targetConfirmationCount uint64) (*ConfirmationUpdateResult, error)
 
 	// IsLive confirms if the connector up and running
 	IsLive(ctx context.Context) (*LiveResponse, ErrorReason, error)
@@ -95,8 +95,8 @@ type API interface {
 	IsReady(ctx context.Context) (*ReadyResponse, ErrorReason, error)
 }
 
-type ConfirmationMapUpdateResult struct {
-	// confirmation map maintains a list of confirmed blocks for a transaction
+type ConfirmationUpdateResult struct {
+	// confirmation queue has a list of confirmed blocks for a transaction
 	// the first block is the block that contains the transaction hash
 	Confirmations           []*MinimalBlockInfo `json:"confirmations,omitempty"`
 	NewFork                 bool                `json:"newFork,omitempty"`       // when true, it means a fork is detected based on the existing confirmations
