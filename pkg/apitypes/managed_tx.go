@@ -185,8 +185,13 @@ func (mtx *ManagedTX) SetSequence(i int64) {
 	mtx.SequenceID = fmt.Sprintf("%.12d", i)
 }
 
-// FieldUpdateRecord is a record of a field update
-// a `new` value is always set, deletion can be spelled using default golang values. e.g. empty string for string, 0 for int, etc.
+// A map of fields that have been updated.
+// If the field has not been updated, it will not be included in the map.
+type TxUpdateRecord map[string] /*name of the field*/ FieldUpdateRecord
+
+// FieldUpdateRecord is a record of a field update.
+// NewValue is always set (non-pointer), so when it contains a default Go value (empty string, "0", etc.),
+// it represents the actual new value of the field.
 type FieldUpdateRecord struct {
 	OldValue *string `json:"old,omitempty"` // old value before the update
 	NewValue string  `json:"new"`           // new value after the update
@@ -197,12 +202,12 @@ type FieldUpdateRecord struct {
 // ApplyExternalTxUpdates applies the external updates to the managed transaction
 // and returns the updates that were applied, whether any update occurred, and a map
 // of changed fields with their old and new values for easy JSON marshalling.
-func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpdates TXUpdates, updated bool, valueChangeMap map[string] /*name of the field*/ FieldUpdateRecord) {
+func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpdates TXUpdates, updated bool, txUpdateRecord TxUpdateRecord) {
 	txUpdates = TXUpdates{}
-	valueChangeMap = make(map[string] /*name of the field*/ FieldUpdateRecord)
+	txUpdateRecord = make(TxUpdateRecord)
 
 	if txUpdate.To != nil && mtx.To != *txUpdate.To {
-		valueChangeMap["to"] = FieldUpdateRecord{
+		txUpdateRecord["to"] = FieldUpdateRecord{
 			OldValue: ptrTo(mtx.To),
 			NewValue: *txUpdate.To,
 		}
@@ -217,7 +222,7 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 			if mtx.Nonce != nil {
 				oldValue = ptrTo(mtx.Nonce.String())
 			}
-			valueChangeMap["nonce"] = FieldUpdateRecord{
+			txUpdateRecord["nonce"] = FieldUpdateRecord{
 				OldValue: oldValue,
 				NewValue: txUpdate.Nonce.String(),
 			}
@@ -232,7 +237,7 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 			if mtx.Gas != nil {
 				oldValue = ptrTo(mtx.Gas.String())
 			}
-			valueChangeMap["gas"] = FieldUpdateRecord{
+			txUpdateRecord["gas"] = FieldUpdateRecord{
 				OldValue: oldValue,
 				NewValue: txUpdate.Gas.String(),
 			}
@@ -248,7 +253,7 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 			if mtx.Value != nil {
 				oldValue = ptrTo(mtx.Value.String())
 			}
-			valueChangeMap["value"] = FieldUpdateRecord{
+			txUpdateRecord["value"] = FieldUpdateRecord{
 				OldValue: oldValue,
 				NewValue: txUpdate.Value.String(),
 			}
@@ -264,7 +269,7 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 			if mtx.GasPrice != nil {
 				oldValue = ptrTo(mtx.GasPrice.String())
 			}
-			valueChangeMap["gasPrice"] = FieldUpdateRecord{
+			txUpdateRecord["gasPrice"] = FieldUpdateRecord{
 				OldValue: oldValue,
 				NewValue: txUpdate.GasPrice.String(),
 			}
@@ -275,7 +280,7 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 	}
 
 	if txUpdate.TransactionData != nil && mtx.TransactionData != *txUpdate.TransactionData {
-		valueChangeMap["transactionData"] = FieldUpdateRecord{
+		txUpdateRecord["transactionData"] = FieldUpdateRecord{
 			OldValue: ptrTo(mtx.TransactionData),
 			NewValue: *txUpdate.TransactionData,
 		}
@@ -284,7 +289,7 @@ func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpda
 		updated = true
 	}
 
-	return txUpdates, updated, valueChangeMap
+	return txUpdates, updated, txUpdateRecord
 }
 
 // TXUpdates specifies a set of updates that are possible on the base structure.
