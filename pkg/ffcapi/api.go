@@ -85,11 +85,43 @@ type API interface {
 	// NewBlockListener creates a new block listener, decoupled from an event stream
 	NewBlockListener(ctx context.Context, req *NewBlockListenerRequest) (*NewBlockListenerResponse, ErrorReason, error)
 
+	// ReconcileConfirmationsForTransaction reconciles the confirmations for a transaction hash
+	ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, existingConfirmations []*MinimalBlockInfo, targetConfirmationCount uint64) (*ConfirmationUpdateResult, error)
+
 	// IsLive confirms if the connector up and running
 	IsLive(ctx context.Context) (*LiveResponse, ErrorReason, error)
 
 	// IsReady confirms if the connector is connected to the downstream JSONRPC endpoint and therefore ready to receive traffic
 	IsReady(ctx context.Context) (*ReadyResponse, ErrorReason, error)
+}
+
+type ConfirmationUpdateResult struct {
+	// a linked list of accumulated confirmations for a transaction
+	// the list is sorted by block number
+	//    - the first block is the block that contains the transaction hash
+	//    - the last block is the most recent confirmation
+	// this list can be used as input to the future reconcile request to avoid re-fetching the blocks if they are no longer
+	// in the in-memory partial chain
+	// WARNING: mutation to this list is not expected, invalid modifications will cause inefficiencies in the reconciliation process
+	//          `rebuilt` will be true if an invalid confirmation list is detected by the reconciliation process
+	Confirmations           []*MinimalBlockInfo `json:"confirmations,omitempty"`
+	Rebuilt                 bool                `json:"rebuilt,omitempty"`       // when true, it means the existing confirmations contained invalid blocks, the new confirmations are rebuilt from scratch
+	NewFork                 bool                `json:"newFork,omitempty"`       // when true, it means a new fork was detected based on the existing confirmations
+	Confirmed               bool                `json:"confirmed,omitempty"`     // when true, it means the confirmation list is complete and the transaction is confirmed
+	TargetConfirmationCount uint64              `json:"targetConfirmationCount"` // the target number of confirmations for this reconcile request
+}
+type MinimalBlockInfo struct { // duplicate of apitypes.Confirmation due to circular dependency
+	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
+	BlockHash   string           `json:"blockHash"`
+	ParentHash  string           `json:"parentHash"`
+}
+
+func (c *MinimalBlockInfo) Equal(other *MinimalBlockInfo) bool {
+	return c.BlockNumber == other.BlockNumber && c.BlockHash == other.BlockHash && c.ParentHash == other.ParentHash
+}
+
+func (c *MinimalBlockInfo) IsParentOf(other *MinimalBlockInfo) bool {
+	return c.BlockHash == other.ParentHash && c.BlockNumber+1 == other.BlockNumber
 }
 
 type BlockHashEvent struct {

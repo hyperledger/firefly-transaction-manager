@@ -25,8 +25,13 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
+	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
 )
+
+func (m *manager) ReconcileConfirmationsForTransaction(ctx context.Context, txHash string, existingConfirmations []*ffcapi.MinimalBlockInfo, targetConfirmationCount uint64) (*ffcapi.ConfirmationUpdateResult, error) {
+	return m.connector.ReconcileConfirmationsForTransaction(ctx, txHash, existingConfirmations, targetConfirmationCount)
+}
 
 func (m *manager) GetTransactionByIDWithStatus(ctx context.Context, txID string, withHistory bool) (transaction *apitypes.TXWithStatus, err error) {
 	tx, err := m.persistence.GetTransactionByIDWithStatus(ctx, txID, withHistory)
