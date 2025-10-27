@@ -322,12 +322,13 @@ type TXUpdates struct {
 // e.g. { transactionData: "" } will set the transactionData field to an empty string (if different from current value),
 // while { transactionData: null } will leave the field unchanged.
 type TXUpdatesExternal struct {
-	To              *string           `json:"to,omitempty"`
+	// JSON Marshalling: for all fields, omit the field or use value "null" in the JSON object to retain the existing value
+	To              *string           `json:"to,omitempty"` // use an empty string to clear out the address (e.g. address 0 for Ethereum)
 	Nonce           *fftypes.FFBigInt `json:"nonce,omitempty"`
 	Gas             *fftypes.FFBigInt `json:"gas,omitempty"`
-	Value           *fftypes.FFBigInt `json:"value,omitempty"`
+	Value           *fftypes.FFBigInt `json:"value,omitempty"` // use "0" to clear out existing value
 	GasPrice        *fftypes.JSONAny  `json:"gasPrice,omitempty"`
-	TransactionData *string           `json:"transactionData,omitempty"`
+	TransactionData *string           `json:"transactionData,omitempty"` // use empty string to clear out existing value
 }
 
 type TXCompletion struct {
