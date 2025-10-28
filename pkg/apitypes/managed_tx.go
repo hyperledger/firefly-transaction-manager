@@ -1,4 +1,4 @@
-// Copyright © 2024 Kaleido, Inc.
+// Copyright © 2024 - 2025 Kaleido, Inc.
 //
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -23,6 +23,10 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 )
+
+func ptrTo[T any](v T) *T {
+	return &v
+}
 
 // TxStatus is the current status of a transaction
 type TxStatus string
@@ -79,6 +83,8 @@ type TxAction string
 const (
 	// TxActionStateTransition is a special value used for state transition entries, which are created using SetSubStatus
 	TxActionStateTransition TxAction = "StateTransition"
+	// TxActionExternalUpdate is used to record updates to the transaction through API calls
+	TxActionExternalUpdate TxAction = "ExternalUpdate"
 	// TxActionAssignNonce indicates that a nonce has been assigned to the transaction
 	TxActionAssignNonce TxAction = "AssignNonce"
 	// TxActionRetrieveGasPrice indicates the operation is getting a gas price
@@ -179,6 +185,113 @@ func (mtx *ManagedTX) SetSequence(i int64) {
 	mtx.SequenceID = fmt.Sprintf("%.12d", i)
 }
 
+// A map of fields that have been updated.
+// If the field has not been updated, it will not be included in the map.
+type TxUpdateRecord map[string] /*name of the field*/ FieldUpdateRecord
+
+// FieldUpdateRecord is a record of a field update.
+// NewValue is always set (non-pointer), so when it contains a default Go value (empty string, "0", etc.),
+// it represents the actual new value of the field.
+type FieldUpdateRecord struct {
+	OldValue *string `json:"old,omitempty"` // old value before the update
+	NewValue string  `json:"new"`           // new value after the update
+}
+
+// ApplyExternalTxUpdates applies the external updates to the managed transaction
+// and returns the updates that were applied
+// ApplyExternalTxUpdates applies the external updates to the managed transaction
+// and returns the updates that were applied, whether any update occurred, and a map
+// of changed fields with their old and new values for easy JSON marshalling.
+func (mtx *ManagedTX) ApplyExternalTxUpdates(txUpdate TXUpdatesExternal) (txUpdates TXUpdates, updated bool, txUpdateRecord TxUpdateRecord) {
+	txUpdates = TXUpdates{}
+	txUpdateRecord = make(TxUpdateRecord)
+
+	if txUpdate.To != nil && mtx.To != *txUpdate.To {
+		txUpdateRecord["to"] = FieldUpdateRecord{
+			OldValue: ptrTo(mtx.To),
+			NewValue: *txUpdate.To,
+		}
+		mtx.To = *txUpdate.To
+		txUpdates.To = txUpdate.To
+		updated = true
+	}
+
+	if txUpdate.Nonce != nil {
+		if mtx.Nonce == nil || mtx.Nonce.Int().Cmp(txUpdate.Nonce.Int()) != 0 {
+			var oldValue *string
+			if mtx.Nonce != nil {
+				oldValue = ptrTo(mtx.Nonce.String())
+			}
+			txUpdateRecord["nonce"] = FieldUpdateRecord{
+				OldValue: oldValue,
+				NewValue: txUpdate.Nonce.String(),
+			}
+			mtx.Nonce = txUpdate.Nonce
+			txUpdates.Nonce = txUpdate.Nonce
+			updated = true
+		}
+	}
+	if txUpdate.Gas != nil {
+		if mtx.Gas == nil || mtx.Gas.Int().Cmp(txUpdate.Gas.Int()) != 0 {
+			var oldValue *string
+			if mtx.Gas != nil {
+				oldValue = ptrTo(mtx.Gas.String())
+			}
+			txUpdateRecord["gas"] = FieldUpdateRecord{
+				OldValue: oldValue,
+				NewValue: txUpdate.Gas.String(),
+			}
+			mtx.Gas = txUpdate.Gas
+			txUpdates.Gas = txUpdate.Gas
+			updated = true
+		}
+	}
+
+	if txUpdate.Value != nil {
+		if mtx.Value == nil || mtx.Value.Int().Cmp(txUpdate.Value.Int()) != 0 {
+			var oldValue *string
+			if mtx.Value != nil {
+				oldValue = ptrTo(mtx.Value.String())
+			}
+			txUpdateRecord["value"] = FieldUpdateRecord{
+				OldValue: oldValue,
+				NewValue: txUpdate.Value.String(),
+			}
+			mtx.Value = txUpdate.Value
+			txUpdates.Value = txUpdate.Value
+			updated = true
+		}
+	}
+
+	if txUpdate.GasPrice != nil {
+		if mtx.GasPrice == nil || mtx.GasPrice.String() != txUpdate.GasPrice.String() {
+			var oldValue *string
+			if mtx.GasPrice != nil {
+				oldValue = ptrTo(mtx.GasPrice.String())
+			}
+			txUpdateRecord["gasPrice"] = FieldUpdateRecord{
+				OldValue: oldValue,
+				NewValue: txUpdate.GasPrice.String(),
+			}
+			mtx.GasPrice = txUpdate.GasPrice
+			txUpdates.GasPrice = txUpdate.GasPrice
+			updated = true
+		}
+	}
+
+	if txUpdate.TransactionData != nil && mtx.TransactionData != *txUpdate.TransactionData {
+		txUpdateRecord["transactionData"] = FieldUpdateRecord{
+			OldValue: ptrTo(mtx.TransactionData),
+			NewValue: *txUpdate.TransactionData,
+		}
+		mtx.TransactionData = *txUpdate.TransactionData
+		txUpdates.TransactionData = txUpdate.TransactionData
+		updated = true
+	}
+
+	return txUpdates, updated, txUpdateRecord
+}
+
 // TXUpdates specifies a set of updates that are possible on the base structure.
 //
 // Any non-nil fields will be set.
@@ -206,6 +319,21 @@ type TXUpdates struct {
 	FirstSubmit     *fftypes.FFTime   `json:"firstSubmit,omitempty"`
 	LastSubmit      *fftypes.FFTime   `json:"lastSubmit,omitempty"`
 	ErrorMessage    *string           `json:"errorMessage,omitempty"`
+}
+
+// TXUpdatesExternal contains only the fields that are allowed to be updated through the external API
+// All field types are defined using pointer types, which allows the distinction between a field being
+// explicitly set to an empty value and not being set at all. This allows clean up of existing fields
+// e.g. { transactionData: "" } will set the transactionData field to an empty string (if different from current value),
+// while { transactionData: null } will leave the field unchanged.
+type TXUpdatesExternal struct {
+	// JSON Marshalling: for all fields, omit the field or use value "null" in the JSON object to retain the existing value
+	To              *string           `json:"to,omitempty"` // use an empty string to clear out the address (e.g. address 0 for Ethereum)
+	Nonce           *fftypes.FFBigInt `json:"nonce,omitempty"`
+	Gas             *fftypes.FFBigInt `json:"gas,omitempty"`
+	Value           *fftypes.FFBigInt `json:"value,omitempty"` // use "0" to clear out existing value
+	GasPrice        *fftypes.JSONAny  `json:"gasPrice,omitempty"`
+	TransactionData *string           `json:"transactionData,omitempty"` // use empty string to clear out existing value
 }
 
 type TXCompletion struct {
