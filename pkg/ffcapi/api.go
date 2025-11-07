@@ -104,11 +104,12 @@ type ConfirmationUpdateResult struct {
 	// in the in-memory partial chain
 	// WARNING: mutation to this list is not expected, invalid modifications will cause inefficiencies in the reconciliation process
 	//          `rebuilt` will be true if an invalid confirmation list is detected by the reconciliation process
-	Confirmations           []*MinimalBlockInfo `json:"confirmations,omitempty"`
-	Rebuilt                 bool                `json:"rebuilt,omitempty"`       // when true, it means the existing confirmations contained invalid blocks, the new confirmations are rebuilt from scratch
-	NewFork                 bool                `json:"newFork,omitempty"`       // when true, it means a new fork was detected based on the existing confirmations
-	Confirmed               bool                `json:"confirmed,omitempty"`     // when true, it means the confirmation list is complete and the transaction is confirmed
-	TargetConfirmationCount uint64              `json:"targetConfirmationCount"` // the target number of confirmations for this reconcile request
+	Confirmations           []*MinimalBlockInfo         `json:"confirmations,omitempty"`
+	Receipt                 *TransactionReceiptResponse `json:"receipt,omitempty"`       // receipt for the transaction
+	Rebuilt                 bool                        `json:"rebuilt,omitempty"`       // when true, it means the existing confirmations contained invalid blocks, the new confirmations are rebuilt from scratch
+	NewFork                 bool                        `json:"newFork,omitempty"`       // when true, it means a new fork was detected based on the existing confirmations
+	Confirmed               bool                        `json:"confirmed,omitempty"`     // when true, it means the confirmation list is complete and the transaction is confirmed
+	TargetConfirmationCount uint64                      `json:"targetConfirmationCount"` // the target number of confirmations for this reconcile request
 }
 type MinimalBlockInfo struct { // duplicate of apitypes.Confirmation due to circular dependency
 	BlockNumber fftypes.FFuint64 `json:"blockNumber"`
