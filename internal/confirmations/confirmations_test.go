@@ -1074,6 +1074,47 @@ func TestProcessNotificationsSwallowsUnknownType(t *testing.T) {
 	}, blocks)
 }
 
+func TestProcessNotificationsEmpty(t *testing.T) {
+
+	bcm, _ := newTestBlockConfirmationManager()
+	blocks := bcm.newBlockState()
+	notifications, err := bcm.processNotifications(nil, blocks)
+	assert.NoError(t, err)
+	assert.Len(t, notifications, 0)
+}
+
+func TestProcessNotificationWalkChainError(t *testing.T) {
+
+	bcm, mca := newTestBlockConfirmationManager()
+	blocks := bcm.newBlockState()
+
+	notification := &Notification{
+		NotificationType: NewEventLog,
+		Event: &EventInfo{
+			ID: &ffcapi.EventID{
+				ListenerID:       fftypes.NewUUID(),
+				TransactionHash:  "0x531e219d98d81dc9f9a14811ac537479f5d77a74bdba47629bfbebe2d7663ce7",
+				BlockHash:        "0x0e32d749a86cfaf551d528b5b121cea456f980a39e5b8136eb8e85dbc744a542",
+				BlockNumber:      1001,
+				TransactionIndex: 5,
+				LogIndex:         10,
+			},
+		},
+	}
+
+	mca.On("BlockInfoByNumber", mock.Anything, mock.MatchedBy(func(r *ffcapi.BlockInfoByNumberRequest) bool {
+		return r.BlockNumber.Uint64() == 1002
+	})).Return(nil, ffcapi.ErrorReason(""), fmt.Errorf("pop")).Once()
+
+	notifications, err := bcm.processNotifications([]*Notification{notification}, blocks)
+	assert.Error(t, err)
+	assert.Len(t, notifications, 1) // The notification that was not processed successfully
+
+	assert.Regexp(t, "pop", err)
+
+	mca.AssertExpectations(t)
+}
+
 func TestGetBlockNotFound(t *testing.T) {
 
 	bcm, mca := newTestBlockConfirmationManager()
