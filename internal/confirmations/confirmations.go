@@ -427,7 +427,7 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 		var err error
 		notifications, err = bcm.processNotifications(notifications, blocks)
 		if err != nil {
-			log.L(bcm.ctx).Errorf("Failed processing notifications: %d due to error %s", len(notifications), err)
+			log.L(bcm.ctx).Errorf("Confirmation listener processed %d block hashes and failed processing notifications: %d/%d due to error %s, trigger type: %s", blockHashCount, len(notifications), notificationCount, err, triggerType)
 			continue
 		}
 		scheduleAllTxReceipts := !receivedFirstBlock && blockHashCount > 0
