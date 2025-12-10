@@ -979,9 +979,7 @@ func TestHandleNewTransactionsBatch(t *testing.T) {
 	mp.On("ListTransactionsByNonce", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
 		Return([]*apitypes.ManagedTX{}, nil).Maybe()
 
-	mp.On("GetTransactionByID", sth.ctx, "tx1").Return(nil, nil)
-	mp.On("GetTransactionByID", sth.ctx, "tx2").Return(nil, nil)
-	mp.On("GetTransactionByID", sth.ctx, "tx3").Return(nil, nil)
+	mp.On("GetTransactionByID", sth.ctx, mock.Anything).Return(nil, nil)
 
 	mp.On("InsertTransactionsWithNextNonce", sth.ctx, mock.Anything, mock.Anything).
 		Return([]error{nil, nil, nil}) // All succeed
@@ -1005,7 +1003,6 @@ func TestHandleNewTransactionsBatch(t *testing.T) {
 	txReqs := []*apitypes.TransactionRequest{
 		{
 			Headers: apitypes.RequestHeaders{
-				ID:   "tx1",
 				Type: apitypes.RequestTypeSendTransaction,
 			},
 			TransactionInput: ffcapi.TransactionInput{
@@ -1056,7 +1053,12 @@ func TestHandleNewTransactionsBatch(t *testing.T) {
 		assert.NotNil(t, mtxs[i], "Transaction %d should succeed", i)
 		assert.False(t, submissionRejected[i], "Transaction %d should not be rejected", i)
 		assert.NoError(t, errs[i], "Transaction %d should have no error", i)
-		assert.Equal(t, fmt.Sprintf("tx%d", i+1), mtxs[i].ID)
+		if i == 0 {
+			assert.NotEmpty(t, mtxs[i].ID)
+		} else {
+			assert.Equal(t, fmt.Sprintf("tx%d", i+1), mtxs[i].ID)
+
+		}
 	}
 }
 

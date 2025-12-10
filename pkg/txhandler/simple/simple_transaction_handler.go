@@ -246,6 +246,60 @@ func (sth *simpleTransactionHandler) requestIDPreCheck(ctx context.Context, reqH
 	return txID, nil
 }
 
+// prepareTransaction prepares a transaction request by validating and preparing transaction data.
+// It returns a prepared ManagedTX object that is ready for persistence, along with rejection status and error.
+// This function does not persist the transaction - that should be done via createManagedTx.
+func (sth *simpleTransactionHandler) prepareTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (*apitypes.ManagedTX, bool, error) {
+	log.L(ctx).Tracef("prepareTransaction preparing request: %+v", txReq)
+	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
+	if err != nil {
+		log.L(ctx).Errorf("prepareTransaction invalid tx ID for transaction request: %+v", txReq)
+		return nil, false, err
+	}
+
+	// Prepare the transaction, which will mean we have a transaction that should be submittable.
+	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
+	// anything to the blockchain itself.
+	prepared, reason, err := sth.toolkit.Connector.TransactionPrepare(ctx, &ffcapi.TransactionPrepareRequest{
+		TransactionInput: txReq.TransactionInput,
+	})
+	if err != nil {
+		log.L(ctx).Errorf("prepareTransaction transaction prepare failed: %+v", err)
+		return nil, ffcapi.MapSubmissionRejected(reason), err
+	}
+	log.L(ctx).Debugf("prepareTransaction prepared transaction with ID %s", txID)
+
+	// Create the ManagedTX object without persisting it yet
+	mtx := sth.createManagedTxObject(txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	return mtx, false, nil
+}
+
+// prepareContractDeployment prepares a contract deployment request by validating and preparing deployment data.
+// It returns a prepared ManagedTX object that is ready for persistence, along with rejection status and error.
+// This function does not persist the transaction - that should be done via createManagedTx.
+func (sth *simpleTransactionHandler) prepareContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (*apitypes.ManagedTX, bool, error) {
+	log.L(ctx).Tracef("prepareContractDeployment preparing request: %+v", txReq)
+	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
+	if err != nil {
+		log.L(ctx).Errorf("prepareContractDeployment invalid tx ID for contract deployment request: %+v", txReq)
+		return nil, false, err
+	}
+
+	// Prepare the transaction, which will mean we have a transaction that should be submittable.
+	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
+	// anything to the blockchain itself.
+	prepared, reason, err := sth.toolkit.Connector.DeployContractPrepare(ctx, &txReq.ContractDeployPrepareRequest)
+	if err != nil {
+		log.L(ctx).Errorf("prepareContractDeployment deploy contract prepare failed: %+v", err)
+		return nil, ffcapi.MapSubmissionRejected(reason), err
+	}
+	log.L(ctx).Debugf("prepareContractDeployment prepared contract deployment with ID %s", txID)
+
+	// Create the ManagedTX object without persisting it yet
+	mtx := sth.createManagedTxObject(txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	return mtx, false, nil
+}
+
 func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
 	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
 	if err != nil {
@@ -284,160 +338,6 @@ func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Con
 	return mtx, false, err
 }
 
-func (sth *simpleTransactionHandler) createManagedTxObject(txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) *apitypes.ManagedTX {
-	if gas != nil {
-		txHeaders.Gas = gas
-	}
-	now := fftypes.Now()
-	return &apitypes.ManagedTX{
-		ID:                 txID, // on input the request ID must be the namespaced operation ID
-		Created:            now,
-		Updated:            now,
-		TransactionHeaders: *txHeaders,
-		TransactionData:    transactionData,
-		Status:             apitypes.TxStatusPending,
-		PolicyInfo:         fftypes.JSONAnyPtr(`{}`),
-	}
-}
-
-// prepareTransactions validates and prepares all transaction requests, populating error arrays
-// and returning only the valid transactions along with their original indices.
-func (sth *simpleTransactionHandler) prepareTransactions(ctx context.Context, txReqs []*apitypes.TransactionRequest, mtxs []*apitypes.ManagedTX, submissionRejected []bool, errs []error) (validTxs []*apitypes.ManagedTX, validIndices []int) {
-	validTxs = make([]*apitypes.ManagedTX, 0, len(txReqs))
-	validIndices = make([]int, 0, len(txReqs))
-
-	for i, txReq := range txReqs {
-		txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
-		if err != nil {
-			errs[i] = err
-			submissionRejected[i] = false
-			continue
-		}
-
-		prepared, reason, err := sth.toolkit.Connector.TransactionPrepare(ctx, &ffcapi.TransactionPrepareRequest{
-			TransactionInput: txReq.TransactionInput,
-		})
-		if err != nil {
-			mtxs[i] = nil
-			submissionRejected[i] = ffcapi.MapSubmissionRejected(reason)
-			errs[i] = err
-			continue
-		}
-
-		mtx := sth.createManagedTxObject(txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
-		validTxs = append(validTxs, mtx)
-		validIndices = append(validIndices, i)
-	}
-
-	return validTxs, validIndices
-}
-
-func (sth *simpleTransactionHandler) HandleNewTransactions(ctx context.Context, txReqs []*apitypes.TransactionRequest) (mtxs []*apitypes.ManagedTX, submissionRejected []bool, errs []error) {
-	if len(txReqs) == 0 {
-		return nil, nil, nil
-	}
-	mtxs = make([]*apitypes.ManagedTX, len(txReqs))
-	submissionRejected = make([]bool, len(txReqs))
-	errs = make([]error, len(txReqs))
-
-	// First, prepare all transactions (validation phase)
-	validTxs, validIndices := sth.prepareTransactions(ctx, txReqs, mtxs, submissionRejected, errs)
-
-	// Batch insert all valid transactions in a single DB transaction
-	if len(validTxs) > 0 {
-		persistErrs := sth.toolkit.TXPersistence.InsertTransactionsWithNextNonce(ctx, validTxs, func(ctx context.Context, signer string) (uint64, error) {
-			nextNonceRes, _, err := sth.toolkit.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
-				Signer: signer,
-			})
-			if err != nil {
-				return 0, err
-			}
-			return nextNonceRes.Nonce.Uint64(), nil
-		})
-
-		// Map persistence errors back to the original request indices
-		for j, idx := range validIndices {
-			if persistErrs[j] != nil {
-				// Persistence failed for this transaction
-				mtxs[idx] = nil
-				submissionRejected[idx] = false
-				errs[idx] = persistErrs[j]
-			} else {
-				// Success - assign result back
-				mtxs[idx] = validTxs[j]
-				submissionRejected[idx] = false
-				errs[idx] = nil
-			}
-		}
-	}
-
-	return mtxs, submissionRejected, errs
-}
-
-func (sth *simpleTransactionHandler) HandleNewContractDeployments(ctx context.Context, txReqs []*apitypes.ContractDeployRequest) (mtxs []*apitypes.ManagedTX, submissionRejected []bool, errs []error) {
-	if len(txReqs) == 0 {
-		return nil, nil, nil
-	}
-	mtxs = make([]*apitypes.ManagedTX, len(txReqs))
-	submissionRejected = make([]bool, len(txReqs))
-	errs = make([]error, len(txReqs))
-
-	// First, prepare all transactions (validation phase)
-	validTxs := make([]*apitypes.ManagedTX, 0, len(txReqs))
-	validIndices := make([]int, 0, len(txReqs))
-
-	for i, txReq := range txReqs {
-		txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
-		if err != nil {
-			errs[i] = err
-			submissionRejected[i] = false
-			continue
-		}
-
-		prepared, reason, err := sth.toolkit.Connector.DeployContractPrepare(ctx, &txReq.ContractDeployPrepareRequest)
-		if err != nil {
-			mtxs[i] = nil
-			submissionRejected[i] = ffcapi.MapSubmissionRejected(reason)
-			errs[i] = err
-			continue
-		}
-
-		mtx := sth.createManagedTxObject(txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
-		validTxs = append(validTxs, mtx)
-		validIndices = append(validIndices, i)
-	}
-
-	// Batch insert all valid transactions in a single DB transaction
-	if len(validTxs) > 0 {
-		persistErrs := sth.toolkit.TXPersistence.InsertTransactionsWithNextNonce(ctx, validTxs, func(ctx context.Context, signer string) (uint64, error) {
-			nextNonceRes, _, err := sth.toolkit.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
-				Signer: signer,
-			})
-			if err != nil {
-				return 0, err
-			}
-			return nextNonceRes.Nonce.Uint64(), nil
-		})
-
-		// Map persistence errors back to the original request indices
-		for j, idx := range validIndices {
-			if persistErrs[j] != nil {
-				// Persistence failed for this transaction
-				mtxs[idx] = nil
-				submissionRejected[idx] = false
-				errs[idx] = persistErrs[j]
-			} else {
-				// Success - assign result back
-				mtxs[idx] = validTxs[j]
-				submissionRejected[idx] = false
-				errs[idx] = nil
-			}
-		}
-	}
-
-	return mtxs, submissionRejected, errs
-}
-
 func (sth *simpleTransactionHandler) HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error) {
 	res := sth.policyEngineAPIRequest(ctx, &policyEngineAPIRequest{
 		requestType: ActionDelete,
@@ -471,6 +371,24 @@ func (sth *simpleTransactionHandler) HandleResumeTransaction(ctx context.Context
 	return res.tx, res.err
 }
 
+// createManagedTxObject creates a ManagedTX object without persisting it.
+// This is used for batch operations where transactions are inserted together.
+func (sth *simpleTransactionHandler) createManagedTxObject(txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) *apitypes.ManagedTX {
+	if gas != nil {
+		txHeaders.Gas = gas
+	}
+	now := fftypes.Now()
+	return &apitypes.ManagedTX{
+		ID:                 txID, // on input the request ID must be the namespaced operation ID
+		Created:            now,
+		Updated:            now,
+		TransactionHeaders: *txHeaders,
+		TransactionData:    transactionData,
+		Status:             apitypes.TxStatusPending,
+		PolicyInfo:         fftypes.JSONAnyPtr(`{}`),
+	}
+}
+
 func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) (*apitypes.ManagedTX, error) {
 
 	if gas != nil {
@@ -491,12 +409,15 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 	// Note: We must ensure persistence happens this within the nonce lock, to ensure that the nonce sequence and the
 	//       global transaction sequence line up.
 	err := sth.toolkit.TXPersistence.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) {
+		log.L(ctx).Tracef("Getting next nonce for signer %s", signer)
 		nextNonceRes, _, err := sth.toolkit.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
 			Signer: signer,
 		})
 		if err != nil {
+			log.L(ctx).Errorf("Getting next nonce for signer %s failed: %+v", signer, err)
 			return 0, err
 		}
+		log.L(ctx).Tracef("Getting next nonce for signer %s succeeded: %s, converting to uint: %d", signer, nextNonceRes.Nonce.String(), nextNonceRes.Nonce.Uint64())
 		return nextNonceRes.Nonce.Uint64(), nil
 	})
 	if err == nil {
