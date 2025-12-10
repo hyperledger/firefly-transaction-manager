@@ -841,7 +841,14 @@ func TestSendTXPersistFail(t *testing.T) {
 	err = json.Unmarshal([]byte(sampleSendTX), &txReq)
 	assert.NoError(t, err)
 
-	_, err = sth.createManagedTx(sth.ctx, "id1", &txReq.TransactionHeaders, fftypes.NewFFBigInt(12345), "0x123456")
+	_, err = sth.createManagedTx(sth.ctx, &apitypes.ManagedTX{
+		ID: "id12345",
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+			Gas:  fftypes.NewFFBigInt(12345),
+		},
+		TransactionData: "0x123456",
+	})
 	assert.Regexp(t, "pop", err)
 
 }
@@ -877,7 +884,14 @@ func TestSendGetNextNonceFail(t *testing.T) {
 	err = json.Unmarshal([]byte(sampleSendTX), &txReq)
 	assert.NoError(t, err)
 
-	_, err = sth.createManagedTx(sth.ctx, "id1", &txReq.TransactionHeaders, fftypes.NewFFBigInt(12345), "0x123456")
+	_, err = sth.createManagedTx(sth.ctx, &apitypes.ManagedTX{
+		ID: "id12345",
+		TransactionHeaders: ffcapi.TransactionHeaders{
+			From: "0x6b7cfa4cf9709d3b3f5f7c22de123d2e16aee712",
+			Gas:  fftypes.NewFFBigInt(12345),
+		},
+		TransactionData: "0x123456",
+	})
 	assert.Regexp(t, "pop", err)
 
 }

@@ -301,40 +301,26 @@ func (sth *simpleTransactionHandler) prepareContractDeployment(ctx context.Conte
 }
 
 func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
-	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
-	if err != nil {
-		return nil, false, err
+	// Prepare the transaction
+	preparedMtx, rejected, err := sth.prepareTransaction(ctx, txReq)
+	if err != nil || rejected {
+		return nil, rejected, err
 	}
 
-	// Prepare the transaction, which will mean we have a transaction that should be submittable.
-	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
-	// anything to the blockchain itself.
-	prepared, reason, err := sth.toolkit.Connector.TransactionPrepare(ctx, &ffcapi.TransactionPrepareRequest{
-		TransactionInput: txReq.TransactionInput,
-	})
-	if err != nil {
-		return nil, ffcapi.MapSubmissionRejected(reason), err
-	}
-
-	mtx, err = sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	// Persist the single transaction
+	mtx, err = sth.createManagedTx(ctx, preparedMtx)
 	return mtx, false, err
 }
 
 func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
-	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
-	if err != nil {
-		return nil, false, err
+	// Prepare the contract deployment
+	preparedMtx, rejected, err := sth.prepareContractDeployment(ctx, txReq)
+	if err != nil || rejected {
+		return nil, rejected, err
 	}
 
-	// Prepare the transaction, which will mean we have a transaction that should be submittable.
-	// If we fail at this stage, we don't need to write any state as we are sure we haven't submitted
-	// anything to the blockchain itself.
-	prepared, reason, err := sth.toolkit.Connector.DeployContractPrepare(ctx, &txReq.ContractDeployPrepareRequest)
-	if err != nil {
-		return nil, ffcapi.MapSubmissionRejected(reason), err
-	}
-
-	mtx, err = sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	// Persist the single transaction
+	mtx, err = sth.createManagedTx(ctx, preparedMtx)
 	return mtx, false, err
 }
 
@@ -389,22 +375,7 @@ func (sth *simpleTransactionHandler) createManagedTxObject(txID string, txHeader
 	}
 }
 
-func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) (*apitypes.ManagedTX, error) {
-
-	if gas != nil {
-		txHeaders.Gas = gas
-	}
-	now := fftypes.Now()
-	mtx := &apitypes.ManagedTX{
-		ID:                 txID, // on input the request ID must be the namespaced operation ID
-		Created:            now,
-		Updated:            now,
-		TransactionHeaders: *txHeaders,
-		TransactionData:    transactionData,
-		Status:             apitypes.TxStatusPending,
-		PolicyInfo:         fftypes.JSONAnyPtr(`{}`),
-	}
-
+func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, mtx *apitypes.ManagedTX) (*apitypes.ManagedTX, error) {
 	// Sequencing ID will be added as part of persistence logic - so we have a deterministic order of transactions
 	// Note: We must ensure persistence happens this within the nonce lock, to ensure that the nonce sequence and the
 	//       global transaction sequence line up.
@@ -421,7 +392,7 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 		return nextNonceRes.Nonce.Uint64(), nil
 	})
 	if err == nil {
-		err = sth.toolkit.TXHistory.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil, fftypes.Now())
+		err = sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil, fftypes.Now())
 	}
 	if err != nil {
 		return nil, err
