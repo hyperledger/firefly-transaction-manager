@@ -45,6 +45,7 @@ type TransactionPersistence interface {
 	GetTransactionByNonce(ctx context.Context, signer string, nonce *fftypes.FFBigInt) (*apitypes.ManagedTX, error)
 	InsertTransactionPreAssignedNonce(ctx context.Context, tx *apitypes.ManagedTX) error
 	InsertTransactionWithNextNonce(ctx context.Context, tx *apitypes.ManagedTX, lookupNextNonce NextNonceCallback) error
+	InsertTransactionsWithNextNonce(ctx context.Context, txs []*apitypes.ManagedTX, lookupNextNonce NextNonceCallback) []error
 	UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error
 	DeleteTransaction(ctx context.Context, txID string) error
 
@@ -163,8 +164,12 @@ type TransactionHandler interface {
 	// Instructional events:
 	// HandleNewTransaction - handles event of adding new transactions onto blockchain
 	HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error)
+	// HandleNewTransactions - handles batch of new transactions onto blockchain
+	HandleNewTransactions(ctx context.Context, txReqs []*apitypes.TransactionRequest) (mtxs []*apitypes.ManagedTX, submissionRejected []bool, errs []error)
 	// HandleNewContractDeployment - handles event of adding new smart contract deployment onto blockchain
 	HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error)
+	// HandleNewContractDeployments - handles batch of new contract deployments onto blockchain
+	HandleNewContractDeployments(ctx context.Context, txReqs []*apitypes.ContractDeployRequest) (mtxs []*apitypes.ManagedTX, submissionRejected []bool, errs []error)
 	// HandleCancelTransaction - handles event of cancelling a managed transaction
 	HandleCancelTransaction(ctx context.Context, txID string) (mtx *apitypes.ManagedTX, err error)
 	// HandleSuspendTransaction - handles event of suspending a managed transaction

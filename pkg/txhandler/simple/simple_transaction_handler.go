@@ -246,9 +246,14 @@ func (sth *simpleTransactionHandler) requestIDPreCheck(ctx context.Context, reqH
 	return txID, nil
 }
 
-func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
+// prepareTransaction prepares a transaction request by validating and preparing transaction data.
+// It returns a prepared ManagedTX object that is ready for persistence, along with rejection status and error.
+// This function does not persist the transaction - that should be done via createManagedTx.
+func (sth *simpleTransactionHandler) prepareTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (*apitypes.ManagedTX, bool, error) {
+	log.L(ctx).Tracef("prepareTransaction preparing request: %+v", txReq)
 	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
 	if err != nil {
+		log.L(ctx).Errorf("prepareTransaction invalid tx ID for transaction request: %+v", txReq)
 		return nil, false, err
 	}
 
@@ -259,16 +264,24 @@ func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, t
 		TransactionInput: txReq.TransactionInput,
 	})
 	if err != nil {
+		log.L(ctx).Errorf("prepareTransaction transaction prepare failed: %+v", err)
 		return nil, ffcapi.MapSubmissionRejected(reason), err
 	}
+	log.L(ctx).Debugf("prepareTransaction prepared transaction with ID %s", txID)
 
-	mtx, err = sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
-	return mtx, false, err
+	// Create the ManagedTX object without persisting it yet
+	mtx := sth.createManagedTxObject(txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	return mtx, false, nil
 }
 
-func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
+// prepareContractDeployment prepares a contract deployment request by validating and preparing deployment data.
+// It returns a prepared ManagedTX object that is ready for persistence, along with rejection status and error.
+// This function does not persist the transaction - that should be done via createManagedTx.
+func (sth *simpleTransactionHandler) prepareContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (*apitypes.ManagedTX, bool, error) {
+	log.L(ctx).Tracef("prepareContractDeployment preparing request: %+v", txReq)
 	txID, err := sth.requestIDPreCheck(ctx, &txReq.Headers)
 	if err != nil {
+		log.L(ctx).Errorf("prepareContractDeployment invalid tx ID for contract deployment request: %+v", txReq)
 		return nil, false, err
 	}
 
@@ -277,10 +290,37 @@ func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Con
 	// anything to the blockchain itself.
 	prepared, reason, err := sth.toolkit.Connector.DeployContractPrepare(ctx, &txReq.ContractDeployPrepareRequest)
 	if err != nil {
+		log.L(ctx).Errorf("prepareContractDeployment deploy contract prepare failed: %+v", err)
 		return nil, ffcapi.MapSubmissionRejected(reason), err
 	}
+	log.L(ctx).Debugf("prepareContractDeployment prepared contract deployment with ID %s", txID)
 
-	mtx, err = sth.createManagedTx(ctx, txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	// Create the ManagedTX object without persisting it yet
+	mtx := sth.createManagedTxObject(txID, &txReq.TransactionHeaders, prepared.Gas, prepared.TransactionData)
+	return mtx, false, nil
+}
+
+func (sth *simpleTransactionHandler) HandleNewTransaction(ctx context.Context, txReq *apitypes.TransactionRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
+	// Prepare the transaction
+	preparedMtx, rejected, err := sth.prepareTransaction(ctx, txReq)
+	if err != nil || rejected {
+		return nil, rejected, err
+	}
+
+	// Persist the single transaction
+	mtx, err = sth.createManagedTx(ctx, preparedMtx)
+	return mtx, false, err
+}
+
+func (sth *simpleTransactionHandler) HandleNewContractDeployment(ctx context.Context, txReq *apitypes.ContractDeployRequest) (mtx *apitypes.ManagedTX, submissionRejected bool, err error) {
+	// Prepare the contract deployment
+	preparedMtx, rejected, err := sth.prepareContractDeployment(ctx, txReq)
+	if err != nil || rejected {
+		return nil, rejected, err
+	}
+
+	// Persist the single transaction
+	mtx, err = sth.createManagedTx(ctx, preparedMtx)
 	return mtx, false, err
 }
 
@@ -317,13 +357,14 @@ func (sth *simpleTransactionHandler) HandleResumeTransaction(ctx context.Context
 	return res.tx, res.err
 }
 
-func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) (*apitypes.ManagedTX, error) {
-
+// createManagedTxObject creates a ManagedTX object without persisting it.
+// This is used for batch operations where transactions are inserted together.
+func (sth *simpleTransactionHandler) createManagedTxObject(txID string, txHeaders *ffcapi.TransactionHeaders, gas *fftypes.FFBigInt, transactionData string) *apitypes.ManagedTX {
 	if gas != nil {
 		txHeaders.Gas = gas
 	}
 	now := fftypes.Now()
-	mtx := &apitypes.ManagedTX{
+	return &apitypes.ManagedTX{
 		ID:                 txID, // on input the request ID must be the namespaced operation ID
 		Created:            now,
 		Updated:            now,
@@ -332,21 +373,26 @@ func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, txID s
 		Status:             apitypes.TxStatusPending,
 		PolicyInfo:         fftypes.JSONAnyPtr(`{}`),
 	}
+}
 
+func (sth *simpleTransactionHandler) createManagedTx(ctx context.Context, mtx *apitypes.ManagedTX) (*apitypes.ManagedTX, error) {
 	// Sequencing ID will be added as part of persistence logic - so we have a deterministic order of transactions
 	// Note: We must ensure persistence happens this within the nonce lock, to ensure that the nonce sequence and the
 	//       global transaction sequence line up.
 	err := sth.toolkit.TXPersistence.InsertTransactionWithNextNonce(ctx, mtx, func(ctx context.Context, signer string) (uint64, error) {
+		log.L(ctx).Tracef("Getting next nonce for signer %s", signer)
 		nextNonceRes, _, err := sth.toolkit.Connector.NextNonceForSigner(ctx, &ffcapi.NextNonceForSignerRequest{
 			Signer: signer,
 		})
 		if err != nil {
+			log.L(ctx).Errorf("Getting next nonce for signer %s failed: %+v", signer, err)
 			return 0, err
 		}
+		log.L(ctx).Tracef("Getting next nonce for signer %s succeeded: %s, converting to uint: %d", signer, nextNonceRes.Nonce.String(), nextNonceRes.Nonce.Uint64())
 		return nextNonceRes.Nonce.Uint64(), nil
 	})
 	if err == nil {
-		err = sth.toolkit.TXHistory.AddSubStatusAction(ctx, txID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil, fftypes.Now())
+		err = sth.toolkit.TXHistory.AddSubStatusAction(ctx, mtx.ID, apitypes.TxSubStatusReceived, apitypes.TxActionAssignNonce, fftypes.JSONAnyPtr(`{"nonce":"`+mtx.Nonce.String()+`"}`), nil, fftypes.Now())
 	}
 	if err != nil {
 		return nil, err

@@ -46,6 +46,7 @@ func (m *manager) routes() []*ffapi.Route {
 		postEventStreamListeners(m),
 		postEventStreamResume(m),
 		postEventStreamSuspend(m),
+		postBatch(m),
 		postRootCommand(m),
 		postSubscriptionReset(m),
 		postSubscriptions(m),
