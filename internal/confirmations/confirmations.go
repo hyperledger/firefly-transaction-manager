@@ -490,7 +490,7 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 	}
 
 	// Clear the notifications slice
-	return []*Notification{}, nil
+	return notifications[:0], nil
 }
 
 func (bcm *blockConfirmationManager) dispatchReceipt(pending *pendingItem, receipt *ffcapi.TransactionReceiptResponse, blocks *blockState) {
