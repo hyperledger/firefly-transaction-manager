@@ -423,12 +423,13 @@ func (bcm *blockConfirmationManager) confirmationsListener() {
 
 		// Process any new notifications - we do this at the end, so it can benefit
 		// from knowing the latest highestBlockSeen
-		if err := bcm.processNotifications(notifications, blocks); err != nil {
-			log.L(bcm.ctx).Errorf("Failed processing notifications: %s", err)
+		// This returns the notifications that were not processed successfully so we store them
+		var err error
+		notifications, err = bcm.processNotifications(notifications, blocks)
+		if err != nil {
+			log.L(bcm.ctx).Errorf("Confirmation listener processed %d block hashes and failed processing notifications: %d/%d due to error %s, trigger type: %s", blockHashCount, len(notifications), notificationCount, err, triggerType)
 			continue
 		}
-		// Clear the notifications array now we've processed them (we keep the slice memory)
-		notifications = notifications[:0]
 		scheduleAllTxReceipts := !receivedFirstBlock && blockHashCount > 0
 		// Mark receipts stale after duration
 		bcm.scheduleReceiptChecks(scheduleAllTxReceipts)
@@ -455,16 +456,19 @@ func (bcm *blockConfirmationManager) scheduleReceiptChecks(receivedBlocksFirstTi
 	}
 }
 
-func (bcm *blockConfirmationManager) processNotifications(notifications []*Notification, blocks *blockState) error {
-
-	for _, n := range notifications {
+// Returns the notifications that were not processed successfully so that the calling function can remove them
+func (bcm *blockConfirmationManager) processNotifications(notifications []*Notification, blocks *blockState) ([]*Notification, error) {
+	for i, n := range notifications {
 		startTime := time.Now()
 		switch n.NotificationType {
 		case NewEventLog:
 			newItem := n.eventPendingItem()
 			bcm.addOrReplaceItem(newItem)
 			if err := bcm.walkChainForItem(newItem, blocks); err != nil {
-				return err
+				// If we error, we should return the remaining notifications to be processed later
+				// so that the calling function can remove the ones that were processed successfully
+				// This still guarantees ordering of the notifications that were processed successfully
+				return notifications[i:], err
 			}
 		case NewTransaction:
 			newItem := n.transactionPendingItem()
@@ -485,7 +489,8 @@ func (bcm *blockConfirmationManager) processNotifications(notifications []*Notif
 		bcm.metricsEmitter.RecordNotificationProcessMetrics(bcm.ctx, string(n.NotificationType), time.Since(startTime).Seconds())
 	}
 
-	return nil
+	// Clear the notifications slice
+	return notifications[:0], nil
 }
 
 func (bcm *blockConfirmationManager) dispatchReceipt(pending *pendingItem, receipt *ffcapi.TransactionReceiptResponse, blocks *blockState) {
