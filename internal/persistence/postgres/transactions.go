@@ -23,7 +23,9 @@ import (
 	"github.com/hyperledger/firefly-common/pkg/dbsql"
 	"github.com/hyperledger/firefly-common/pkg/ffapi"
 	"github.com/hyperledger/firefly-common/pkg/fftypes"
+	"github.com/hyperledger/firefly-common/pkg/i18n"
 	"github.com/hyperledger/firefly-transaction-manager/internal/persistence"
+	"github.com/hyperledger/firefly-transaction-manager/internal/tmmsgs"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/apitypes"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/ffcapi"
 	"github.com/hyperledger/firefly-transaction-manager/pkg/txhandler"
@@ -244,6 +246,46 @@ func (p *sqlPersistence) InsertTransactionWithNextNonce(ctx context.Context, tx 
 	op.nextNonceCB = nextNonceCB
 	p.writer.queue(ctx, op)
 	return op.flush(ctx) // wait for completion
+}
+
+func (p *sqlPersistence) InsertTransactionsWithNextNonce(ctx context.Context, txs []*apitypes.ManagedTX, nextNonceCB txhandler.NextNonceCallback) []error {
+	if len(txs) == 0 {
+		return nil
+	}
+	errs := make([]error, len(txs))
+
+	// Create operations for all transactions, marking invalid ones immediately
+	ops := make([]*transactionOperation, len(txs))
+	for i, tx := range txs {
+		if tx.From == "" {
+			errs[i] = i18n.NewError(ctx, tmmsgs.MsgTransactionOpInvalid)
+			ops[i] = nil // Mark as invalid
+			continue
+		}
+		op := newTransactionOperation(tx.ID)
+		op.txInsert = tx
+		op.nextNonceCB = nextNonceCB
+		ops[i] = op
+	}
+
+	// Queue all valid operations - they will be processed in batches by the writer
+	// Note: Transactions with different signers will go to different workers,
+	// so they won't be in the same DB transaction. However, transactions with
+	// the same signer will be batched together efficiently.
+	for _, op := range ops {
+		if op != nil {
+			p.writer.queue(ctx, op)
+		}
+	}
+
+	// Wait for all valid operations to complete and collect individual errors
+	for i, op := range ops {
+		if op != nil {
+			errs[i] = op.flush(ctx) // Wait for completion, capture individual errors
+		}
+		// Invalid operations already have their errors set above
+	}
+	return errs
 }
 
 func (p *sqlPersistence) UpdateTransaction(ctx context.Context, txID string, updates *apitypes.TXUpdates) error {

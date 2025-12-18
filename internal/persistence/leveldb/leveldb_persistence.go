@@ -356,9 +356,9 @@ func (p *leveldbPersistence) cleanupOrphanedTXIdxKeys(ctx context.Context, orpha
 	}
 }
 
-func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collectionPrefix, collectionEnd, afterStr string, limit int, dir txhandler.SortDirection) ([]*apitypes.ManagedTX, error) {
-
-	p.txMux.RLock()
+// listTransactionsByIndexLocked performs the actual list operation without acquiring locks.
+// The caller must already hold a lock (read lock is sufficient)
+func (p *leveldbPersistence) listTransactionsByIndexLocked(ctx context.Context, collectionPrefix, collectionEnd, afterStr string, limit int, dir txhandler.SortDirection) ([]*apitypes.ManagedTX, [][]byte, error) {
 	transactions := make([]*apitypes.ManagedTX, 0)
 	orphanedIdxKeys, err := p.listJSON(ctx, collectionPrefix, collectionEnd, afterStr, limit, dir,
 		func() interface{} { var v *apitypes.ManagedTX; return &v },
@@ -369,6 +369,16 @@ func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collec
 		},
 		p.indexLookupCallback,
 	)
+	if err != nil {
+		return nil, nil, err
+	}
+	return transactions, orphanedIdxKeys, nil
+}
+
+func (p *leveldbPersistence) listTransactionsByIndex(ctx context.Context, collectionPrefix, collectionEnd, afterStr string, limit int, dir txhandler.SortDirection) ([]*apitypes.ManagedTX, error) {
+
+	p.txMux.RLock()
+	transactions, orphanedIdxKeys, err := p.listTransactionsByIndexLocked(ctx, collectionPrefix, collectionEnd, afterStr, limit, dir)
 	p.txMux.RUnlock()
 	if err != nil {
 		return nil, err
@@ -499,6 +509,63 @@ func (p *leveldbPersistence) InsertTransactionWithNextNonce(ctx context.Context,
 
 }
 
+// InsertTransactionsWithNextNonce inserts multiple transactions with their next nonce assigned.
+func (p *leveldbPersistence) InsertTransactionsWithNextNonce(ctx context.Context, txs []*apitypes.ManagedTX, nextNonceCB txhandler.NextNonceCallback) []error {
+	if len(txs) == 0 {
+		return nil
+	}
+	errs := make([]error, len(txs))
+
+	// for leveldb, we process transactions sequentially but group by signer
+	// to optimize nonce assignment. All writes happen within the same lock.
+	p.txMux.Lock()
+	defer p.txMux.Unlock()
+
+	// group by signer for efficient nonce assignment, tracking indices
+	type txWithIndex struct {
+		tx    *apitypes.ManagedTX
+		index int
+	}
+	txsBySigner := make(map[string][]txWithIndex)
+	for i, tx := range txs {
+		if tx.From == "" {
+			errs[i] = i18n.NewError(ctx, tmmsgs.MsgTransactionOpInvalid)
+			continue
+		}
+		txsBySigner[tx.From] = append(txsBySigner[tx.From], txWithIndex{tx: tx, index: i})
+	}
+
+	// assign nonces and write all transactions, tracking errors per transaction
+	for signer, signerTxs := range txsBySigner {
+		for _, txWithIdx := range signerTxs {
+			// use assignAndLockNonceLocked since we already hold the write lock
+			lockedNonce, err := p.assignAndLockNonceLocked(ctx, txWithIdx.tx.ID, signer, nextNonceCB)
+			if err != nil {
+				errs[txWithIdx.index] = err
+				continue
+			}
+
+			//nolint:gosec // Safe conversion as nonce is always positive
+			txWithIdx.tx.Nonce = fftypes.NewFFBigInt(int64(lockedNonce.nonce))
+
+			// use writeTransactionLocked since we already hold the write lock
+			if err = p.writeTransactionLocked(ctx, &apitypes.TXWithStatus{
+				ManagedTX: txWithIdx.tx,
+			}, true); err != nil {
+				lockedNonce.complete(ctx)
+				errs[txWithIdx.index] = err
+				continue
+			}
+
+			lockedNonce.spent = true
+			lockedNonce.complete(ctx)
+			errs[txWithIdx.index] = nil
+		}
+	}
+
+	return errs
+}
+
 func (p *leveldbPersistence) InsertTransactionPreAssignedNonce(ctx context.Context, tx *apitypes.ManagedTX) (err error) {
 	return p.writeTransaction(ctx, &apitypes.TXWithStatus{
 		ManagedTX: tx,
@@ -591,14 +658,9 @@ func (p *leveldbPersistence) UpdateTransaction(ctx context.Context, txID string,
 	return p.writeTransaction(ctx, tx, false)
 }
 
-func (p *leveldbPersistence) writeTransaction(ctx context.Context, tx *apitypes.TXWithStatus, newTx bool) (err error) {
-	// We take a write-lock here, because we are writing multiple values (the indexes), and anybody
-	// attempting to read the critical nonce allocation index must know the difference between a partial write
-	// (we crashed before we completed all the writes) and an incomplete write that's in process.
-	// The reading code detects partial writes and cleans them up if it finds them.
-	p.txMux.Lock()
-	defer p.txMux.Unlock()
-
+// writeTransactionLocked performs the actual write operation without acquiring locks.
+// The caller must already hold the write lock
+func (p *leveldbPersistence) writeTransactionLocked(ctx context.Context, tx *apitypes.TXWithStatus, newTx bool) (err error) {
 	// We don't double store these values.
 	// Would be great to reconcile out this historical oddity, once the only place it's available is on the
 	// API, and FireFly core and any other consumers of the API have had time to update to use the base fields
@@ -650,6 +712,13 @@ func (p *leveldbPersistence) writeTransaction(ctx context.Context, tx *apitypes.
 		err = p.writeJSON(ctx, idKey, tx)
 	}
 	return err
+}
+
+func (p *leveldbPersistence) writeTransaction(ctx context.Context, tx *apitypes.TXWithStatus, newTx bool) (err error) {
+	p.txMux.Lock()
+	defer p.txMux.Unlock()
+
+	return p.writeTransactionLocked(ctx, tx, newTx)
 }
 
 func (p *leveldbPersistence) DeleteTransaction(ctx context.Context, txID string) error {

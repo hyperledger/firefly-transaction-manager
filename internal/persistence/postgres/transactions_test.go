@@ -562,3 +562,169 @@ func TestGetTransactionByIDTXFail(t *testing.T) {
 
 	assert.NoError(t, mdb.ExpectationsWereMet())
 }
+
+func TestInsertTransactionsWithNextNoncePSQL(t *testing.T) {
+	logrus.SetLevel(logrus.TraceLevel)
+
+	ctx, p, _, done := initTestPSQL(t, func(dbconf config.Section) {
+		dbconf.Set(ConfigTXWriterCount, 1)            // send them all to one worker
+		dbconf.Set(ConfigTXWriterBatchTimeout, "10s") // ensure it triggers with the whole thing
+		dbconf.Set(ConfigTXWriterBatchSize, 10)       // large enough to batch all
+	})
+	defer done()
+
+	// test a batch using the same signing address
+	nonce := uint64(1000)
+	nextNonceCB := func(ctx context.Context, signer string) (uint64, error) {
+		nonce++
+		return nonce, nil
+	}
+
+	txs := make([]*apitypes.ManagedTX, 5)
+	for i := 0; i < 5; i++ {
+		txs[i] = &apitypes.ManagedTX{
+			ID:     fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+			Status: apitypes.TxStatusPending,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From: "signer_0",
+			},
+			TransactionData: fmt.Sprintf("0x%04d", i),
+		}
+	}
+
+	errs := p.InsertTransactionsWithNextNonce(ctx, txs, nextNonceCB)
+	assert.Len(t, errs, 5)
+	for i, err := range errs {
+		assert.NoError(t, err, "Transaction %d should succeed", i)
+		assert.NotEmpty(t, txs[i].SequenceID, "Transaction %d should have sequence ID", i)
+		assert.NotNil(t, txs[i].Nonce, "Transaction %d should have nonce", i)
+		// Verify nonces are sequential
+		if i > 0 {
+			assert.Equal(t, txs[i-1].Nonce.Int64()+1, txs[i].Nonce.Int64(), "Nonces should be sequential")
+		}
+	}
+
+	for i, tx := range txs {
+		retrieved, err := p.GetTransactionByID(ctx, tx.ID)
+		assert.NoError(t, err)
+		assert.NotNil(t, retrieved, "Transaction %d should be retrievable", i)
+		assert.Equal(t, tx.ID, retrieved.ID)
+		assert.Equal(t, tx.Nonce, retrieved.Nonce)
+	}
+}
+
+func TestInsertTransactionsWithNextNonceMixedSignersPSQL(t *testing.T) {
+	logrus.SetLevel(logrus.TraceLevel)
+
+	ctx, p, _, done := initTestPSQL(t)
+	defer done()
+
+	// test a batch using different signing addresses
+	nonce1 := uint64(2000)
+	nonce2 := uint64(3000)
+	nextNonceCB := func(ctx context.Context, signer string) (uint64, error) {
+		if signer == "signer_1" {
+			nonce1++
+			return nonce1, nil
+		}
+		nonce2++
+		return nonce2, nil
+	}
+
+	txs := []*apitypes.ManagedTX{
+		{
+			ID:     fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+			Status: apitypes.TxStatusPending,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From: "signer_1",
+			},
+		},
+		{
+			ID:     fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+			Status: apitypes.TxStatusPending,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From: "signer_2",
+			},
+		},
+		{
+			ID:     fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+			Status: apitypes.TxStatusPending,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From: "signer_1",
+			},
+		},
+	}
+
+	errs := p.InsertTransactionsWithNextNonce(ctx, txs, nextNonceCB)
+	assert.Len(t, errs, 3)
+	for i, err := range errs {
+		assert.NoError(t, err, "Transaction %d should succeed", i)
+		assert.NotEmpty(t, txs[i].SequenceID, "Transaction %d should have sequence ID", i)
+	}
+}
+
+func TestInsertTransactionsWithNextNonceInvalidPSQL(t *testing.T) {
+	logrus.SetLevel(logrus.TraceLevel)
+
+	ctx, p, _, done := initTestPSQL(t)
+	defer done()
+
+	// test a batch with an invalid transaction (missing From)
+	nextNonceCB := func(ctx context.Context, signer string) (uint64, error) {
+		return 1000, nil
+	}
+
+	txs := []*apitypes.ManagedTX{
+		{
+			ID:     fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+			Status: apitypes.TxStatusPending,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From: "signer_0",
+			},
+		},
+		{
+			ID:     fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+			Status: apitypes.TxStatusPending,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From: "", // Invalid - missing From
+			},
+		},
+		{
+			ID:     fmt.Sprintf("ns1:%s", fftypes.NewUUID()),
+			Status: apitypes.TxStatusPending,
+			TransactionHeaders: ffcapi.TransactionHeaders{
+				From: "signer_0",
+			},
+		},
+	}
+
+	errs := p.InsertTransactionsWithNextNonce(ctx, txs, nextNonceCB)
+	assert.Len(t, errs, 3)
+	assert.NoError(t, errs[0], "First transaction should succeed")
+	assert.Error(t, errs[1], "Second transaction should fail (invalid)")
+	assert.NoError(t, errs[2], "Third transaction should succeed")
+
+	// verify valid transactions were persisted
+	retrieved1, err := p.GetTransactionByID(ctx, txs[0].ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, retrieved1)
+
+	retrieved3, err := p.GetTransactionByID(ctx, txs[2].ID)
+	assert.NoError(t, err)
+	assert.NotNil(t, retrieved3)
+}
+
+func TestInsertTransactionsWithNextNonceEmptyPSQL(t *testing.T) {
+	logrus.SetLevel(logrus.TraceLevel)
+
+	ctx, p, _, done := initTestPSQL(t)
+	defer done()
+
+	nextNonceCB := func(ctx context.Context, signer string) (uint64, error) {
+		return 1000, nil
+	}
+
+	// test an empty batch
+	errs := p.InsertTransactionsWithNextNonce(ctx, []*apitypes.ManagedTX{}, nextNonceCB)
+	assert.Nil(t, errs)
+}
