@@ -2035,3 +2035,82 @@ func TestBlockConfirmationManagerLightModeChecksReceiptOnNextBlockNotStaleTimeou
 
 	bcm.Stop()
 }
+
+// TestBlockConfirmationManagerHeadBlockNumberDispatchesInBlockOrder is a regression test for
+// out-of-order (and consequently missing, once the downstream checkpoint moves past them) event
+// delivery in light mode with a non-zero confirmation count: when a single head block update
+// pushes many pending events over the confirmation threshold at once,
+// checkAndDispatchConfirmationsUsingBlockHeight must dispatch them in ascending block order - same
+// as processBlock already does for full chain tracking mode - not in bcm.pending map iteration
+// order (which Go randomizes).
+func TestBlockConfirmationManagerHeadBlockNumberDispatchesInBlockOrder(t *testing.T) {
+	bcm, mca := newTestBlockConfirmationManagerHeadBlockNumber()
+
+	const numEvents = 15
+	confirmedOrder := make(chan uint64, numEvents)
+
+	bcm.Start()
+	ch := bcm.GetReceiveChannel()
+
+	for i := 0; i < numEvents; i++ {
+		blockNumber := uint64(1000 + i)
+		txHash := fmt.Sprintf("0x%064x", blockNumber)
+		blockHash := fmt.Sprintf("0x%064x", blockNumber+0xff00)
+
+		mca.On("TransactionReceipt", mock.Anything, mock.MatchedBy(func(r *ffcapi.TransactionReceiptRequest) bool {
+			return r.TransactionHash == txHash
+		})).Return(&ffcapi.TransactionReceiptResponse{
+			TransactionReceiptResponseBase: ffcapi.TransactionReceiptResponseBase{
+				//nolint:gosec
+				BlockNumber: fftypes.NewFFBigInt(int64(blockNumber)),
+				BlockHash:   blockHash,
+			},
+		}, ffcapi.ErrorReason(""), nil).Maybe()
+
+		bn := blockNumber
+		assert.NoError(t, bcm.Notify(&Notification{
+			NotificationType: NewEventLog,
+			Event: &EventInfo{
+				ID: &ffcapi.EventID{
+					ListenerID:      fftypes.NewUUID(),
+					TransactionHash: txHash,
+					BlockHash:       blockHash,
+					//nolint:gosec
+					BlockNumber: fftypes.FFuint64(blockNumber),
+				},
+				Confirmations: func(ctx context.Context, notification *apitypes.ConfirmationsNotification) {
+					if notification.Confirmed {
+						confirmedOrder <- bn
+					}
+				},
+			},
+		}))
+	}
+
+	// Wait for all the events to be registered as pending before the head block jumps, so they
+	// all cross the confirmation threshold together in the one call this test is exercising.
+	assert.Eventually(t, func() bool {
+		bcm.pendingMux.Lock()
+		defer bcm.pendingMux.Unlock()
+		return len(bcm.pending) == numEvents
+	}, time.Second, 5*time.Millisecond)
+
+	// Head block jumps well past every event's confirmation threshold (required=3) in one update.
+	ch <- &ffcapi.BlockHashEvent{HeadBlockNumber: 2000}
+
+	var order []uint64
+	for i := 0; i < numEvents; i++ {
+		select {
+		case bn := <-confirmedOrder:
+			order = append(order, bn)
+		case <-time.After(2 * time.Second):
+			t.Fatalf("timeout waiting for confirmation %d/%d", i+1, numEvents)
+		}
+	}
+
+	assert.True(t, sort.SliceIsSorted(order, func(i, j int) bool { return order[i] < order[j] }),
+		"confirmations dispatched out of block order: %v", order)
+
+	bcm.Stop()
+	mca.AssertExpectations(t)
+}

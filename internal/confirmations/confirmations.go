@@ -846,7 +846,7 @@ func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem, bloc
 	}
 
 	if bcm.chainTrackingMode == ffcapi.ChainTrackingModeLight {
-		return bcm.confirmationCheckUsingHeadBlockNumber(pending)
+		return bcm.dispatchConfirmationUsingHeadBlockNumber(pending)
 	}
 
 	pendingKey := pending.getKey()
@@ -895,21 +895,27 @@ func (bcm *blockConfirmationManager) walkChainForItem(pending *pendingItem, bloc
 
 func (bcm *blockConfirmationManager) checkAndDispatchConfirmationsUsingBlockHeight() {
 	bcm.pendingMux.Lock()
-	items := make([]*pendingItem, 0, len(bcm.pending))
+	items := make(pendingItems, 0, len(bcm.pending))
 	for _, p := range bcm.pending {
 		items = append(items, p)
 	}
 	headBlock := bcm.headBlockNumber
 	bcm.pendingMux.Unlock()
+	// bcm.pending is a map, so iterating it gives us no ordering guarantee. A single head block
+	// update can push many pending items over the confirmation threshold at once, so - as with
+	// processBlock's notifications in full chain tracking mode - we must sort by block order
+	// before dispatching, or events can be delivered out of order (and then dropped downstream
+	// as apparent re-detections once the checkpoint moves past them).
+	sort.Sort(items)
 	log.L(bcm.ctx).Debugf("Checking block height confirmations for %d pending items headBlock=%d", len(items), headBlock)
 	for _, p := range items {
-		if err := bcm.confirmationCheckUsingHeadBlockNumber(p); err != nil {
+		if err := bcm.dispatchConfirmationUsingHeadBlockNumber(p); err != nil {
 			log.L(bcm.ctx).Errorf("Block height confirmation refresh failed for %s: %s", p.getKey(), err)
 		}
 	}
 }
 
-func (bcm *blockConfirmationManager) confirmationCheckUsingHeadBlockNumber(pending *pendingItem) error {
+func (bcm *blockConfirmationManager) dispatchConfirmationUsingHeadBlockNumber(pending *pendingItem) error {
 	if pending.blockHash == "" {
 		// no receipt yet, so no confirmation check
 		return nil
